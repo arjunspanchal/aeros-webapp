@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { Card, Field, Toggle, PillBtn, Row, SectionHeader, inputCls } from "@/app/calculator/_components/ui";
-import { exportQuoteCSV, exportQuotePDF } from "@/app/calculator/_components/export";
+import { exportQuoteCSV, exportQuotePDF, exportAdminQuotePDF } from "@/app/calculator/_components/export";
 import {
   calculate, computeRateCurve, optimizationTips,
   JODHANI_RATES, OM_SHIVAAY_RATES, JODHANI_DISCOUNT, WET_STRENGTH_EXTRA,
@@ -590,7 +590,7 @@ export default function AdminCalculator() {
             </Card>
 
             <Card title="Export">
-              <div className="flex gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   onClick={() => exportQuoteCSV({
                     form: { ...form, brand: bagCodes.find((c) => c.id === form.selectedCodeId)?.brand || "" },
@@ -604,10 +604,23 @@ export default function AdminCalculator() {
                     currency: "INR",
                     unit,
                   })}
-                  className="flex-1 bg-white border border-gray-200 text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700">
+                  className="bg-white border border-gray-200 text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700">
                   Download Excel (.csv)
                 </button>
                 <button
+                  title="Internal review — full cost breakdown, mfg cost, margin, paper rate"
+                  onClick={() => exportAdminQuotePDF({
+                    form: { ...form, brand: bagCodes.find((c) => c.id === form.selectedCodeId)?.brand || "" },
+                    breakdown: result,
+                    curve,
+                    currency: "INR",
+                    unit,
+                  })}
+                  className="bg-white border border-gray-200 text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700">
+                  Admin PDF
+                </button>
+                <button
+                  title="Customer-facing — only the rate, specs, weight, box, and rate ladder. No internal margins or cost breakdown."
                   onClick={() => exportQuotePDF({
                     form: { ...form, brand: bagCodes.find((c) => c.id === form.selectedCodeId)?.brand || "" },
                     result: {
@@ -620,10 +633,13 @@ export default function AdminCalculator() {
                     currency: "INR",
                     unit,
                   })}
-                  className="flex-1 bg-white border border-gray-200 text-gray-700 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700">
-                  Download PDF
+                  className="bg-blue-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-700">
+                  Client PDF
                 </button>
               </div>
+              <p className="text-xs text-gray-400 mt-2 dark:text-gray-500">
+                Use <strong>Client PDF</strong> for what you send the customer; <strong>Admin PDF</strong> includes the full cost breakdown for internal review.
+              </p>
             </Card>
 
             <Card title="Save Quote">
