@@ -36,12 +36,19 @@ export async function POST(req) {
   }
 
   // Mint hub cookie (always).
+  // factoryosUserId + factoryosClientIds are added in PR 1.5a so the unified
+  // session can serve everything 8 factoryos API routes from PR 1.3b
+  // currently get from the per-module factoryos cookie. Empty/null on users
+  // with no factoryos entitlement — same as a no-data state on the legacy
+  // factoryos cookie. PR 1.5b retires the redundant cookies entirely.
   const jar = cookies();
   const hubToken = signHub({
     email: ents.email,
     name: ents.name,
     isAdmin: ents.isAdmin,
     modules: ents.modules,
+    factoryosUserId: ents.factoryosUserId ?? null,
+    factoryosClientIds: ents.factoryosClientIds ?? [],
   });
   jar.set(hubCookie(hubToken));
 
