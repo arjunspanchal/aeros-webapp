@@ -21,11 +21,17 @@ export async function POST(req) {
   const ents = adminEntitlements();
   const jar = cookies();
 
+  // Hub cookie carries factoryosUserId + factoryosClientIds so the unified
+  // session helpers can serve callers that today reach for the legacy
+  // factoryos cookie. Password admin has no users row → both stay
+  // null/[] (adminEntitlements() already returns those defaults).
   jar.set(hubCookie(signHub({
     email: ents.email,
     name: ents.name,
     isAdmin: true,
     modules: ents.modules,
+    factoryosUserId: ents.factoryosUserId ?? null,
+    factoryosClientIds: ents.factoryosClientIds ?? [],
   })));
   jar.set(calcCookie(signCalc({ role: "admin" })));
   jar.set(factoryosCookie(signFactoryos({ role: ROLES.ADMIN, name: "Admin" })));
