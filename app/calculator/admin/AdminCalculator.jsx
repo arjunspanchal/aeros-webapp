@@ -328,7 +328,7 @@ export default function AdminCalculator() {
               <select className={inputCls} value={form.paperType} onChange={(e) => setForm((f) => ({ ...f, paperType: e.target.value, millName: "" }))}>
                 <option value="">Select…</option>
                 <option value="Brown Kraft">Brown Kraft (MF)</option>
-                <option value="MG">MG</option>
+                <option value="MG">Brown Kraft (MG)</option>
                 <option value="Bleach Kraft White">Bleach Kraft White</option>
                 <option value="OGR">OGR</option>
               </select>
