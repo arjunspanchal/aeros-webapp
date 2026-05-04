@@ -262,7 +262,7 @@ export default function ClientCalculator() {
             <Field label="Type">
               <select className={inputCls} value={form.paperType} onChange={(e) => set("paperType", e.target.value)}>
                 <option value="Brown Kraft">Brown Kraft (MF)</option>
-                <option value="MG">MG</option>
+                <option value="MG">Brown Kraft (MG)</option>
                 <option value="Bleach Kraft White">Bleach Kraft White</option>
                 <option value="OGR">OGR</option>
               </select>
