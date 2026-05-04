@@ -16,7 +16,7 @@ const MILLS_BY_TYPE = {
   "OGR": ["JK", "BILT", "Pudumjee"],
 };
 
-const GSM_OPTIONS = [60, 70, 80, 90, 100, 110, 120, 130, 140];
+const GSM_OPTIONS = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140];
 const BF_OPTIONS = [16, 18, 20, 22, 24, 26, 28];
 const COLOUR_OPTIONS = [1, 2, 3, 4];
 const MM_PER_UNIT = { mm: 1, cm: 10, in: 25.4 };
