@@ -15,6 +15,7 @@
 // `signup.location`). The wire payload still sends `{ location: ... }`
 // to keep /api/auth/signup unchanged. User-facing label flips to "Country".
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Brand, Input, Button } from "@/app/components/ui";
 
@@ -69,7 +70,7 @@ const HEADLINE = {
 export default function LoginForm() {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get("next") || "/";
+  const next = search.get("next") || "/hub";
   // Modes: "client" (existing user OTP), "admin" (master password), "signup" (new client)
   const [mode, setMode] = useState("client");
   const [email, setEmail] = useState("");
