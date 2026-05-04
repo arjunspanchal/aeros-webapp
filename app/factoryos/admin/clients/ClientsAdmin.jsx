@@ -239,7 +239,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
 
       {/* Mobile: stacked cards so Edit/Delete are always visible.
           Desktop (sm+): traditional table with actions in the last column. */}
-      <div className="lg:col-span-3 bg-white border border-gray-200 rounded-xl dark:bg-gray-900 dark:border-gray-800 overflow-hidden">
+      <div className="lg:col-span-3 bg-white border border-gray-200 rounded-xl dark:bg-gray-900 dark:border-gray-800 overflow-x-auto">
         {/* --- Mobile cards --- */}
         <ul className="sm:hidden divide-y divide-gray-100 dark:divide-gray-800">
           {clients.map((c) => (
