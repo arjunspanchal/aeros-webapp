@@ -1,12 +1,18 @@
-import { requireInternal } from "@/lib/factoryos/session";
+import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession, requireInternal, requireAdminStrict, requireManager } from "@/lib/auth/session";
 import { listAttendance, upsertAttendance, getEmployee, computeOtHours, listEmployees } from "@/lib/factoryos/repo";
-import { ATTENDANCE_WEIGHT, SHIFT_END, ROLES } from "@/lib/factoryos/constants";
+import { ATTENDANCE_WEIGHT, SHIFT_END } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
 export async function GET(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
+  // Legacy factoryos session for s.userId — collapses in PR 1.5 when userId
+  // lands in the hub cookie.
+  const s = getFactoryosSession();
   try {
-    const s = requireInternal();
     const url = new URL(req.url);
     const employeeId = url.searchParams.get("employeeId") || undefined;
     const from = url.searchParams.get("from") || undefined;
@@ -15,7 +21,7 @@ export async function GET(req) {
     // Factory Manager is scoped to their own employees. If the caller asks
     // for a specific employeeId, verify ownership first; otherwise fall back
     // to the caller's employee set.
-    if (s.role !== ROLES.ADMIN) {
+    if (!requireAdminStrict(session)) {
       if (employeeId) {
         const emp = await getEmployee(employeeId);
         if (!emp || emp.managerId !== s.userId) {
@@ -41,8 +47,12 @@ export async function GET(req) {
 // Mark attendance. Managers can only mark for employees assigned to them.
 // Admin + Factory Manager can mark for anyone.
 export async function POST(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
+  // Legacy factoryos session for s.userId — collapses in PR 1.5.
+  const s = getFactoryosSession();
   try {
-    const s = requireInternal();
     const body = await req.json();
     if (!body.employeeId) return Response.json({ error: "Employee required" }, { status: 400 });
     if (!body.date) return Response.json({ error: "Date required" }, { status: 400 });
@@ -53,7 +63,7 @@ export async function POST(req) {
     const employee = await getEmployee(body.employeeId);
     if (!employee) return Response.json({ error: "Employee not found" }, { status: 404 });
 
-    const isPrivileged = s.role === ROLES.ADMIN || s.role === ROLES.FACTORY_MANAGER;
+    const isPrivileged = requireManager(session);
     if (!isPrivileged && employee.managerId !== s.userId) {
       return Response.json({ error: "Not your assigned employee" }, { status: 403 });
     }
@@ -73,8 +83,8 @@ export async function POST(req) {
       outTime: body.outTime || "",
       otHours,
       markedByUserId: s.userId,
-      markedByEmail: s.email,
-      markedByName: s.name || "",
+      markedByEmail: session.email,
+      markedByName: session.name || "",
       notes: body.notes || "",
     });
     return Response.json({ attendance: record });

@@ -1,11 +1,13 @@
-import { requireAdmin } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { getRun, updateRun, deleteRun, listConsumptionForRun } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 
 export async function GET(_req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const run = await getRun(params.id);
     if (!run) return Response.json({ error: "Run not found" }, { status: 404 });
     const consumption = await listConsumptionForRun(params.id);
@@ -18,8 +20,10 @@ export async function GET(_req, { params }) {
 }
 
 export async function PATCH(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const body = await req.json();
     const run = await updateRun(params.id, body);
     return Response.json({ run });
@@ -31,8 +35,10 @@ export async function PATCH(req, { params }) {
 }
 
 export async function DELETE(_req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const result = await deleteRun(params.id);
     return Response.json({ ok: true, ...result });
   } catch (e) {

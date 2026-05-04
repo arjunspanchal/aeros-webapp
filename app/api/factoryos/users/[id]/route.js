@@ -1,12 +1,14 @@
-import { requireAdmin } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { updateUser, getUser } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
 export async function PATCH(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const body = await req.json();
 
     // Validate role if being changed

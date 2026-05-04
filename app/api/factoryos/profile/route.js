@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/factoryos/session";
+import { getSession } from "@/lib/auth/session";
 import { findUserByEmail, updateUser, attachUserPhoto, getUser } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";

@@ -1,4 +1,5 @@
-import { requireSession } from "@/lib/factoryos/session";
+import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession, requireManager, requireRole, requireAdminStrict } from "@/lib/auth/session";
 import {
   getJob,
   updateJob,
@@ -19,6 +20,8 @@ const DELETE_ALLOWED_ROLES = new Set([
 
 export const runtime = "nodejs";
 
+// Receives the LEGACY factoryos session — still reads .role / .clientIds /
+// .userId. PR 1.5 collapses when those fields land in the hub cookie.
 function sessionCanSeeJob(session, job) {
   if (session.role === ROLES.ADMIN || session.role === ROLES.FACTORY_MANAGER) return true;
   const myClients = new Set(session.clientIds || []);
@@ -33,8 +36,11 @@ function sessionCanSeeJob(session, job) {
 }
 
 export async function GET(_req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  // sessionCanSeeJob still consumes the legacy shape (role + clientIds + userId).
+  const s = getFactoryosSession();
   try {
-    const s = requireSession();
     const job = await getJob(params.id);
     if (!job) return Response.json({ error: "Not found" }, { status: 404 });
     if (!sessionCanSeeJob(s, job)) return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -47,8 +53,11 @@ export async function GET(_req, { params }) {
 }
 
 export async function PATCH(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  // sessionCanSeeJob still consumes the legacy shape.
+  const s = getFactoryosSession();
   try {
-    const s = requireSession();
     const job = await getJob(params.id);
     if (!job) return Response.json({ error: "Not found" }, { status: 404 });
     if (!sessionCanSeeJob(s, job)) return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -56,15 +65,16 @@ export async function PATCH(req, { params }) {
     const body = await req.json();
     const patch = {};
     let stageChanged = false;
+    const isCustomer = requireRole(session, "factoryos", "customer");
 
     // Customers have one very specific permission: mark a Dispatched job as Delivered.
     const isCustomerDeliver =
-      s.role === ROLES.CUSTOMER &&
+      isCustomer &&
       body.stage === "Delivered" &&
       job.stage === "Dispatched";
 
     if (body.stage !== undefined) {
-      if (!canUpdateStage(s.role) && !isCustomerDeliver) {
+      if (!canUpdateStage(session.modules?.factoryos) && !isCustomerDeliver) {
         return Response.json({ error: "Not allowed" }, { status: 403 });
       }
       if (!STAGES.includes(body.stage)) return Response.json({ error: "Invalid stage" }, { status: 400 });
@@ -75,7 +85,7 @@ export async function PATCH(req, { params }) {
     }
 
     // Customers can: mark Delivered (above), and toggle Urgent.
-    if (s.role === ROLES.CUSTOMER) {
+    if (isCustomer) {
       const allowedKeys = new Set(["stage", "note", "urgent"]);
       const extra = Object.keys(body).filter((k) => !allowedKeys.has(k));
       if (extra.length) return Response.json({ error: "Not allowed" }, { status: 403 });
@@ -90,8 +100,8 @@ export async function PATCH(req, { params }) {
           jobId: job.id,
           stage: patch.stage,
           note: body.note || "Customer confirmed delivery",
-          updatedByEmail: s.email || "",
-          updatedByName: s.name || "",
+          updatedByEmail: session.email || "",
+          updatedByName: session.name || "",
         });
       } else if (body.urgent !== undefined) {
         // Log urgency toggles so managers see the signal in the timeline.
@@ -99,8 +109,8 @@ export async function PATCH(req, { params }) {
           jobId: job.id,
           stage: job.stage,
           note: body.urgent ? "Customer marked order URGENT" : "Customer cleared urgent flag",
-          updatedByEmail: s.email || "",
-          updatedByName: s.name || "",
+          updatedByEmail: session.email || "",
+          updatedByName: session.name || "",
         });
       }
       return Response.json({ job: updated });
@@ -131,7 +141,7 @@ export async function PATCH(req, { params }) {
     // Master-product mapping: only admin + factory manager can remap a job to a different SKU.
     // Account managers can see it read-only but shouldn't be able to overwrite mapping.
     if (body.masterSku !== undefined || body.masterProductName !== undefined) {
-      if (s.role !== ROLES.ADMIN && s.role !== ROLES.FACTORY_MANAGER) {
+      if (!requireManager(session)) {
         return Response.json({ error: "Not allowed to change master product mapping" }, { status: 403 });
       }
       if (body.masterSku !== undefined) patch.masterSku = body.masterSku;
@@ -145,8 +155,8 @@ export async function PATCH(req, { params }) {
         jobId: job.id,
         stage: patch.stage || job.stage,
         note: body.note || "",
-        updatedByEmail: s.email || "",
-        updatedByName: s.name || (s.role === ROLES.ADMIN ? "Admin" : ""),
+        updatedByEmail: session.email || "",
+        updatedByName: session.name || (requireAdminStrict(session) ? "Admin" : ""),
       });
     }
     return Response.json({ job: updated });
@@ -165,15 +175,17 @@ export async function PATCH(req, { params }) {
 // Restricted to admin / factory manager / factory executive — AMs and
 // customers can edit fields but can't destroy the row.
 export async function DELETE(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  // DELETE_ALLOWED_ROLES is admin/FM/FE. Hub admin passes via isAdmin shortcut;
+  // otherwise membership of session.modules.factoryos in the set.
+  if (!session.isAdmin && !DELETE_ALLOWED_ROLES.has(session.modules?.factoryos)) {
+    return Response.json(
+      { error: "Only admin, factory manager or factory executive can delete a job" },
+      { status: 403 },
+    );
+  }
   try {
-    const s = requireSession();
-    if (!DELETE_ALLOWED_ROLES.has(s.role)) {
-      return Response.json(
-        { error: "Only admin, factory manager or factory executive can delete a job" },
-        { status: 403 },
-      );
-    }
-
     const job = await getJob(params.id);
     if (!job) return Response.json({ error: "Not found" }, { status: 404 });
 

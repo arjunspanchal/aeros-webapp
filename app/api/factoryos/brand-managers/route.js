@@ -3,7 +3,7 @@
 // manager, so this endpoint avoids a parallel table and keeps the Users
 // directory the single source of truth.
 
-import { requireSession, requireAdmin } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { airtableList, airtableCreate, escapeFormula, TABLES } from "@/lib/factoryos/airtable";
 import { normalizeEmail } from "@/lib/hub/auth";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -11,8 +11,9 @@ import { ROLES } from "@/lib/factoryos/constants";
 export const runtime = "nodejs";
 
 export async function GET() {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
   try {
-    requireSession();
     const rows = await airtableList(TABLES.users(), {
       filterByFormula: `AND(LOWER({Role})='${ROLES.ACCOUNT_MANAGER}', {Active})`,
       sort: [{ field: "Name", direction: "asc" }],
@@ -29,8 +30,10 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const body = await req.json();
     const name = String(body.name || "").trim();
     const email = normalizeEmail(body.email || "");

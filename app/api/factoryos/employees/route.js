@@ -1,20 +1,23 @@
-import { requireAdmin, requireInternal } from "@/lib/factoryos/session";
+import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession, requireInternal, requireManager, requireAdminStrict, requireRole } from "@/lib/auth/session";
 import { listEmployees, createEmployee } from "@/lib/factoryos/repo";
-import { ROLES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
 // Admin sees everyone. Factory Manager sees only employees assigned to them.
 // Other internal roles don't have HR visibility at all (blocked by middleware).
 export async function GET(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
+  // Legacy factoryos session for s.userId — collapses in PR 1.5.
+  const s = getFactoryosSession();
   try {
-    const s = requireInternal();
     const url = new URL(req.url);
     const activeOnly = url.searchParams.get("active") === "1";
-    const managerUserId =
-      s.role === ROLES.ADMIN
-        ? url.searchParams.get("managerUserId") || undefined
-        : s.userId; // FM is force-scoped to themselves.
+    const managerUserId = requireAdminStrict(session)
+      ? url.searchParams.get("managerUserId") || undefined
+      : s.userId; // FM is force-scoped to themselves.
     const employees = await listEmployees({ activeOnly, managerUserId });
     return Response.json({ employees });
   } catch (e) {
@@ -25,8 +28,12 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
+  // Legacy factoryos session for s.userId — collapses in PR 1.5.
+  const s = getFactoryosSession();
   try {
-    const s = requireAdmin();
     const body = await req.json();
     if (!body.name || !body.name.trim()) {
       return Response.json({ error: "Name required" }, { status: 400 });
@@ -43,7 +50,7 @@ export async function POST(req) {
     // ignore any managerId they send and bind ownership to their userId.
     // Admin can assign any manager (or none).
     const managerId =
-      s.role === ROLES.FACTORY_MANAGER ? s.userId : body.managerId || null;
+      requireRole(session, "factoryos", "factory_manager") ? s.userId : body.managerId || null;
 
     const employee = await createEmployee({
       name: body.name.trim(),

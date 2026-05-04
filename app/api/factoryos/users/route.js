@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { listUsers, createUser, findUserByEmail } from "@/lib/factoryos/repo";
 import { normalizeEmail } from "@/lib/factoryos/auth";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -13,8 +13,10 @@ const VALID_ROLES = new Set([
 ]);
 
 export async function GET() {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const users = await listUsers();
     return Response.json({ users });
   } catch (e) {
@@ -24,8 +26,10 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const body = await req.json();
     const email = normalizeEmail(body.email);
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

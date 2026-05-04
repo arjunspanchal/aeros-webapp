@@ -1,26 +1,31 @@
-import { getSession } from "@/lib/factoryos/session";
+import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { listCustomerPOs, createCustomerPO, attachPoFile } from "@/lib/factoryos/repo";
-import { ROLES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 5 * 1024 * 1024; // Airtable content-upload limit
 
 export async function GET() {
-  const s = getSession();
-  if (!s) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const session = getSession();
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Legacy factoryos session for s.clientIds — collapses in PR 1.5.
+  const s = getFactoryosSession();
 
   // Customers see only their own client's POs; everyone else sees all.
+  // AM is also scoped to their assigned clients.
   let clientIds;
-  if (s.role === ROLES.CUSTOMER) clientIds = s.clientIds || [];
-  if (s.role === ROLES.ACCOUNT_MANAGER) clientIds = s.clientIds || [];
+  if (requireRole(session, "factoryos", "customer")) clientIds = s.clientIds || [];
+  if (requireRole(session, "factoryos", "account_manager")) clientIds = s.clientIds || [];
   const pos = await listCustomerPOs(clientIds ? { clientIds } : undefined);
   return Response.json({ pos });
 }
 
 export async function POST(req) {
-  const s = getSession();
-  if (!s) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const session = getSession();
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Legacy factoryos session for s.clientIds — collapses in PR 1.5.
+  const s = getFactoryosSession();
 
   const body = await req.json().catch(() => ({}));
   const { poNumber, filename, contentType, fileBase64, notes } = body;
@@ -38,7 +43,7 @@ export async function POST(req) {
 
   // Customers can only upload to their own client.
   let clientId;
-  if (s.role === ROLES.CUSTOMER) {
+  if (requireRole(session, "factoryos", "customer")) {
     clientId = (s.clientIds || [])[0];
     if (!clientId) return Response.json({ error: "No client linked to your account" }, { status: 400 });
   } else {
@@ -50,7 +55,7 @@ export async function POST(req) {
     const po = await createCustomerPO({
       poNumber: poNumber.trim(),
       clientId,
-      uploadedByEmail: s.email || "",
+      uploadedByEmail: session.email || "",
       notes: notes || "",
     });
     await attachPoFile({

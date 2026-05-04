@@ -1,13 +1,15 @@
-import { requireAdmin } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { updateClient, deleteClient, countJobsForClient } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 
-// GET /api/orders/clients/[id]?count=jobs
+// GET /api/factoryos/clients/[id]?count=jobs
 // Preview endpoint used by the admin UI before destructive delete.
 export async function GET(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const url = new URL(req.url);
     if (url.searchParams.get("count") === "jobs") {
       const jobCount = await countJobsForClient(params.id);
@@ -22,8 +24,10 @@ export async function GET(req, { params }) {
 }
 
 export async function PATCH(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const body = await req.json();
     if (body.name !== undefined && !body.name.trim()) {
       return Response.json({ error: "Name cannot be empty" }, { status: 400 });
@@ -38,8 +42,10 @@ export async function PATCH(req, { params }) {
 }
 
 export async function DELETE(_req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const result = await deleteClient(params.id);
     return Response.json({ ok: true, ...result });
   } catch (e) {
