@@ -4,7 +4,7 @@
 // Aeros Products Master so the caller doesn't need to (keeps paper rates and
 // overhead math server-side).
 
-import { getSession } from "@/lib/calc/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { currentClientCupPricing } from "@/lib/calc/user-directory";
 import { fetchCupDimOptions } from "@/lib/calc/cup-products";
 import { computeCupRateCurve, CASE_PACK_DEFAULTS } from "@/lib/calc/cup-calculator";
@@ -37,7 +37,7 @@ export async function POST(req) {
   if (!session) return new Response("Unauthorized", { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const isClient = session.role === "client";
+  const isClient = requireRole(session, "calculator", "client");
 
   const wallType = body.wallType;
   const size = body.size;
@@ -101,7 +101,7 @@ export async function POST(req) {
     plateFlexo: result.plateFlexo,
     dieOffset: result.dieOffset,
     oneTimeTotal: result.oneTimeTotal,
-    role: session.role,
+    role: session.modules.calculator ?? null,
   };
 
   return Response.json(payload);

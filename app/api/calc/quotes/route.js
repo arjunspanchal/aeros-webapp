@@ -11,7 +11,7 @@
 // DO NOT pack bag_spec_id into payload.
 
 import { dbSelect, dbInsert, dbUpdate, idFilterCol, publicId } from "@/lib/db/supabase";
-import { getSession } from "@/lib/calc/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -89,9 +89,9 @@ function buildRow(body, session) {
     quote_type: QUOTE_TYPE,
     quote_ref: body.quoteRef || `Auto ${today}`,
     quote_date: today,
-    generated_by: session.role === "admin" ? "Admin" : "Client",
+    generated_by: requireRole(session, "calculator", "admin") ? "Admin" : "Client",
     // Clients always pin client_email to themselves; admin can target any email.
-    client_email: session.role === "client"
+    client_email: requireRole(session, "calculator", "client")
       ? session.email
       : (body.clientEmail ? String(body.clientEmail).toLowerCase() : null),
     notes: body.notes || null,
@@ -134,7 +134,7 @@ export async function GET(req) {
 
   const url = new URL(req.url);
   const idParam = url.searchParams.get("id");
-  const isClient = session.role === "client";
+  const isClient = requireRole(session, "calculator", "client");
   const shape = (q) => (isClient ? redactForClient(q) : q);
 
   // Single-quote fetch — used by the loader. Cross-type filter so a stray UUID
@@ -180,7 +180,7 @@ export async function POST(req) {
   const row = buildRow(body, session);
   const created = await dbInsert("quotes_v2", row);
   const quote = rowToQuote(created);
-  return Response.json(session.role === "client" ? redactForClient(quote) : quote);
+  return Response.json(requireRole(session, "calculator", "client") ? redactForClient(quote) : quote);
 }
 
 // ---------- PATCH: update existing ----------
@@ -204,7 +204,7 @@ export async function PATCH(req) {
   if (!existing) return Response.json({ error: "Quote not found" }, { status: 404 });
 
   if (
-    session.role === "client" &&
+    requireRole(session, "calculator", "client") &&
     (existing.client_email || "").toLowerCase() !== session.email.toLowerCase()
   ) {
     return Response.json({ error: "You can only edit your own quotes" }, { status: 403 });
@@ -219,5 +219,5 @@ export async function PATCH(req) {
 
   const updated = await dbUpdate("quotes_v2", "id", existing.id, next);
   const quote = rowToQuote(updated);
-  return Response.json(session.role === "client" ? redactForClient(quote) : quote);
+  return Response.json(requireRole(session, "calculator", "client") ? redactForClient(quote) : quote);
 }

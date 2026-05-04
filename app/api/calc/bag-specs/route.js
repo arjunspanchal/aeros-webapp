@@ -7,7 +7,7 @@
 // loader doesn't change. Bag-type strings round-trip via BAG_TYPE_OUT/IN.
 
 import { dbSelect, dbInsert, dbDelete } from "@/lib/db/supabase";
-import { getSession, requireAdmin } from "@/lib/calc/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -55,7 +55,9 @@ export async function GET() {
 }
 
 export async function POST(req) {
-  try { requireAdmin(); } catch (r) { return r; }
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireRole(session, "calculator", "admin")) return new Response("Forbidden", { status: 403 });
   const body = await req.json();
   const row = {
     code: body.code,
@@ -80,7 +82,9 @@ export async function POST(req) {
 }
 
 export async function DELETE(req) {
-  try { requireAdmin(); } catch (r) { return r; }
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireRole(session, "calculator", "admin")) return new Response("Forbidden", { status: 403 });
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return Response.json({ error: "id required" }, { status: 400 });

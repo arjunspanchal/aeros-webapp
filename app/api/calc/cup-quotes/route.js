@@ -16,7 +16,7 @@
 // AdminCupCalculator + ClientCupCalculator + history loader keep working.
 
 import { dbSelect, dbInsert, dbUpdate, idFilterCol, publicId } from "@/lib/db/supabase";
-import { getSession } from "@/lib/calc/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -68,10 +68,10 @@ function buildRow(body, session) {
     quote_type: QUOTE_TYPE,
     quote_ref: body.quoteRef || `Cup ${today}`,
     quote_date: today,
-    generated_by: session.role === "admin" ? "Admin" : "Client",
+    generated_by: requireRole(session, "calculator", "admin") ? "Admin" : "Client",
     // Clients always pin client_email to themselves; admins can target any
     // address (or leave it null for an internal quote).
-    client_email: session.role === "client"
+    client_email: requireRole(session, "calculator", "client")
       ? session.email
       : (body.clientEmail ? String(body.clientEmail).toLowerCase() : null),
     notes: body.notes || null,
@@ -126,7 +126,7 @@ export async function GET(req) {
     const row = rows[0];
     if (!row) return Response.json({ error: "Not found" }, { status: 404 });
     if (
-      session.role === "client" &&
+      requireRole(session, "calculator", "client") &&
       (row.client_email || "").toLowerCase() !== session.email.toLowerCase()
     ) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
@@ -138,7 +138,7 @@ export async function GET(req) {
   // own email when client. Filter on quote_type, NOT legacy_source, so both
   // shapes show up.
   const filter = { quote_type: `eq.${QUOTE_TYPE}` };
-  if (session.role === "client") {
+  if (requireRole(session, "calculator", "client")) {
     filter.client_email = `eq.${session.email.toLowerCase()}`;
   }
   const rows = await dbSelect("quotes_v2", {
@@ -185,7 +185,7 @@ export async function PATCH(req) {
   // Admin can edit any cup quote; client can only edit rows whose client_email
   // matches their session.
   if (
-    session.role === "client" &&
+    requireRole(session, "calculator", "client") &&
     (existing.client_email || "").toLowerCase() !== session.email.toLowerCase()
   ) {
     return Response.json({ error: "Forbidden" }, { status: 403 });

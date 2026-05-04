@@ -1,8 +1,8 @@
-// Server-side rate calculation. For clients, the profit % is taken from their session
-// (set at login from the Clients table) and never from the request body. This keeps the
-// margin hidden from the front-end.
+// Server-side rate calculation. For clients, the profit % is taken from
+// their users record (live lookup via currentClientPricing) and never from
+// the request body. This keeps the margin hidden from the front-end.
 import { calculate, computeRateCurve, optimizationTips, lookupPaperRate } from "@/lib/calc/calculator";
-import { getSession } from "@/lib/calc/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { currentClientPricing } from "@/lib/calc/user-directory";
 import { fetchPaperRMTables, lookupRMPaperRate } from "@/lib/calc/rmRates";
 
@@ -24,7 +24,8 @@ export async function POST(req) {
   if (!session) return new Response("Unauthorized", { status: 401 });
 
   const body = await req.json();
-  const isClient = session.role === "client";
+  const isClient = requireRole(session, "calculator", "client");
+  const isAdmin = requireRole(session, "calculator", "admin");
 
   // Clients never supply paper rate or wastage — both are derived server-side.
   // Try live RM Master first, fall back to the static tables in calculator.js.
@@ -41,7 +42,14 @@ export async function POST(req) {
     });
   }
 
-  const fallbackMargin = Number(session.marginPct ?? process.env.DEFAULT_CLIENT_MARGIN ?? 15);
+  // The legacy calc cookie carried the user's margin_pct as a fallback.
+  // The unified hub session doesn't currently expose that field, so the
+  // fallback chain falls through to env / 15. In practice the live
+  // currentClientPricing(email) lookup wins for clients (same Users table
+  // that minted the cookie value), so this fallback is only reached when
+  // the lookup itself fails — a degenerate case that shouldn't occur for
+  // a properly-resolved session.
+  const fallbackMargin = Number(process.env.DEFAULT_CLIENT_MARGIN ?? 15);
   const { marginPct, discountPct } = isClient
     ? await currentClientPricing(session.email, fallbackMargin)
     : { marginPct: Number(body.profitPercent) || 10, discountPct: Number(body.discountPct) || 0 };
@@ -86,8 +94,11 @@ export async function POST(req) {
       }))
     : rawCurve;
 
-  const payload = { result, curve, role: session.role, discountPct };
-  if (session.role === "admin") {
+  // `role` in the response payload preserves the legacy calc-cookie shape
+  // (the bag UI reads this to decide which fields to render). Sourcing it
+  // from modules.calculator gives the same string ("admin" | "client").
+  const payload = { result, curve, role: session.modules.calculator ?? null, discountPct };
+  if (isAdmin) {
     payload.tips = optimizationTips(inputs, result);
   } else {
     // Strip internal cost breakdown for clients. They see final rates, weight, + box only.
