@@ -1,6 +1,6 @@
 // Lets the logged-in client update their own preferences (currency, units)
 // without admin intervention. Mutates their row in the unified Users directory.
-import { getSession } from "@/lib/calc/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { CURRENCIES } from "@/lib/calc/calculator";
 import { findCalcClientByEmail, updateCalcClient } from "@/lib/calc/user-directory";
 
@@ -8,7 +8,9 @@ export const runtime = "nodejs";
 
 export async function POST(req) {
   const session = getSession();
-  if (!session || session.role !== "client") return new Response("Unauthorized", { status: 401 });
+  if (!session || !requireRole(session, "calculator", "client")) {
+    return new Response("Unauthorized", { status: 401 });
+  }
   const body = await req.json().catch(() => ({}));
 
   const patch = {};

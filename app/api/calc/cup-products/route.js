@@ -2,7 +2,7 @@
 // and oz bucket. Used by the client cup calculator to populate the Dimensions
 // dropdown with real SKU-backed options instead of hardcoded defaults.
 
-import { getSession } from "@/lib/calc/session";
+import { getSession } from "@/lib/auth/session";
 import { fetchCupDimOptions } from "@/lib/calc/cup-products";
 
 export const runtime = "nodejs";

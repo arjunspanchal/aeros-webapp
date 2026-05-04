@@ -1,7 +1,7 @@
 // Admin CRUD for calculator clients. Writes land in the unified Users
 // directory (Orders base); this endpoint's client-facing shape is unchanged
 // so the /calculator/admin/clients UI works as-is.
-import { requireAdmin } from "@/lib/calc/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { normalizeEmail } from "@/lib/hub/auth";
 import {
   listCalcClients, findAnyUserByEmail, createCalcClient,
@@ -10,14 +10,22 @@ import {
 
 export const runtime = "nodejs";
 
+// Phase 1.3a: every handler reads from the unified hub session. The legacy
+// requireAdmin helper is replaced by inline session + role checks against
+// modules.calculator === "admin".
+
 export async function GET() {
-  try { requireAdmin(); } catch (r) { return r; }
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireRole(session, "calculator", "admin")) return new Response("Forbidden", { status: 403 });
   const clients = await listCalcClients();
   return Response.json(clients);
 }
 
 export async function POST(req) {
-  try { requireAdmin(); } catch (r) { return r; }
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireRole(session, "calculator", "admin")) return new Response("Forbidden", { status: 403 });
   const body = await req.json();
   const email = normalizeEmail(body.email);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -50,7 +58,9 @@ export async function POST(req) {
 }
 
 export async function PATCH(req) {
-  try { requireAdmin(); } catch (r) { return r; }
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireRole(session, "calculator", "admin")) return new Response("Forbidden", { status: 403 });
   const body = await req.json();
   if (!body.id) return Response.json({ error: "id required" }, { status: 400 });
 
@@ -72,7 +82,9 @@ export async function PATCH(req) {
 
 // Revoke calc access (the Orders row stays, keeping any orders history).
 export async function DELETE(req) {
-  try { requireAdmin(); } catch (r) { return r; }
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireRole(session, "calculator", "admin")) return new Response("Forbidden", { status: 403 });
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   if (!id) return Response.json({ error: "id required" }, { status: 400 });

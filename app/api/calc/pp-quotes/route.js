@@ -14,7 +14,7 @@
 // AdminPpCalculator + quote-loader UI work without changes.
 
 import { dbSelect, dbInsert, dbUpdate, idFilterCol, publicId } from "@/lib/db/supabase";
-import { getSession } from "@/lib/calc/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -74,7 +74,7 @@ function buildRow(body, session) {
     quote_type: QUOTE_TYPE,
     quote_ref: body.quoteRef || `PP ${today}`,
     quote_date: today,
-    generated_by: session.role === "admin" ? "Admin" : "Client",
+    generated_by: requireRole(session, "calculator", "admin") ? "Admin" : "Client",
     notes: body.notes || null,
     mfg_cost_inr: body.mfgCost !== undefined ? Number(body.mfgCost) : null,
     selling_price_inr: body.sellingPrice !== undefined ? Number(body.sellingPrice) : null,
@@ -113,7 +113,7 @@ function buildRow(body, session) {
 export async function GET(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (session.role !== "admin") return new Response("Forbidden", { status: 403 });
+  if (!requireRole(session, "calculator", "admin")) return new Response("Forbidden", { status: 403 });
 
   const url = new URL(req.url);
   const idParam = url.searchParams.get("id");
@@ -147,7 +147,7 @@ export async function GET(req) {
 export async function POST(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (session.role !== "admin") return new Response("Forbidden", { status: 403 });
+  if (!requireRole(session, "calculator", "admin")) return new Response("Forbidden", { status: 403 });
 
   const body = await req.json().catch(() => ({}));
   const row = buildRow(body, session);
@@ -160,7 +160,7 @@ export async function POST(req) {
 export async function PATCH(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (session.role !== "admin") return new Response("Forbidden", { status: 403 });
+  if (!requireRole(session, "calculator", "admin")) return new Response("Forbidden", { status: 403 });
 
   const body = await req.json().catch(() => ({}));
   const id = body.id;

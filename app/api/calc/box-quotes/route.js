@@ -8,7 +8,7 @@
 // route so the existing UI doesn't need to know we moved.
 
 import { dbSelect, dbInsert, dbUpdate, idFilterCol, publicId } from "@/lib/db/supabase";
-import { getSession } from "@/lib/calc/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { BOX_TYPE_LABEL } from "@/lib/calc/box-calculator";
 
 export const runtime = "nodejs";
@@ -58,8 +58,8 @@ function buildRow(body, session) {
     quote_type: QUOTE_TYPE,
     quote_ref: body.quoteRef || `Auto ${today}`,
     quote_date: today,
-    generated_by: session.role === "admin" ? "Admin" : "Client",
-    client_email: session.role === "client"
+    generated_by: requireRole(session, "calculator", "admin") ? "Admin" : "Client",
+    client_email: requireRole(session, "calculator", "client")
       ? session.email
       : (body.clientEmail ? String(body.clientEmail).toLowerCase() : null),
     notes: body.notes || null,
@@ -106,7 +106,7 @@ export async function GET(req) {
     });
     const row = rows[0];
     if (!row) return Response.json({ error: "Not found" }, { status: 404 });
-    if (session.role === "client" && (row.client_email || "").toLowerCase() !== session.email.toLowerCase()) {
+    if (requireRole(session, "calculator", "client") && (row.client_email || "").toLowerCase() !== session.email.toLowerCase()) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }
     return Response.json(rowToQuote(row));
@@ -114,7 +114,7 @@ export async function GET(req) {
 
   // List view — filter to box quotes, scope to caller's email when client.
   const filter = { quote_type: `eq.${QUOTE_TYPE}` };
-  if (session.role === "client") {
+  if (requireRole(session, "calculator", "client")) {
     filter.client_email = `eq.${session.email.toLowerCase()}`;
   }
   const rows = await dbSelect("quotes_v2", {
@@ -156,7 +156,7 @@ export async function PATCH(req) {
     limit: 1,
   }))[0];
   if (!existing) return Response.json({ error: "Not found" }, { status: 404 });
-  if (session.role === "client" && (existing.client_email || "").toLowerCase() !== session.email.toLowerCase()) {
+  if (requireRole(session, "calculator", "client") && (existing.client_email || "").toLowerCase() !== session.email.toLowerCase()) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 

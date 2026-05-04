@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/calc/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { listMasterPapers } from "@/lib/paper-rm";
 
 export const runtime = "nodejs";
@@ -8,8 +8,10 @@ export const runtime = "nodejs";
 // automatically. Clients don't see this — their rates are the CUSTOMER_DEFAULTS
 // baked into the server.
 export async function GET() {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireRole(session, "calculator", "admin")) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const masterPapers = await listMasterPapers();
     return Response.json({ masterPapers });
   } catch (e) {
