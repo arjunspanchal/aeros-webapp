@@ -1,19 +1,29 @@
 // List rate cards (client → own only, admin → all) and create new ones (admin).
 
-import {
-  getRateCardSession, requireRateCardSession, requireRateCardAdmin,
-} from "@/lib/rate-cards/auth";
+import { getSession, requireRole, requireAdminStrict } from "@/lib/auth/session";
 import { listCards, createCard } from "@/lib/rate-cards/store";
 import { nextCardRef } from "@/lib/rate-cards/ref";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Hub admin OR module-level rate-cards admin. Mirrors the legacy
+// requireRateCardAdmin semantics (which treated session.isAdmin as
+// equivalent to a rate-cards admin role).
+function isRateCardAdmin(session) {
+  return requireAdminStrict(session) || requireRole(session, "rate_cards", "admin");
+}
+
 export async function GET() {
-  let session;
-  try { session = requireRateCardSession(); } catch (r) { return r; }
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  // Caller must have any rate-cards entitlement (admin or client). Hub admin
+  // passes via the admin path. Anyone else with no rate_cards module is 401.
+  if (!isRateCardAdmin(session) && !requireRole(session, "rate_cards", "client")) {
+    return new Response("Unauthorized", { status: 401 });
+  }
   const opts = {};
-  if (session.rateCardRole !== "admin") {
+  if (!isRateCardAdmin(session)) {
     opts.clientEmail = session.email;
   }
   const cards = await listCards(opts);
@@ -21,7 +31,9 @@ export async function GET() {
 }
 
 export async function POST(req) {
-  try { requireRateCardAdmin(); } catch (r) { return r; }
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!isRateCardAdmin(session)) return new Response("Forbidden", { status: 403 });
   const body = await req.json();
   const clientEmail = (body.clientEmail || "").trim().toLowerCase();
   if (!clientEmail) return Response.json({ error: "clientEmail required" }, { status: 400 });
