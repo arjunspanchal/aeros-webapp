@@ -14,6 +14,7 @@ const MILLS_BY_TYPE = {
   "Brown Kraft": ["Ajit", "Jodhani", "Om Shivaay"],
   "Bleach Kraft White": ["JK", "BILT", "Pudumjee"],
   "OGR": ["JK", "BILT", "Pudumjee"],
+  "MG": ["Khateema", "Jani Mill"],
 };
 
 const GSM_OPTIONS = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140];
@@ -326,7 +327,8 @@ export default function AdminCalculator() {
             <Field label="Paper Type">
               <select className={inputCls} value={form.paperType} onChange={(e) => setForm((f) => ({ ...f, paperType: e.target.value, millName: "" }))}>
                 <option value="">Select…</option>
-                <option value="Brown Kraft">Brown Kraft</option>
+                <option value="Brown Kraft">Brown Kraft (MF)</option>
+                <option value="MG">MG</option>
                 <option value="Bleach Kraft White">Bleach Kraft White</option>
                 <option value="OGR">OGR</option>
               </select>

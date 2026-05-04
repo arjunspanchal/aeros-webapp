@@ -261,7 +261,8 @@ export default function ClientCalculator() {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Type">
               <select className={inputCls} value={form.paperType} onChange={(e) => set("paperType", e.target.value)}>
-                <option value="Brown Kraft">Brown Kraft</option>
+                <option value="Brown Kraft">Brown Kraft (MF)</option>
+                <option value="MG">MG</option>
                 <option value="Bleach Kraft White">Bleach Kraft White</option>
                 <option value="OGR">OGR</option>
               </select>
