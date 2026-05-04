@@ -170,7 +170,7 @@ export default function AdminPpCalculator() {
           </select>
           {pastQuotes.length === 0 && (
             <p className="text-xs text-gray-400 mt-2 dark:text-gray-500">
-              No saved quotes yet — save one below to enable updates. (Make sure the “PP Quotes” table exists in Airtable.)
+              No saved quotes yet — save one below to enable updates.
             </p>
           )}
           {loadedQuoteId && (
@@ -634,7 +634,7 @@ export default function AdminPpCalculator() {
           {saveStatus === "success" && <p className="text-xs text-green-600 mt-2">✓ Saved to PP Quotes.</p>}
           {saveStatus === "success_update" && <p className="text-xs text-green-600 mt-2">✓ Quote updated.</p>}
           {saveStatus === "success_new" && <p className="text-xs text-green-600 mt-2">✓ Saved as new quote.</p>}
-          {saveStatus === "error" && <p className="text-xs text-red-500 mt-2">Save failed — make sure the “PP Quotes” table exists in Airtable.</p>}
+          {saveStatus === "error" && <p className="text-xs text-red-500 mt-2">Save failed — please try again or contact support.</p>}
         </Card>
       </div>
     </div>
