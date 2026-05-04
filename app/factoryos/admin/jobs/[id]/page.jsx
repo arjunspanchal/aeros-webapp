@@ -1,17 +1,20 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { getJob, listJobUpdates, listClients } from "@/lib/factoryos/repo";
 import { fetchCatalog } from "@/lib/catalog";
-import { ROLES } from "@/lib/factoryos/constants";
 import JobEditor from "@/app/factoryos/manager/[id]/JobEditor";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminJobDetail({ params }) {
-  const s = getSession();
-  if (!s) redirect("/login");
-  if (s.role !== ROLES.ADMIN && s.role !== ROLES.FACTORY_MANAGER) redirect("/factoryos");
+  const session = getSession();
+  if (!session) redirect("/login");
+  if (!requireManager(session)) redirect("/factoryos");
+  // Legacy factoryos session kept for s.role passthrough into <JobEditor/>.
+  // PR 1.3+ collapses into the unified helper.
+  const s = getFactoryosSession();
   const job = await getJob(params.id);
   if (!job) notFound();
   const [updates, clients, catalogResult] = await Promise.all([

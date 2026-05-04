@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { listEmployees, listAttendance, listUsers } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import { todayYmdIST } from "@/lib/factoryos/hr";
@@ -9,9 +10,12 @@ import MarkAttendance from "./MarkAttendance";
 export const dynamic = "force-dynamic";
 
 export default async function AttendancePage({ searchParams }) {
-  const s = getSession();
-  if (!s) redirect("/login");
-  if (s.role !== ROLES.ADMIN && s.role !== ROLES.FACTORY_MANAGER) redirect("/factoryos");
+  const session = getSession();
+  if (!session) redirect("/login");
+  if (!requireManager(session)) redirect("/factoryos");
+  // Legacy factoryos session kept for s.role / s.userId — used below to
+  // force-scope FMs to their own reports. PR 1.3+ collapses.
+  const s = getFactoryosSession();
 
   const date = (searchParams?.date && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date))
     ? searchParams.date

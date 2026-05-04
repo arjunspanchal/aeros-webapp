@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { listClients } from "@/lib/factoryos/repo";
 import { airtableList, TABLES } from "@/lib/factoryos/airtable";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -19,9 +19,9 @@ async function listBrandManagers() {
 }
 
 export default async function AdminClientsPage() {
-  const s = getSession();
-  if (!s) redirect("/login");
-  if (s.role !== ROLES.ADMIN && s.role !== ROLES.FACTORY_MANAGER) redirect("/factoryos");
+  const session = getSession();
+  if (!session) redirect("/login");
+  if (!requireManager(session)) redirect("/factoryos");
   const [clients, brandManagers] = await Promise.all([
     listClients(),
     listBrandManagers().catch(() => []),
