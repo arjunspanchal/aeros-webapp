@@ -1,16 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { listMachines } from "@/lib/factoryos/repo";
-import { ROLES } from "@/lib/factoryos/constants";
 import MachinesAdmin from "./MachinesAdmin";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminMachinesPage() {
-  const s = getSession();
-  if (!s) redirect("/login");
-  if (s.role !== ROLES.ADMIN && s.role !== ROLES.FACTORY_MANAGER) redirect("/factoryos");
+  const session = getSession();
+  if (!session) redirect("/login");
+  if (!requireManager(session)) redirect("/factoryos");
   const machines = await listMachines();
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">

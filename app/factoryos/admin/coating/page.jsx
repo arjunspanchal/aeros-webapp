@@ -1,16 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { listCoatingJobs, listRawMaterials } from "@/lib/factoryos/repo";
-import { ROLES } from "@/lib/factoryos/constants";
 import CoatingAdmin from "./CoatingAdmin";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminCoatingPage() {
-  const s = getSession();
-  if (!s) redirect("/login");
-  if (s.role !== ROLES.ADMIN && s.role !== ROLES.FACTORY_MANAGER) redirect("/factoryos");
+  const session = getSession();
+  if (!session) redirect("/login");
+  if (!requireManager(session)) redirect("/factoryos");
 
   const [jobs, inventory] = await Promise.all([
     listCoatingJobs(),

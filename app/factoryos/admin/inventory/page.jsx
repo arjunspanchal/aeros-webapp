@@ -1,17 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { listRawMaterials } from "@/lib/factoryos/repo";
 import { listMasterPapers } from "@/lib/paper-rm";
-import { ROLES } from "@/lib/factoryos/constants";
 import InventoryAdmin from "./InventoryAdmin";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminInventoryPage() {
-  const s = getSession();
-  if (!s) redirect("/login");
-  if (s.role !== ROLES.ADMIN && s.role !== ROLES.FACTORY_MANAGER) redirect("/factoryos");
+  const session = getSession();
+  if (!session) redirect("/login");
+  if (!requireManager(session)) redirect("/factoryos");
   const [inventory, masterPapers] = await Promise.all([
     listRawMaterials(),
     listMasterPapers().catch((e) => { console.error("Master paper fetch failed:", e); return []; }),

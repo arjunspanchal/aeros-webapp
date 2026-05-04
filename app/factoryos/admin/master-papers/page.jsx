@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession, requireAdminStrict } from "@/lib/auth/session";
 import { listMasterPapers } from "@/lib/paper-rm";
-import { ROLES } from "@/lib/factoryos/constants";
 import MasterPapersAdmin from "./MasterPapersAdmin";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminMasterPapersPage() {
-  const s = getSession();
-  if (!s) redirect("/login");
-  // Strictly admin — not FM/FE/Customer. Master rates feed COGS, too sensitive for shop-floor.
-  if (s.role !== ROLES.ADMIN) redirect("/factoryos");
+  const session = getSession();
+  if (!session) redirect("/login");
+  // Strictly admin — not FM/FE/Customer. Master rates feed COGS, too sensitive
+  // for shop-floor. requireAdminStrict checks the hub-level isAdmin flag,
+  // which today is only granted via the password admin login (see
+  // app/api/auth/admin/route.js + lib/hub/users.js#adminEntitlements).
+  if (!requireAdminStrict(session)) redirect("/factoryos");
 
   const masterPapers = await listMasterPapers().catch((e) => {
     console.error("Master paper fetch failed:", e);
