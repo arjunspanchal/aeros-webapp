@@ -4,8 +4,18 @@ import {
   updateJob,
   listJobUpdates,
   addJobUpdate,
+  deleteJob,
+  countUpdatesForJob,
 } from "@/lib/factoryos/repo";
 import { STAGES, ROLES, canUpdateStage } from "@/lib/factoryos/constants";
+
+// Roles allowed to remove a job entirely. Account managers + customers can
+// only update fields, never destroy the row + its timeline.
+const DELETE_ALLOWED_ROLES = new Set([
+  ROLES.ADMIN,
+  ROLES.FACTORY_MANAGER,
+  ROLES.FACTORY_EXECUTIVE,
+]);
 
 export const runtime = "nodejs";
 
@@ -140,6 +150,41 @@ export async function PATCH(req, { params }) {
       });
     }
     return Response.json({ job: updated });
+  } catch (e) {
+    if (e instanceof Response) return e;
+    console.error(e);
+    return Response.json({ error: e.message || "Failed" }, { status: 500 });
+  }
+}
+
+// DELETE /api/factoryos/jobs/[id]
+//   ?count=updates → preview only: returns { jobId, updateCount } without
+//                    deleting anything (UI uses this for the confirm dialog).
+//   no query        → cascade-delete the job + its timeline rows.
+//
+// Restricted to admin / factory manager / factory executive — AMs and
+// customers can edit fields but can't destroy the row.
+export async function DELETE(req, { params }) {
+  try {
+    const s = requireSession();
+    if (!DELETE_ALLOWED_ROLES.has(s.role)) {
+      return Response.json(
+        { error: "Only admin, factory manager or factory executive can delete a job" },
+        { status: 403 },
+      );
+    }
+
+    const job = await getJob(params.id);
+    if (!job) return Response.json({ error: "Not found" }, { status: 404 });
+
+    const url = new URL(req.url);
+    if (url.searchParams.get("count") === "updates") {
+      const updateCount = await countUpdatesForJob(job.id);
+      return Response.json({ jobId: job.id, updateCount });
+    }
+
+    const { deletedUpdates } = await deleteJob(job.id);
+    return Response.json({ ok: true, jobId: job.id, deletedUpdates });
   } catch (e) {
     if (e instanceof Response) return e;
     console.error(e);

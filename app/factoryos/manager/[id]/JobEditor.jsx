@@ -37,6 +37,48 @@ export default function JobEditor({ job: initialJob, initialUpdates, clientMap, 
   const [trackingSaved, setTrackingSaved] = useState(false);
   // Master-product mapping (admin + factory manager can edit; others see read-only).
   const canEditMasterProduct = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
+  // Hard-delete (cascades the job + its timeline). FE included alongside
+  // admin / FM because shop floor sometimes needs to drop test jobs.
+  const canDeleteJob =
+    role === ROLES.ADMIN ||
+    role === ROLES.FACTORY_MANAGER ||
+    role === ROLES.FACTORY_EXECUTIVE;
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteErr, setDeleteErr] = useState("");
+
+  async function deleteJob() {
+    setDeleteErr("");
+    // Preview first so the confirm dialog can quote the timeline count.
+    let updateCount = 0;
+    try {
+      const res = await fetch(`/api/factoryos/jobs/${job.id}?count=updates`, { method: "DELETE" });
+      if (!res.ok) {
+        setDeleteErr((await res.json()).error || "Couldn't check timeline count");
+        return;
+      }
+      ({ updateCount } = await res.json());
+    } catch (e) {
+      setDeleteErr(e?.message || "Couldn't check timeline count");
+      return;
+    }
+
+    const label = `J# ${job.jNumber}${job.item ? ` — ${job.item}` : ""}`;
+    const msg = updateCount > 0
+      ? `Delete ${label} and its ${updateCount} timeline update${updateCount === 1 ? "" : "s"}? This cannot be undone.`
+      : `Delete ${label}? It has no timeline updates. This cannot be undone.`;
+    if (!window.confirm(msg)) return;
+
+    setDeleteBusy(true);
+    const res = await fetch(`/api/factoryos/jobs/${job.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setDeleteBusy(false);
+      setDeleteErr((await res.json()).error || `Delete failed (${res.status})`);
+      return;
+    }
+    // Land back on the list view that matches the caller's role.
+    router.push(role === ROLES.FACTORY_EXECUTIVE ? "/factoryos/manager" : "/factoryos/admin");
+    router.refresh();
+  }
   const [masterSku, setMasterSku] = useState(initialJob.masterSku || "");
   const [masterProductName, setMasterProductName] = useState(initialJob.masterProductName || "");
   // Resolve the initial productId from masterSku if it matches a catalog row.
@@ -173,8 +215,24 @@ export default function JobEditor({ job: initialJob, initialUpdates, clientMap, 
               J# {job.jNumber}{clientName && <> · {clientName}</>}{job.brand && <> · {job.brand}</>}{job.city && <> · {job.city}</>}
             </p>
           </div>
-          <StageBadge stage={job.stage} />
+          <div className="flex items-start gap-3 shrink-0">
+            <StageBadge stage={job.stage} />
+            {canDeleteJob && (
+              <button
+                type="button"
+                onClick={deleteJob}
+                disabled={deleteBusy}
+                className="text-xs font-medium text-red-600 hover:underline dark:text-red-400 disabled:opacity-50"
+                title="Delete this job and its timeline updates"
+              >
+                {deleteBusy ? "Deleting…" : "Delete job"}
+              </button>
+            )}
+          </div>
         </div>
+        {deleteErr && (
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400">{deleteErr}</p>
+        )}
         <div className="mt-4">
           <StageTimeline stage={job.stage} />
         </div>
