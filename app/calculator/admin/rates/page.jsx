@@ -70,7 +70,7 @@ export default async function AdminRatesPage() {
         </p>
         <div className={`mb-6 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${live ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"}`}>
           <span className={`h-2 w-2 rounded-full ${live ? "bg-green-500" : "bg-amber-500"}`} />
-          {live ? "Live from Paper RM Database" : "Using fallback constants — Airtable unreachable or AIRTABLE_PAPER_RM_BASE_ID not set"}
+          {live ? "Live from master_papers (Supabase)" : "Using fallback constants — Supabase unreachable or master_papers query failed"}
         </div>
 
         <div className="space-y-6">
