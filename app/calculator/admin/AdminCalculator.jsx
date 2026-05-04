@@ -48,6 +48,7 @@ export default function AdminCalculator() {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [bagCodes, setBagCodes] = useState([]);
   const [saveStatus, setSaveStatus] = useState(null);
+  const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [unit, setUnit] = useState("mm");
   const [pastQuotes, setPastQuotes] = useState([]);
@@ -263,7 +264,10 @@ export default function AdminCalculator() {
       if (method === "POST" && saved?.id) setLoadedQuoteId(saved.id);
       refreshQuotes();
     } else {
+      const errBody = await res.text().catch(() => "");
+      console.error("Save quote failed", res.status, errBody);
       setSaveStatus("error");
+      setSaveError(`${res.status}: ${errBody.slice(0, 200) || res.statusText}`);
     }
   }
 
@@ -664,7 +668,11 @@ export default function AdminCalculator() {
               {saveStatus === "success" && <p className="text-xs text-green-600 mt-2">✓ Saved to Quotes.</p>}
               {saveStatus === "success_update" && <p className="text-xs text-green-600 mt-2">✓ Quote updated.</p>}
               {saveStatus === "success_new" && <p className="text-xs text-green-600 mt-2">✓ Saved as new quote.</p>}
-              {saveStatus === "error" && <p className="text-xs text-red-500 mt-2">Save failed. Try again.</p>}
+              {saveStatus === "error" && (
+                <div className="mt-2">
+                  <p className="text-xs text-red-500">Save failed. {saveError ? <span className="font-mono text-[10px] break-all">({saveError})</span> : "Try again."}</p>
+                </div>
+              )}
             </Card>
 
             {tips.length > 0 && (
