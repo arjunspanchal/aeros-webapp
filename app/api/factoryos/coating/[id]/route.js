@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { receiveCoatingJob, cancelCoatingJob } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
@@ -8,8 +8,10 @@ export const runtime = "nodejs";
 //   { action: "receive", qtyReturned, peRate, returnDate?, invoiceNumber?, notes? }
 //   { action: "cancel",  reason? }
 export async function PATCH(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const body = await req.json();
     const action = body.action || "receive";
     if (action === "receive") {

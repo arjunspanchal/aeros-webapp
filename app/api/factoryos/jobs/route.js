@@ -1,12 +1,17 @@
-import { requireSession, requireInternal } from "@/lib/factoryos/session";
+import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession, requireInternal, requireManager, requireRole } from "@/lib/auth/session";
 import { listJobsForSession, createJob } from "@/lib/factoryos/repo";
-import { STAGES, ROLES, CATEGORIES } from "@/lib/factoryos/constants";
+import { STAGES, CATEGORIES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  // listJobsForSession reads s.role / s.userId / s.clientIds for FM-scoping
+  // and AM-scoping. Pass the legacy session through; PR 1.5 collapses.
+  const s = getFactoryosSession();
   try {
-    const s = requireSession();
     const jobs = await listJobsForSession(s);
     return Response.json({ jobs });
   } catch (e) {
@@ -16,18 +21,16 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
+  // Allow admin / factory manager / account manager to create jobs.
+  // FE is shop-floor and shouldn't open new jobs; CUSTOMER is already
+  // blocked by requireInternal().
+  if (!requireManager(session) && !requireRole(session, "factoryos", "account_manager")) {
+    return Response.json({ error: "Only admin, factory manager or account manager can create jobs" }, { status: 403 });
+  }
   try {
-    const s = requireInternal();
-    // Allow admin / factory manager / account manager to create jobs.
-    // FE is shop-floor and shouldn't open new jobs; CUSTOMER is already
-    // blocked by requireInternal().
-    if (
-      s.role !== ROLES.ADMIN &&
-      s.role !== ROLES.FACTORY_MANAGER &&
-      s.role !== ROLES.ACCOUNT_MANAGER
-    ) {
-      return Response.json({ error: "Only admin, factory manager or account manager can create jobs" }, { status: 403 });
-    }
     const body = await req.json();
     if (!body.jNumber || !body.clientId || !body.item) {
       return Response.json({ error: "J#, client, and item are required" }, { status: 400 });

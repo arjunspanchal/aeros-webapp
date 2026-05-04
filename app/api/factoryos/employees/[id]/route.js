@@ -1,4 +1,5 @@
-import { requireAdmin } from "@/lib/factoryos/session";
+import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession, requireManager, requireAdminStrict } from "@/lib/auth/session";
 import { updateEmployee, deleteEmployee, deactivateEmployee, getEmployee } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 
@@ -6,6 +7,9 @@ export const runtime = "nodejs";
 
 // Factory Manager may only edit employees assigned to them, and may not
 // re-assign ownership (to prevent bypassing the roster scope).
+// Receives the LEGACY factoryos session for backwards compatibility — the
+// helper still reads .role / .userId, which only exist on that shape.
+// PR 1.5 collapses this when the unified session carries userId too.
 async function assertCanEdit(session, employeeId) {
   if (session.role === ROLES.ADMIN) return;
   const emp = await getEmployee(employeeId);
@@ -16,13 +20,16 @@ async function assertCanEdit(session, employeeId) {
 }
 
 export async function PATCH(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
+  const s = getFactoryosSession();
   try {
-    const s = requireAdmin();
     await assertCanEdit(s, params.id);
     const body = await req.json();
     const patch = { ...body };
     // FMs can't reassign ownership — silently drop any managerId attempt.
-    if (s.role !== ROLES.ADMIN) delete patch.managerId;
+    if (!requireAdminStrict(session)) delete patch.managerId;
     if (patch.name !== undefined) {
       if (!String(patch.name).trim()) {
         return Response.json({ error: "Name cannot be empty" }, { status: 400 });
@@ -57,8 +64,11 @@ export async function PATCH(req, { params }) {
 // DELETE deactivates by default (preserves attendance history).
 // Pass ?hard=1 to cascade-delete attendance rows + the employee.
 export async function DELETE(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
+  const s = getFactoryosSession();
   try {
-    const s = requireAdmin();
     await assertCanEdit(s, params.id);
     const url = new URL(req.url);
     if (url.searchParams.get("hard") === "1") {

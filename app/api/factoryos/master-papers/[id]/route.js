@@ -1,19 +1,20 @@
-import { requireSession } from "@/lib/factoryos/session";
-import { ROLES } from "@/lib/factoryos/constants";
+import { getSession, requireAdminStrict } from "@/lib/auth/session";
 import { updateMasterPaper } from "@/lib/paper-rm";
 
 export const runtime = "nodejs";
 
 // PATCH /api/factoryos/master-papers/[id]
-// STRICTLY admin-only — not FM/FE/Customer. Note this bypasses the shared
-// `requireAdmin()` helper because that one also allows FACTORY_MANAGER, and
-// the master rate table is sensitive enough that we want admin-only here.
+// STRICTLY admin-only — not FM/FE/Customer. Master rates feed COGS, too
+// sensitive for shop-floor. requireAdminStrict accepts hub-level isAdmin
+// (password admin login) OR factoryos module 'admin' (per the PR 1.1 amend
+// that broadened the helper to preserve legacy access).
 export async function PATCH(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireAdminStrict(session)) {
+    return Response.json({ error: "Admin only" }, { status: 403 });
+  }
   try {
-    const s = requireSession();
-    if (s.role !== ROLES.ADMIN) {
-      return Response.json({ error: "Admin only" }, { status: 403 });
-    }
     const body = await req.json();
     const masterPaper = await updateMasterPaper(params.id, body);
     return Response.json({ masterPaper });

@@ -1,11 +1,13 @@
-import { requireAdmin } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { recordConsumption } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 
 export async function POST(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    const s = requireAdmin();
     const body = await req.json();
     if (!body.stockLineId) {
       return Response.json({ error: "Stock line required" }, { status: 400 });
@@ -17,7 +19,7 @@ export async function POST(req, { params }) {
       runId: params.id,
       stockLineId: body.stockLineId,
       qtyKgs: Number(body.qtyKgs),
-      operatorEmail: body.operatorEmail || s.email || "",
+      operatorEmail: body.operatorEmail || session.email || "",
       notes: body.notes || "",
     });
     return Response.json(result);

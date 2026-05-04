@@ -1,12 +1,13 @@
-import { requireSession, requireAdmin } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { listVendors, createVendor } from "@/lib/factoryos/repo";
 import { VENDOR_TYPES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
 export async function GET(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
   try {
-    requireSession();
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || undefined;
     const activeOnly = searchParams.get("activeOnly") === "1";
@@ -20,8 +21,10 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const body = await req.json();
     if (!body.name || !body.name.trim()) {
       return Response.json({ error: "Name required" }, { status: 400 });

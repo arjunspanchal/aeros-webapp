@@ -1,11 +1,13 @@
-import { requireAdmin } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { recordRmReceipt, listRmReceipts } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const receipts = await listRmReceipts();
     return Response.json({ receipts });
   } catch (e) {
@@ -16,8 +18,10 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    const s = requireAdmin();
     const body = await req.json().catch(() => ({}));
     const { invoiceNumber, invoiceDate, supplier, notes, lines } = body || {};
     if (!invoiceNumber || !invoiceNumber.trim()) {
@@ -41,7 +45,7 @@ export async function POST(req) {
       invoiceDate: invoiceDate || null,
       supplier: supplier || "",
       notes: notes || "",
-      createdByEmail: s.email || "",
+      createdByEmail: session.email || "",
       lines: lines.map((l) => ({
         masterPaperId: l.masterPaperId || "",
         masterPaperName: l.masterPaperName || "",

@@ -1,11 +1,12 @@
-import { requireSession, requireAdmin } from "@/lib/factoryos/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { listMachines, createMachine } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
   try {
-    requireSession();
     const machines = await listMachines();
     return Response.json({ machines });
   } catch (e) {
@@ -16,8 +17,10 @@ export async function GET() {
 }
 
 export async function POST(req) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
   try {
-    requireAdmin();
     const body = await req.json();
     if (!body.name || !body.name.trim()) {
       return Response.json({ error: "Name required" }, { status: 400 });

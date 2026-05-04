@@ -1,21 +1,25 @@
-import { requireInternal } from "@/lib/factoryos/session";
+import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession, requireInternal, requireRole } from "@/lib/auth/session";
 import { getJob, attachJobLrFile } from "@/lib/factoryos/repo";
-import { ROLES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
-// POST /api/orders/jobs/[id]/lr-files
+// POST /api/factoryos/jobs/[id]/lr-files
 // Upload a Lorry Receipt copy (PDF/JPG/PNG). AM scoped to own clients.
 export async function POST(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
+  // Legacy factoryos session for s.clientIds — collapses in PR 1.5.
+  const s = getFactoryosSession();
   try {
-    const s = requireInternal();
     const job = await getJob(params.id);
     if (!job) return Response.json({ error: "Not found" }, { status: 404 });
 
-    if (s.role === ROLES.ACCOUNT_MANAGER) {
+    if (requireRole(session, "factoryos", "account_manager")) {
       const myClients = new Set(s.clientIds || []);
       const ok = job.clientIds.some((c) => myClients.has(c));
       if (!ok) return Response.json({ error: "Forbidden" }, { status: 403 });
