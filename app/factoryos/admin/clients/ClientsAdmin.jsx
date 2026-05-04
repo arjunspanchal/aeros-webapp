@@ -174,7 +174,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
         </div>
 
         <div>
-          <label className={labelCls}>Brand manager</label>
+          <label className={labelCls}>Account manager</label>
           <select className={inputCls} value={bmChoice} onChange={(e) => setBm(e.target.value)}>
             <option value={BM_NONE}>— None —</option>
             {brandManagers.map((bm) => (
@@ -182,16 +182,16 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
                 {bm.name ? `${bm.name} (${bm.email})` : bm.email}
               </option>
             ))}
-            <option value={BM_NEW}>+ Add new brand manager…</option>
+            <option value={BM_NEW}>+ Add new account manager…</option>
           </select>
           {bmChoice === BM_NEW && (
             <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-3 space-y-2 dark:border-gray-700">
               <div>
-                <label className={labelCls}>New brand manager name</label>
+                <label className={labelCls}>New account manager name</label>
                 <input className={inputCls} value={newBm.name} onChange={(e) => setNewBm({ ...newBm, name: e.target.value })} placeholder="e.g. Sneha" />
               </div>
               <div>
-                <label className={labelCls}>New brand manager email</label>
+                <label className={labelCls}>New account manager email</label>
                 <input type="email" className={inputCls} value={newBm.email} onChange={(e) => setNewBm({ ...newBm, email: e.target.value })} placeholder="sneha@theepackagingcompany.com" />
               </div>
               <div className="flex items-center gap-2">
@@ -201,7 +201,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
                   onClick={saveNewBm}
                   className="bg-blue-600 text-white text-xs font-medium px-3 py-1.5 rounded-md hover:bg-blue-700 disabled:opacity-60"
                 >
-                  {newBm.busy ? "Saving…" : "Save brand manager"}
+                  {newBm.busy ? "Saving…" : "Save account manager"}
                 </button>
                 <button
                   type="button"
@@ -213,7 +213,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
               </div>
               {newBm.err && <p className="text-xs text-red-500">{newBm.err}</p>}
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Creating a brand manager adds them as an Account Manager user with OTP login access to FactoryOS.
+                Adds them to the Users directory with the Account Manager role and OTP login access to FactoryOS.
               </p>
             </div>
           )}
@@ -250,7 +250,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
                   {c.code && <div className="text-xs text-gray-500 dark:text-gray-400">{c.code}</div>}
                   {(c.brandManager || c.brandManagerEmail) && (
                     <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                      <span className="text-gray-400 dark:text-gray-500">BM: </span>
+                      <span className="text-gray-400 dark:text-gray-500">AM: </span>
                       {c.brandManager || c.brandManagerEmail}
                     </div>
                   )}
@@ -289,7 +289,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase dark:bg-gray-800/50 dark:text-gray-400">
             <tr>
               <th className="text-left px-4 py-2 font-medium">Name</th>
-              <th className="text-left px-4 py-2 font-medium">Brand manager</th>
+              <th className="text-left px-4 py-2 font-medium">Account manager</th>
               <th className="text-left px-4 py-2 font-medium">Contact</th>
               <th className="text-right px-4 py-2 font-medium">&nbsp;</th>
             </tr>
