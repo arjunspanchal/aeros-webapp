@@ -1,29 +1,23 @@
-// Edge middleware. Uses Web Crypto (no node:crypto) for edge compat.
-// Auth model: `/login` is the only login UI. Verifying a cookie still happens
-// per-module — each module carries its own session cookie — but all three are
-// minted in one go by /api/auth/*.
-import { NextResponse } from "next/server";
+// Edge middleware. Reads the unified hub session via the shared edge-safe
+// helper from lib/auth/edge.js (PR 1.4a). All role logic flows through the
+// same policy helpers (requireManager, requireRole) that server routes use
+// — single source of truth across runtimes.
+//
+// Phase 1.4b of auth unification: replaces the inline web-crypto verify()
+// + per-cookie reads + raw role-string literals with one shared verify
+// path against one cookie. The legacy per-module cookies are still minted
+// at sign-in but no longer consulted in middleware — the hub session's
+// modules.{calculator,factoryos} carries the same role data. PR 1.5
+// retires the redundant cookies.
 
-async function verify(token, secret) {
-  if (!token || typeof token !== "string") return null;
-  const [body, sig] = token.split(".");
-  if (!body || !sig) return null;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["verify"],
-  );
-  const sigBytes = Uint8Array.from(atob(sig.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
-  const ok = await crypto.subtle.verify("HMAC", key, sigBytes, new TextEncoder().encode(body));
-  if (!ok) return null;
-  try {
-    const json = JSON.parse(atob(body.replace(/-/g, "+").replace(/_/g, "/")));
-    if (json.exp && json.exp * 1000 < Date.now()) return null;
-    return json;
-  } catch { return null; }
-}
+import { NextResponse } from "next/server";
+import {
+  getSessionFromRequest,
+  requireManager,
+  requireRole,
+  ROLES,
+  MODULES,
+} from "@/lib/auth/edge";
 
 function redirectToLogin(req) {
   const url = req.nextUrl.clone();
@@ -33,7 +27,7 @@ function redirectToLogin(req) {
 }
 
 // Old URLs redirected to new ones so bookmarks keep working after the
-// Orders → FactoryOS rename.
+// Orders → FactoryOS rename. No auth check — pure path rewrite.
 function legacyOrdersRedirect(req) {
   const { pathname, search } = req.nextUrl;
   if (pathname === "/orders" || pathname.startsWith("/orders/") ||
@@ -48,50 +42,49 @@ function legacyOrdersRedirect(req) {
 
 export async function middleware(req) {
   const { pathname } = req.nextUrl;
-  const secret = process.env.SESSION_SECRET;
 
-  // Legacy URL shim — redirect any old /orders or /api/orders paths to /factoryos.
   const legacy = legacyOrdersRedirect(req);
   if (legacy) return legacy;
 
+  // Single read, single verify. Same payload shape lib/auth/session.js
+  // returns on the Node side. SESSION_SECRET picked up from process.env.
+  const session = await getSessionFromRequest(req);
+
   // --- Hub: home, catalog, clearance ---
+  // Path predicates kept identical to legacy: bare `/catalog` and
+  // `/clearance` (no trailing slash) match too.
   if (pathname === "/" || pathname.startsWith("/catalog") || pathname.startsWith("/clearance")) {
-    const token = req.cookies.get("aeros_hub_session")?.value;
-    const payload = secret ? await verify(token, secret) : null;
-    if (!payload) return redirectToLogin(req);
+    if (!session) return redirectToLogin(req);
     return NextResponse.next();
   }
 
-  // --- Calculator module ---
+  // --- Calculator ---
   if (pathname.startsWith("/api/calc/") || pathname.startsWith("/calculator")) {
-    const token = req.cookies.get("aeros_session")?.value;
-    const payload = secret ? await verify(token, secret) : null;
-    if (!payload) return redirectToLogin(req);
-    if (pathname.startsWith("/calculator/admin") && payload.role !== "admin") {
+    if (!session) return redirectToLogin(req);
+    // /calculator/admin → calc admin role; clients redirect to /calculator/client.
+    if (pathname.startsWith("/calculator/admin") && !requireRole(session, MODULES.CALCULATOR, "admin")) {
       return NextResponse.redirect(new URL("/calculator/client", req.url));
     }
     return NextResponse.next();
   }
 
-  // --- FactoryOS module ---
+  // --- FactoryOS ---
   if (pathname.startsWith("/api/factoryos/") || pathname.startsWith("/factoryos")) {
-    const token = req.cookies.get("aeros_factoryos_session")?.value;
-    const payload = secret ? await verify(token, secret) : null;
-
-    if (!payload) {
-      // The FactoryOS landing page handles its own routing when no session.
+    if (!session) {
+      // /factoryos is a router stub that handles its own role-based
+      // redirect server-side; allowed through unauthenticated.
       if (pathname === "/factoryos") return NextResponse.next();
       return redirectToLogin(req);
     }
-
-    // Role guards for page routes.
-    if (pathname.startsWith("/factoryos/admin") && payload.role !== "admin" && payload.role !== "factory_manager") {
+    // /factoryos/admin → admin or factory_manager. requireManager covers
+    // hub isAdmin OR modules.factoryos ∈ {admin, factory_manager}.
+    if (pathname.startsWith("/factoryos/admin") && !requireManager(session)) {
       return NextResponse.redirect(new URL("/factoryos", req.url));
     }
-    if (pathname.startsWith("/factoryos/manager") && payload.role === "customer") {
+    if (pathname.startsWith("/factoryos/manager") && session.modules?.factoryos === ROLES.CUSTOMER) {
       return NextResponse.redirect(new URL("/factoryos/customer", req.url));
     }
-    if (pathname.startsWith("/factoryos/customer") && payload.role !== "customer") {
+    if (pathname.startsWith("/factoryos/customer") && session.modules?.factoryos !== ROLES.CUSTOMER) {
       return NextResponse.redirect(new URL("/factoryos/manager", req.url));
     }
   }
