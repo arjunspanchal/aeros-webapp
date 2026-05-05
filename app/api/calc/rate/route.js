@@ -20,6 +20,15 @@ function applyDiscount(curve, discountPct) {
 export const runtime = "nodejs";
 
 export async function POST(req) {
+  try {
+    return await handle(req);
+  } catch (err) {
+    console.error("/api/calc/rate failed:", err);
+    return Response.json({ error: err?.message || "Calculator error" }, { status: 500 });
+  }
+}
+
+async function handle(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
 
@@ -31,7 +40,12 @@ export async function POST(req) {
   // Try live RM Master first, fall back to the static tables in calculator.js.
   let paperRate = Number(body.paperRate) || 0;
   if (isClient) {
-    const rmTables = await fetchPaperRMTables();
+    let rmTables = null;
+    try {
+      rmTables = await fetchPaperRMTables();
+    } catch (err) {
+      console.error("fetchPaperRMTables failed, using static fallback:", err);
+    }
     const live = lookupRMPaperRate(rmTables, {
       paperType: body.paperType, mill: body.mill,
       gsm: Number(body.gsm), bf: body.bf ? Number(body.bf) : null,
@@ -42,17 +56,25 @@ export async function POST(req) {
     });
   }
 
-  // The legacy calc cookie carried the user's margin_pct as a fallback.
-  // The unified hub session doesn't currently expose that field, so the
-  // fallback chain falls through to env / 15. In practice the live
-  // currentClientPricing(email) lookup wins for clients (same Users table
-  // that minted the cookie value), so this fallback is only reached when
-  // the lookup itself fails — a degenerate case that shouldn't occur for
-  // a properly-resolved session.
+  // Hub session no longer carries margin_pct directly. The live
+  // currentClientPricing(email) lookup is the source of truth; this
+  // fallback is only reached when that lookup throws (Airtable shim
+  // can't translate a filter, Supabase mis-config, etc.) — guard so a
+  // directory hiccup doesn't 500 the whole calc.
   const fallbackMargin = Number(process.env.DEFAULT_CLIENT_MARGIN ?? 15);
-  const { marginPct, discountPct } = isClient
-    ? await currentClientPricing(session.email, fallbackMargin)
-    : { marginPct: Number(body.profitPercent) || 10, discountPct: Number(body.discountPct) || 0 };
+  let marginPct, discountPct;
+  if (isClient) {
+    try {
+      ({ marginPct, discountPct } = await currentClientPricing(session.email, fallbackMargin));
+    } catch (err) {
+      console.error("currentClientPricing failed, using fallback margin:", err);
+      marginPct = fallbackMargin;
+      discountPct = 0;
+    }
+  } else {
+    marginPct = Number(body.profitPercent) || 10;
+    discountPct = Number(body.discountPct) || 0;
+  }
 
   const inputs = {
     bagType: body.bagType,
