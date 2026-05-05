@@ -28,16 +28,24 @@ export const dynamic = "force-dynamic";
 
 export default async function FactoryosAdminLayout({ children }) {
   const session = getSession();
-  if (!session?.email) {
-    // No identity to re-validate against. Middleware should have caught this,
-    // but stay defensive.
+  if (!session) {
+    // Middleware should have caught this, but stay defensive.
     redirect("/login");
   }
 
   // Hub admins (password admin login) bypass the DB lookup — they don't have
   // a row in the users table, so the lookup would return null and lock them
-  // out of their own admin pages.
+  // out of their own admin pages. Their session.email is intentionally null;
+  // session.isAdmin = true is the signal to trust the cookie's role payload.
   if (!session.isAdmin) {
+    if (!session.email) {
+      // Non-admin session with no identity to re-validate. Burn the cookies
+      // and bounce so the user re-authenticates.
+      const jar = cookies();
+      jar.set(clearHubCookie());
+      jar.set(clearFactoryosCookie());
+      redirect("/login");
+    }
     const liveRole = await getCurrentFactoryosRole(session.email);
     if (!liveRole || !ALLOWED.has(liveRole)) {
       // Stale cookie. Burn both cookies so /factoryos and /login don't
