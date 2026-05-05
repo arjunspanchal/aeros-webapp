@@ -122,6 +122,8 @@ export default function MasterPapersAdmin({ initialPapers }) {
   const [papers, setPapers] = useState(initialPapers);
   const [query, setQuery] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("all");
+  // Pending = rows with no base rate yet. Useful "what's left to enter" filter.
+  const [pendingOnly, setPendingOnly] = useState(false);
 
   // Replace a single row after a successful save, keep sort stable.
   function onSaved(updated) {
@@ -137,11 +139,12 @@ export default function MasterPapersAdmin({ initialPapers }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return papers.filter((p) => {
+      if (pendingOnly && p.baseRate != null) return false;
       if (supplierFilter !== "all" && p.supplier !== supplierFilter) return false;
       if (!q) return true;
       return `${p.materialName} ${p.supplier} ${p.type} ${p.gsm ?? ""} ${p.bf ?? ""}`.toLowerCase().includes(q);
     });
-  }, [papers, query, supplierFilter]);
+  }, [papers, query, supplierFilter, pendingOnly]);
 
   // Summary — counts of rows missing a rate, useful as a "to-do" nudge.
   const missing = useMemo(() => papers.filter((p) => p.baseRate == null).length, [papers]);
@@ -159,11 +162,37 @@ export default function MasterPapersAdmin({ initialPapers }) {
           <option value="all">All suppliers</option>
           {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+        {/* Quick toggle for the most common drill-down: rows that still need a rate. */}
+        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={pendingOnly}
+            onChange={(e) => setPendingOnly(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300"
+          />
+          Pending only
+        </label>
       </div>
 
-      {missing > 0 && (
-        <div className="text-xs px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-900 dark:text-amber-200">
-          {missing} row{missing === 1 ? "" : "s"} still without a base rate.
+      {missing > 0 && !pendingOnly && (
+        <button
+          type="button"
+          onClick={() => setPendingOnly(true)}
+          className="block w-full text-left text-xs px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-900 dark:text-amber-200 dark:hover:bg-amber-900/30"
+        >
+          {missing} row{missing === 1 ? "" : "s"} still without a base rate. <span className="underline">Show only these →</span>
+        </button>
+      )}
+      {pendingOnly && (
+        <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-900 dark:text-amber-200">
+          <span>Showing only rows without a base rate ({filtered.length}).</span>
+          <button
+            type="button"
+            onClick={() => setPendingOnly(false)}
+            className="font-medium underline hover:no-underline"
+          >
+            Clear filter
+          </button>
         </div>
       )}
 
