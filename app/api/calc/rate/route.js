@@ -3,6 +3,7 @@
 // the request body. This keeps the margin hidden from the front-end.
 import { calculate, computeRateCurve, optimizationTips, lookupPaperRate } from "@/lib/calc/calculator";
 import { getSession, requireRole } from "@/lib/auth/session";
+import { getSession as getLegacyCalcSession } from "@/lib/calc/session";
 import { currentClientPricing } from "@/lib/calc/user-directory";
 import { fetchPaperRMTables, lookupRMPaperRate } from "@/lib/calc/rmRates";
 
@@ -29,12 +30,25 @@ export async function POST(req) {
 }
 
 async function handle(req) {
-  const session = getSession();
-  if (!session) return new Response("Unauthorized", { status: 401 });
+  // Hub session is the canonical path. Fall back to the legacy calc cookie for
+  // users with stale sessions (logged in before the hub-cookie rollout) so they
+  // don't have to log out / back in just to use the calculator.
+  let session = getSession();
+  let isClient, isAdmin;
+  if (session) {
+    isClient = requireRole(session, "calculator", "client");
+    isAdmin = requireRole(session, "calculator", "admin");
+  } else {
+    const legacy = getLegacyCalcSession();
+    if (!legacy) {
+      return Response.json({ error: "Session expired. Please sign in again." }, { status: 401 });
+    }
+    session = { email: legacy.email, modules: { calculator: legacy.role } };
+    isClient = legacy.role === "client";
+    isAdmin = legacy.role === "admin";
+  }
 
   const body = await req.json();
-  const isClient = requireRole(session, "calculator", "client");
-  const isAdmin = requireRole(session, "calculator", "admin");
 
   // Clients never supply paper rate or wastage — both are derived server-side.
   // Try live RM Master first, fall back to the static tables in calculator.js.
@@ -94,8 +108,14 @@ async function handle(req) {
     coverage: Number(body.coverage) || 30,
   };
 
-  if (inputs.width <= 0 || inputs.height <= 0 || inputs.gsm <= 0 || inputs.paperRate <= 0) {
+  if (inputs.width <= 0 || inputs.height <= 0 || inputs.gsm <= 0) {
     return Response.json({ error: "Width, height, and GSM are required." }, { status: 400 });
+  }
+  if (inputs.paperRate <= 0) {
+    const sel = `${body.paperType || "—"} / ${body.mill || "any mill"} / ${body.gsm || "—"} GSM / ${body.bf || "—"} BF`;
+    return Response.json({
+      error: `No paper rate available for ${sel}. Add the row to master_papers (or set its base rate).`,
+    }, { status: 400 });
   }
 
   // Compute raw result + curve (margin applied, discount not yet).
