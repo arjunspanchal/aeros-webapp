@@ -11,14 +11,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Default backgrounds respect the `dark` class on <html>. Page components can
-   still override with their own bg utilities — this is just the fallback. */
-html.dark body {
-  background-color: #0a0a0b;
-  color: #e5e7eb;
-}
-
 @layer utilities {
+  /*
+   * Hide native scrollbar on overflow elements. Used by the mobile sub-tab
+   * row in the shell — the row scrolls, but the visible scrollbar chrome is
+   * suppressed so the rule remains editorial.
+   */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /*
    * Paper-grain ambient texture. Inline-SVG data URI so there's zero runtime
    * fetch cost. `bg-paper-grain` is the default for cream/light surfaces;

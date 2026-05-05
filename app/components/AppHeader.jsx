@@ -1,14 +1,18 @@
 "use client";
-// Single unified top header for every page across every module. Row 1: brand
-// "Aeros · {Module}" + per-user module switcher + identity + sign-out + theme.
-// Row 2: module-specific sub-tabs derived from the current pathname + session.
+// Single unified top header for every page across every module.
 //
-// This component is the ONE place where cross-module nav is defined — modules
-// should not render their own top bars. Sub-page layouts handle their own
-// body chrome below the header.
+// Shell prompt 2 rewrite — editorial-utilitarian. Desktop: sticky top bar
+// with Brand left, module nav center (underline-on-active), IdentityMenu
+// right. Mobile: Brand left, MobileNav hamburger right. The sub-tab row
+// renders inline below the bar on ALL viewports (overrides the sheet
+// design from the original Shell prompt) — sub-tabs are frequent and
+// belong in muscle memory.
+//
+// All `subTabsFor` role logic is preserved verbatim from the previous
+// version; only the chrome around it changed.
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import ThemeToggle from "./ThemeToggle";
+import { Brand, IdentityMenu, MobileNav } from "./ui";
 
 const MODULES = [
   { key: "calculator",  label: "Calculator",  href: "/calculator"  },
@@ -131,10 +135,6 @@ function subTabsFor(pathname, session) {
   return [];
 }
 
-function moduleLabel(key) {
-  return MODULES.find((m) => m.key === key)?.label || "";
-}
-
 export default function AppHeader({ session }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -148,76 +148,88 @@ export default function AppHeader({ session }) {
     router.push("/login");
   }
 
-  const identity = session?.isAdmin ? "Admin" : session?.email;
-  const brandSuffix = active ? ` · ${moduleLabel(active)}` : "";
-
   return (
-    <header className="bg-white border-b border-gray-100 dark:bg-gray-900 dark:border-gray-800">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3">
-        {/* Row 1 — brand, module switcher, identity */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-4 sm:gap-6 min-w-0">
-            <Link href="/" className="font-semibold text-gray-900 text-sm hover:text-blue-700 shrink-0 dark:text-white dark:hover:text-blue-400 whitespace-nowrap">
-              Aeros<span className="text-gray-400 dark:text-gray-500">{brandSuffix}</span>
-            </Link>
-            {available.length > 0 && (
-              <nav className="flex gap-1 overflow-x-auto -mx-1 px-1">
-                {available.map((m) => {
-                  const isActive = active === m.key;
-                  return (
-                    <Link
-                      key={m.key}
-                      href={m.href}
-                      className={`shrink-0 whitespace-nowrap text-sm px-3 py-1.5 rounded-lg ${
-                        isActive
-                          ? "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                          : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                      }`}
-                    >
-                      {m.label}
-                    </Link>
-                  );
-                })}
-              </nav>
-            )}
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <span className="text-xs text-gray-500 truncate max-w-[140px] sm:max-w-[200px] dark:text-gray-400">
-              {identity}
-            </span>
-            <button
-              onClick={logout}
-              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              Sign out
-            </button>
-            <ThemeToggle />
-          </div>
-        </div>
+    <header className="sticky top-0 z-40 bg-white border-b border-ink-200">
+      {/* Row 1 — brand, module nav (desktop), identity / hamburger */}
+      <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between gap-4">
+        <Link
+          href="/"
+          className="shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded"
+          aria-label="Aeros — home"
+        >
+          <Brand size="sm" />
+        </Link>
 
-        {/* Row 2 — module sub-tabs (if any) */}
-        {subTabs.length > 0 && (
-          <div className="flex gap-1 overflow-x-auto -mx-1 px-1 pt-2 mt-1 border-t border-gray-100 dark:border-gray-800">
-            {subTabs.map((t) => {
-              const isActive = pathname === t.href;
+        {/* Desktop module nav — underline-on-active. Hidden on mobile; the
+            hamburger sheet carries the same links. */}
+        {available.length > 0 && (
+          <nav className="hidden md:flex items-center gap-6 flex-1 justify-center">
+            {available.map((m) => {
+              const isActive = active === m.key;
               return (
                 <Link
-                  key={t.href}
-                  href={t.href}
-                  className={`shrink-0 whitespace-nowrap text-sm px-3 py-1.5 rounded-lg ${
+                  key={m.key}
+                  href={m.href}
+                  className={`text-sm transition-colors py-1 border-b-2 -mb-px ${
                     isActive
-                      ? "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                      : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                      ? "text-ink-900 border-ink-900 font-medium"
+                      : "text-ink-600 border-transparent hover:text-ink-900"
                   }`}
                 >
-                  <span className="sm:hidden">{t.short || t.label}</span>
-                  <span className="hidden sm:inline">{t.label}</span>
+                  {m.label}
                 </Link>
               );
             })}
-          </div>
+          </nav>
         )}
+
+        {/* Right cluster — identity (desktop) / hamburger (mobile). */}
+        <div className="shrink-0 flex items-center gap-2">
+          <div className="hidden md:block">
+            <IdentityMenu session={session} onSignOut={logout} />
+          </div>
+          <div className="md:hidden">
+            <MobileNav
+              modules={available}
+              activeKey={active}
+              currentPath={pathname}
+              session={session}
+              onSignOut={logout}
+            />
+          </div>
+        </div>
       </div>
+
+      {/* Row 2 — module sub-tabs, inline on all viewports. The horizontal
+          scroll is masked by a right-edge fade so the row remains editorial
+          rather than utilitarian. */}
+      {subTabs.length > 0 && (
+        <div className="border-t border-ink-200 bg-ink-50/50">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 relative">
+            <div className="flex gap-5 overflow-x-auto no-scrollbar h-10 items-stretch">
+              {subTabs.map((t) => {
+                const isActive = pathname === t.href;
+                return (
+                  <Link
+                    key={t.href}
+                    href={t.href}
+                    className={`shrink-0 whitespace-nowrap text-sm flex items-center border-b-2 -mb-px transition-colors ${
+                      isActive
+                        ? "text-ink-900 border-ink-900 font-medium"
+                        : "text-ink-600 border-transparent hover:text-ink-900"
+                    }`}
+                  >
+                    <span className="sm:hidden">{t.short || t.label}</span>
+                    <span className="hidden sm:inline">{t.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+            {/* Right-edge fade — only visible when the row overflows; harmless when not. */}
+            <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-ink-50/90 to-transparent" />
+          </div>
+        </div>
+      )}
     </header>
   );
 }
