@@ -39,6 +39,7 @@ export default function ManageClient({ initialItems }) {
   const [photoFilter, setPhotoFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState(""); // "" | "finished" | "rm"
   const [sort, setSort] = useState("name-asc");
+  const [addingNew, setAddingNew] = useState(false);
 
   const categories = useMemo(() => uniq(items.map((i) => i.category)), [items]);
   const brands     = useMemo(() => uniq(items.map((i) => i.brand)),    [items]);
@@ -165,17 +166,39 @@ export default function ManageClient({ initialItems }) {
 
         <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
           <span>{filtered.length} of {items.length} shown</span>
-          {anyFilterActive && (
+          <div className="flex items-center gap-2">
+            {anyFilterActive && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Clear filters
+              </button>
+            )}
             <button
               type="button"
-              onClick={clearFilters}
-              className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              onClick={() => setAddingNew(true)}
+              disabled={addingNew}
+              className="rounded-md bg-brand-600 px-3 py-1 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50 dark:bg-brand-500 dark:hover:bg-brand-400"
             >
-              Clear filters
+              + Add new item
             </button>
-          )}
+          </div>
         </div>
       </div>
+
+      {/* New-item panel — shown above the list when admin clicks "Add new item". */}
+      {addingNew && (
+        <NewItemPanel
+          onCancel={() => setAddingNew(false)}
+          onCreate={(created) => {
+            // Prepend so the new row is immediately visible regardless of sort.
+            setItems((prev) => [created, ...prev]);
+            setAddingNew(false);
+          }}
+        />
+      )}
 
       {/* List */}
       <div className="space-y-3">
@@ -431,9 +454,6 @@ function KV({ label, children }) {
 }
 
 function EditForm({ draft, setDraft, saving, onCancel, onSave, error }) {
-  function set(key, value) {
-    setDraft((d) => ({ ...d, [key]: value }));
-  }
   return (
     <form
       onSubmit={(e) => {
@@ -442,6 +462,44 @@ function EditForm({ draft, setDraft, saving, onCancel, onSave, error }) {
       }}
       className="space-y-3"
     >
+      <ItemFields draft={draft} setDraft={setDraft} />
+
+      {error && (
+        <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+          {error}
+        </p>
+      )}
+
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// Shared field markup used by both the per-row EditForm and the
+// NewItemPanel. Owns no state — parent controls draft + setDraft so the
+// same fields drive create and update flows identically.
+function ItemFields({ draft, setDraft }) {
+  function set(key, value) {
+    setDraft((d) => ({ ...d, [key]: value }));
+  }
+  return (
+    <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Item name">
           <input
@@ -526,10 +584,7 @@ function EditForm({ draft, setDraft, saving, onCancel, onSave, error }) {
         Warehouse location is staff-only — never shown on the public /clearance page.
       </p>
 
-      {/* Raw-material dead-stock fields. Optional for finished goods —
-          fill these in when listing paper rolls / sheets that need to clear.
-          Stock quantity above carries kg (Roll) or sheet count (Sheet);
-          set the Unit field to "kg" or "sheets" accordingly. */}
+      {/* Raw-material dead-stock fields. Optional for finished goods. */}
       <fieldset className="rounded-md border border-purple-200 bg-purple-50/40 p-3 dark:border-purple-900/50 dark:bg-purple-950/20">
         <legend className="px-1 text-[11px] font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">
           Raw Material details (optional)
@@ -593,31 +648,106 @@ function EditForm({ draft, setDraft, saving, onCancel, onSave, error }) {
           className={inputCls}
         />
       </Field>
+    </>
+  );
+}
 
-      {error && (
-        <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
-          {error}
-        </p>
-      )}
+// Empty draft used when admin clicks "+ Add new item". Mirrors toDraft()
+// shape so ItemFields renders without undefineds.
+const EMPTY_DRAFT = {
+  itemName: "",
+  brand: "",
+  category: "",
+  stockQuantity: "",
+  unit: "pcs",
+  casePack: "",
+  price: "",
+  priceUnit: "",
+  status: "Available",
+  location: "",
+  description: "",
+  specifications: "",
+  gsm: "",
+  rmForm: "",
+  rmType: "",
+};
 
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-700 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
+// Inline panel rendered above the list when admin is creating a new item.
+// On success the parent prepends the returned row to the items state and
+// closes the panel; photos are uploaded afterwards via the regular row UI.
+function NewItemPanel({ onCreate, onCancel }) {
+  const [draft, setDraft] = useState(EMPTY_DRAFT);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function save() {
+    if (!draft.itemName.trim()) {
+      setError("Item name is required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/clearance/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Create failed (${res.status})`);
+      }
+      const { item } = await res.json();
+      onCreate(item);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mb-3 rounded-lg border-2 border-brand-300 bg-brand-50/30 p-4 shadow-sm dark:border-brand-700 dark:bg-brand-950/20">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Add new item</h3>
+        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+          Photos can be uploaded after the item is created.
+        </span>
       </div>
-    </form>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          save();
+        }}
+        className="space-y-3"
+      >
+        <ItemFields draft={draft} setDraft={setDraft} />
+
+        {error && (
+          <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+            {error}
+          </p>
+        )}
+
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-60 dark:bg-brand-500 dark:hover:bg-brand-400"
+          >
+            {saving ? "Creating…" : "Create item"}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
