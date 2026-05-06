@@ -82,7 +82,7 @@ export default function ItemCard({ item }) {
                 }).format(item.price)}
               </span>
               <span className="text-gray-500 dark:text-gray-400">
-                {' '}/ {item.unit || 'unit'}
+                {' '}/ {item.priceUnit || item.unit || 'unit'}
               </span>
             </>
           ) : (
