@@ -58,18 +58,19 @@ export async function middleware(req) {
   // Public read access (no gate):
   //   • `/`                 — public marketing landing page
   //   • `/clearance`        — read-only stock list, open to prospects
+  //   • `/catalog`          — public product catalogue
   // Auth required:
   //   • `/hub`              — authed module-picker (replaces old `/`)
   //   • `/clearance/manage` — staff backend (also has its own session guard)
-  //   • `/catalog`          — internal catalogue (sensitive pricing)
-  if (pathname === "/hub" || pathname.startsWith("/catalog") || pathname.startsWith("/clearance/manage")) {
+  //   • `/catalog/manage`   — staff backend (also has its own session guard)
+  if (pathname === "/hub" || pathname.startsWith("/catalog/manage") || pathname.startsWith("/clearance/manage")) {
     const token = req.cookies.get("aeros_hub_session")?.value;
     const payload = secret ? await verify(token, secret) : null;
     if (!payload) return redirectToLogin(req);
     return NextResponse.next();
   }
-  // `/` and `/clearance` fall through — page renders based on session.
-  if (pathname === "/" || pathname === "/clearance") {
+  // `/`, `/clearance`, `/catalog` fall through — page renders based on session.
+  if (pathname === "/" || pathname === "/clearance" || pathname === "/catalog") {
     return NextResponse.next();
   }
 
