@@ -171,6 +171,14 @@ export default function LoginForm() {
          Desktop: 2/5 width, white. Mobile: full-width below brand strip. */}
       <section className="flex-1 md:w-2/5 bg-white flex items-start md:items-center justify-center px-6 py-10 md:px-10 md:py-12">
         <div className="w-full max-w-sm">
+          {/* Back-to-home — secondary nav so a visitor on the login page
+             can bail out to the public landing without retyping the URL. */}
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs text-ink-500 hover:text-ink-900 mb-6 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded-sm"
+          >
+            <span aria-hidden>←</span> Back to home
+          </Link>
           {/* Tab row — segmented underline. Active border = royal-600 to
              match Shell's MobileNav active treatment. */}
           <nav className="flex gap-6 border-b border-ink-200 mb-6">
