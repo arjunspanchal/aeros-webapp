@@ -1,23 +1,13 @@
-import HomeClient from './HomeClient';
-import Footer from './components/Footer';
-import { getSession } from '@/lib/hub/session';
-import { canManageClearance } from '@/lib/clearance/admin';
+import LandingClient from './LandingClient';
 
 export const metadata = {
-  title: 'Aeros',
-  description: 'Paper packaging — clearance stock, product catalog, and rate calculator.',
+  title: 'Aeros — Paper packaging, costed, quoted, shipped',
+  description:
+    'Aeros is a Mumbai-based paper packaging manufacturer. Food-grade cups, tubs, bowls, lids, kraft bags, and SBS & corrugated boxes — costed live, quoted in INR, shipped fast.',
 };
 
-// Render the home page regardless of session. HomeClient picks which tiles to
-// show: public visitors see Clearance + a Sign-in CTA; authenticated users
-// see every module they have access to.
-export default function WelcomePage() {
-  const session = getSession();
-  return (
-    <HomeClient
-      session={session}
-      canManageClearance={canManageClearance(session)}
-      footer={<Footer />}
-    />
-  );
+// `/` is the public marketing landing. The authed module-picker (HomeClient)
+// lives at `/hub`. Middleware lets / through unauthenticated and gates /hub.
+export default function LandingPage() {
+  return <LandingClient />;
 }

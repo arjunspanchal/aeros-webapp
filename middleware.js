@@ -54,30 +54,21 @@ export async function middleware(req) {
   const legacy = legacyOrdersRedirect(req);
   if (legacy) return legacy;
 
-  // --- Hub: home, catalog, clearance ---
-  // Public read access:
-  //   • `/`               — landing page renders a public Clearance tile when
-  //                         no session; logged-in users still see the full
-  //                         module grid based on their entitlements.
-  //   • `/clearance`      — the read-only stock list is open to anyone so
-  //                         prospects can browse without signing in.
-  // Auth still required for:
-  //   • `/clearance/manage` — staff backend (also has its own session guard).
-  //   • `/catalog`          — internal catalogue (sensitive pricing).
-  if (pathname.startsWith("/clearance/manage")) {
+  // --- Hub: landing, dashboard, catalog, clearance ---
+  // Public read access (no gate):
+  //   • `/`                 — public marketing landing page
+  //   • `/clearance`        — read-only stock list, open to prospects
+  // Auth required:
+  //   • `/hub`              — authed module-picker (replaces old `/`)
+  //   • `/clearance/manage` — staff backend (also has its own session guard)
+  //   • `/catalog`          — internal catalogue (sensitive pricing)
+  if (pathname === "/hub" || pathname.startsWith("/catalog") || pathname.startsWith("/clearance/manage")) {
     const token = req.cookies.get("aeros_hub_session")?.value;
     const payload = secret ? await verify(token, secret) : null;
     if (!payload) return redirectToLogin(req);
     return NextResponse.next();
   }
-  if (pathname.startsWith("/catalog")) {
-    const token = req.cookies.get("aeros_hub_session")?.value;
-    const payload = secret ? await verify(token, secret) : null;
-    if (!payload) return redirectToLogin(req);
-    return NextResponse.next();
-  }
-  // `/` and `/clearance` fall through — page-level rendering decides what to
-  // show based on the session presence.
+  // `/` and `/clearance` fall through — page renders based on session.
   if (pathname === "/" || pathname === "/clearance") {
     return NextResponse.next();
   }
@@ -121,7 +112,7 @@ export async function middleware(req) {
 
 export const config = {
   matcher: [
-    "/",
+    "/hub",
     "/catalog/:path*",
     "/clearance/:path*",
     "/calculator/:path*",
