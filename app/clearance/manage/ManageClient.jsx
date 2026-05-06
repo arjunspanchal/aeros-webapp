@@ -37,6 +37,7 @@ export default function ManageClient({ initialItems }) {
   const [locationFilter, setLocationFilter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
   const [photoFilter, setPhotoFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState(""); // "" | "finished" | "rm"
   const [sort, setSort] = useState("name-asc");
 
   const categories = useMemo(() => uniq(items.map((i) => i.category)), [items]);
@@ -46,7 +47,7 @@ export default function ManageClient({ initialItems }) {
 
   const anyFilterActive =
     !!search || !!categoryFilter || !!brandFilter || !!statusFilter ||
-    !!locationFilter || !!stockFilter || !!photoFilter;
+    !!locationFilter || !!stockFilter || !!photoFilter || !!typeFilter;
 
   function clearFilters() {
     setSearch("");
@@ -56,6 +57,7 @@ export default function ManageClient({ initialItems }) {
     setLocationFilter("");
     setStockFilter("");
     setPhotoFilter("");
+    setTypeFilter("");
   }
 
   const filtered = useMemo(() => {
@@ -76,6 +78,9 @@ export default function ManageClient({ initialItems }) {
 
       if (photoFilter === "missing" && (it.photos?.length || 0) > 0) return false;
       if (photoFilter === "has"     && (it.photos?.length || 0) === 0) return false;
+
+      if (typeFilter === "rm"       && !isRm(it)) return false;
+      if (typeFilter === "finished" && isRm(it)) return false;
 
       if (!q) return true;
       // Broaden search across the fields admins commonly cite.
@@ -100,7 +105,7 @@ export default function ManageClient({ initialItems }) {
       }
     };
     return [...list].sort(cmp);
-  }, [items, search, categoryFilter, brandFilter, statusFilter, locationFilter, stockFilter, photoFilter, sort]);
+  }, [items, search, categoryFilter, brandFilter, statusFilter, locationFilter, stockFilter, photoFilter, typeFilter, sort]);
 
   function updateItemLocally(id, patch) {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
@@ -150,6 +155,11 @@ export default function ManageClient({ initialItems }) {
             <option value="">Any photos</option>
             <option value="has">Has photo</option>
             <option value="missing">Missing photo</option>
+          </select>
+          <select className={filterSelectCls} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Item type">
+            <option value="">All item types</option>
+            <option value="finished">Finished goods</option>
+            <option value="rm">RM dead stock</option>
           </select>
         </div>
 
@@ -273,7 +283,21 @@ function toDraft(item) {
     location: item.location || "",
     description: item.description || "",
     specifications: item.specifications || "",
+    // RM dead-stock fields. All three NULL/empty for finished goods.
+    gsm: item.gsm == null ? "" : String(item.gsm),
+    rmForm: item.rmForm || "",
+    rmType: item.rmType || "",
   };
+}
+
+// RM dropdown choices. "Other" lets staff capture stock that doesn't match
+// the standard grades without forcing a free-text fallback.
+const RM_TYPES = ["FBB", "Cups Stock", "Brown Kraft Board", "Bleached Kraft", "Virgin Kraft", "Recycled Kraft", "Other"];
+const RM_FORMS = ["Roll", "Sheet"];
+
+// True when any RM field is populated. Drives the badge in ReadView.
+function isRm(item) {
+  return !!(item?.rmType || item?.rmForm || item?.gsm);
 }
 
 // Format a price in INR (₹). Returns null if price is null so caller can render "—".
@@ -305,6 +329,26 @@ function ReadView({ item, onEdit, savedFlash }) {
             {item.status && (
               <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                 {item.status}
+              </span>
+            )}
+            {isRm(item) && (
+              <span className="rounded-full bg-purple-50 px-2 py-0.5 font-medium text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                RM Dead Stock
+              </span>
+            )}
+            {item.rmType && (
+              <span className="rounded-full bg-purple-50 px-2 py-0.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                {item.rmType}
+              </span>
+            )}
+            {item.rmForm && (
+              <span className="rounded-full bg-purple-50 px-2 py-0.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                {item.rmForm}
+              </span>
+            )}
+            {item.gsm != null && (
+              <span className="rounded-full bg-purple-50 px-2 py-0.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                {item.gsm} GSM
               </span>
             )}
           </div>
@@ -468,6 +512,58 @@ function EditForm({ draft, setDraft, saving, onCancel, onSave, error }) {
       <p className="-mt-2 text-[11px] text-gray-500 dark:text-gray-400">
         Warehouse location is staff-only — never shown on the public /clearance page.
       </p>
+
+      {/* Raw-material dead-stock fields. Optional for finished goods —
+          fill these in when listing paper rolls / sheets that need to clear.
+          Stock quantity above carries kg (Roll) or sheet count (Sheet);
+          set the Unit field to "kg" or "sheets" accordingly. */}
+      <fieldset className="rounded-md border border-purple-200 bg-purple-50/40 p-3 dark:border-purple-900/50 dark:bg-purple-950/20">
+        <legend className="px-1 text-[11px] font-semibold uppercase tracking-wide text-purple-700 dark:text-purple-300">
+          Raw Material details (optional)
+        </legend>
+        <p className="mb-2 text-[11px] text-gray-500 dark:text-gray-400">
+          Fill these in for paper / board RM dead stock. Leave blank for finished goods.
+          For Rolls set Unit = <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">kg</code>;
+          for Sheets use <code className="rounded bg-gray-100 px-1 dark:bg-gray-800">sheets</code>.
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Field label="RM Type">
+            <select
+              value={draft.rmType}
+              onChange={(e) => set("rmType", e.target.value)}
+              className={inputCls}
+            >
+              <option value="">— not RM —</option>
+              {RM_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Form">
+            <select
+              value={draft.rmForm}
+              onChange={(e) => set("rmForm", e.target.value)}
+              className={inputCls}
+            >
+              <option value="">—</option>
+              {RM_FORMS.map((f) => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="GSM">
+            <input
+              type="number"
+              min="0"
+              value={draft.gsm}
+              onChange={(e) => set("gsm", e.target.value)}
+              placeholder="e.g. 280"
+              className={inputCls}
+            />
+          </Field>
+        </div>
+      </fieldset>
+
       <Field label="Description">
         <textarea
           rows={2}
