@@ -47,9 +47,17 @@ const CLEARANCE_MANAGE_OPTION = {
   accent: "from-rose-500 to-red-600",
 };
 
+// Tiles open to anyone (no session required). Currently just the Clearance
+// stock listing — staff Manage page stays gated. Easy to add Catalogue or
+// other read-only views here if/when they should be public too.
+const PUBLIC_OPTION_KEYS = new Set(["clearance"]);
+
 export default function HomeClient({ session, canManageClearance, footer }) {
+  const isAuthed = !!session;
   const modules = session?.modules || {};
-  const options = ALL_OPTIONS.filter((o) => !!modules[o.key]);
+  const options = isAuthed
+    ? ALL_OPTIONS.filter((o) => !!modules[o.key])
+    : ALL_OPTIONS.filter((o) => PUBLIC_OPTION_KEYS.has(o.key));
   if (canManageClearance) options.push(CLEARANCE_MANAGE_OPTION);
 
   return (
@@ -65,6 +73,17 @@ export default function HomeClient({ session, canManageClearance, footer }) {
             Paper packaging manufactured in India. Pick what you&apos;re here for.
           </p>
         </div>
+
+        {!isAuthed && (
+          <div className="mb-8 text-center">
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              Sign in to access Calculator, Catalogue, Rate Cards, FactoryOS →
+            </Link>
+          </div>
+        )}
 
         {options.length === 0 ? (
           <div className="text-center text-sm text-gray-500 dark:text-gray-400">
