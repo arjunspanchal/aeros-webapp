@@ -143,21 +143,34 @@ export function MobileNav({ modules, activeKey, currentPath, session, onSignOut 
             )}
           </nav>
 
-          {/* Identity panel pinned to bottom. */}
+          {/* Identity panel pinned to bottom. Anonymous visitors see a
+              Sign-in link instead of the user block + Sign-out button. */}
           <div className="border-t border-ink-200 px-4 py-4 bg-white">
-            <p className="text-sm font-medium text-ink-900 truncate">{name}</p>
-            {email && <p className="text-xs font-mono text-ink-400 truncate mt-0.5">{email}</p>}
-            {badge && <p className="text-xs text-ink-600 mt-1">{badge}</p>}
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                onSignOut();
-              }}
-              className="mt-3 inline-flex items-center justify-center h-9 px-3 rounded text-sm text-ink-600 hover:bg-ink-50 hover:text-ink-800 transition-colors w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600"
-            >
-              Sign out
-            </button>
+            {session ? (
+              <>
+                <p className="text-sm font-medium text-ink-900 truncate">{name}</p>
+                {email && <p className="text-xs font-mono text-ink-400 truncate mt-0.5">{email}</p>}
+                {badge && <p className="text-xs text-ink-600 mt-1">{badge}</p>}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    onSignOut();
+                  }}
+                  className="mt-3 inline-flex items-center justify-center h-9 px-3 rounded text-sm text-ink-600 hover:bg-ink-50 hover:text-ink-800 transition-colors w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setOpen(false)}
+                className="inline-flex items-center justify-center h-10 px-3 rounded text-sm font-medium text-white bg-royal-600 hover:bg-royal-700 transition-colors w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600 focus-visible:ring-offset-2"
+              >
+                Sign in
+              </Link>
+            )}
           </div>
         </aside>
       </div>

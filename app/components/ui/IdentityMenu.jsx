@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 
@@ -39,6 +40,23 @@ function roleBadge(session) {
 }
 
 export function IdentityMenu({ session, onSignOut }) {
+  // Anonymous visitor — render a Sign-in link instead of the dropdown so
+  // public pages (/, /clearance) don't show "— ▾ … Sign out". The dropdown
+  // body lives in a sub-component so its hooks aren't conditionally called.
+  if (!session) {
+    return (
+      <Link
+        href="/login"
+        className="inline-flex items-center gap-2 h-9 px-3 rounded text-sm font-medium text-ink-800 hover:bg-ink-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-50"
+      >
+        Sign in
+      </Link>
+    );
+  }
+  return <SignedInMenu session={session} onSignOut={onSignOut} />;
+}
+
+function SignedInMenu({ session, onSignOut }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
