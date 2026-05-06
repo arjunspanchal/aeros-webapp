@@ -1,4 +1,3 @@
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireInternal, requireManager, requireRole } from "@/lib/auth/session";
 import { listJobsForSession, createJob } from "@/lib/factoryos/repo";
 import { STAGES, CATEGORIES } from "@/lib/factoryos/constants";
@@ -8,11 +7,15 @@ export const runtime = "nodejs";
 export async function GET() {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  // listJobsForSession reads s.role / s.userId / s.clientIds for FM-scoping
-  // and AM-scoping. Pass the legacy session through; PR 1.5 collapses.
-  const s = getFactoryosSession();
   try {
-    const jobs = await listJobsForSession(s);
+    // listJobsForSession reads .role / .userId / .clientIds. Build the
+    // legacy shape inline from the unified session — keeps the helper
+    // signature unchanged.
+    const jobs = await listJobsForSession({
+      role: session.modules?.factoryos,
+      userId: session.factoryosUserId,
+      clientIds: session.factoryosClientIds,
+    });
     return Response.json({ jobs });
   } catch (e) {
     if (e instanceof Response) return e;

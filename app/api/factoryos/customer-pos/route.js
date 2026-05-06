@@ -1,4 +1,3 @@
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireRole } from "@/lib/auth/session";
 import { listCustomerPOs, createCustomerPO, attachPoFile } from "@/lib/factoryos/repo";
 
@@ -9,14 +8,12 @@ const MAX_BYTES = 5 * 1024 * 1024; // Airtable content-upload limit
 export async function GET() {
   const session = getSession();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  // Legacy factoryos session for s.clientIds — collapses in PR 1.5.
-  const s = getFactoryosSession();
 
   // Customers see only their own client's POs; everyone else sees all.
   // AM is also scoped to their assigned clients.
   let clientIds;
-  if (requireRole(session, "factoryos", "customer")) clientIds = s.clientIds || [];
-  if (requireRole(session, "factoryos", "account_manager")) clientIds = s.clientIds || [];
+  if (requireRole(session, "factoryos", "customer")) clientIds = session.factoryosClientIds || [];
+  if (requireRole(session, "factoryos", "account_manager")) clientIds = session.factoryosClientIds || [];
   const pos = await listCustomerPOs(clientIds ? { clientIds } : undefined);
   return Response.json({ pos });
 }
@@ -24,8 +21,6 @@ export async function GET() {
 export async function POST(req) {
   const session = getSession();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  // Legacy factoryos session for s.clientIds — collapses in PR 1.5.
-  const s = getFactoryosSession();
 
   const body = await req.json().catch(() => ({}));
   const { poNumber, filename, contentType, fileBase64, notes } = body;
@@ -44,7 +39,7 @@ export async function POST(req) {
   // Customers can only upload to their own client.
   let clientId;
   if (requireRole(session, "factoryos", "customer")) {
-    clientId = (s.clientIds || [])[0];
+    clientId = (session.factoryosClientIds || [])[0];
     if (!clientId) return Response.json({ error: "No client linked to your account" }, { status: 400 });
   } else {
     clientId = body.clientId;

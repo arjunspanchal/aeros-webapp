@@ -1,4 +1,3 @@
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireManager } from "@/lib/auth/session";
 import {
   attachEmployeeAadhar,
@@ -12,12 +11,10 @@ export const runtime = "nodejs";
 const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
-// Receives the LEGACY factoryos session — still reads .role / .userId.
-// PR 1.5 collapses when userId lands in the hub cookie.
 async function assertCanEdit(session, employeeId) {
   const emp = await getEmployee(employeeId);
   if (!emp) throw new Response("Not found", { status: 404 });
-  if (session.role !== ROLES.ADMIN && emp.managerId !== session.userId) {
+  if (session.modules?.factoryos !== ROLES.ADMIN && emp.managerId !== session.factoryosUserId) {
     throw new Response("Not your employee", { status: 403 });
   }
   return emp;
@@ -27,9 +24,8 @@ export async function POST(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
-  const s = getFactoryosSession();
   try {
-    await assertCanEdit(s, params.id);
+    await assertCanEdit(session, params.id);
     const body = await req.json();
     const { contentType, filename, fileBase64 } = body || {};
     if (!contentType || !filename || !fileBase64) {
@@ -61,9 +57,8 @@ export async function DELETE(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
-  const s = getFactoryosSession();
   try {
-    await assertCanEdit(s, params.id);
+    await assertCanEdit(session, params.id);
     const url = new URL(req.url);
     const attachmentId = url.searchParams.get("attachmentId");
     if (!attachmentId) {
