@@ -287,6 +287,8 @@ function toDraft(item) {
     gsm: item.gsm == null ? "" : String(item.gsm),
     rmForm: item.rmForm || "",
     rmType: item.rmType || "",
+    // Optional override — stock in sheets, price in kg, etc.
+    priceUnit: item.priceUnit || "",
   };
 }
 
@@ -300,15 +302,18 @@ function isRm(item) {
   return !!(item?.rmType || item?.rmForm || item?.gsm);
 }
 
-// Format a price in INR (₹). Returns null if price is null so caller can render "—".
-function formatPrice(price, unit) {
+// Format a price in INR (₹). priceUnit overrides unit when present
+// (e.g. RM stocked in sheets but priced per kg). Returns null if price
+// is null so caller can render "—".
+function formatPrice(price, unit, priceUnit) {
   if (price == null) return null;
   const formatted = new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 2,
   }).format(price);
-  return unit ? `${formatted} / ${unit}` : formatted;
+  const denom = priceUnit || unit;
+  return denom ? `${formatted} / ${denom}` : formatted;
 }
 
 function ReadView({ item, onEdit, savedFlash }) {
@@ -376,7 +381,7 @@ function ReadView({ item, onEdit, savedFlash }) {
           {item.casePack != null ? item.casePack.toLocaleString() : <span className="text-gray-400 dark:text-gray-500">—</span>}
         </KV>
         <KV label="Rate">
-          {formatPrice(item.price, item.unit) || (
+          {formatPrice(item.price, item.unit, item.priceUnit) || (
             <span className="italic text-gray-500 dark:text-gray-400">Rate Pending</span>
           )}
         </KV>
@@ -497,6 +502,14 @@ function EditForm({ draft, setDraft, saving, onCancel, onSave, error }) {
             value={draft.price}
             onChange={(e) => set("price", e.target.value)}
             placeholder="Leave blank for Rate Pending"
+            className={inputCls}
+          />
+        </Field>
+        <Field label="Price unit override">
+          <input
+            value={draft.priceUnit}
+            onChange={(e) => set("priceUnit", e.target.value)}
+            placeholder={`Leave blank to use "${draft.unit || "unit"}", or e.g. kg`}
             className={inputCls}
           />
         </Field>
