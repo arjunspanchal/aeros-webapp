@@ -1,4 +1,3 @@
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireInternal, requireAdminStrict, requireManager } from "@/lib/auth/session";
 import { listAttendance, upsertAttendance, getEmployee, computeOtHours, listEmployees } from "@/lib/factoryos/repo";
 import { ATTENDANCE_WEIGHT, SHIFT_END } from "@/lib/factoryos/constants";
@@ -9,9 +8,6 @@ export async function GET(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
-  // Legacy factoryos session for s.userId — collapses in PR 1.5 when userId
-  // lands in the hub cookie.
-  const s = getFactoryosSession();
   try {
     const url = new URL(req.url);
     const employeeId = url.searchParams.get("employeeId") || undefined;
@@ -24,11 +20,11 @@ export async function GET(req) {
     if (!requireAdminStrict(session)) {
       if (employeeId) {
         const emp = await getEmployee(employeeId);
-        if (!emp || emp.managerId !== s.userId) {
+        if (!emp || emp.managerId !== session.factoryosUserId) {
           return Response.json({ error: "Not your employee" }, { status: 403 });
         }
       } else {
-        const myEmployees = await listEmployees({ managerUserId: s.userId });
+        const myEmployees = await listEmployees({ managerUserId: session.factoryosUserId });
         const myIds = new Set(myEmployees.map((e) => e.id));
         const all = await listAttendance({ from, to });
         return Response.json({ attendance: all.filter((r) => myIds.has(r.employeeId)) });
@@ -50,8 +46,6 @@ export async function POST(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
-  // Legacy factoryos session for s.userId — collapses in PR 1.5.
-  const s = getFactoryosSession();
   try {
     const body = await req.json();
     if (!body.employeeId) return Response.json({ error: "Employee required" }, { status: 400 });
@@ -64,7 +58,7 @@ export async function POST(req) {
     if (!employee) return Response.json({ error: "Employee not found" }, { status: 404 });
 
     const isPrivileged = requireManager(session);
-    if (!isPrivileged && employee.managerId !== s.userId) {
+    if (!isPrivileged && employee.managerId !== session.factoryosUserId) {
       return Response.json({ error: "Not your assigned employee" }, { status: 403 });
     }
 
@@ -82,7 +76,7 @@ export async function POST(req) {
       inTime: body.inTime || "",
       outTime: body.outTime || "",
       otHours,
-      markedByUserId: s.userId,
+      markedByUserId: session.factoryosUserId,
       markedByEmail: session.email,
       markedByName: session.name || "",
       notes: body.notes || "",

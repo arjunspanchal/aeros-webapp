@@ -1,4 +1,3 @@
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireManager, requireRole, requireAdminStrict } from "@/lib/auth/session";
 import {
   getJob,
@@ -20,16 +19,15 @@ const DELETE_ALLOWED_ROLES = new Set([
 
 export const runtime = "nodejs";
 
-// Receives the LEGACY factoryos session — still reads .role / .clientIds /
-// .userId. PR 1.5 collapses when those fields land in the hub cookie.
 function sessionCanSeeJob(session, job) {
-  if (session.role === ROLES.ADMIN || session.role === ROLES.FACTORY_MANAGER) return true;
-  const myClients = new Set(session.clientIds || []);
-  if (session.role === ROLES.ACCOUNT_MANAGER) {
+  const role = session.modules?.factoryos;
+  if (role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER) return true;
+  const myClients = new Set(session.factoryosClientIds || []);
+  if (role === ROLES.ACCOUNT_MANAGER) {
     return job.clientIds.some((c) => myClients.has(c)) ||
-      (job.customerManagerId && job.customerManagerId === session.userId);
+      (job.customerManagerId && job.customerManagerId === session.factoryosUserId);
   }
-  if (session.role === ROLES.CUSTOMER) {
+  if (role === ROLES.CUSTOMER) {
     return job.clientIds.some((c) => myClients.has(c));
   }
   return false;
@@ -38,12 +36,10 @@ function sessionCanSeeJob(session, job) {
 export async function GET(_req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  // sessionCanSeeJob still consumes the legacy shape (role + clientIds + userId).
-  const s = getFactoryosSession();
   try {
     const job = await getJob(params.id);
     if (!job) return Response.json({ error: "Not found" }, { status: 404 });
-    if (!sessionCanSeeJob(s, job)) return Response.json({ error: "Forbidden" }, { status: 403 });
+    if (!sessionCanSeeJob(session, job)) return Response.json({ error: "Forbidden" }, { status: 403 });
     const updates = await listJobUpdates(job.id);
     return Response.json({ job, updates });
   } catch (e) {
@@ -55,12 +51,10 @@ export async function GET(_req, { params }) {
 export async function PATCH(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  // sessionCanSeeJob still consumes the legacy shape.
-  const s = getFactoryosSession();
   try {
     const job = await getJob(params.id);
     if (!job) return Response.json({ error: "Not found" }, { status: 404 });
-    if (!sessionCanSeeJob(s, job)) return Response.json({ error: "Forbidden" }, { status: 403 });
+    if (!sessionCanSeeJob(session, job)) return Response.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json();
     const patch = {};

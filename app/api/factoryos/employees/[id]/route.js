@@ -1,4 +1,3 @@
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireManager, requireAdminStrict } from "@/lib/auth/session";
 import { updateEmployee, deleteEmployee, deactivateEmployee, getEmployee } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -7,14 +6,11 @@ export const runtime = "nodejs";
 
 // Factory Manager may only edit employees assigned to them, and may not
 // re-assign ownership (to prevent bypassing the roster scope).
-// Receives the LEGACY factoryos session for backwards compatibility — the
-// helper still reads .role / .userId, which only exist on that shape.
-// PR 1.5 collapses this when the unified session carries userId too.
 async function assertCanEdit(session, employeeId) {
-  if (session.role === ROLES.ADMIN) return;
+  if (session.modules?.factoryos === ROLES.ADMIN) return;
   const emp = await getEmployee(employeeId);
   if (!emp) throw new Response("Not found", { status: 404 });
-  if (emp.managerId !== session.userId) {
+  if (emp.managerId !== session.factoryosUserId) {
     throw new Response("Not your employee", { status: 403 });
   }
 }
@@ -23,9 +19,8 @@ export async function PATCH(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
-  const s = getFactoryosSession();
   try {
-    await assertCanEdit(s, params.id);
+    await assertCanEdit(session, params.id);
     const body = await req.json();
     const patch = { ...body };
     // FMs can't reassign ownership — silently drop any managerId attempt.
@@ -67,9 +62,8 @@ export async function DELETE(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
-  const s = getFactoryosSession();
   try {
-    await assertCanEdit(s, params.id);
+    await assertCanEdit(session, params.id);
     const url = new URL(req.url);
     if (url.searchParams.get("hard") === "1") {
       const result = await deleteEmployee(params.id);

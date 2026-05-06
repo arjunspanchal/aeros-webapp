@@ -1,4 +1,3 @@
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireInternal, requireRole } from "@/lib/auth/session";
 import { getJob, attachJobLrFile } from "@/lib/factoryos/repo";
 
@@ -13,14 +12,12 @@ export async function POST(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
-  // Legacy factoryos session for s.clientIds — collapses in PR 1.5.
-  const s = getFactoryosSession();
   try {
     const job = await getJob(params.id);
     if (!job) return Response.json({ error: "Not found" }, { status: 404 });
 
     if (requireRole(session, "factoryos", "account_manager")) {
-      const myClients = new Set(s.clientIds || []);
+      const myClients = new Set(session.factoryosClientIds || []);
       const ok = job.clientIds.some((c) => myClients.has(c));
       if (!ok) return Response.json({ error: "Forbidden" }, { status: 403 });
     }
