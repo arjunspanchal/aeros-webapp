@@ -56,23 +56,44 @@ export async function middleware(req) {
   const legacy = legacyOrdersRedirect(req);
   if (legacy) return legacy;
 
-  // --- Hub: landing, dashboard, catalog, clearance ---
+  // --- Hub: landing, dashboard, catalog, WarehouseOS ---
   // Public read access (no gate):
-  //   • `/`                 — public marketing landing page
-  //   • `/clearance`        — read-only stock list, open to prospects
-  //   • `/catalog`          — public product catalogue
+  //   • `/`                              — public marketing landing page
+  //   • `/clearance`                     — legacy URL, redirects to /warehouse/clearance
+  //   • `/warehouse`                     — WarehouseOS hub (tiles render based on session)
+  //   • `/warehouse/clearance`           — read-only stock list, open to prospects
+  //   • `/catalog`                       — public product catalogue
   // Auth required:
-  //   • `/hub`              — authed module-picker (replaces old `/`)
-  //   • `/clearance/manage` — staff backend (also has its own session guard)
-  //   • `/catalog/manage`   — staff backend (also has its own session guard)
-  if (pathname === "/hub" || pathname.startsWith("/catalog/manage") || pathname.startsWith("/clearance/manage")) {
+  //   • `/hub`                           — authed module-picker (replaces old `/`)
+  //   • `/warehouse/clearance/manage`    — staff backend (also has its own session guard)
+  //   • `/catalog/manage`                — staff backend (also has its own session guard)
+  if (
+    pathname === "/hub" ||
+    pathname.startsWith("/catalog/manage") ||
+    pathname.startsWith("/warehouse/clearance/manage") ||
+    pathname.startsWith("/warehouse/inventory") ||
+    pathname.startsWith("/api/warehouse/")
+  ) {
     const token = req.cookies.get("aeros_hub_session")?.value;
     const payload = secret ? await verify(token, secret) : null;
-    if (!payload) return redirectToLogin(req);
+    if (!payload) {
+      // API routes return JSON 401 instead of HTML redirect.
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      return redirectToLogin(req);
+    }
     return NextResponse.next();
   }
-  // `/`, `/clearance`, `/catalog` fall through — page renders based on session.
-  if (pathname === "/" || pathname === "/clearance" || pathname === "/catalog") {
+  // Public + legacy fall through — page renders based on session (or 308 redirects).
+  if (
+    pathname === "/" ||
+    pathname === "/clearance" ||
+    pathname === "/clearance/manage" ||
+    pathname === "/warehouse" ||
+    pathname === "/warehouse/clearance" ||
+    pathname === "/catalog"
+  ) {
     return NextResponse.next();
   }
 
@@ -120,6 +141,8 @@ export const config = {
     "/hub",
     "/catalog/:path*",
     "/clearance/:path*",
+    "/warehouse/:path*",
+    "/api/warehouse/:path*",
     "/calculator/:path*",
     "/api/calc/:path*",
     "/factoryos/:path*",

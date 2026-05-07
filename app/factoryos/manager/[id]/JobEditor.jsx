@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StageBadge, StageTimeline, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
 import { ROLES, STAGES } from "@/lib/factoryos/constants";
+import PushToWarehouseCard from "./PushToWarehouseCard";
 
 export default function JobEditor({ job: initialJob, initialUpdates, clientMap, role, products = [], catalogError = null }) {
   const router = useRouter();
@@ -356,6 +357,11 @@ export default function JobEditor({ job: initialJob, initialUpdates, clientMap, 
         </div>
         <p className="text-xs text-gray-400 mt-3 dark:text-gray-500">These save along with the status update below.</p>
       </div>
+
+      <PushToWarehouseCard
+        job={job}
+        canPush={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER || role === ROLES.FACTORY_EXECUTIVE}
+      />
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Update status</h2>
