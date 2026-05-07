@@ -150,19 +150,17 @@ export default function AppHeader({ session }) {
 
   // Brand link routes authed users to their module picker (`/hub`); anon
   // visitors (only see this header on /clearance) go to the public landing.
+  // Pass href into Brand directly — wrapping it in another <Link> creates
+  // nested <a> tags (invalid HTML); browsers fall through to Brand's inner
+  // default href="/", which sends authed users to the marketing page and
+  // looks like a logout.
   const brandHref = session ? "/hub" : "/";
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-ink-200">
       {/* Row 1 — brand, module nav (desktop), identity / hamburger */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between gap-4">
-        <Link
-          href={brandHref}
-          className="shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white rounded"
-          aria-label="Aeros — home"
-        >
-          <Brand size="sm" />
-        </Link>
+        <Brand size="sm" href={brandHref} className="shrink-0" />
 
         {/* Desktop module nav — underline-on-active. Hidden on mobile; the
             hamburger sheet carries the same links. */}
