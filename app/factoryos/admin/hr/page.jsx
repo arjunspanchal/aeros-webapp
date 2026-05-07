@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { listEmployees, listUsers, listAttendance } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -20,17 +19,14 @@ export default async function HrPage() {
   const session = getSession();
   if (!session) redirect("/login");
   if (!requireManager(session)) redirect("/factoryos");
-  // Legacy factoryos session kept for s.role / s.userId — used below to
-  // scope the FM's view to their own reports. PR 1.3+ collapses.
-  const s = getFactoryosSession();
 
   const [allEmployees, users] = await Promise.all([listEmployees(), listUsers()]);
   const factoryManagers = users.filter((u) => u.role === ROLES.FACTORY_MANAGER && u.active);
 
   // Factory Manager sees only their own reports. Admin sees everyone.
   // Critical: filter server-side so other managers' data never ships to the client.
-  const isAdmin = s.role === ROLES.ADMIN;
-  const employees = isAdmin ? allEmployees : allEmployees.filter((e) => e.managerId === s.userId);
+  const isAdmin = session.modules?.factoryos === ROLES.ADMIN;
+  const employees = isAdmin ? allEmployees : allEmployees.filter((e) => e.managerId === session.factoryosUserId);
 
   // Compute current-month attendance gaps for the scoped employees.
   const monthKey = currentMonthKeyIST();
@@ -83,7 +79,7 @@ export default async function HrPage() {
           initialEmployees={employees}
           factoryManagers={factoryManagers}
           isAdmin={isAdmin}
-          currentUserId={s.userId || null}
+          currentUserId={session.factoryosUserId || null}
         />
       </main>
     </div>

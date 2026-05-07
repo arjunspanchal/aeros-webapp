@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { listEmployees, listAttendance, listUsers } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -17,9 +16,6 @@ export default async function CalendarPage({ searchParams }) {
   const session = getSession();
   if (!session) redirect("/login");
   if (!requireManager(session)) redirect("/factoryos");
-  // Legacy factoryos session kept for s.role / s.userId — used below to
-  // force-scope FMs to their own reports. PR 1.3+ collapses.
-  const s = getFactoryosSession();
 
   const monthKey = (searchParams?.month && /^\d{4}-\d{2}$/.test(searchParams.month))
     ? searchParams.month
@@ -30,11 +26,11 @@ export default async function CalendarPage({ searchParams }) {
     listUsers(),
   ]);
 
-  const isAdmin = s.role === ROLES.ADMIN;
+  const isAdmin = session.modules?.factoryos === ROLES.ADMIN;
   const showAll = isAdmin;
   const employees = isAdmin
     ? allEmployees
-    : allEmployees.filter((e) => e.managerId === s.userId);
+    : allEmployees.filter((e) => e.managerId === session.factoryosUserId);
 
   const from = monthStart(monthKey);
   const to = monthEnd(monthKey);
@@ -67,7 +63,7 @@ export default async function CalendarPage({ searchParams }) {
           employees={employees}
           attendanceByEmployee={byEmployee}
           managerMap={managerMap}
-          canToggleScope={s.role === ROLES.ADMIN}
+          canToggleScope={session.modules?.factoryos === ROLES.ADMIN}
           showingAll={showAll}
         />
       </main>

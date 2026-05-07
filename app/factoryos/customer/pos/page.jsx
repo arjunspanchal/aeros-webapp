@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession } from "@/lib/auth/session";
 import { listCustomerPOs } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import CustomerPOsClient from "./CustomerPOsClient";
@@ -8,11 +8,12 @@ import CustomerPOsClient from "./CustomerPOsClient";
 export const dynamic = "force-dynamic";
 
 export default async function CustomerPOsPage() {
-  const s = getSession();
-  if (!s) redirect("/login");
-  if (s.role !== ROLES.CUSTOMER) redirect("/factoryos");
+  const session = getSession();
+  const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
+  if (!session || !role) redirect("/login");
+  if (role !== ROLES.CUSTOMER) redirect("/factoryos");
 
-  const pos = await listCustomerPOs({ clientIds: s.clientIds || [] });
+  const pos = await listCustomerPOs({ clientIds: session.factoryosClientIds || [] });
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">

@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession } from "@/lib/auth/session";
 import { getJob, listJobUpdates } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import CustomerJobDetailClient from "./CustomerJobDetailClient";
@@ -8,13 +8,14 @@ import CustomerJobDetailClient from "./CustomerJobDetailClient";
 export const dynamic = "force-dynamic";
 
 export default async function CustomerJobDetail({ params }) {
-  const s = getSession();
-  if (!s) redirect("/login");
-  if (s.role !== ROLES.CUSTOMER) redirect("/factoryos");
+  const session = getSession();
+  const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
+  if (!session || !role) redirect("/login");
+  if (role !== ROLES.CUSTOMER) redirect("/factoryos");
 
   const job = await getJob(params.id);
   if (!job) notFound();
-  const myClients = new Set(s.clientIds || []);
+  const myClients = new Set(session.factoryosClientIds || []);
   if (!job.clientIds.some((c) => myClients.has(c))) redirect("/factoryos/customer");
 
   const updates = await listJobUpdates(job.id);
