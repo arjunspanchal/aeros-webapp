@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getRateCardSession } from "@/lib/rate-cards/auth";
+import { getSession } from "@/lib/auth/session";
 import { listCards } from "@/lib/rate-cards/store";
 import RateCardsList from "./_components/RateCardsList";
 import SetupNotice from "./_components/SetupNotice";
@@ -7,10 +7,11 @@ import SetupNotice from "./_components/SetupNotice";
 export const dynamic = "force-dynamic";
 
 export default async function RateCardsHomePage() {
-  const session = getRateCardSession();
-  if (!session) redirect("/login");
+  const session = getSession();
+  const role = session?.isAdmin ? "admin" : session?.modules?.rate_cards;
+  if (!session || !role) redirect("/login");
 
-  const isAdmin = session.rateCardRole === "admin";
+  const isAdmin = role === "admin";
 
   // Soft-fail Airtable so missing env / tables / PAT scope shows a friendly
   // setup notice instead of a generic "Application error: digest …" 500.

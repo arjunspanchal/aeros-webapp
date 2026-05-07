@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { getRateCardSession } from "@/lib/rate-cards/auth";
+import { getSession } from "@/lib/auth/session";
 import { getCard, listItems } from "@/lib/rate-cards/store";
 import { priceAll } from "@/lib/rate-cards/pricing";
 import RateCardView from "../_components/RateCardView";
@@ -9,10 +9,11 @@ import SetupNotice from "../_components/SetupNotice";
 export const dynamic = "force-dynamic";
 
 export default async function RateCardDetailPage({ params }) {
-  const session = getRateCardSession();
-  if (!session) redirect("/login");
+  const session = getSession();
+  const role = session?.isAdmin ? "admin" : session?.modules?.rate_cards;
+  if (!session || !role) redirect("/login");
 
-  const isAdmin = session.rateCardRole === "admin";
+  const isAdmin = role === "admin";
 
   // Soft-fail Airtable so missing env / tables shows a notice not a 500.
   let card = null;
