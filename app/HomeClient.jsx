@@ -42,7 +42,7 @@ const ALL_OPTIONS = [
 const CLEARANCE_MANAGE_OPTION = {
   key: "clearance-manage",
   href: "/clearance/manage",
-  title: "Manage Clearance",
+  title: "Manage Warehouse",
   description: "Staff backend — edit items and upload photos. Restricted to Admin / FM / FE.",
   accent: "from-rose-500 to-red-600",
 };
