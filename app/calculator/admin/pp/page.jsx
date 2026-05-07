@@ -1,11 +1,12 @@
-import { getSession } from "@/lib/calc/session";
+import { getSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import AdminPpCalculator from "./AdminPpCalculator";
 
 export default function AdminPpPage() {
   const session = getSession();
-  if (!session) redirect("/login");
-  if (session.role !== "admin") redirect("/calculator/client");
+  const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
+  if (!session || !role) redirect("/login");
+  if (role !== "admin") redirect("/calculator/client");
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">

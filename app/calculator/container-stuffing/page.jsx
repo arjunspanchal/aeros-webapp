@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/calc/session";
+import { getSession } from "@/lib/auth/session";
 import ContainerStuffingCalc from "./ContainerStuffingCalc";
 
 export const dynamic = "force-dynamic";
 
 export default function ContainerStuffingPage() {
   const session = getSession();
-  if (!session) redirect("/login");
+  const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
+  if (!session || !role) redirect("/login");
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">

@@ -1,11 +1,12 @@
-import { getSession } from "@/lib/calc/session";
+import { getSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import ClientCupCalculator from "./ClientCupCalculator";
 
 export default function ClientCupPage() {
   const session = getSession();
-  if (!session) redirect("/login");
-  if (session.role !== "client") redirect("/calculator/admin/cup");
+  const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
+  if (!session || !role) redirect("/login");
+  if (role !== "client") redirect("/calculator/admin/cup");
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">

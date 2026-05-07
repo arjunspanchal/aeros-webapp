@@ -1,12 +1,13 @@
-import { getSession } from "@/lib/calc/session";
+import { getSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { listMasterPapers } from "@/lib/paper-rm";
 import ClientBoxCalculator from "./ClientBoxCalculator";
 
 export default async function ClientBoxPage() {
   const session = getSession();
-  if (!session) redirect("/login");
-  if (session.role !== "client") redirect("/calculator/admin/box");
+  const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
+  if (!session || !role) redirect("/login");
+  if (role !== "client") redirect("/calculator/admin/box");
 
   let papers = [];
   try { papers = await listMasterPapers(); } catch { /* Paper RM env may be unset — picker falls back to manual */ }

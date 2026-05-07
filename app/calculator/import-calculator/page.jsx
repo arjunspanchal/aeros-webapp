@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession as getCalcSession } from "@/lib/calc/session";
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession } from "@/lib/auth/session";
 import { isInternalRole } from "@/lib/factoryos/constants";
 import ImportCalc from "./ImportCalc";
 
@@ -13,10 +12,10 @@ export const dynamic = "force-dynamic";
 // FactoryOS role before rendering. If they don't, send them back to the
 // Calculators picker.
 export default function ImportCalculatorPage() {
-  if (!getCalcSession()) redirect("/login");
-
-  const fos = getFactoryosSession();
-  if (!fos || !isInternalRole(fos.role)) redirect("/calculator");
+  const session = getSession();
+  const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
+  if (!session || !role) redirect("/login");
+  if (!isInternalRole(session.modules?.factoryos)) redirect("/calculator");
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
