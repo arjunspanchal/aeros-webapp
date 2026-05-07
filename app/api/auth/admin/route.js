@@ -1,11 +1,11 @@
 // Hub-level admin login. One shared password (`ADMIN_PASSWORD`) grants admin
-// access to every module. Mints all three cookies (hub + calc + factoryos)
-// with admin-equivalent role.
+// access to every module via the unified hub session cookie. Phase 1.5d
+// retired the per-module legacy cookies (aeros_session,
+// aeros_factoryos_session); the unified cookie carries module-level role
+// at modules.{calculator,factoryos,rate_cards} and is read by middleware,
+// pages, and API routes alike.
 import { cookies } from "next/headers";
 import { signSession as signHub, sessionCookie as hubCookie } from "@/lib/hub/auth";
-import { signSession as signCalc, sessionCookie as calcCookie } from "@/lib/calc/auth";
-import { signSession as signFactoryos, sessionCookie as factoryosCookie } from "@/lib/factoryos/auth";
-import { ROLES } from "@/lib/factoryos/constants";
 import { adminEntitlements } from "@/lib/hub/users";
 
 export const runtime = "nodejs";
@@ -33,8 +33,6 @@ export async function POST(req) {
     factoryosUserId: ents.factoryosUserId ?? null,
     factoryosClientIds: ents.factoryosClientIds ?? [],
   })));
-  jar.set(calcCookie(signCalc({ role: "admin" })));
-  jar.set(factoryosCookie(signFactoryos({ role: ROLES.ADMIN, name: "Admin" })));
 
   return Response.json({ ok: true });
 }

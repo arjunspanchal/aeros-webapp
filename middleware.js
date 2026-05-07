@@ -1,7 +1,9 @@
 // Edge middleware. Uses Web Crypto (no node:crypto) for edge compat.
-// Auth model: `/login` is the only login UI. Verifying a cookie still happens
-// per-module — each module carries its own session cookie — but all three are
-// minted in one go by /api/auth/*.
+// Auth model: `/login` is the only login UI. Phase 1.5d retired the
+// per-module legacy cookies; the unified hub cookie (aeros_hub_session) is
+// now the single source of auth across every gated route. Module-level role
+// lives at payload.modules.{calculator,factoryos,rate_cards}; entitlement is
+// "module key is set on the payload".
 import { NextResponse } from "next/server";
 
 async function verify(token, secret) {
@@ -76,10 +78,10 @@ export async function middleware(req) {
 
   // --- Calculator module ---
   if (pathname.startsWith("/api/calc/") || pathname.startsWith("/calculator")) {
-    const token = req.cookies.get("aeros_session")?.value;
+    const token = req.cookies.get("aeros_hub_session")?.value;
     const payload = secret ? await verify(token, secret) : null;
-    if (!payload) return redirectToLogin(req);
-    if (pathname.startsWith("/calculator/admin") && payload.role !== "admin") {
+    if (!payload || !payload.modules?.calculator) return redirectToLogin(req);
+    if (pathname.startsWith("/calculator/admin") && payload.modules.calculator !== "admin") {
       return NextResponse.redirect(new URL("/calculator/client", req.url));
     }
     return NextResponse.next();
@@ -87,23 +89,25 @@ export async function middleware(req) {
 
   // --- FactoryOS module ---
   if (pathname.startsWith("/api/factoryos/") || pathname.startsWith("/factoryos")) {
-    const token = req.cookies.get("aeros_factoryos_session")?.value;
+    const token = req.cookies.get("aeros_hub_session")?.value;
     const payload = secret ? await verify(token, secret) : null;
 
-    if (!payload) {
+    if (!payload || !payload.modules?.factoryos) {
       // The FactoryOS landing page handles its own routing when no session.
       if (pathname === "/factoryos") return NextResponse.next();
       return redirectToLogin(req);
     }
 
+    const role = payload.modules.factoryos;
+
     // Role guards for page routes.
-    if (pathname.startsWith("/factoryos/admin") && payload.role !== "admin" && payload.role !== "factory_manager") {
+    if (pathname.startsWith("/factoryos/admin") && role !== "admin" && role !== "factory_manager") {
       return NextResponse.redirect(new URL("/factoryos", req.url));
     }
-    if (pathname.startsWith("/factoryos/manager") && payload.role === "customer") {
+    if (pathname.startsWith("/factoryos/manager") && role === "customer") {
       return NextResponse.redirect(new URL("/factoryos/customer", req.url));
     }
-    if (pathname.startsWith("/factoryos/customer") && payload.role !== "customer") {
+    if (pathname.startsWith("/factoryos/customer") && role !== "customer") {
       return NextResponse.redirect(new URL("/factoryos/manager", req.url));
     }
   }
