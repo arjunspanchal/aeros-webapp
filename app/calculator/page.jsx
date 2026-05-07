@@ -1,18 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/calc/session";
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
+import { getSession } from "@/lib/auth/session";
 import { isInternalRole } from "@/lib/factoryos/constants";
 
 export default function CalculatorPickerPage() {
   const session = getSession();
-  if (!session) redirect("/login");
+  const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
+  if (!session || !role) redirect("/login");
 
-  const isAdmin = session.role === "admin";
+  const isAdmin = role === "admin";
   const rolePath = isAdmin ? "admin" : "client";
 
-  const fos = getFactoryosSession();
-  const isInternal = !!(fos && isInternalRole(fos.role));
+  const isInternal = isInternalRole(session.modules?.factoryos);
 
   const products = [
     {

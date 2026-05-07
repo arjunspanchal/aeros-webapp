@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/calc/session";
+import { getSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { Card, Row, SectionHeader } from "@/app/calculator/_components/ui";
 import {
@@ -15,8 +15,9 @@ import { fetchPaperRMTables } from "@/lib/calc/rmRates";
 
 export default async function AdminRatesPage() {
   const session = getSession();
-  if (!session) redirect("/login");
-  if (session.role !== "admin") redirect("/calculator/client");
+  const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
+  if (!session || !role) redirect("/login");
+  if (role !== "admin") redirect("/calculator/client");
 
   // Pull live rates from the Paper RM Database. If unavailable (token missing,
   // network error), fall through to the static tables baked into the source.
