@@ -40,6 +40,9 @@ export default function ManageClient({ initialItems }) {
   const [typeFilter, setTypeFilter] = useState(""); // "" | "finished" | "rm"
   const [sort, setSort] = useState("name-asc");
   const [addingNew, setAddingNew] = useState(false);
+  // Tab switcher: "plain" (public-facing) vs "internal" (branded dead stock,
+  // hidden from /clearance). Each tab is its own filtered list.
+  const [activeView, setActiveView] = useState("plain"); // "plain" | "internal"
 
   const categories = useMemo(() => uniq(items.map((i) => i.category)), [items]);
   const brands     = useMemo(() => uniq(items.map((i) => i.brand)),    [items]);
@@ -61,9 +64,16 @@ export default function ManageClient({ initialItems }) {
     setTypeFilter("");
   }
 
+  // Counts per tab — stable across filter changes so the tab labels are honest.
+  const plainCount = useMemo(() => items.filter((it) => !it.isInternal).length, [items]);
+  const internalCount = useMemo(() => items.filter((it) => it.isInternal).length, [items]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = items.filter((it) => {
+      // Tab gate: each tab is its own list, never bleeds into the other.
+      if (activeView === "internal" && !it.isInternal) return false;
+      if (activeView === "plain"    &&  it.isInternal) return false;
       if (categoryFilter && it.category !== categoryFilter) return false;
       if (brandFilter && it.brand !== brandFilter) return false;
       if (statusFilter && it.status !== statusFilter) return false;
@@ -106,7 +116,7 @@ export default function ManageClient({ initialItems }) {
       }
     };
     return [...list].sort(cmp);
-  }, [items, search, categoryFilter, brandFilter, statusFilter, locationFilter, stockFilter, photoFilter, typeFilter, sort]);
+  }, [items, search, categoryFilter, brandFilter, statusFilter, locationFilter, stockFilter, photoFilter, typeFilter, sort, activeView]);
 
   function updateItemLocally(id, patch) {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
@@ -114,6 +124,55 @@ export default function ManageClient({ initialItems }) {
 
   return (
     <div>
+      {/* Tab switcher: Plain Items vs Branded Dead Stock. The two lists never
+          mix — staff toggle the Internal flag per item to move rows between
+          views. The internal tab is hidden from the public /clearance page. */}
+      <div className="mb-4 flex gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-800 dark:bg-gray-900" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === "plain"}
+          onClick={() => { setActiveView("plain"); setAddingNew(false); }}
+          className={
+            "flex-1 rounded-md px-3 py-2 text-sm font-medium transition " +
+            (activeView === "plain"
+              ? "bg-brand-100 text-brand-800 dark:bg-brand-900/40 dark:text-brand-200"
+              : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800")
+          }
+        >
+          Plain Items
+          <span className="ml-2 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+            {plainCount}
+          </span>
+          <span className="ml-1 hidden text-[10px] uppercase tracking-wide text-gray-400 sm:inline">public</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeView === "internal"}
+          onClick={() => { setActiveView("internal"); setAddingNew(false); }}
+          className={
+            "flex-1 rounded-md px-3 py-2 text-sm font-medium transition " +
+            (activeView === "internal"
+              ? "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200"
+              : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800")
+          }
+        >
+          Branded Dead Stock
+          <span className="ml-2 rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-semibold text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+            {internalCount}
+          </span>
+          <span className="ml-1 hidden text-[10px] uppercase tracking-wide text-gray-400 sm:inline">internal</span>
+        </button>
+      </div>
+
+      {activeView === "internal" && (
+        <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
+          <span className="font-semibold">Internal-only view.</span>{" "}
+          These items are hidden from the public /clearance page. Use this for branded dead stock and any inventory you don't want clients to see.
+        </div>
+      )}
+
       {/* Filters — search + sort on top, dimension dropdowns below, count + Clear on the right. */}
       <div className="mb-6 space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-wrap gap-3">
@@ -191,6 +250,9 @@ export default function ManageClient({ initialItems }) {
       {/* New-item panel — shown above the list when admin clicks "Add new item". */}
       {addingNew && (
         <NewItemPanel
+          // New items default to the active tab so they show up where the
+          // admin is looking. Toggleable inside the form if needed.
+          defaultIsInternal={activeView === "internal"}
           onCancel={() => setAddingNew(false)}
           onCreate={(created) => {
             // Prepend so the new row is immediately visible regardless of sort.
@@ -312,6 +374,9 @@ function toDraft(item) {
     rmType: item.rmType || "",
     // Optional override — stock in sheets, price in kg, etc.
     priceUnit: item.priceUnit || "",
+    // Internal-only flag drives which tab the row appears in and hides
+    // the row from the public /clearance page when true.
+    isInternal: !!item.isInternal,
   };
 }
 
@@ -357,6 +422,11 @@ function ReadView({ item, onEdit, savedFlash }) {
             {item.status && (
               <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                 {item.status}
+              </span>
+            )}
+            {item.isInternal && (
+              <span className="rounded-full bg-rose-50 px-2 py-0.5 font-semibold text-rose-700 dark:bg-rose-900/40 dark:text-rose-200">
+                Internal only
               </span>
             )}
             {isRm(item) && (
@@ -500,6 +570,26 @@ function ItemFields({ draft, setDraft }) {
   }
   return (
     <>
+      {/* Internal toggle. Drives both visibility on /clearance and which
+          tab the row lives in on this page. Highlighted in rose so it's
+          obvious when the row is hidden from the public catalog. */}
+      <label className={
+        "flex items-center gap-2 rounded-md border px-3 py-2 text-xs cursor-pointer " +
+        (draft.isInternal
+          ? "border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
+          : "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800/40 dark:text-gray-300")
+      }>
+        <input
+          type="checkbox"
+          checked={!!draft.isInternal}
+          onChange={(e) => set("isInternal", e.target.checked)}
+          className="h-4 w-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+        />
+        <span>
+          <span className="font-semibold">Internal only</span> — hide from public /clearance page (e.g. branded dead stock).
+        </span>
+      </label>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Item name">
           <input
@@ -670,13 +760,16 @@ const EMPTY_DRAFT = {
   gsm: "",
   rmForm: "",
   rmType: "",
+  isInternal: false,
 };
 
 // Inline panel rendered above the list when admin is creating a new item.
 // On success the parent prepends the returned row to the items state and
 // closes the panel; photos are uploaded afterwards via the regular row UI.
-function NewItemPanel({ onCreate, onCancel }) {
-  const [draft, setDraft] = useState(EMPTY_DRAFT);
+function NewItemPanel({ onCreate, onCancel, defaultIsInternal = false }) {
+  // Pre-fill isInternal from the active tab so a row added on the
+  // "Branded Dead Stock" view stays in that view without an extra click.
+  const [draft, setDraft] = useState(() => ({ ...EMPTY_DRAFT, isInternal: defaultIsInternal }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
