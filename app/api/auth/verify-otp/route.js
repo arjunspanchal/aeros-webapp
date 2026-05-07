@@ -1,14 +1,13 @@
-// Hub-level OTP verify. On success, mints THREE cookies:
-//   - aeros_hub_session         — unified entitlements (home-page gating)
-//   - aeros_session             — calculator-compatible (if user has calc access)
-//   - aeros_factoryos_session   — FactoryOS-compatible (if user has factoryos access)
-// Per-module cookies let each module keep trusting its own session format.
+// Hub-level OTP verify. On success, mints the unified hub session cookie
+// (aeros_hub_session) — the single source of auth across calc / factoryos /
+// rate-cards / catalogue / clearance modules. Phase 1.5d retired minting of
+// the per-module legacy cookies (aeros_session, aeros_factoryos_session);
+// their readers in pages, API routes, and middleware all switched to the
+// unified session in 1.5b / 1.5c / 1.5d.
 import { cookies } from "next/headers";
 import { airtableList, airtableUpdate, escapeFormula, TABLES as FACTORYOS_TABLES } from "@/lib/factoryos/airtable";
 import { normalizeEmail, signSession as signHub, sessionCookie as hubCookie } from "@/lib/hub/auth";
 import { resolveEntitlements } from "@/lib/hub/users";
-import { signSession as signCalc, sessionCookie as calcCookie } from "@/lib/calc/auth";
-import { signSession as signFactoryos, sessionCookie as factoryosCookie } from "@/lib/factoryos/auth";
 
 export const runtime = "nodejs";
 
@@ -35,12 +34,6 @@ export async function POST(req) {
     return Response.json({ error: "Account not found or inactive" }, { status: 403 });
   }
 
-  // Mint hub cookie (always).
-  // factoryosUserId + factoryosClientIds are added in PR 1.5a so the unified
-  // session can serve everything 8 factoryos API routes from PR 1.3b
-  // currently get from the per-module factoryos cookie. Empty/null on users
-  // with no factoryos entitlement — same as a no-data state on the legacy
-  // factoryos cookie. PR 1.5b retires the redundant cookies entirely.
   const jar = cookies();
   const hubToken = signHub({
     email: ents.email,
@@ -51,30 +44,6 @@ export async function POST(req) {
     factoryosClientIds: ents.factoryosClientIds ?? [],
   });
   jar.set(hubCookie(hubToken));
-
-  // Mint calc cookie if the user has calc access. Payload matches the shape
-  // the calculator module expects: { role, email, marginPct }.
-  if (ents.modules.calculator) {
-    const calcToken = signCalc({
-      role: ents.modules.calculator,
-      email: ents.email,
-      marginPct: ents.calcMarginPct ?? undefined,
-    });
-    jar.set(calcCookie(calcToken));
-  }
-
-  // Mint factoryos cookie if the user has factoryos access. Payload matches
-  // the module's expected shape: { role, email, name, userId, clientIds }.
-  if (ents.modules.factoryos) {
-    const factoryosToken = signFactoryos({
-      role: ents.modules.factoryos,
-      email: ents.email,
-      name: ents.name,
-      userId: ents.factoryosUserId,
-      clientIds: ents.factoryosClientIds,
-    });
-    jar.set(factoryosCookie(factoryosToken));
-  }
 
   return Response.json({ ok: true, modules: ents.modules });
 }
