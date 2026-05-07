@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
-import { getRateCardSession } from "@/lib/rate-cards/auth";
+import { getSession } from "@/lib/auth/session";
 import NewRateCardForm from "./NewRateCardForm";
 
 export default function NewRateCardPage() {
-  const session = getRateCardSession();
-  if (!session) redirect("/login");
-  if (session.rateCardRole !== "admin") redirect("/rate-cards");
+  const session = getSession();
+  const role = session?.isAdmin ? "admin" : session?.modules?.rate_cards;
+  if (!session || !role) redirect("/login");
+  if (role !== "admin") redirect("/rate-cards");
 
   return (
     <div className="max-w-3xl mx-auto px-4 pb-10 pt-4">

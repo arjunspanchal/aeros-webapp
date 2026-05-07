@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { getRateCardSession } from "@/lib/rate-cards/auth";
+import { getSession } from "@/lib/auth/session";
 import { getCard, listItems } from "@/lib/rate-cards/store";
 import EditRateCard from "./EditRateCard";
 import SetupNotice from "../../../_components/SetupNotice";
@@ -7,9 +7,10 @@ import SetupNotice from "../../../_components/SetupNotice";
 export const dynamic = "force-dynamic";
 
 export default async function EditRateCardPage({ params }) {
-  const session = getRateCardSession();
-  if (!session) redirect("/login");
-  if (session.rateCardRole !== "admin") redirect("/rate-cards");
+  const session = getSession();
+  const role = session?.isAdmin ? "admin" : session?.modules?.rate_cards;
+  if (!session || !role) redirect("/login");
+  if (role !== "admin") redirect("/rate-cards");
 
   let card = null;
   let items = [];
