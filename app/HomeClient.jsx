@@ -4,9 +4,9 @@ import AppHeader from "./components/AppHeader";
 const ALL_OPTIONS = [
   {
     key: "clearance",
-    href: "/clearance",
-    title: "Clearance Stock",
-    description: "Ready-to-ship packaging inventory, available for immediate dispatch.",
+    href: "/warehouse",
+    title: "WarehouseOS",
+    description: "Clearance stock, master inventory, inward / outward, and stock audits — all in one place.",
     accent: "from-amber-500 to-orange-600",
   },
   {
@@ -39,26 +39,17 @@ const ALL_OPTIONS = [
   },
 ];
 
-const CLEARANCE_MANAGE_OPTION = {
-  key: "clearance-manage",
-  href: "/clearance/manage",
-  title: "Manage Warehouse",
-  description: "Staff backend — edit items and upload photos. Restricted to Admin / FM / FE.",
-  accent: "from-rose-500 to-red-600",
-};
-
 // Tiles open to anyone (no session required). Currently just the Clearance
 // stock listing — staff Manage page stays gated. Easy to add Catalogue or
 // other read-only views here if/when they should be public too.
 const PUBLIC_OPTION_KEYS = new Set(["clearance"]);
 
-export default function HomeClient({ session, canManageClearance, footer }) {
+export default function HomeClient({ session, footer }) {
   const isAuthed = !!session;
   const modules = session?.modules || {};
   const options = isAuthed
     ? ALL_OPTIONS.filter((o) => !!modules[o.key])
     : ALL_OPTIONS.filter((o) => PUBLIC_OPTION_KEYS.has(o.key));
-  if (canManageClearance) options.push(CLEARANCE_MANAGE_OPTION);
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white dark:bg-none dark:bg-gray-950">

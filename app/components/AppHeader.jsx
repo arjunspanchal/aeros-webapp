@@ -19,7 +19,7 @@ const MODULES = [
   { key: "rate_cards",  label: "Rate Cards",  href: "/rate-cards"  },
   { key: "factoryos",   label: "FactoryOS",   href: "/factoryos"   },
   { key: "catalogue",   label: "Catalogue",   href: "/catalog"     },
-  { key: "clearance",   label: "Clearance",   href: "/clearance"   },
+  { key: "clearance",   label: "WarehouseOS", href: "/warehouse"   },
 ];
 
 function activeModuleKey(pathname) {
@@ -27,6 +27,7 @@ function activeModuleKey(pathname) {
   if (pathname.startsWith("/rate-cards")) return "rate_cards";
   if (pathname.startsWith("/factoryos"))  return "factoryos";
   if (pathname.startsWith("/catalog"))    return "catalogue";
+  if (pathname.startsWith("/warehouse"))  return "clearance";
   if (pathname.startsWith("/clearance"))  return "clearance";
   return null;
 }
@@ -119,17 +120,23 @@ function subTabsFor(pathname, session) {
   }
 
   if (active === "clearance") {
-    // Show a Manage tab for anyone with manage access. The base /clearance
-    // tab is implicit (home of the module).
+    // WarehouseOS sub-tabs. Stock is public; Manage + Inventory are staff-only.
     const role = session?.modules?.factoryos;
     const adminish = role === "admin" || role === "factory_manager" || role === "factory_executive";
+    const tabs = [
+      { href: "/warehouse",                    label: "Hub",       short: "Hub"   },
+      { href: "/warehouse/clearance",          label: "Clearance", short: "Stock" },
+    ];
     if (adminish || session?.isAdmin) {
-      return [
-        { href: "/clearance",         label: "Stock",  short: "Stock"  },
-        { href: "/clearance/manage",  label: "Manage", short: "Manage" },
-      ];
+      tabs.push({ href: "/warehouse/clearance/manage",    label: "Manage",    short: "Manage" });
+      tabs.push({ href: "/warehouse/inventory",           label: "Stock",     short: "Stock"  });
+      tabs.push({ href: "/warehouse/inventory/items",     label: "Items",     short: "Items"  });
+      tabs.push({ href: "/warehouse/inventory/inward",    label: "Inward",    short: "In"     });
+      tabs.push({ href: "/warehouse/inventory/outward",   label: "Outward",   short: "Out"    });
+      tabs.push({ href: "/warehouse/inventory/movements", label: "History",   short: "Hist"   });
+      tabs.push({ href: "/warehouse/inventory/audits",    label: "Audits",    short: "Audit"  });
     }
-    return [];
+    return tabs;
   }
 
   return [];

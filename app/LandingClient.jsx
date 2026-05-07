@@ -159,7 +159,7 @@ function useReveal() {
 const NAV_LINKS = [
   { label: 'Catalog', href: '/catalog' },
   { label: 'Calculator', href: '/calculator' },
-  { label: 'Clearance', href: '/clearance' },
+  { label: 'Clearance', href: '/warehouse/clearance' },
   { label: 'Sign in', href: '/login' },
 ];
 
@@ -615,9 +615,9 @@ const Surfaces = () => {
     },
     {
       id: 'clearance',
-      href: '/clearance',
+      href: '/warehouse/clearance',
       eyebrow: 'For value-hunters',
-      title: 'Clearance stock',
+      title: 'Warehouse',
       desc: 'Overstock and slow-moving SKUs at sharper rates. First-come basis. Lots move quickly.',
       cta: "See what's on",
       meta: 'Updated daily',
