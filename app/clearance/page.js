@@ -12,17 +12,28 @@ export const revalidate = 60;
 
 export default async function ClearancePage() {
   let items = [];
+  let internalItems = [];
   let error = null;
+  const session = getSession();
+  const canManage = canManageClearance(session);
 
   try {
-    items = await fetchInventory();
+    // Public list — always fetched. Internal list — only for team members
+    // (Admin / FM / FE). Parallel so the page doesn't pay the cost twice.
+    if (canManage) {
+      [items, internalItems] = await Promise.all([
+        fetchInventory(),
+        fetchInventory({ internal: true }),
+      ]);
+    } else {
+      items = await fetchInventory();
+    }
   } catch (e) {
     error = e.message;
   }
 
   const categories = getCategories(items);
-  const session = getSession();
-  const canManage = canManageClearance(session);
+  const internalCategories = getCategories(internalItems);
 
   return (
     <>
@@ -52,7 +63,12 @@ export default async function ClearancePage() {
             </p>
           </div>
         ) : (
-          <Catalog items={items} categories={categories} />
+          <Catalog
+            items={items}
+            categories={categories}
+            internalItems={canManage ? internalItems : null}
+            internalCategories={canManage ? internalCategories : null}
+          />
         )}
       </main>
       <Footer note="All items subject to availability. Inquire for current pricing." />
