@@ -10,8 +10,8 @@ import ManageClient from "./ManageClient";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Manage Clearance Stock — Aeros",
-  description: "Backend for editing clearance stock items and photos.",
+  title: "Manage Warehouse — Aeros",
+  description: "Backend for editing warehouse stock items and photos.",
 };
 
 export default async function ManagePage() {
@@ -21,12 +21,12 @@ export default async function ManagePage() {
     return (
       <>
         <AppHeader session={session} />
-        <Header title="Manage Clearance Stock" subtitle="Staff backend — access restricted." />
+        <Header title="Manage Warehouse" subtitle="Staff backend — access restricted." />
         <main className="mx-auto max-w-2xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
             <p className="font-semibold text-lg">Access denied</p>
             <p className="mt-2 text-sm">
-              The Clearance Stock backend is restricted to Admin, Factory
+              The Warehouse backend is restricted to Admin, Factory
               Manager, and Factory Executive roles.
             </p>
           </div>
@@ -48,7 +48,7 @@ export default async function ManagePage() {
     <>
       <AppHeader session={session} />
       <Header
-        title="Manage Clearance Stock"
+        title="Manage Warehouse"
         subtitle="Edit items and upload photos. Changes reflect on the public page within 60 seconds."
         itemCount={items.length}
         itemLabel="items"
