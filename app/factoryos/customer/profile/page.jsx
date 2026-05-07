@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession } from "@/lib/auth/session";
 import { findUserByEmail, listClients } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import ProfileForm from "./ProfileForm";
@@ -8,11 +8,12 @@ import ProfileForm from "./ProfileForm";
 export const dynamic = "force-dynamic";
 
 export default async function CustomerProfilePage() {
-  const s = getSession();
-  if (!s) redirect("/login");
-  if (s.role !== ROLES.CUSTOMER) redirect("/factoryos");
+  const session = getSession();
+  const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
+  if (!session || !role) redirect("/login");
+  if (role !== ROLES.CUSTOMER) redirect("/factoryos");
 
-  const [user, clients] = await Promise.all([findUserByEmail(s.email), listClients()]);
+  const [user, clients] = await Promise.all([findUserByEmail(session.email), listClients()]);
   const myClients = (user?.clientIds || []).map((id) => clients.find((c) => c.id === id)).filter(Boolean);
 
   return (

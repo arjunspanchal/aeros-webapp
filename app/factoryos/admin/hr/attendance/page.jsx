@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { listEmployees, listAttendance, listUsers } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -13,9 +12,6 @@ export default async function AttendancePage({ searchParams }) {
   const session = getSession();
   if (!session) redirect("/login");
   if (!requireManager(session)) redirect("/factoryos");
-  // Legacy factoryos session kept for s.role / s.userId — used below to
-  // force-scope FMs to their own reports. PR 1.3+ collapses.
-  const s = getFactoryosSession();
 
   const date = (searchParams?.date && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date))
     ? searchParams.date
@@ -28,11 +24,11 @@ export default async function AttendancePage({ searchParams }) {
 
   // Admin sees everyone. FM is force-scoped to their own reports — `?scope=all`
   // is ignored unless the caller is Admin (prevents URL-tampering bypass).
-  const isAdmin = s.role === ROLES.ADMIN;
+  const isAdmin = session.modules?.factoryos === ROLES.ADMIN;
   const showAll = isAdmin;
   const employees = isAdmin
     ? allEmployees
-    : allEmployees.filter((e) => e.managerId === s.userId);
+    : allEmployees.filter((e) => e.managerId === session.factoryosUserId);
 
   // Pull attendance for the picked date, only for the displayed employees.
   // Filtering by employee set prevents other managers' attendance from
@@ -64,9 +60,9 @@ export default async function AttendancePage({ searchParams }) {
           employees={employees}
           attendanceByEmployee={attendanceByEmployee}
           managerMap={managerMap}
-          canViewAll={s.role === ROLES.ADMIN}
+          canViewAll={session.modules?.factoryos === ROLES.ADMIN}
           showingAll={showAll}
-          currentUserId={s.userId || null}
+          currentUserId={session.factoryosUserId || null}
         />
       </main>
     </div>

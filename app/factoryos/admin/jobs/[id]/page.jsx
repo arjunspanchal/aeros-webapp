@@ -1,6 +1,5 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { getJob, listJobUpdates, listClients } from "@/lib/factoryos/repo";
 import { fetchCatalog } from "@/lib/catalog";
@@ -12,9 +11,6 @@ export default async function AdminJobDetail({ params }) {
   const session = getSession();
   if (!session) redirect("/login");
   if (!requireManager(session)) redirect("/factoryos");
-  // Legacy factoryos session kept for s.role passthrough into <JobEditor/>.
-  // PR 1.3+ collapses into the unified helper.
-  const s = getFactoryosSession();
   const job = await getJob(params.id);
   if (!job) notFound();
   const [updates, clients, catalogResult] = await Promise.all([
@@ -48,7 +44,7 @@ export default async function AdminJobDetail({ params }) {
         <Link href="/factoryos/admin" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
           ← Back to admin
         </Link>
-        <JobEditor job={job} initialUpdates={updates} clientMap={clientMap} role={s.role} products={products} catalogError={catalogError} />
+        <JobEditor job={job} initialUpdates={updates} clientMap={clientMap} role={session.modules?.factoryos} products={products} catalogError={catalogError} />
       </main>
     </div>
   );

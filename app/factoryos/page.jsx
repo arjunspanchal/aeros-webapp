@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession } from "@/lib/auth/session";
 import { ROLES } from "@/lib/factoryos/constants";
 
 export const dynamic = "force-dynamic";
 
 export default function OrdersRoot() {
-  const s = getSession();
-  if (!s) redirect("/login");
-  if (s.role === ROLES.ADMIN) redirect("/factoryos/admin");
-  if (s.role === ROLES.CUSTOMER) redirect("/factoryos/customer");
+  const session = getSession();
+  const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
+  if (!session || !role) redirect("/login");
+  if (role === ROLES.ADMIN) redirect("/factoryos/admin");
+  if (role === ROLES.CUSTOMER) redirect("/factoryos/customer");
   redirect("/factoryos/manager");
 }

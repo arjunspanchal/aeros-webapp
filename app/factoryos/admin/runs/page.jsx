@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { listRuns, listMachines, listJobsForSession } from "@/lib/factoryos/repo";
 import RunsAdmin from "./RunsAdmin";
@@ -11,13 +10,14 @@ export default async function AdminRunsPage() {
   const session = getSession();
   if (!session) redirect("/login");
   if (!requireManager(session)) redirect("/factoryos");
-  // Legacy factoryos session still used below for s.email / s.name (passed
-  // into RunsAdmin) and listJobsForSession (FM-scoping). PR 1.3+ collapses.
-  const s = getFactoryosSession();
   const [runs, machines, jobs] = await Promise.all([
     listRuns({ limit: 200 }),
     listMachines(),
-    listJobsForSession(s).catch(() => []),
+    listJobsForSession({
+      role: session.modules?.factoryos,
+      userId: session.factoryosUserId,
+      clientIds: session.factoryosClientIds,
+    }).catch(() => []),
   ]);
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -27,7 +27,7 @@ export default async function AdminRunsPage() {
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
           Each run = one shift / batch on a machine. Log RM consumed (kgs) and output produced (pcs). Consumption automatically decrements RM Inventory.
         </p>
-        <RunsAdmin initialRuns={runs} machines={machines} jobs={jobs} currentUser={{ email: s.email, name: s.name }} />
+        <RunsAdmin initialRuns={runs} machines={machines} jobs={jobs} currentUser={{ email: session.email, name: session.name }} />
       </main>
     </div>
   );

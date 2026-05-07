@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession as getFactoryosSession } from "@/lib/factoryos/session";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { listJobsForSession, listClients, listUsers } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -13,12 +12,14 @@ export default async function AdminDashboard() {
   const session = getSession();
   if (!session) redirect("/login");
   if (!requireManager(session)) redirect("/factoryos");
-  // Legacy factoryos session still used below for s.role / listJobsForSession
-  // (FM-scoping). PR 1.3+ collapses this into the unified helper.
-  const s = getFactoryosSession();
+  const role = session.modules?.factoryos;
 
   const [jobs, clients, users] = await Promise.all([
-    listJobsForSession(s),
+    listJobsForSession({
+      role,
+      userId: session.factoryosUserId,
+      clientIds: session.factoryosClientIds,
+    }),
     listClients(),
     listUsers(),
   ]);
@@ -55,7 +56,7 @@ export default async function AdminDashboard() {
               PE coating
             </Link>
             {/* Master RM rates are admin-only (rates feed COGS) — hide for FM who otherwise sees this dashboard. */}
-            {s.role === ROLES.ADMIN && (
+            {role === ROLES.ADMIN && (
               <Link href="/factoryos/admin/master-papers" className="px-3 py-1.5 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
                 Master RM rates
               </Link>

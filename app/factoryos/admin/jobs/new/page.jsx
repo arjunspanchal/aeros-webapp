@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/factoryos/session";
+import { getSession } from "@/lib/auth/session";
 import { listClients, listUsers, listVendors } from "@/lib/factoryos/repo";
 import { listMasterPapers } from "@/lib/paper-rm";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -10,15 +10,16 @@ import NewJobForm from "./NewJobForm";
 export const dynamic = "force-dynamic";
 
 export default async function NewJobPage() {
-  const s = getSession();
-  if (!s) redirect("/login");
+  const session = getSession();
+  const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
+  if (!session || !role) redirect("/login");
   // Mirror the API's create-job allow-list: admin / factory manager / account
   // manager. AMs in particular need this — they're the ones taking the brief
   // from the customer and turning it into a job.
   if (
-    s.role !== ROLES.ADMIN &&
-    s.role !== ROLES.FACTORY_MANAGER &&
-    s.role !== ROLES.ACCOUNT_MANAGER
+    role !== ROLES.ADMIN &&
+    role !== ROLES.FACTORY_MANAGER &&
+    role !== ROLES.ACCOUNT_MANAGER
   ) {
     redirect("/factoryos");
   }
