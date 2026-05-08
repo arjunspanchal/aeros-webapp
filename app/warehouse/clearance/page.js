@@ -2,10 +2,8 @@ import Link from 'next/link';
 import { fetchInventory, getCategories } from '@/lib/airtable';
 import { getSession } from '@/lib/hub/session';
 import { canManageClearance } from '@/lib/clearance/admin';
-import AppHeader from '@/app/components/AppHeader';
 import Header from '@/app/components/Header';
 import Catalog from '@/app/components/Catalog';
-import Footer from '@/app/components/Footer';
 
 // Revalidate every 60 seconds — Airtable updates will appear within a minute
 export const revalidate = 60;
@@ -37,9 +35,8 @@ export default async function ClearancePage() {
 
   return (
     <>
-      <AppHeader session={session} />
       <Header itemCount={items.length} />
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {canManage && (
           <div className="mb-6 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
             <div className="text-sm text-amber-900">
@@ -70,8 +67,7 @@ export default async function ClearancePage() {
             internalCategories={canManage ? internalCategories : null}
           />
         )}
-      </main>
-      <Footer note="All items subject to availability. Inquire for current pricing." />
+      </div>
     </>
   );
 }

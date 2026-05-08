@@ -3,8 +3,6 @@ import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/hub/session";
 import { canManageInventory } from "@/lib/warehouse/inventory";
 import { getMovement } from "@/lib/warehouse/movements";
-import AppHeader from "@/app/components/AppHeader";
-import Footer from "@/app/components/Footer";
 
 export const dynamic = "force-dynamic";
 
@@ -22,15 +20,11 @@ export default async function MovementDetailPage({ params }) {
   if (!session) redirect("/login");
   if (!canManageInventory(session)) {
     return (
-      <>
-        <AppHeader session={session} />
-        <main className="mx-auto max-w-2xl px-4 py-16">
-          <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-800">
-            <p className="text-lg font-semibold">Access denied</p>
-          </div>
-        </main>
-        <Footer />
-      </>
+      <div className="mx-auto max-w-2xl px-4 py-16">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-800">
+          <p className="text-lg font-semibold">Access denied</p>
+        </div>
+      </div>
     );
   }
 
@@ -38,9 +32,7 @@ export default async function MovementDetailPage({ params }) {
   if (!movement) notFound();
 
   return (
-    <>
-      <AppHeader session={session} />
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <Link href="/warehouse/inventory/movements" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
           ← Movements
         </Link>
@@ -96,9 +88,7 @@ export default async function MovementDetailPage({ params }) {
             </tbody>
           </table>
         </div>
-      </main>
-      <Footer />
-    </>
+    </div>
   );
 }
 
