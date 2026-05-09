@@ -25,6 +25,7 @@ const MODULES = [
 function activeModuleKey(pathname) {
   if (pathname.startsWith("/calculator")) return "calculator";
   if (pathname.startsWith("/rate-cards")) return "rate_cards";
+  if (pathname.startsWith("/rfq-manager")) return "rate_cards";
   if (pathname.startsWith("/factoryos"))  return "factoryos";
   if (pathname.startsWith("/catalog"))    return "catalogue";
   if (pathname.startsWith("/warehouse"))  return "clearance";
@@ -91,6 +92,7 @@ function subTabsFor(pathname, session) {
     if (role === "admin") {
       return [
         { href: "/rate-cards",            label: "All Cards",    short: "All"    },
+        { href: "/rfq-manager",           label: "RFQ Manager",  short: "RFQs"   },
         { href: "/rate-cards/quotes",     label: "Past Quotes",  short: "Quotes" },
         { href: "/rate-cards/admin/new",  label: "+ New Card",   short: "New"    },
       ];
@@ -98,6 +100,7 @@ function subTabsFor(pathname, session) {
     if (role === "client") {
       return [
         { href: "/rate-cards",        label: "My Rate Cards", short: "Cards"  },
+        { href: "/rfq-manager",       label: "RFQ Manager",   short: "RFQs"   },
         { href: "/rate-cards/quotes", label: "Past Quotes",   short: "Quotes" },
       ];
     }
