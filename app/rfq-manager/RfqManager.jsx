@@ -5,7 +5,9 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
   const [quotes, setQuotes] = useState(initialQuotes || []);
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState(""); // client id (internal only)
-  const [uploadOpen, setUploadOpen] = useState(false);
+  // modalMode: null = closed, "create" = new upload, "edit" = editing existing.
+  const [modalMode, setModalMode] = useState(null);
+  const [editingQuote, setEditingQuote] = useState(null);
   const [busyDelete, setBusyDelete] = useState(null);
 
   const clientById = useMemo(
@@ -35,7 +37,8 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
   }, [quotes, search, clientFilter, clientById]);
 
   async function onDelete(quote) {
-    if (!confirm(`Delete RFQ ${quote.aerosRfqNumber} (${quote.filename})? This cannot be undone.`)) return;
+    const label = quote.filename ? `${quote.aerosRfqNumber} (${quote.filename})` : quote.aerosRfqNumber;
+    if (!confirm(`Delete RFQ ${label}? This cannot be undone.`)) return;
     setBusyDelete(quote.id);
     const res = await fetch(`/api/rfq/${quote.id}`, { method: "DELETE" });
     setBusyDelete(null);
@@ -48,7 +51,27 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
 
   function onUploaded(newQuote) {
     setQuotes((prev) => [newQuote, ...prev]);
-    setUploadOpen(false);
+    closeModal();
+  }
+
+  function onUpdated(updatedQuote) {
+    setQuotes((prev) => prev.map((q) => (q.id === updatedQuote.id ? updatedQuote : q)));
+    closeModal();
+  }
+
+  function openCreate() {
+    setEditingQuote(null);
+    setModalMode("create");
+  }
+
+  function openEdit(quote) {
+    setEditingQuote(quote);
+    setModalMode("edit");
+  }
+
+  function closeModal() {
+    setModalMode(null);
+    setEditingQuote(null);
   }
 
   return (
@@ -80,7 +103,7 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
         {canUpload && (
           <button
             type="button"
-            onClick={() => setUploadOpen(true)}
+            onClick={openCreate}
             className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg whitespace-nowrap"
           >
             + Upload RFQ
@@ -125,10 +148,16 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
                     </td>
                   )}
                   <td className="px-3 sm:px-4 py-2.5">
-                    <div className="text-xs text-gray-700 dark:text-gray-200 break-all">{q.filename}</div>
-                    {q.bytes ? (
-                      <div className="text-[11px] text-gray-400">{formatBytes(q.bytes)}</div>
-                    ) : null}
+                    {q.filename ? (
+                      <>
+                        <div className="text-xs text-gray-700 dark:text-gray-200 break-all">{q.filename}</div>
+                        {q.bytes ? (
+                          <div className="text-[11px] text-gray-400">{formatBytes(q.bytes)}</div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">No PDF</span>
+                    )}
                   </td>
                   <td className="px-3 sm:px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     {q.createdAt ? new Date(q.createdAt).toLocaleDateString() : "—"}
@@ -147,13 +176,21 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
                       <span className="text-xs text-gray-400">—</span>
                     )}
                     {canUpload && (
-                      <button
-                        onClick={() => onDelete(q)}
-                        disabled={busyDelete === q.id}
-                        className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 disabled:opacity-50"
-                      >
-                        {busyDelete === q.id ? "…" : "Delete"}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => openEdit(q)}
+                          className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => onDelete(q)}
+                          disabled={busyDelete === q.id}
+                          className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 disabled:opacity-50"
+                        >
+                          {busyDelete === q.id ? "…" : "Delete"}
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>
@@ -174,12 +211,15 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
         </div>
       </div>
 
-      {uploadOpen && (
+      {modalMode && (
         <UploadModal
+          mode={modalMode}
+          quote={editingQuote}
           clients={clients || []}
           currentEmail={currentEmail}
-          onClose={() => setUploadOpen(false)}
+          onClose={closeModal}
           onUploaded={onUploaded}
+          onUpdated={onUpdated}
         />
       )}
     </div>
@@ -193,56 +233,78 @@ function formatBytes(n) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function UploadModal({ clients, onClose, onUploaded }) {
-  const [aerosRfq, setAerosRfq] = useState("");
-  const [customerRfq, setCustomerRfq] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [brand, setBrand] = useState("");
-  const [productName, setProductName] = useState("");
-  const [notes, setNotes] = useState("");
+function UploadModal({ mode = "create", quote = null, clients, onClose, onUploaded, onUpdated }) {
+  const isEdit = mode === "edit" && quote;
+  const [aerosRfq, setAerosRfq] = useState(isEdit ? quote.aerosRfqNumber : "");
+  const [customerRfq, setCustomerRfq] = useState(isEdit ? (quote.customerRfqNumber || "") : "");
+  const [clientId, setClientId] = useState(isEdit ? (quote.clientId || "") : "");
+  const [brand, setBrand] = useState(isEdit ? (quote.brand || "") : "");
+  const [productName, setProductName] = useState(isEdit ? (quote.productName || "") : "");
+  const [notes, setNotes] = useState(isEdit ? (quote.notes || "") : "");
   const [file, setFile] = useState(null);
+  // pdfMode: 'keep' = leave the existing PDF alone (edit only),
+  //          'replace' = upload `file` in place,
+  //          'clear'   = remove the existing PDF without uploading a new one.
+  const [pdfMode, setPdfMode] = useState(isEdit && quote?.filename ? "keep" : "replace");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
   const selectedClient = clients.find((c) => c.id === clientId);
+  const hasExistingPdf = isEdit && !!quote?.filename;
 
   async function submit(e) {
     e.preventDefault();
     setErr("");
     if (!aerosRfq.trim()) { setErr("Aeros RFQ number is required"); return; }
     if (!brand.trim()) { setErr("Brand is required"); return; }
-    if (!file) { setErr("Pick a PDF to upload"); return; }
     if (!clientId) { setErr("Pick a customer"); return; }
-    if (file.size > 10 * 1024 * 1024) { setErr("File exceeds 10 MB"); return; }
-    if (!file.type.toLowerCase().includes("pdf")) { setErr("Only PDFs are supported"); return; }
+
+    // PDF rules:
+    //   create  → file is required.
+    //   edit + replace → file is required.
+    //   edit + keep    → file ignored.
+    //   edit + clear   → file ignored; existing PDF will be removed.
+    if (!isEdit && !file) { setErr("Pick a PDF to upload"); return; }
+    if (isEdit && pdfMode === "replace" && !file) { setErr("Pick a PDF to upload, or click Cancel below the file picker to keep the existing one"); return; }
+    if (file && pdfMode === "replace") {
+      if (file.size > 10 * 1024 * 1024) { setErr("File exceeds 10 MB"); return; }
+      if (!file.type.toLowerCase().includes("pdf")) { setErr("Only PDFs are supported"); return; }
+    }
 
     setBusy(true);
     try {
-      const fileBase64 = await fileToBase64(file);
-      const res = await fetch("/api/rfq", {
-        method: "POST",
+      const payload = {
+        aerosRfqNumber: aerosRfq.trim(),
+        customerRfqNumber: customerRfq.trim() || null,
+        clientId,
+        clientEmail: selectedClient?.contactEmail || null,
+        brand: brand.trim(),
+        productName: productName.trim() || null,
+        notes: notes.trim() || null,
+      };
+      if (pdfMode === "replace" && file) {
+        payload.filename = file.name;
+        payload.contentType = file.type || "application/pdf";
+        payload.fileBase64 = await fileToBase64(file);
+      } else if (pdfMode === "clear") {
+        payload.clearPdf = true;
+      }
+      const url = isEdit ? `/api/rfq/${quote.id}` : "/api/rfq";
+      const method = isEdit ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          aerosRfqNumber: aerosRfq.trim(),
-          customerRfqNumber: customerRfq.trim() || null,
-          clientId,
-          clientEmail: selectedClient?.contactEmail || null,
-          brand: brand.trim(),
-          productName: productName.trim() || null,
-          notes: notes.trim() || null,
-          filename: file.name,
-          contentType: file.type || "application/pdf",
-          fileBase64,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || "Upload failed");
+        throw new Error(j.error || (isEdit ? "Update failed" : "Upload failed"));
       }
-      const { quote } = await res.json();
-      onUploaded(quote);
+      const { quote: saved } = await res.json();
+      if (isEdit) onUpdated(saved);
+      else onUploaded(saved);
     } catch (e2) {
-      setErr(e2?.message || "Upload failed");
+      setErr(e2?.message || (isEdit ? "Update failed" : "Upload failed"));
     } finally {
       setBusy(false);
     }
@@ -257,8 +319,14 @@ function UploadModal({ clients, onClose, onUploaded }) {
         <form onSubmit={submit} className="p-5 sm:p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Upload RFQ quote</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">PDF up to 10 MB. The customer sees this in their RFQ Manager.</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {isEdit ? "Edit RFQ" : "Upload RFQ quote"}
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {isEdit
+                  ? "Update metadata, replace the PDF, or remove it. The customer sees changes immediately."
+                  : "PDF up to 10 MB. The customer sees this in their RFQ Manager."}
+              </p>
             </div>
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none p-1 -mr-1">✕</button>
           </div>
@@ -328,15 +396,78 @@ function UploadModal({ clients, onClose, onUploaded }) {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">PDF <span className="text-red-500">*</span></label>
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              required
-              className="w-full text-sm text-gray-700 dark:text-gray-200 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/30 dark:file:text-blue-300"
-            />
-            {file && <p className="text-[11px] text-gray-400 mt-1">{file.name} · {formatBytes(file.size)}</p>}
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
+              PDF {!isEdit && <span className="text-red-500">*</span>}
+            </label>
+
+            {/* Edit mode with an existing PDF: show the current file + the
+                two affordances ("Replace" / "Remove"). The "Keep" view is
+                the default when the modal opens. */}
+            {isEdit && hasExistingPdf && pdfMode === "keep" && (
+              <div className="rounded-lg border border-gray-200 dark:border-gray-800 px-3 py-2 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-gray-800 dark:text-gray-100 truncate">{quote.filename}</div>
+                  {quote.bytes ? <div className="text-[11px] text-gray-400">{formatBytes(quote.bytes)}</div> : null}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => { setPdfMode("replace"); setFile(null); }}
+                    className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                  >
+                    Replace
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPdfMode("clear"); setFile(null); }}
+                    className="text-xs text-red-600 hover:text-red-700 dark:text-red-400"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Replace flow — file picker + a "Keep current" cancel link
+                so they can back out without closing the whole modal. */}
+            {(!isEdit || !hasExistingPdf || pdfMode === "replace") && (
+              <>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  required={!isEdit || pdfMode === "replace"}
+                  className="w-full text-sm text-gray-700 dark:text-gray-200 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/30 dark:file:text-blue-300"
+                />
+                {file && <p className="text-[11px] text-gray-400 mt-1">{file.name} · {formatBytes(file.size)}</p>}
+                {isEdit && hasExistingPdf && (
+                  <button
+                    type="button"
+                    onClick={() => { setPdfMode("keep"); setFile(null); }}
+                    className="mt-1 text-[11px] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    ← Keep current PDF ({quote.filename})
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* Clear flow — confirmation message with an "Undo" link so the
+                user can back out before saving. */}
+            {isEdit && pdfMode === "clear" && (
+              <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20 px-3 py-2 flex items-center justify-between gap-3">
+                <div className="text-xs text-red-700 dark:text-red-300">
+                  PDF will be removed when you save. Customer will see the RFQ without a file until you upload a new one.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPdfMode("keep")}
+                  className="text-[11px] text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100 shrink-0"
+                >
+                  Undo
+                </button>
+              </div>
+            )}
           </div>
 
           <div>
@@ -363,9 +494,11 @@ function UploadModal({ clients, onClose, onUploaded }) {
             <button
               type="submit"
               disabled={busy}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-60"
+              className={`px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60 ${isEdit ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"}`}
             >
-              {busy ? "Uploading…" : "Upload"}
+              {busy
+                ? (isEdit ? "Saving…" : "Uploading…")
+                : (isEdit ? "✓ Save changes" : "Upload")}
             </button>
           </div>
         </form>
