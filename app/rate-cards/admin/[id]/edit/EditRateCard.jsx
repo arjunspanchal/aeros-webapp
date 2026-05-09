@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Card, Field, inputCls } from "@/app/calculator/_components/ui";
 import CardHeaderForm from "./CardHeaderForm";
 import ItemsEditor from "./ItemsEditor";
+import AttachmentsEditor from "./AttachmentsEditor";
 
 export default function EditRateCard({ initialCard, initialItems }) {
   const router = useRouter();
@@ -48,6 +49,8 @@ export default function EditRateCard({ initialCard, initialItems }) {
       <CardHeaderForm card={card} onSaved={setCard} />
 
       <ItemsEditor cardId={card.id} items={items} onChanged={setItems} />
+
+      <AttachmentsEditor cardId={card.id} />
     </div>
   );
 }
