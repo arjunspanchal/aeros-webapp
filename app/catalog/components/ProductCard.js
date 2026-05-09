@@ -105,23 +105,10 @@ export default function ProductCard({ product }) {
           </dl>
         )}
 
-        {/* Pricing */}
+        {/* Pricing — hidden on the public catalogue. Visible to admin in
+            /catalog/manage where the field still appears in the editor. */}
         <div className="mb-4 mt-auto">
-          {product.pricePerUnit !== null ? (
-            <div className="flex items-baseline gap-3">
-              <span className="text-lg font-bold text-gray-900 dark:text-white">
-                ₹{product.pricePerUnit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">/ unit</span>
-              </span>
-              {product.pricePerCase !== null && (
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  ₹{product.pricePerCase.toLocaleString('en-IN')} / case
-                </span>
-              )}
-            </div>
-          ) : (
-            <span className="text-sm text-gray-400 dark:text-gray-500 italic">Price on request</span>
-          )}
+          <span className="text-sm text-gray-400 dark:text-gray-500 italic">Price on request</span>
         </div>
 
         {/* CTA buttons */}
