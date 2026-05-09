@@ -40,7 +40,7 @@ export default async function AdminDashboard() {
             </Link>
           </div>
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-            {jobs.length} jobs · {clients.length} clients · {users.length} users
+            {jobs.length} jobs · {clients.length} customers · {users.length} users
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
             <Link href="/factoryos/admin/clients" className="px-3 py-1.5 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">

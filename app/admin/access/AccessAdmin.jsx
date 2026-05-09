@@ -337,7 +337,7 @@ export default function AccessAdmin({ initialUsers, clients }) {
               <th className="text-left pb-2 font-medium">Name · Email</th>
               <th className="text-left pb-2 font-medium">FactoryOS role</th>
               <th className="text-left pb-2 font-medium">Calculator role</th>
-              <th className="text-left pb-2 font-medium">Linked clients</th>
+              <th className="text-left pb-2 font-medium">Linked customers</th>
               <th className="text-right pb-2 font-medium">Status</th>
             </tr>
           </thead>

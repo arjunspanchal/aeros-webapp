@@ -1875,7 +1875,7 @@ export default function CupCalculator({ scope = "default" }) {
               title="Customer-facing — only the rate, specs, and cost ladder; no internal cost breakdown"
               onClick={() => openClientCupPrintView({ cupVariant, size, sku, qty, casePack, td, bd, h, boxL, boxW, boxH, swGSM, ofGSM, swCoating, swPrint, swColors, isDW, result, quoteRef })}
             >
-              Client PDF
+              Customer PDF
             </button>
             <button
               type="button"

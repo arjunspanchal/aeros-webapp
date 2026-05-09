@@ -373,7 +373,7 @@ export default function AdminBoxCalculator({ papers = [] }) {
           <div className="flex gap-2">
             <input
               className={inputCls}
-              placeholder="Quote reference (e.g. Client A — Cake 8x8)"
+              placeholder="Quote reference (e.g. Customer A — Cake 8x8)"
               value={form.quoteRef}
               onChange={(e) => set("quoteRef", e.target.value)}
             />

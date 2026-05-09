@@ -640,11 +640,11 @@ export default function AdminCalculator() {
                     unit,
                   })}
                   className="bg-blue-600 text-white text-sm font-medium py-2 rounded-lg hover:bg-blue-700">
-                  Client PDF
+                  Customer PDF
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-2 dark:text-gray-500">
-                Use <strong>Client PDF</strong> for what you send the customer; <strong>Admin PDF</strong> includes the full cost breakdown for internal review.
+                Use <strong>Customer PDF</strong> for what you send the customer; <strong>Admin PDF</strong> includes the full cost breakdown for internal review.
               </p>
             </Card>
 

@@ -130,7 +130,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
   async function requestDelete(c) {
     const res = await fetch(`/api/factoryos/clients/${c.id}?count=jobs`);
     if (!res.ok) {
-      alert(`Couldn't check jobs for this client. ${(await res.json()).error || ""}`);
+      alert(`Couldn't check jobs for this customer. ${(await res.json()).error || ""}`);
       return;
     }
     const { jobCount } = await res.json();
@@ -155,7 +155,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
       <form onSubmit={submit} className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-5 space-y-3 dark:bg-gray-900 dark:border-gray-800">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-            {isEditing ? "Edit client" : "Add client"}
+            {isEditing ? "Edit customer" : "Add customer"}
           </h2>
           {isEditing && (
             <button type="button" onClick={cancelEdit} className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
@@ -174,7 +174,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
         </div>
 
         <div>
-          <label className={labelCls}>Account manager</label>
+          <label className={labelCls}>Customer manager</label>
           <select className={inputCls} value={bmChoice} onChange={(e) => setBm(e.target.value)}>
             <option value={BM_NONE}>— None —</option>
             {brandManagers.map((bm) => (
@@ -232,7 +232,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
           <input className={inputCls} value={form.contactPhone} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} />
         </div>
         <button disabled={busy} className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60">
-          {busy ? (isEditing ? "Saving…" : "Adding…") : (isEditing ? "Save changes" : "Add client")}
+          {busy ? (isEditing ? "Saving…" : "Adding…") : (isEditing ? "Save changes" : "Add customer")}
         </button>
         {err && <p className="text-xs text-red-500">{err}</p>}
       </form>
@@ -280,7 +280,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
             </li>
           ))}
           {clients.length === 0 && (
-            <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">No clients yet.</li>
+            <li className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">No customers yet.</li>
           )}
         </ul>
 
@@ -332,7 +332,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
                 </td>
               </tr>
             ))}
-            {clients.length === 0 && <tr><td colSpan={4} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">No clients yet.</td></tr>}
+            {clients.length === 0 && <tr><td colSpan={4} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">No customers yet.</td></tr>}
           </tbody>
         </table>
       </div>

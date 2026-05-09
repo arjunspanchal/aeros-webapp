@@ -22,7 +22,7 @@ export default async function CustomerProfilePage() {
         <Link href="/factoryos/customer" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">← Back to orders</Link>
         <h1 className="text-2xl font-bold text-gray-900 mt-4 dark:text-white">Your profile</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-          Signed in as {myClients.map((c) => c.name).join(", ") || "(no client linked)"}.
+          Signed in as {myClients.map((c) => c.name).join(", ") || "(no customer linked)"}.
         </p>
         <ProfileForm initial={user} />
       </main>

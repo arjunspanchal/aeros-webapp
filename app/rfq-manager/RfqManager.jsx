@@ -71,7 +71,7 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
             onChange={(e) => setClientFilter(e.target.value)}
             className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700 dark:text-white"
           >
-            <option value="">All clients</option>
+            <option value="">All customers</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
