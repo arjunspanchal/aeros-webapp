@@ -6,7 +6,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { requireInternal } from "@/lib/auth/policy";
-import { listRfqQuotes } from "@/lib/rfq/store";
+import { listRfqQuotes, listRfqQuotesForUserEmail } from "@/lib/rfq/store";
 import { listClients } from "@/lib/factoryos/repo";
 import RfqManager from "./RfqManager";
 
@@ -16,15 +16,17 @@ export default async function RfqManagerPage() {
   const session = getSession();
   if (!session) redirect("/login");
 
-  const isInternal = requireInternal(session);
-  const isCustomer = session.modules?.factoryos === "customer";
+  const isInternal = session.isAdmin || requireInternal(session);
+  const isCustomer = !isInternal;
 
-  // Customers don't pick clients — they're locked to their own email.
-  // Internal users get a client list for the filter dropdown.
+  // Internal users see all RFQs and get a customer list for the filter
+  // dropdown. Everyone else is scoped to RFQs whose client_id matches one
+  // of the customers they're linked to via user_clients — covers the
+  // multi-user-per-customer case (Testing Grounds with multiple users).
   const [quotes, clients] = await Promise.all([
-    isCustomer
-      ? listRfqQuotes({ clientEmail: session.email }).catch(() => [])
-      : listRfqQuotes({}).catch(() => []),
+    isInternal
+      ? listRfqQuotes({}).catch(() => [])
+      : listRfqQuotesForUserEmail(session.email).catch(() => []),
     isInternal ? listClients().catch(() => []) : Promise.resolve([]),
   ]);
 

@@ -4,7 +4,7 @@
 
 import { getSession } from "@/lib/auth/session";
 import { requireInternal } from "@/lib/auth/policy";
-import { listRfqQuotes, createRfqQuote } from "@/lib/rfq/store";
+import { listRfqQuotes, listRfqQuotesForUserEmail, createRfqQuote } from "@/lib/rfq/store";
 
 export const runtime = "nodejs";
 
@@ -17,17 +17,22 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("q") || "";
 
-  // Customer scope: locked to their own email.
-  if (session.modules?.factoryos === "customer") {
-    if (!session.email) return Response.json({ quotes: [] });
-    const quotes = await listRfqQuotes({ clientEmail: session.email, search });
+  // Internal users (admin / customer manager / factory staff) see all RFQs
+  // and can narrow with optional filters.
+  if (session.isAdmin || requireInternal(session)) {
+    const clientEmail = searchParams.get("clientEmail") || undefined;
+    const clientId = searchParams.get("clientId") || undefined;
+    const quotes = await listRfqQuotes({ clientEmail, clientId, search });
     return Response.json({ quotes });
   }
 
-  // Internal scope: pass through filters.
-  const clientEmail = searchParams.get("clientEmail") || undefined;
-  const clientId = searchParams.get("clientId") || undefined;
-  const quotes = await listRfqQuotes({ clientEmail, clientId, search });
+  // Everyone else (customer + any other authenticated user with no
+  // internal role) is scoped to RFQs whose client_id matches one of
+  // the customers they're linked to via user_clients. This covers the
+  // case where a customer has multiple users on the same company —
+  // they all see the same RFQs, not just the primary contact email.
+  if (!session.email) return Response.json({ quotes: [] });
+  const quotes = await listRfqQuotesForUserEmail(session.email, { search });
   return Response.json({ quotes });
 }
 
