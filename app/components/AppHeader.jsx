@@ -86,16 +86,18 @@ function subTabsFor(pathname, session) {
   }
 
   if (active === "rate_cards") {
-    const role = session?.modules?.rate_cards;
+    const role = session?.isAdmin ? "admin" : session?.modules?.rate_cards;
     if (role === "admin") {
       return [
-        { href: "/rate-cards",            label: "All Cards",   short: "All"    },
-        { href: "/rate-cards/admin/new",  label: "+ New Card",  short: "New"    },
+        { href: "/rate-cards",            label: "All Cards",    short: "All"    },
+        { href: "/rate-cards/quotes",     label: "Past Quotes",  short: "Quotes" },
+        { href: "/rate-cards/admin/new",  label: "+ New Card",   short: "New"    },
       ];
     }
     if (role === "client") {
       return [
-        { href: "/rate-cards", label: "My Rate Cards", short: "Cards" },
+        { href: "/rate-cards",        label: "My Rate Cards", short: "Cards"  },
+        { href: "/rate-cards/quotes", label: "Past Quotes",   short: "Quotes" },
       ];
     }
     return [];
