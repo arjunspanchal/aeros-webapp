@@ -5,6 +5,7 @@
 // lives at payload.modules.{calculator,factoryos,rate_cards}; entitlement is
 // "module key is set on the payload".
 import { NextResponse } from "next/server";
+import { isSessionStale } from "@/lib/auth/freshness";
 
 async function verify(token, secret) {
   if (!token || typeof token !== "string") return null;
@@ -32,6 +33,27 @@ function redirectToLogin(req) {
   url.pathname = "/login";
   url.searchParams.set("next", req.nextUrl.pathname);
   return NextResponse.redirect(url);
+}
+
+// Build a redirect/401 that ALSO clears the stale cookie so the browser
+// stops sending it on subsequent requests. Used when the cookie itself is
+// valid (not tampered, not expired) but the underlying user has had their
+// session revoked via /admin/access.
+function redirectStaleSession(req) {
+  const isApi = req.nextUrl.pathname.startsWith("/api/");
+  const res = isApi
+    ? NextResponse.json({ error: "Session expired — please sign in again" }, { status: 401 })
+    : redirectToLogin(req);
+  res.cookies.set({
+    name: "aeros_hub_session",
+    value: "",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
+  return res;
 }
 
 // Old URLs redirected to new ones so bookmarks keep working after the
@@ -86,6 +108,7 @@ export async function middleware(req) {
       }
       return redirectToLogin(req);
     }
+    if (await isSessionStale(payload)) return redirectStaleSession(req);
     return NextResponse.next();
   }
   // Public + legacy fall through — page renders based on session (or 308 redirects).
@@ -105,6 +128,7 @@ export async function middleware(req) {
     const token = req.cookies.get("aeros_hub_session")?.value;
     const payload = secret ? await verify(token, secret) : null;
     if (!payload || !payload.modules?.calculator) return redirectToLogin(req);
+    if (await isSessionStale(payload)) return redirectStaleSession(req);
     if (pathname.startsWith("/calculator/admin") && payload.modules.calculator !== "admin") {
       return NextResponse.redirect(new URL("/calculator/client", req.url));
     }
@@ -121,6 +145,7 @@ export async function middleware(req) {
       if (pathname === "/factoryos") return NextResponse.next();
       return redirectToLogin(req);
     }
+    if (await isSessionStale(payload)) return redirectStaleSession(req);
 
     const role = payload.modules.factoryos;
 
@@ -134,6 +159,30 @@ export async function middleware(req) {
     if (pathname.startsWith("/factoryos/customer") && role !== "customer") {
       return NextResponse.redirect(new URL("/factoryos/manager", req.url));
     }
+  }
+
+  // --- Admin + RFQ Tracker: any auth-gated route in these trees gets the
+  // same freshness check so a revoked session can't peek at /admin/access
+  // or /rate-cards/* via cookie cache. Page-level guards still enforce
+  // role checks; middleware just rejects stale cookies up-front.
+  if (
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api/admin/") ||
+    pathname.startsWith("/rate-cards") ||
+    pathname.startsWith("/api/rate-cards/") ||
+    pathname.startsWith("/rfq-manager") ||
+    pathname.startsWith("/api/rfq-manager/")
+  ) {
+    const token = req.cookies.get("aeros_hub_session")?.value;
+    const payload = secret ? await verify(token, secret) : null;
+    if (!payload) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      return redirectToLogin(req);
+    }
+    if (await isSessionStale(payload)) return redirectStaleSession(req);
+    return NextResponse.next();
   }
 
   return NextResponse.next();
@@ -155,5 +204,11 @@ export const config = {
     "/api/factoryos/:path*",
     "/orders/:path*",
     "/api/orders/:path*",
+    "/admin/:path*",
+    "/api/admin/:path*",
+    "/rate-cards/:path*",
+    "/api/rate-cards/:path*",
+    "/rfq-manager/:path*",
+    "/api/rfq-manager/:path*",
   ],
 };
