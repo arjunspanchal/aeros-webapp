@@ -1,9 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 const SOURCE_OPTIONS = ["FG", "RM", "Clearance", "Other"];
 const UOM_OPTIONS = ["pcs", "kg", "sheets", "box", "roll", "set"];
+
+// Photo upload constraints — must match the bucket spec (10 MB, image types).
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+const ALLOWED_PHOTO_TYPES = new Set([
+  "image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif",
+]);
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const s = String(r.result || "");
+      resolve(s.slice(s.indexOf(",") + 1));
+    };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function formatBytes(b) {
+  if (b == null) return "";
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 const EMPTY_DRAFT = {
   sku: "",
@@ -246,6 +271,7 @@ export default function ItemsAdminClient({ initialItems }) {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
           <thead className="bg-gray-50 dark:bg-gray-800/50">
             <tr>
+              <Th>Photo</Th>
               <Th>SKU</Th>
               <Th>Name</Th>
               <Th>Source</Th>
@@ -259,7 +285,7 @@ export default function ItemsAdminClient({ initialItems }) {
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800/60">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-sm text-gray-500">
+                <td colSpan={9} className="px-4 py-12 text-center text-sm text-gray-500">
                   {items.length === 0
                     ? "No SKUs yet. Click “+ New plain SKU” to add the first."
                     : "No matches for the current filters."}
@@ -271,7 +297,10 @@ export default function ItemsAdminClient({ initialItems }) {
                 if (isEditing) {
                   return (
                     <tr key={it.id} className="bg-blue-50/40 dark:bg-blue-950/20">
-                      <td className="px-3 py-2 font-mono text-xs">{it.sku}</td>
+                      <td className="px-3 py-2 align-top">
+                        <Thumbnail item={it} />
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs align-top">{it.sku}</td>
                       <td colSpan={6} className="px-3 py-2">
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                           <Field compact label="Name" value={editDraft.name} onChange={(v) => setEditDraft({ ...editDraft, name: v })} />
@@ -296,6 +325,14 @@ export default function ItemsAdminClient({ initialItems }) {
                             Needs review (flag for FM)
                           </label>
                         </div>
+                        {/* Photos panel — uploads, delete, "Make thumbnail". Owns its own
+                            fetches so the parent's editDraft state is only fields. */}
+                        <div className="mt-4 border-t border-blue-100 pt-3 dark:border-blue-900/40">
+                          <PhotosPanel
+                            item={it}
+                            onItemUpdate={(updated) => setItems((prev) => prev.map((row) => (row.id === updated.id ? updated : row)))}
+                          />
+                        </div>
                       </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex justify-end gap-2">
@@ -319,6 +356,9 @@ export default function ItemsAdminClient({ initialItems }) {
                 }
                 return (
                   <tr key={it.id} className={`${it.is_active ? "" : "opacity-60"} hover:bg-gray-50 dark:hover:bg-gray-800/40`}>
+                    <Td>
+                      <Thumbnail item={it} />
+                    </Td>
                     <Td mono>{it.sku}</Td>
                     <Td>
                       <div className="font-medium text-gray-900 dark:text-gray-100">{it.name}</div>
@@ -422,6 +462,223 @@ const PILL_TONE = {
 };
 function Pill({ children, tone = "muted" }) {
   return <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${PILL_TONE[tone]}`}>{children}</span>;
+}
+
+// --------------- Photo UI atoms ---------------
+
+function Thumbnail({ item }) {
+  const first = item?.photos?.[0];
+  if (!first) {
+    return (
+      <div className="flex h-12 w-12 items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 text-[9px] text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500">
+        no photo
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={first.thumbnailUrl || first.url}
+      alt={first.filename || "photo"}
+      className="h-12 w-12 rounded-md border border-gray-200 object-contain dark:border-gray-800"
+      loading="lazy"
+    />
+  );
+}
+
+// PhotosPanel — uploads, delete, "Make thumbnail". Mirrors the clearance
+// 3-col grid but doesn't carry the shim-era quirks. After every mutation we
+// fetch /api/warehouse/items/[id] which returns the normalized item with the
+// fresh photos array.
+function PhotosPanel({ item, onItemUpdate }) {
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [busyAction, setBusyAction] = useState(false);
+  const [error, setError] = useState(null);
+
+  const photos = item.photos || [];
+
+  async function refresh() {
+    try {
+      const res = await fetch(`/api/warehouse/items/${item.id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      onItemUpdate?.(data.item);
+    } catch {}
+  }
+
+  async function handleFiles(files) {
+    if (!files?.length) return;
+    setUploading(true);
+    setError(null);
+    try {
+      for (const file of files) {
+        if (!ALLOWED_PHOTO_TYPES.has(file.type)) {
+          throw new Error(`"${file.name}": ${file.type || "unknown type"}. Allowed: JPEG / PNG / WebP / HEIC.`);
+        }
+        if (file.size > MAX_PHOTO_BYTES) {
+          throw new Error(`"${file.name}" is ${formatBytes(file.size)}. Max 10 MB per file.`);
+        }
+        const base64 = await fileToBase64(file);
+        const res = await fetch(`/api/warehouse/items/${item.id}/photos`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: file.name,
+            contentType: file.type || "application/octet-stream",
+            fileBase64: base64,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `Upload failed (${res.status})`);
+        }
+      }
+      await refresh();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function deletePhoto(photoId) {
+    if (!confirm("Delete this photo?")) return;
+    setError(null);
+    setBusyAction(true);
+    try {
+      const res = await fetch(`/api/warehouse/items/${item.id}/photos/${photoId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Delete failed (${res.status})`);
+      }
+      await refresh();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  // Move the picked photo to position 0 (thumbnail), pushing the others back.
+  async function makeThumbnail(photoId) {
+    setError(null);
+    setBusyAction(true);
+    try {
+      const orderedIds = [photoId, ...photos.filter((p) => p.id !== photoId).map((p) => p.id)];
+      const res = await fetch(`/api/warehouse/items/${item.id}/photos`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ordered_ids: orderedIds }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Reorder failed (${res.status})`);
+      }
+      await refresh();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-2 flex items-baseline justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+          Photos {photos.length > 0 && <span className="ml-1 text-gray-400">({photos.length})</span>}
+        </h3>
+        <span className="text-[11px] text-gray-500 dark:text-gray-500">
+          First photo is the thumbnail. JPEG / PNG / WebP / HEIC, max 10 MB.
+        </span>
+      </div>
+      {error && (
+        <div className="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-800">
+          {error}
+        </div>
+      )}
+      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-6">
+        {photos.map((p, idx) => (
+          <div
+            key={p.id}
+            className={`group relative aspect-square overflow-hidden rounded-md border bg-gray-50 p-1 dark:bg-gray-800 ${
+              idx === 0
+                ? "border-blue-400 ring-1 ring-blue-300 dark:border-blue-600 dark:ring-blue-700"
+                : "border-gray-200 dark:border-gray-700"
+            }`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={p.thumbnailUrl || p.url}
+              alt={p.filename || "photo"}
+              className="h-full w-full object-contain"
+              loading="lazy"
+            />
+            {idx === 0 && (
+              <span className="pointer-events-none absolute left-1 top-1 rounded bg-blue-600 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white">
+                Thumb
+              </span>
+            )}
+            <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition group-hover:opacity-100">
+              {idx > 0 && (
+                <button
+                  type="button"
+                  onClick={() => makeThumbnail(p.id)}
+                  disabled={busyAction}
+                  title="Make thumbnail (move to first)"
+                  aria-label="Make thumbnail"
+                  className="rounded-full bg-white/90 p-1 text-gray-700 shadow-sm hover:bg-white hover:text-blue-600 disabled:opacity-40 dark:bg-gray-900/80 dark:text-gray-200 dark:hover:bg-gray-900"
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => deletePhoto(p.id)}
+                disabled={busyAction}
+                title="Delete photo"
+                aria-label={`Delete ${p.filename || "photo"}`}
+                className="rounded-full bg-white/90 p-1 text-gray-700 shadow-sm hover:bg-white hover:text-red-600 disabled:opacity-40 dark:bg-gray-900/80 dark:text-gray-200 dark:hover:bg-gray-900"
+              >
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading || busyAction}
+          className="flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md border-2 border-dashed border-gray-300 text-[10px] font-medium text-gray-500 transition hover:border-blue-400 hover:text-blue-600 disabled:opacity-50 dark:border-gray-700 dark:text-gray-400 dark:hover:border-blue-400 dark:hover:text-blue-400"
+        >
+          {uploading ? (
+            <span>Uploading…</span>
+          ) : (
+            <>
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Add photo</span>
+            </>
+          )}
+        </button>
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+        multiple
+        onChange={(e) => handleFiles(Array.from(e.target.files || []))}
+        className="hidden"
+      />
+    </div>
+  );
 }
 
 const SOURCE_TONE = {
