@@ -1,11 +1,13 @@
 "use client";
 
 // Aeros brand repository — internal reference. Sections:
-//   1. Logos       — wordmark variants (downloadable as SVG)
-//   2. Colors      — palette swatches with click-to-copy hex
-//   3. Typography  — the three Aeros fonts with samples
-//   4. Voice       — taglines + about copy
-//   5. Assets      — uploaded files (Supabase bucket: brand-assets)
+//   1. Logos        — wordmark variants (downloadable as SVG)
+//   2. Colors       — palette swatches with click-to-copy hex
+//   3. Typography   — the three Aeros fonts with samples
+//   4. Voice        — taglines + about copy
+//   5. Collections  — curated campaign HTML (open in new tab, screenshot
+//                     / print-to-PDF from there)
+//   6. Assets       — uploaded files (Supabase bucket: brand-assets)
 //
 // Anchor links across the top let the team jump-share specific sections
 // (e.g. /brand#colors). Each color/font has a copy button.
@@ -75,6 +77,27 @@ const ABOUT_BOILERPLATE = `Aeros is a Mumbai-based paper packaging manufacturer.
 paper cups, tubs, bowls, lids, kraft bags, and SBS + corrugated boxes —
 costed live, quoted in INR, shipped worldwide. BRCGS-certified plant.
 Operator-led: Arjun Panchal (front of house) and Parth Panchal (factory floor).`;
+
+// ---- Collections ----------------------------------------------------------
+// Curated multi-asset campaigns. Each collection is a self-contained HTML
+// file in public/brand/collections/, designed to be opened in a new tab
+// at full size — the team can screenshot, save individual elements, or
+// print-to-PDF directly from the browser.
+//
+// Adding a new collection: drop the HTML in public/brand/collections/,
+// add an entry below.
+
+const COLLECTIONS = [
+  {
+    id: "nra-2026",
+    title: "NRA Show 2026 — Chicago invites",
+    description:
+      "US launch announcements for the National Restaurant Association show. Three sizes: square (1080×1080) for feed, portrait (1080×1350) for IG, story (1080×1920) for stories / WhatsApp.",
+    file: "/brand/collections/nra-2026.html",
+    sizes: ["1080×1080 sq", "1080×1350 pt", "1080×1920 st"],
+    tags: ["NRA Show 2026", "Chicago", "US launch"],
+  },
+];
 
 // ---- Logos ----------------------------------------------------------------
 // Real Aeros wordmark — vectorized, lives in public/brand/. Each variant is
@@ -211,8 +234,9 @@ export default function BrandKitClient({ initialFiles, loadError }) {
           <a href="#logos"  className="hover:text-gray-900 hover:underline">Logos</a>
           <a href="#colors" className="hover:text-gray-900 hover:underline">Colors</a>
           <a href="#fonts"  className="hover:text-gray-900 hover:underline">Typography</a>
-          <a href="#voice"  className="hover:text-gray-900 hover:underline">Voice & content</a>
-          <a href="#assets" className="hover:text-gray-900 hover:underline">Assets ({files.length})</a>
+          <a href="#voice"       className="hover:text-gray-900 hover:underline">Voice & content</a>
+          <a href="#collections" className="hover:text-gray-900 hover:underline">Collections ({COLLECTIONS.length})</a>
+          <a href="#assets"      className="hover:text-gray-900 hover:underline">Assets ({files.length})</a>
         </nav>
       </header>
 
@@ -357,10 +381,24 @@ export default function BrandKitClient({ initialFiles, loadError }) {
         </div>
       </section>
 
+      {/* ---- Collections ---- */}
+      <section id="collections" className="scroll-mt-16 mt-12 border-t border-gray-200 pt-8">
+        <SectionHeader
+          eyebrow="05"
+          title={`Collections (${COLLECTIONS.length})`}
+          subtitle="Curated campaign HTML. Open in a new tab to view at full pixel size, screenshot individual blocks, or print-to-PDF for vendor sharing."
+        />
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {COLLECTIONS.map((c) => (
+            <CollectionCard key={c.id} collection={c} />
+          ))}
+        </div>
+      </section>
+
       {/* ---- Assets (uploads) ---- */}
       <section id="assets" className="scroll-mt-16 mt-12 border-t border-gray-200 pt-8">
         <SectionHeader
-          eyebrow="05"
+          eyebrow="06"
           title={`Assets (${files.length})`}
           subtitle="Logos in PNG/PDF, photos, deck templates, anything else. Public URLs are shareable with vendors / printers; the listing here stays auth-gated."
         />
@@ -392,6 +430,70 @@ export default function BrandKitClient({ initialFiles, loadError }) {
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+// Collection card — title + tags + sizes + actions. The HTML file lives
+// under public/brand/collections/, so it's accessible at the URL itself
+// (still auth-gated by middleware on /brand/* paths) and downloadable
+// directly with the browser's "save as" / fetch+blob.
+function CollectionCard({ collection: c }) {
+  async function downloadHtml() {
+    try {
+      const r = await fetch(c.file);
+      if (!r.ok) throw new Error(`Could not fetch ${c.file} (${r.status})`);
+      const html = await r.text();
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${c.id}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="p-4">
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h3 className="text-base font-semibold text-gray-900">{c.title}</h3>
+        </div>
+        <p className="mt-1 text-sm text-gray-600">{c.description}</p>
+        <div className="mt-3 flex flex-wrap gap-1">
+          {(c.sizes || []).map((s) => (
+            <span key={s} className="rounded bg-gray-100 px-2 py-0.5 font-mono text-[10px] text-gray-700">{s}</span>
+          ))}
+        </div>
+        {c.tags?.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {c.tags.map((t) => (
+              <span key={t} className="rounded bg-blue-50 px-2 py-0.5 text-[10px] text-blue-700">{t}</span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2">
+        <a
+          href={c.file}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline"
+        >
+          Open in new tab →
+        </a>
+        <button
+          type="button"
+          onClick={downloadHtml}
+          className="text-xs text-gray-600 hover:text-gray-900"
+        >
+          download .html
+        </button>
+      </div>
     </div>
   );
 }
