@@ -72,7 +72,10 @@ export async function middleware(req) {
     pathname.startsWith("/catalog/manage") ||
     pathname.startsWith("/warehouse/clearance/manage") ||
     pathname.startsWith("/warehouse/inventory") ||
-    pathname.startsWith("/api/warehouse/")
+    pathname.startsWith("/api/warehouse/") ||
+    pathname === "/brand" ||
+    pathname.startsWith("/brand/") ||
+    pathname.startsWith("/api/brand/")
   ) {
     const token = req.cookies.get("aeros_hub_session")?.value;
     const payload = secret ? await verify(token, secret) : null;
@@ -143,6 +146,9 @@ export const config = {
     "/clearance/:path*",
     "/warehouse/:path*",
     "/api/warehouse/:path*",
+    "/brand",
+    "/brand/:path*",
+    "/api/brand/:path*",
     "/calculator/:path*",
     "/api/calc/:path*",
     "/factoryos/:path*",
