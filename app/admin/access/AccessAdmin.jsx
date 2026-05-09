@@ -22,7 +22,7 @@ const FACTORYOS_ROLES = [
 
 const CALCULATOR_ROLES = [
   { value: "", label: "— None —" },
-  { value: "client", label: "Client" },
+  { value: "client", label: "Customer" },
   { value: "admin", label: "Admin" },
 ];
 
@@ -136,23 +136,59 @@ function UserRow({ user, clients, onSaved }) {
                 <div><label className={labelCls}>Designation</label><input className={inputCls} value={form.designation} onChange={(e) => set("designation", e.target.value)} /></div>
                 <div><label className={labelCls}>Phone</label><input className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} /></div>
                 <div><label className={labelCls}>Company (label only)</label><input className={inputCls} value={form.company} onChange={(e) => set("company", e.target.value)} placeholder="legacy free-text label" /></div>
-                <div>
-                  <label className={labelCls}>FactoryOS role</label>
-                  <select className={inputCls} value={form.factoryosRole} onChange={(e) => set("factoryosRole", e.target.value)}>
-                    {FACTORYOS_ROLES.map((r) => <option key={r.value || "none"} value={r.value}>{r.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className={labelCls}>Calculator role</label>
-                  <select className={inputCls} value={form.calculatorRole} onChange={(e) => set("calculatorRole", e.target.value)}>
-                    {CALCULATOR_ROLES.map((r) => <option key={r.value || "none"} value={r.value}>{r.label}</option>)}
-                  </select>
-                </div>
                 <div className="flex items-end gap-2">
                   <label className="inline-flex items-center gap-2 cursor-pointer text-sm text-gray-700 dark:text-gray-200">
                     <input type="checkbox" checked={form.active} onChange={(e) => set("active", e.target.checked)} />
                     Active (can sign in)
                   </label>
+                </div>
+              </div>
+
+              {/* Per-module access. Three checkboxes that map onto the role
+                  columns:
+                    Calculator    ↔ calculator_role  (toggle: client / null)
+                    FactoryOS     ↔ factoryos_role   (toggle: customer / null)
+                    WarehouseOS   ↔ derived from factoryos_role being staff
+                                    (admin / FM / FE). Read-only — flip the
+                                    FactoryOS role below to grant.
+                  Once ON, the role dropdown to the right lets admin pick the
+                  exact role within that module. */}
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800/40">
+                <div className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-3">Module access</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <ModuleAccessCell
+                    label="Calculator"
+                    description="Per-cup / bag / box rate calculator + saved quotes."
+                    checked={!!form.calculatorRole}
+                    onToggle={(on) => set("calculatorRole", on ? "client" : "")}
+                  >
+                    {form.calculatorRole && (
+                      <select className={inputCls} value={form.calculatorRole} onChange={(e) => set("calculatorRole", e.target.value)}>
+                        {CALCULATOR_ROLES.filter((r) => r.value).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                      </select>
+                    )}
+                  </ModuleAccessCell>
+
+                  <ModuleAccessCell
+                    label="FactoryOS"
+                    description="Orders, jobs, RM inventory, HR. Customer view shows only their own orders."
+                    checked={!!form.factoryosRole}
+                    onToggle={(on) => set("factoryosRole", on ? "customer" : "")}
+                  >
+                    {form.factoryosRole && (
+                      <select className={inputCls} value={form.factoryosRole} onChange={(e) => set("factoryosRole", e.target.value)}>
+                        {FACTORYOS_ROLES.filter((r) => r.value).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                      </select>
+                    )}
+                  </ModuleAccessCell>
+
+                  <ModuleAccessCell
+                    label="WarehouseOS staff"
+                    description="Manage clearance stock + master inventory. Granted automatically when FactoryOS role is admin / FM / FE."
+                    checked={["admin", "factory_manager", "factory_executive"].includes(form.factoryosRole)}
+                    readOnly
+                    hint="Toggle FactoryOS to a staff role to grant."
+                  />
                 </div>
               </div>
 
@@ -176,20 +212,20 @@ function UserRow({ user, clients, onSaved }) {
 
               <div>
                 <label className={labelCls}>
-                  Linked clients ({form.clientIds.length} selected)
+                  Linked customers ({form.clientIds.length} selected)
                   <span className="ml-2 text-[11px] font-normal text-gray-400 dark:text-gray-500">
-                    Companies this user works for. Customers should have at least one.
+                    Companies this user works for. Customer-role users should have at least one.
                   </span>
                 </label>
                 <input
                   className={`${inputCls} mb-2`}
-                  placeholder="Filter clients by name or code…"
+                  placeholder="Filter customers by name or code…"
                   value={clientQuery}
                   onChange={(e) => setClientQuery(e.target.value)}
                 />
                 <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-800">
                   {filteredClients.length === 0 && (
-                    <div className="p-3 text-xs text-gray-400 dark:text-gray-500">No clients match.</div>
+                    <div className="p-3 text-xs text-gray-400 dark:text-gray-500">No customers match.</div>
                   )}
                   {filteredClients.map((c) => {
                     const checked = form.clientIds.includes(c.id);
@@ -253,7 +289,7 @@ export default function AccessAdmin({ initialUsers, clients }) {
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input
           className={`${inputCls} flex-1`}
-          placeholder="Search by email, name, company, role, or linked client…"
+          placeholder="Search by email, name, company, role, or linked customer…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -288,6 +324,35 @@ export default function AccessAdmin({ initialUsers, clients }) {
       <p className="text-xs text-gray-400 mt-4 dark:text-gray-500">
         {filtered.length} of {users.length} users · Click any row to edit.
       </p>
+    </div>
+  );
+}
+
+// Per-module checkbox + nested role select (rendered as children when ON).
+// `readOnly` mode greys out the box and disables the toggle — used for
+// modules that derive their access from another column.
+function ModuleAccessCell({ label, description, checked, onToggle, readOnly, hint, children }) {
+  return (
+    <div className={`rounded-md border p-3 ${
+      checked
+        ? "border-blue-300 bg-blue-50/40 dark:border-blue-900 dark:bg-blue-950/20"
+        : "border-gray-200 dark:border-gray-700"
+    } ${readOnly ? "opacity-90" : ""}`}>
+      <label className={`flex items-start gap-2 ${readOnly ? "cursor-default" : "cursor-pointer"}`}>
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={checked}
+          disabled={readOnly}
+          onChange={(e) => !readOnly && onToggle?.(e.target.checked)}
+        />
+        <div>
+          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{label}</div>
+          <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{description}</div>
+        </div>
+      </label>
+      {children && <div className="mt-2">{children}</div>}
+      {hint && <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">{hint}</p>}
     </div>
   );
 }

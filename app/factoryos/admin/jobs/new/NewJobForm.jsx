@@ -196,16 +196,16 @@ export default function NewJobForm({
           <input className={inputCls} value={form.poNumber} onChange={(e) => set("poNumber", e.target.value)} />
         </div>
         <div>
-          <label className={labelCls}>Client</label>
+          <label className={labelCls}>Customer</label>
           <select className={inputCls} value={form.clientId} onChange={(e) => set("clientId", e.target.value)} required>
-            <option value="">Select client…</option>
-            <option value={NEW_CLIENT}>+ Create new client</option>
+            <option value="">Select customer…</option>
+            <option value={NEW_CLIENT}>+ Create new customer</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           {isNewClient && (
             <input
               className={`${inputCls} mt-2`}
-              placeholder="New client name, e.g. Brewbay"
+              placeholder="New customer name, e.g. Brewbay"
               value={form.newClientName}
               onChange={(e) => set("newClientName", e.target.value)}
               required

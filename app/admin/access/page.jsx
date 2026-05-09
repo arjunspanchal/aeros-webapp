@@ -13,11 +13,14 @@ import AccessAdmin from "./AccessAdmin";
 
 export const dynamic = "force-dynamic";
 
+// Admin-only — Factory Managers (and everyone else) cannot edit other
+// people's access. Tightened from the earlier admin-or-FM gate per
+// product decision: role-and-pricing changes shouldn't happen from
+// inside FactoryOS.
 function isStaffAdmin(session) {
   if (!session) return false;
   if (session.isAdmin) return true;
-  const r = session.modules?.factoryos;
-  return r === "admin" || r === "factory_manager";
+  return session.modules?.factoryos === "admin";
 }
 
 export default async function AdminAccessPage() {
@@ -44,7 +47,7 @@ export default async function AdminAccessPage() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">User Access</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
           Single source of truth for who can sign in and what they see. Edit a row to change
-          their FactoryOS role, Calculator role, linked clients, and pricing defaults.
+          their FactoryOS role, Calculator role, linked customers, and pricing defaults.
         </p>
         {loadError ? (
           <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">

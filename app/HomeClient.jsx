@@ -46,13 +46,13 @@ const PUBLIC_OPTION_KEYS = new Set(["clearance"]);
 
 // Top-level admin concern that sits ABOVE the module grid. FactoryOS and
 // WarehouseOS are sub-modules under "the platform"; user-access management
-// spans both, so the tile lives outside the module grid and only shows for
-// users who can actually edit it (admin or factory_manager).
+// spans both, so the tile lives outside the module grid and only shows
+// for the platform admin. Factory Managers don't manage other people's
+// access — kept separate so admin and FM duties don't overlap.
 function canManageAccess(session) {
   if (!session) return false;
   if (session.isAdmin) return true;
-  const r = session.modules?.factoryos;
-  return r === "admin" || r === "factory_manager";
+  return session.modules?.factoryos === "admin";
 }
 
 export default function HomeClient({ session, footer }) {

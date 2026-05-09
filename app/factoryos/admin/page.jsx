@@ -44,7 +44,7 @@ export default async function AdminDashboard() {
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
             <Link href="/factoryos/admin/clients" className="px-3 py-1.5 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
-              Manage clients
+              Manage customers
             </Link>
             {/* User management moved to the hub-level /admin/access page —
                 roles + pricing + client links live in one editor there. */}
@@ -89,7 +89,7 @@ export default async function AdminDashboard() {
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase dark:bg-gray-800/50 dark:text-gray-400">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">J#</th>
-                  <th className="text-left px-4 py-2 font-medium">Client / Brand</th>
+                  <th className="text-left px-4 py-2 font-medium">Customer / Brand</th>
                   <th className="text-left px-4 py-2 font-medium">Item</th>
                   <th className="text-right px-4 py-2 font-medium">Qty</th>
                   <th className="text-left px-4 py-2 font-medium">Stage</th>

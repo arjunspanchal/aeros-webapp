@@ -39,7 +39,7 @@ export async function POST(req) {
       return Response.json({ error: "Invalid role (admin is password-only)" }, { status: 400 });
     }
     if (body.role === ROLES.CUSTOMER && !(body.clientIds && body.clientIds.length)) {
-      return Response.json({ error: "Customers must be linked to a Client" }, { status: 400 });
+      return Response.json({ error: "Customer-role users must be linked to at least one customer." }, { status: 400 });
     }
     const existing = await findUserByEmail(email);
     if (existing) return Response.json({ error: "User with that email already exists" }, { status: 409 });
