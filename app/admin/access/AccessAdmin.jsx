@@ -26,6 +26,13 @@ const CALCULATOR_ROLES = [
   { value: "admin", label: "Admin" },
 ];
 
+// Three explicit values + null. UI treats anything-but-disabled as "on";
+// "disabled" is the explicit revoke that overrides the derive fallback.
+const RFQ_ROLES = [
+  { value: "client", label: "Customer" },
+  { value: "admin",  label: "Admin" },
+];
+
 function roleBadge(value) {
   if (!value) return <span className="text-gray-400 dark:text-gray-500">—</span>;
   const lookup = FACTORYOS_ROLES.find((r) => r.value === value)?.label
@@ -47,6 +54,7 @@ function pickFormFromUser(u) {
     company: u.company || "",
     factoryosRole: u.factoryosRole || "",
     calculatorRole: u.calculatorRole || "",
+    rateCardsRole: u.rateCardsRole || "",
     active: u.active !== false,
     marginPct: u.marginPct ?? "",
     marginCupsPct: u.marginCupsPct ?? "",
@@ -155,7 +163,7 @@ function UserRow({ user, clients, onSaved }) {
                   exact role within that module. */}
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800/40">
                 <div className="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-3">Module access</div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ModuleAccessCell
                     label="Calculator"
                     description="Per-cup / bag / box rate calculator + saved quotes."
@@ -165,6 +173,25 @@ function UserRow({ user, clients, onSaved }) {
                     {form.calculatorRole && (
                       <select className={inputCls} value={form.calculatorRole} onChange={(e) => set("calculatorRole", e.target.value)}>
                         {CALCULATOR_ROLES.filter((r) => r.value).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                      </select>
+                    )}
+                  </ModuleAccessCell>
+
+                  {/* RFQs (rate_cards). "On" = no override OR explicit
+                      admin/client; "Off" = stored as 'disabled' so the
+                      entitlement skips the derive fallback. The form's
+                      rateCardsRole stores either '', 'admin', 'client',
+                      or 'disabled'. Empty string maps to NULL on save. */}
+                  <ModuleAccessCell
+                    label="RFQs"
+                    description="Quote PDFs + saved Rate Cards. Admin sees firm-wide; customer sees their own."
+                    checked={form.rateCardsRole !== "disabled"}
+                    onToggle={(on) => set("rateCardsRole", on ? "client" : "disabled")}
+                    hint={form.rateCardsRole === "" ? "No override — derived from Calculator / FactoryOS roles." : null}
+                  >
+                    {form.rateCardsRole && form.rateCardsRole !== "disabled" && (
+                      <select className={inputCls} value={form.rateCardsRole} onChange={(e) => set("rateCardsRole", e.target.value)}>
+                        {RFQ_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                       </select>
                     )}
                   </ModuleAccessCell>
