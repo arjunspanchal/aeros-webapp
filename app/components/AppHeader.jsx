@@ -157,7 +157,12 @@ export default function AppHeader({ session }) {
   const factoryosRole = session?.modules?.factoryos;
   const factoryosHasSidebar =
     active === "factoryos" && factoryosRole && factoryosRole !== "customer";
-  const sidebarReplacesSubtabsOnDesktop = factoryosHasSidebar;
+  // WarehouseOS sidebar is unconditional for the active="clearance" module —
+  // /warehouse/clearance is public-readable but the layout still mounts the
+  // shell scaffold; the sidebar's own visibility (staff-only) is handled
+  // inside the layout, not here.
+  const warehouseHasSidebar = active === "clearance";
+  const sidebarReplacesSubtabsOnDesktop = factoryosHasSidebar || warehouseHasSidebar;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -223,10 +228,10 @@ export default function AppHeader({ session }) {
           rather than utilitarian.
 
           Sidebar exception: modules with a ModuleShell-based sidebar
-          (FactoryOS for staff, others as they ship) hide the desktop
-          sub-tab row since the sidebar covers the same ground. Mobile
-          keeps the sub-tabs so narrow viewports have a discoverable nav
-          alongside the drawer. */}
+          (FactoryOS for staff, WarehouseOS, others as they ship) hide
+          the desktop sub-tab row since the sidebar covers the same
+          ground. Mobile keeps the sub-tabs so narrow viewports have a
+          discoverable nav alongside the drawer. */}
       {subTabs.length > 0 && (
         <div className={`border-t border-ink-200 bg-ink-50/50 ${sidebarReplacesSubtabsOnDesktop ? "md:hidden" : ""}`}>
           <div className="max-w-7xl mx-auto px-4 md:px-6 relative">
