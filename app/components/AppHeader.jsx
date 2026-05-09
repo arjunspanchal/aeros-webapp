@@ -16,7 +16,7 @@ import { Brand, IdentityMenu, MobileNav } from "./ui";
 
 const MODULES = [
   { key: "calculator",  label: "Calculator",  href: "/calculator"  },
-  { key: "rate_cards",  label: "Rate Cards",  href: "/rate-cards"  },
+  { key: "rate_cards",  label: "RFQ Tracker", href: "/rate-cards"  },
   { key: "factoryos",   label: "FactoryOS",   href: "/factoryos"   },
   { key: "catalogue",   label: "Catalogue",   href: "/catalog"     },
   { key: "clearance",   label: "WarehouseOS", href: "/warehouse"   },
@@ -42,13 +42,14 @@ function subTabsFor(pathname, session) {
     const role = session?.modules?.calculator;
     if (role === "admin") {
       return [
-        { href: "/calculator/admin",          label: "Bag",      short: "Bag" },
-        { href: "/calculator/admin/box",      label: "Box",      short: "Box" },
-        { href: "/calculator/admin/cup",      label: "Cup",      short: "Cup" },
-        { href: "/calculator/admin/pp",       label: "PP",       short: "PP" },
-        { href: "/calculator/admin/history",  label: "History",  short: "History" },
-        { href: "/calculator/admin/clients",  label: "Clients",  short: "Clients" },
-        { href: "/calculator/admin/rates",    label: "Rates",    short: "Rates" },
+        { href: "/calculator/admin",          label: "Bag",         short: "Bag" },
+        { href: "/calculator/admin/box",      label: "Box",         short: "Box" },
+        { href: "/calculator/admin/cup",      label: "Cup",         short: "Cup" },
+        { href: "/calculator/admin/pp",       label: "PP",          short: "PP" },
+        { href: "/calculator/admin/history",  label: "History",     short: "History" },
+        { href: "/calculator/admin/clients",  label: "Clients",     short: "Clients" },
+        { href: "/calculator/admin/rates",    label: "Rates",       short: "Rates" },
+        { href: "/calculator/client",         label: "Client View", short: "Client" },
       ];
     }
     if (role === "client") {
@@ -86,16 +87,20 @@ function subTabsFor(pathname, session) {
   }
 
   if (active === "rate_cards") {
-    const role = session?.modules?.rate_cards;
+    // RFQ Tracker module — rate cards are one option inside it. Past Quotes
+    // shows every rate quoted across the calculator (auto-aggregated).
+    const role = session?.isAdmin ? "admin" : session?.modules?.rate_cards;
     if (role === "admin") {
       return [
-        { href: "/rate-cards",            label: "All Cards",   short: "All"    },
-        { href: "/rate-cards/admin/new",  label: "+ New Card",  short: "New"    },
+        { href: "/rate-cards",            label: "Rate Cards",   short: "Rates"  },
+        { href: "/rate-cards/quotes",     label: "Past Quotes",  short: "Quotes" },
+        { href: "/rate-cards/admin/new",  label: "+ New Card",   short: "New"    },
       ];
     }
     if (role === "client") {
       return [
-        { href: "/rate-cards", label: "My Rate Cards", short: "Cards" },
+        { href: "/rate-cards",        label: "Rate Cards",  short: "Rates"  },
+        { href: "/rate-cards/quotes", label: "Past Quotes", short: "Quotes" },
       ];
     }
     return [];
@@ -122,7 +127,11 @@ function subTabsFor(pathname, session) {
   if (active === "clearance") {
     // WarehouseOS sub-tabs. Stock is public; Manage + Inventory are staff-only.
     const role = session?.modules?.factoryos;
-    const adminish = role === "admin" || role === "factory_manager" || role === "factory_executive";
+    const adminish =
+      role === "admin" ||
+      role === "factory_manager" ||
+      role === "factory_executive" ||
+      role === "account_manager";
     const tabs = [
       { href: "/warehouse",                    label: "Hub",       short: "Hub"   },
       { href: "/warehouse/clearance",          label: "Clearance", short: "Stock" },

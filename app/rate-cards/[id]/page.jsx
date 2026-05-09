@@ -3,8 +3,10 @@ import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { getCard, listItems } from "@/lib/rate-cards/store";
 import { priceAll } from "@/lib/rate-cards/pricing";
+import { listAttachments } from "@/lib/rate-cards/attachments";
 import RateCardView from "../_components/RateCardView";
 import SetupNotice from "../_components/SetupNotice";
+import AttachmentList from "../_components/AttachmentList";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,15 @@ export default async function RateCardDetailPage({ params }) {
   } catch (err) {
     if (err?.digest?.startsWith?.("NEXT_NOT_FOUND")) throw err;
     setupError = String(err?.message || err);
+  }
+
+  // Fetch attachments separately so a Supabase outage doesn't take down
+  // the whole detail page — the rate-card body still renders.
+  let attachments = [];
+  if (card) {
+    try {
+      attachments = await listAttachments({ cardRef: card.ref });
+    } catch {}
   }
 
   if (setupError) {
@@ -70,6 +81,12 @@ export default async function RateCardDetailPage({ params }) {
       </div>
 
       <RateCardView items={priced} />
+
+      {attachments.length > 0 && (
+        <div className="mt-6">
+          <AttachmentList attachments={attachments} />
+        </div>
+      )}
 
       {card.terms && (
         <div className="mt-6 text-sm text-gray-600 whitespace-pre-wrap dark:text-gray-300">

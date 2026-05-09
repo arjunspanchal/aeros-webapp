@@ -26,8 +26,8 @@ const ALL_OPTIONS = [
   {
     key: "rate_cards",
     href: "/rate-cards",
-    title: "Rate Cards",
-    description: "Saved price lists per client — view current rates or build a new quote card.",
+    title: "RFQ Tracker",
+    description: "Every quote ever sent to a client in one place — past quote PDFs, saved rate cards, and the live quote history.",
     accent: "from-sky-600 to-cyan-700",
   },
   {
@@ -71,7 +71,7 @@ export default function HomeClient({ session, footer }) {
               href="/login"
               className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
             >
-              Sign in to access Calculator, Catalogue, Rate Cards, FactoryOS →
+              Sign in to access Calculator, Catalogue, RFQ Tracker, FactoryOS →
             </Link>
           </div>
         )}
