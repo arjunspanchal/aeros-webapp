@@ -150,6 +150,15 @@ export default function AppHeader({ session }) {
   const available = MODULES.filter((m) => !!modules[m.key]);
   const subTabs = subTabsFor(pathname, session);
 
+  // Modules whose desktop sub-tabs are replaced by an in-page sidebar (left
+  // rail). The sub-tab row keeps rendering on mobile so narrow viewports
+  // still have a discoverable nav. Add a module here once it ships a
+  // ModuleShell-based sidebar in its layout.
+  const factoryosRole = session?.modules?.factoryos;
+  const factoryosHasSidebar =
+    active === "factoryos" && factoryosRole && factoryosRole !== "customer";
+  const sidebarReplacesSubtabsOnDesktop = factoryosHasSidebar;
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
@@ -211,9 +220,15 @@ export default function AppHeader({ session }) {
 
       {/* Row 2 — module sub-tabs, inline on all viewports. The horizontal
           scroll is masked by a right-edge fade so the row remains editorial
-          rather than utilitarian. */}
+          rather than utilitarian.
+
+          Sidebar exception: modules with a ModuleShell-based sidebar
+          (FactoryOS for staff, others as they ship) hide the desktop
+          sub-tab row since the sidebar covers the same ground. Mobile
+          keeps the sub-tabs so narrow viewports have a discoverable nav
+          alongside the drawer. */}
       {subTabs.length > 0 && (
-        <div className="border-t border-ink-200 bg-ink-50/50">
+        <div className={`border-t border-ink-200 bg-ink-50/50 ${sidebarReplacesSubtabsOnDesktop ? "md:hidden" : ""}`}>
           <div className="max-w-7xl mx-auto px-4 md:px-6 relative">
             <div className="flex gap-5 overflow-x-auto no-scrollbar h-10 items-stretch">
               {subTabs.map((t) => {
