@@ -82,8 +82,10 @@ export async function GET(req, { params }) {
   // Short-lived private cache so iframe re-renders / scrolls don't refetch
   // every time. Tweakable.
   headers.set("Cache-Control", "private, max-age=600");
-  const len = upstream.headers.get("content-length");
-  if (len) headers.set("Content-Length", len);
+  // Don't forward Content-Length — when the upstream uses chunked
+  // transfer-encoding, that header is missing or wrong, and Next can
+  // change the encoding anyway. Letting the runtime set its own framing
+  // is safer and still gives the browser enough to render PDFs inline.
 
   return new Response(upstream.body, { status: 200, headers });
 }

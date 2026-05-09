@@ -108,26 +108,26 @@ export default async function RfqDetailPage({ params }) {
       </dl>
 
       {/* PDF viewer — streams through the in-app proxy so the browser
-          renders inline regardless of how Supabase serves the object. */}
+          renders inline regardless of how Supabase serves the object.
+          iframe is the most reliable cross-browser path when the
+          response carries Content-Disposition: inline (the proxy
+          guarantees that). */}
       <div className="mt-5 bg-white border border-gray-200 rounded-xl overflow-hidden dark:bg-gray-900 dark:border-gray-800">
-        <object
-          data={`/api/rfq/${quote.id}/file`}
-          type={quote.contentType || "application/pdf"}
+        <iframe
+          src={`/api/rfq/${quote.id}/file`}
+          title={quote.filename || "RFQ PDF"}
           className="w-full block"
-          style={{ height: "calc(100vh - 360px)", minHeight: 480 }}
-          aria-label={quote.filename || "RFQ PDF"}
-        >
-          <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
-            Your browser can&apos;t display this PDF inline.{" "}
-            <a
-              href={`/api/rfq/${quote.id}/file?download=1`}
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 underline"
-            >
-              Download instead
-            </a>
-            .
-          </div>
-        </object>
+          style={{ height: "calc(100vh - 360px)", minHeight: 480, border: 0 }}
+        />
+        <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between gap-2">
+          <span className="truncate">{quote.filename}</span>
+          <a
+            href={`/api/rfq/${quote.id}/file?download=1`}
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 underline whitespace-nowrap"
+          >
+            Download
+          </a>
+        </div>
       </div>
     </div>
   );
