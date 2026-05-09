@@ -1,7 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function RfqManager({ initialQuotes, clients, canUpload, currentEmail }) {
+  const router = useRouter();
   const [quotes, setQuotes] = useState(initialQuotes || []);
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState(""); // client id (internal only)
@@ -106,7 +108,11 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {filtered.map((q) => (
-                <tr key={q.id} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30">
+                <tr
+                  key={q.id}
+                  onClick={() => router.push(`/rfq-manager/${q.id}`)}
+                  className="cursor-pointer hover:bg-blue-50/40 dark:hover:bg-blue-900/10"
+                >
                   <td className="px-3 sm:px-4 py-2.5 font-mono text-xs text-gray-900 dark:text-white">
                     {q.aerosRfqNumber || "—"}
                   </td>
@@ -133,7 +139,10 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
                   <td className="px-3 sm:px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     {q.createdAt ? new Date(q.createdAt).toLocaleDateString() : "—"}
                   </td>
-                  <td className="px-3 sm:px-4 py-2.5 text-right whitespace-nowrap space-x-2">
+                  <td
+                    className="px-3 sm:px-4 py-2.5 text-right whitespace-nowrap space-x-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {q.url ? (
                       <a
                         href={q.url}
