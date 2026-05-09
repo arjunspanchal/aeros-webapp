@@ -44,12 +44,24 @@ const ALL_OPTIONS = [
 // other read-only views here if/when they should be public too.
 const PUBLIC_OPTION_KEYS = new Set(["clearance"]);
 
+// Top-level admin concern that sits ABOVE the module grid. FactoryOS and
+// WarehouseOS are sub-modules under "the platform"; user-access management
+// spans both, so the tile lives outside the module grid and only shows for
+// users who can actually edit it (admin or factory_manager).
+function canManageAccess(session) {
+  if (!session) return false;
+  if (session.isAdmin) return true;
+  const r = session.modules?.factoryos;
+  return r === "admin" || r === "factory_manager";
+}
+
 export default function HomeClient({ session, footer }) {
   const isAuthed = !!session;
   const modules = session?.modules || {};
   const options = isAuthed
     ? ALL_OPTIONS.filter((o) => !!modules[o.key])
     : ALL_OPTIONS.filter((o) => PUBLIC_OPTION_KEYS.has(o.key));
+  const showAccessTile = canManageAccess(session);
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white dark:bg-none dark:bg-gray-950">
@@ -72,6 +84,34 @@ export default function HomeClient({ session, footer }) {
               className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
             >
               Sign in to access Calculator, Catalogue, Rate Cards, FactoryOS →
+            </Link>
+          </div>
+        )}
+
+        {/* Admin band — sits above the module grid. FactoryOS / WarehouseOS
+            are sub-modules under the platform; user-access management spans
+            both, so it lives at the top instead of inside either one. */}
+        {showAccessTile && (
+          <div className="mb-8 sm:mb-12">
+            <div className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-3 px-1">
+              Admin
+            </div>
+            <Link
+              href="/admin/access"
+              className="group relative block overflow-hidden rounded-2xl border p-5 sm:p-6 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800 dark:hover:border-gray-700"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-red-600" />
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">User Access</h2>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                    Single editor for who can sign in and what they see — roles, pricing, linked clients, active status.
+                  </p>
+                </div>
+                <span className="hidden sm:inline text-sm font-medium text-blue-700 group-hover:text-blue-800 dark:text-blue-400 dark:group-hover:text-blue-300 shrink-0">
+                  Open →
+                </span>
+              </div>
             </Link>
           </div>
         )}
