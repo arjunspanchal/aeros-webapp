@@ -44,7 +44,7 @@ export async function POST(req) {
 
     // Dedup by email — someone with this email may already be in the Users
     // table under another role. In that case the admin should promote them
-    // via /factoryos/admin/users rather than quietly overwriting the role.
+    // via /admin/access rather than quietly overwriting the role.
     const existing = await airtableList(TABLES.users(), {
       filterByFormula: `LOWER({Email})='${escapeFormula(email)}'`,
       maxRecords: 1,
@@ -54,7 +54,7 @@ export async function POST(req) {
       const currentRole = (row.fields.Role || "").toLowerCase();
       if (currentRole && currentRole !== ROLES.ACCOUNT_MANAGER) {
         return Response.json(
-          { error: `${email} already exists as "${currentRole}". Change their role via /factoryos/admin/users first.` },
+          { error: `${email} already exists as "${currentRole}". Change their role via /admin/access first.` },
           { status: 409 }
         );
       }

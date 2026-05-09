@@ -41,13 +41,14 @@ function subTabsFor(pathname, session) {
   if (active === "calculator") {
     const role = session?.modules?.calculator;
     if (role === "admin") {
+      // Client / pricing management moved to /admin/access (hub-level
+      // editor that also handles factoryos roles + linked clients).
       return [
         { href: "/calculator/admin",          label: "Bag",      short: "Bag" },
         { href: "/calculator/admin/box",      label: "Box",      short: "Box" },
         { href: "/calculator/admin/cup",      label: "Cup",      short: "Cup" },
         { href: "/calculator/admin/pp",       label: "PP",       short: "PP" },
         { href: "/calculator/admin/history",  label: "History",  short: "History" },
-        { href: "/calculator/admin/clients",  label: "Clients",  short: "Clients" },
         { href: "/calculator/admin/rates",    label: "Rates",    short: "Rates" },
       ];
     }
