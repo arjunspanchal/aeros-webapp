@@ -6,7 +6,7 @@ export default function ClientQuotesPage() {
   const session = getSession();
   const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
   if (!session || !role) redirect("/login");
-  if (role !== "client") redirect("/calculator/admin");
+  if (role !== "client" && role !== "admin") redirect("/calculator/admin");
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <div className="max-w-5xl mx-auto px-4 pb-10">

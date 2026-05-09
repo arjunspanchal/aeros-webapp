@@ -6,7 +6,7 @@ export default function ClientCupPage() {
   const session = getSession();
   const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
   if (!session || !role) redirect("/login");
-  if (role !== "client") redirect("/calculator/admin/cup");
+  if (role !== "client" && role !== "admin") redirect("/calculator/admin/cup");
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">

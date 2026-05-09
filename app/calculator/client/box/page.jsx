@@ -7,7 +7,7 @@ export default async function ClientBoxPage() {
   const session = getSession();
   const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
   if (!session || !role) redirect("/login");
-  if (role !== "client") redirect("/calculator/admin/box");
+  if (role !== "client" && role !== "admin") redirect("/calculator/admin/box");
 
   let papers = [];
   try { papers = await listMasterPapers(); } catch { /* Paper RM env may be unset — picker falls back to manual */ }
