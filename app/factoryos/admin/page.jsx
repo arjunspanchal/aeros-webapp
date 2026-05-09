@@ -46,9 +46,8 @@ export default async function AdminDashboard() {
             <Link href="/factoryos/admin/clients" className="px-3 py-1.5 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
               Manage clients
             </Link>
-            <Link href="/factoryos/admin/users" className="px-3 py-1.5 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
-              Manage users
-            </Link>
+            {/* User management moved to the hub-level /admin/access page —
+                roles + pricing + client links live in one editor there. */}
             <Link href="/factoryos/admin/inventory" className="px-3 py-1.5 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
               RM inventory
             </Link>
