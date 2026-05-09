@@ -302,7 +302,7 @@ ${box ? `
 ${form.printing && cb.plateCost ? `<div class="muted" style="margin-top:14px">One-time plate cost: ₹${cb.plateCost.toLocaleString()} (${form.colours} colour${form.colours > 1 ? "s" : ""} × ₹5,000) — billed separately, once per artwork.</div>` : ""}
 
 <div class="footer">
-  Generated ${date} · Internal review document — do NOT send to clients. Use "Client PDF" for the customer-facing version.
+  Generated ${date} · Internal review document — do NOT send to customers. Use "Customer PDF" for the customer-facing version.
 </div>
 
 <script>window.onload = () => setTimeout(() => window.print(), 300);</script>
