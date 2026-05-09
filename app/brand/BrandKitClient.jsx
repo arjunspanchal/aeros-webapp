@@ -76,36 +76,41 @@ paper cups, tubs, bowls, lids, kraft bags, and SBS + corrugated boxes —
 costed live, quoted in INR, shipped worldwide. BRCGS-certified plant.
 Operator-led: Arjun Panchal (front of house) and Parth Panchal (factory floor).`;
 
-// ---- Logo SVGs ------------------------------------------------------------
-// The wordmark is set in Nunito Sans 600, letterspacing 0.08em. The
-// embedded SVGs below render text so they remain editable; downloading
-// gives the receiver an SVG with the same text-as-shape spec.
-
-function makeWordmarkSvg({ size = 80, color = "#0A0A0A", bg = "transparent" }) {
-  // Approximate width based on font metrics. Aeros = 5 chars, ~0.55em each.
-  const charW = size * 0.6;
-  const width = Math.round(charW * 5 + size);
-  const height = Math.round(size * 1.4);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect width="${width}" height="${height}" fill="${bg}"/>
-  <text
-    x="50%" y="50%"
-    text-anchor="middle"
-    dominant-baseline="central"
-    font-family="Nunito Sans, system-ui, sans-serif"
-    font-weight="600"
-    letter-spacing="${(size * 0.08).toFixed(2)}"
-    font-size="${size}"
-    fill="${color}"
-  >Aeros</text>
-</svg>`;
-}
+// ---- Logos ----------------------------------------------------------------
+// Real Aeros wordmark — vectorized, lives in public/brand/. Each variant is
+// a static SVG file served from /brand/<file>.svg so vendors and team can
+// download or hotlink directly. The Logos section renders the real artwork
+// (no on-the-fly generation) so what teams see matches what they ship.
 
 const LOGO_VARIANTS = [
-  { id: "wordmark-light",      label: "Wordmark · light",       size: 80, color: "#0A0A0A", bg: "#FFFFFF",          dark: false },
-  { id: "wordmark-dark",       label: "Wordmark · dark",        size: 80, color: "#FFFFFF", bg: "#0A0A0A",          dark: true  },
-  { id: "wordmark-monochrome", label: "Wordmark · monochrome",  size: 80, color: "#0A0A0A", bg: "transparent",      dark: false },
-  { id: "wordmark-large",      label: "Wordmark · hero scale",  size: 160, color: "#0A0A0A", bg: "#F5F5F5",          dark: false },
+  {
+    id: "aeros-logo",
+    label: "Primary · dark on white",
+    file: "/brand/aeros-logo.svg",
+    bg: "#FFFFFF",
+    dark: false,
+  },
+  {
+    id: "aeros-logo-mono-dark",
+    label: "Monochrome · dark on transparent",
+    file: "/brand/aeros-logo-mono-dark.svg",
+    bg: "transparent",
+    dark: false,
+  },
+  {
+    id: "aeros-logo-mono-light",
+    label: "Monochrome · white on transparent",
+    file: "/brand/aeros-logo-mono-light.svg",
+    bg: "#0A0A0A",
+    dark: true,
+  },
+  {
+    id: "aeros-logo-on-dark",
+    label: "Reversed · white on ink900",
+    file: "/brand/aeros-logo-on-dark.svg",
+    bg: "#0A0A0A",
+    dark: true,
+  },
 ];
 
 // ---- Component ------------------------------------------------------------
@@ -124,17 +129,25 @@ export default function BrandKitClient({ initialFiles, loadError }) {
     });
   }
 
-  function downloadSvg(variant) {
-    const svg = makeWordmarkSvg(variant);
-    const blob = new Blob([svg], { type: "image/svg+xml" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url;
-    a.download = `aeros-${variant.id}.svg`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+  async function downloadSvg(variant) {
+    // Fetch the static SVG file from public/brand/, then save with a clean
+    // filename so vendor downloads don't pick up cache-busted query strings.
+    try {
+      const r = await fetch(variant.file);
+      if (!r.ok) throw new Error(`Could not load ${variant.file} (${r.status})`);
+      const svg = await r.text();
+      const blob = new Blob([svg], { type: "image/svg+xml" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url;
+      a.download = `${variant.id}.svg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e.message);
+    }
   }
 
   async function uploadFiles(fileList) {
@@ -205,28 +218,39 @@ export default function BrandKitClient({ initialFiles, loadError }) {
 
       {/* ---- Logos ---- */}
       <section id="logos" className="scroll-mt-16 border-t border-gray-200 pt-8">
-        <SectionHeader eyebrow="01" title="Logos" subtitle="Click any variant to download as SVG. Wordmark only — no separate logomark today." />
+        <SectionHeader
+          eyebrow="01"
+          title="Logos"
+          subtitle="Click any variant to download as SVG. Wordmark only — no separate logomark today."
+        />
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {LOGO_VARIANTS.map((v) => (
             <button
               key={v.id}
               onClick={() => downloadSvg(v)}
-              className={`group flex h-40 flex-col items-center justify-center rounded-lg border transition-all ${
+              className={`group flex h-40 flex-col items-center justify-center overflow-hidden rounded-lg border p-6 transition-all ${
                 v.dark ? "border-gray-800" : "border-gray-200 hover:border-gray-300"
               } hover:shadow-md`}
-              style={{ background: v.bg === "transparent" ? "repeating-conic-gradient(#f3f4f6 0% 25%, white 0% 50%) 50% / 16px 16px" : v.bg }}
+              style={{
+                background:
+                  v.bg === "transparent"
+                    ? "repeating-conic-gradient(#f3f4f6 0% 25%, white 0% 50%) 50% / 16px 16px"
+                    : v.bg,
+              }}
+              title={`Download ${v.id}.svg`}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={v.file}
+                alt={v.label}
+                className="max-h-20 w-auto"
+                loading="lazy"
+              />
               <span
-                style={{
-                  fontFamily:    '"Nunito Sans", system-ui, sans-serif',
-                  fontWeight:    600,
-                  letterSpacing: "0.08em",
-                  color:         v.color,
-                  fontSize:      v.size > 100 ? "44px" : "28px",
-                  lineHeight:    1,
-                }}
-              >Aeros</span>
-              <span className={`mt-3 text-[11px] uppercase tracking-wide ${v.dark ? "text-gray-400" : "text-gray-500"}`}>
+                className={`mt-3 text-[11px] uppercase tracking-wide ${
+                  v.dark ? "text-gray-400" : "text-gray-500"
+                }`}
+              >
                 {v.label} · download SVG
               </span>
             </button>
