@@ -26,6 +26,7 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
       return (
         (q.aerosRfqNumber || "").toLowerCase().includes(sq) ||
         (q.customerRfqNumber || "").toLowerCase().includes(sq) ||
+        (q.brand || "").toLowerCase().includes(sq) ||
         (q.productName || "").toLowerCase().includes(sq) ||
         (q.filename || "").toLowerCase().includes(sq) ||
         (q.notes || "").toLowerCase().includes(sq)
@@ -59,7 +60,7 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search RFQ #, product, filename…"
+            placeholder="Search RFQ #, brand, product, filename…"
             className="w-full rounded-lg border border-gray-300 bg-white pl-9 pr-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700 dark:text-white"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔎</span>
@@ -95,6 +96,7 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
               <tr>
                 <th className="text-left px-3 sm:px-4 py-2 font-medium whitespace-nowrap">Aeros RFQ #</th>
                 <th className="text-left px-3 sm:px-4 py-2 font-medium whitespace-nowrap">Customer RFQ #</th>
+                <th className="text-left px-3 sm:px-4 py-2 font-medium">Brand</th>
                 <th className="text-left px-3 sm:px-4 py-2 font-medium">Product</th>
                 {canUpload && <th className="text-left px-3 sm:px-4 py-2 font-medium">Customer</th>}
                 <th className="text-left px-3 sm:px-4 py-2 font-medium">File</th>
@@ -110,6 +112,9 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
                   </td>
                   <td className="px-3 sm:px-4 py-2.5 font-mono text-xs text-gray-600 dark:text-gray-300">
                     {q.customerRfqNumber || <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="px-3 sm:px-4 py-2.5 text-sm text-gray-800 dark:text-gray-100">
+                    {q.brand || <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-3 sm:px-4 py-2.5 text-gray-800 dark:text-gray-100">
                     {q.productName || <span className="text-gray-400">—</span>}
@@ -155,7 +160,7 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={canUpload ? 7 : 6} className="text-center text-sm text-gray-500 py-10 dark:text-gray-400">
+                  <td colSpan={canUpload ? 8 : 7} className="text-center text-sm text-gray-500 py-10 dark:text-gray-400">
                     {search || clientFilter
                       ? "No RFQs match those filters."
                       : canUpload
@@ -192,6 +197,7 @@ function UploadModal({ clients, onClose, onUploaded }) {
   const [aerosRfq, setAerosRfq] = useState("");
   const [customerRfq, setCustomerRfq] = useState("");
   const [clientId, setClientId] = useState("");
+  const [brand, setBrand] = useState("");
   const [productName, setProductName] = useState("");
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState(null);
@@ -204,6 +210,7 @@ function UploadModal({ clients, onClose, onUploaded }) {
     e.preventDefault();
     setErr("");
     if (!aerosRfq.trim()) { setErr("Aeros RFQ number is required"); return; }
+    if (!brand.trim()) { setErr("Brand is required"); return; }
     if (!file) { setErr("Pick a PDF to upload"); return; }
     if (!clientId) { setErr("Pick a customer"); return; }
     if (file.size > 10 * 1024 * 1024) { setErr("File exceeds 10 MB"); return; }
@@ -220,6 +227,7 @@ function UploadModal({ clients, onClose, onUploaded }) {
           customerRfqNumber: customerRfq.trim() || null,
           clientId,
           clientEmail: selectedClient?.contactEmail || null,
+          brand: brand.trim(),
           productName: productName.trim() || null,
           notes: notes.trim() || null,
           filename: file.name,
@@ -297,14 +305,26 @@ function UploadModal({ clients, onClose, onUploaded }) {
             )}
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Product / Item</label>
-            <input
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
-              placeholder="e.g. PAX & Beneficia"
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700 dark:text-white"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Brand <span className="text-red-500">*</span></label>
+              <input
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                placeholder="e.g. PAX"
+                required
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Product / Item</label>
+              <input
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                placeholder="e.g. 12oz double-wall cup"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700 dark:text-white"
+              />
+            </div>
           </div>
 
           <div>
