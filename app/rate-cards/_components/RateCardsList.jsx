@@ -31,7 +31,7 @@ export default function RateCardsList({ cards, isAdmin }) {
     <Card>
       <input
         className={`${inputCls} mb-4`}
-        placeholder="Search by ref, brand, client…"
+        placeholder="Search by ref, brand, customer…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
@@ -42,7 +42,7 @@ export default function RateCardsList({ cards, isAdmin }) {
               <th className="text-left pb-2 font-medium">Ref</th>
               <th className="text-left pb-2 font-medium">Title</th>
               <th className="text-left pb-2 font-medium">Brand</th>
-              {isAdmin && <th className="text-left pb-2 font-medium">Client</th>}
+              {isAdmin && <th className="text-left pb-2 font-medium">Customer</th>}
               <th className="text-left pb-2 font-medium">Status</th>
               <th className="text-left pb-2 font-medium">Created</th>
               <th className="pb-2"></th>

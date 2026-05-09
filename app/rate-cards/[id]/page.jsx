@@ -55,7 +55,7 @@ export default async function RateCardDetailPage({ params }) {
           </h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
             {card.brand && <span>Brand: <strong>{card.brand}</strong> · </span>}
-            {isAdmin && card.clientEmail && <span>Client: <strong>{card.clientName || card.clientEmail}</strong> · </span>}
+            {isAdmin && card.clientEmail && <span>Customer: <strong>{card.clientName || card.clientEmail}</strong> · </span>}
             Status: <strong>{card.status || "Draft"}</strong>
           </p>
         </div>

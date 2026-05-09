@@ -10,8 +10,7 @@ export const dynamic = "force-dynamic";
 function isStaffAdmin(session) {
   if (!session) return false;
   if (session.isAdmin) return true;
-  const r = session.modules?.factoryos;
-  return r === "admin" || r === "factory_manager";
+  return session.modules?.factoryos === "admin";
 }
 
 export async function GET(_req, { params }) {

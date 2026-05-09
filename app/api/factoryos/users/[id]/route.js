@@ -35,7 +35,7 @@ export async function PATCH(req, { params }) {
     // Customers must have at least one client
     if (body.clientIds !== undefined && roleToCheck === ROLES.CUSTOMER) {
       if (!Array.isArray(body.clientIds) || body.clientIds.length === 0) {
-        return Response.json({ error: "Customers must be linked to at least one Client" }, { status: 400 });
+        return Response.json({ error: "Customer-role users must be linked to at least one customer." }, { status: 400 });
       }
     }
 

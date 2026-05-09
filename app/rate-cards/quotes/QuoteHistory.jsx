@@ -85,7 +85,7 @@ export default function QuoteHistory({ quotes, isAdmin }) {
               <th className="text-left pb-2 font-medium">Type</th>
               <th className="text-left pb-2 font-medium">Ref · Brand</th>
               <th className="text-left pb-2 font-medium">Product · Spec</th>
-              {isAdmin && <th className="text-left pb-2 font-medium">Client</th>}
+              {isAdmin && <th className="text-left pb-2 font-medium">Customer</th>}
               <th className="text-right pb-2 font-medium">Qty</th>
               <th className="text-right pb-2 font-medium">Rate</th>
               <th className="text-right pb-2 font-medium">Order Total</th>
@@ -125,7 +125,7 @@ export default function QuoteHistory({ quotes, isAdmin }) {
       )}
       <p className="text-xs text-gray-400 mt-4 dark:text-gray-500">
         {filtered.length} of {quotes.length} {quotes.length === 1 ? "quote" : "quotes"} shown.
-        {isAdmin ? " Pivot to a single client by typing their email in the search box." : ""}
+        {isAdmin ? " Pivot to a single customer by typing their email in the search box." : ""}
       </p>
     </Card>
   );

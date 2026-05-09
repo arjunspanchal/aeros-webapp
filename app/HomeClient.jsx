@@ -25,9 +25,9 @@ const ALL_OPTIONS = [
   },
   {
     key: "rate_cards",
-    href: "/rate-cards",
-    title: "Rate Cards",
-    description: "Saved price lists per client — view current rates or build a new quote card.",
+    href: "/rfq-manager",
+    title: "RFQs",
+    description: "Every quote PDF you've shared — search, download, and (for admin) upload new ones. Rate Cards live inside.",
     accent: "from-sky-600 to-cyan-700",
   },
   {
@@ -46,13 +46,13 @@ const PUBLIC_OPTION_KEYS = new Set(["clearance"]);
 
 // Top-level admin concern that sits ABOVE the module grid. FactoryOS and
 // WarehouseOS are sub-modules under "the platform"; user-access management
-// spans both, so the tile lives outside the module grid and only shows for
-// users who can actually edit it (admin or factory_manager).
+// spans both, so the tile lives outside the module grid and only shows
+// for the platform admin. Factory Managers don't manage other people's
+// access — kept separate so admin and FM duties don't overlap.
 function canManageAccess(session) {
   if (!session) return false;
   if (session.isAdmin) return true;
-  const r = session.modules?.factoryos;
-  return r === "admin" || r === "factory_manager";
+  return session.modules?.factoryos === "admin";
 }
 
 export default function HomeClient({ session, footer }) {
@@ -83,7 +83,7 @@ export default function HomeClient({ session, footer }) {
               href="/login"
               className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
             >
-              Sign in to access Calculator, Catalogue, Rate Cards, FactoryOS →
+              Sign in to access Calculator, Catalogue, RFQs, FactoryOS →
             </Link>
           </div>
         )}

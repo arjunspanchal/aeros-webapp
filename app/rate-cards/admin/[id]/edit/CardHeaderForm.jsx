@@ -50,12 +50,12 @@ export default function CardHeaderForm({ card, onSaved }) {
         </Field>
         <Field label="Status">
           <select className={inputCls} value={draft.status || "Draft"} onChange={(e) => set("status", e.target.value)}>
-            <option value="Draft">Draft (hidden from client)</option>
+            <option value="Draft">Draft (hidden from customer)</option>
             <option value="Published">Published</option>
             <option value="Archived">Archived</option>
           </select>
         </Field>
-        <Field label="Client email" hint="Read-only — cannot reassign a card">
+        <Field label="Customer email" hint="Read-only — cannot reassign a card">
           <input className={inputCls} value={card.clientEmail} disabled />
         </Field>
         <div className="md:col-span-2">

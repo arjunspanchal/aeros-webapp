@@ -7,14 +7,13 @@ import { listAccessUsers, listAccessClients } from "@/lib/access/users";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Admin-only — Factory Managers no longer get to change other people's
+// access from /admin/access. They can still see jobs / RM / users-as-list
+// elsewhere; this surface is reserved for the platform admin.
 function isStaffAdmin(session) {
   if (!session) return false;
   if (session.isAdmin) return true;
-  // Allow Factory Manager too — same gate as the FactoryOS Users admin
-  // currently uses (requireManager). Anyone weaker than FM shouldn't be
-  // changing other people's access.
-  const r = session.modules?.factoryos;
-  return r === "admin" || r === "factory_manager";
+  return session.modules?.factoryos === "admin";
 }
 
 export async function GET(req) {

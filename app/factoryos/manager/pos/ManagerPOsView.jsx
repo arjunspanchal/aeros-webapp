@@ -56,7 +56,7 @@ export default function ManagerPOsView({ pos, clientMap }) {
           onChange={(e) => setQ(e.target.value)}
         />
         <select className={`${inputCls} sm:w-56`} value={clientId} onChange={(e) => setClientId(e.target.value)}>
-          <option value="all">All clients</option>
+          <option value="all">All customers</option>
           {clientOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select className={`${inputCls} sm:w-44`} value={month} onChange={(e) => setMonth(e.target.value)}>
@@ -72,7 +72,7 @@ export default function ManagerPOsView({ pos, clientMap }) {
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase dark:bg-gray-800/50 dark:text-gray-400">
             <tr>
               <th className="text-left px-4 py-2 font-medium">PO number</th>
-              <th className="text-left px-4 py-2 font-medium">Client</th>
+              <th className="text-left px-4 py-2 font-medium">Customer</th>
               <th className="text-left px-4 py-2 font-medium">Uploaded</th>
               <th className="text-left px-4 py-2 font-medium">File</th>
               <th className="text-right px-4 py-2 font-medium">&nbsp;</th>

@@ -160,7 +160,7 @@ function DetailView({ quote, showClientColumn }) {
         ))}
         {showClientColumn && quote.clientEmail && (
           <div className="flex justify-between text-sm py-1 border-b border-gray-100 dark:border-gray-700">
-            <span className="text-gray-500 dark:text-gray-400">Client email</span>
+            <span className="text-gray-500 dark:text-gray-400">Customer email</span>
             <span className="text-gray-900 break-all dark:text-gray-200">{quote.clientEmail}</span>
           </div>
         )}
@@ -237,7 +237,7 @@ export default function QuoteHistoryTable({ showClientColumn }) {
               <th className="text-right pb-2 font-medium">Qty</th>
               <th className="text-right pb-2 font-medium">Rate</th>
               <th className="text-right pb-2 font-medium">Order Total</th>
-              {showClientColumn && <th className="text-left pb-2 font-medium">Client</th>}
+              {showClientColumn && <th className="text-left pb-2 font-medium">Customer</th>}
             </tr>
           </thead>
           <tbody>

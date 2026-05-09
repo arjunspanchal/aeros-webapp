@@ -23,7 +23,7 @@ export default function NewRateCardForm() {
   async function submit(e) {
     e.preventDefault();
     setErr("");
-    if (!selectedClient) { setErr("Pick a client."); return; }
+    if (!selectedClient) { setErr("Pick a customer."); return; }
     setSaving(true);
     const res = await fetch("/api/rate-cards", {
       method: "POST",
@@ -49,9 +49,9 @@ export default function NewRateCardForm() {
   return (
     <Card>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Client">
+        <Field label="Customer">
           <select required className={inputCls} value={clientId} onChange={(e) => setClientId(e.target.value)}>
-            <option value="">Select a client…</option>
+            <option value="">Select a customer…</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name || c.company || c.email} · {c.email}
@@ -67,7 +67,7 @@ export default function NewRateCardForm() {
         </Field>
         <Field label="Status">
           <select className={inputCls} value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="Draft">Draft (not visible to client)</option>
+            <option value="Draft">Draft (not visible to customer)</option>
             <option value="Published">Published</option>
             <option value="Archived">Archived</option>
           </select>

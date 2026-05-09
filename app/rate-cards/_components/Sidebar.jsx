@@ -1,8 +1,9 @@
 "use client";
-// Persistent sidebar for the rate-cards module. Two sections:
-//   1. Primary nav — All Cards / Past Quotes / + New Card (admin only).
-//   2. Card list — every card the current user can see, jumps straight to
-//      its detail. Admin sees all (with client name); client sees own.
+// Persistent sidebar for the RFQs module — covers both /rate-cards and
+// /rfq-manager. Three sections:
+//   1. RFQs nav — RFQ Manager (the customer-facing PDF archive).
+//   2. Rate Cards nav — All Cards / Past Quotes / + New Card (admin only).
+//   3. Card list — every card the user can see; jumps to detail.
 //
 // Layout-side: only rendered on md+ (mobile uses the AppHeader sub-tabs).
 
@@ -28,13 +29,24 @@ export default function RateCardsSidebar({ role, cards = [], clientLabel = "" })
   const pathname = usePathname();
   const isAdmin = role === "admin";
 
+  const onRfqManager = pathname === "/rfq-manager" || pathname.startsWith("/rfq-manager/");
   const onAllCards = pathname === "/rate-cards";
   const onPastQuotes = pathname === "/rate-cards/quotes";
   const onNewCard = pathname === "/rate-cards/admin/new";
 
   return (
-    <nav aria-label="Rate cards navigation" className="space-y-6">
-      {/* Primary nav */}
+    <nav aria-label="RFQs navigation" className="space-y-6">
+      {/* RFQs primary surface */}
+      <div className="space-y-1">
+        <div className="px-3 mb-2 text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+          RFQs
+        </div>
+        <NavRow href="/rfq-manager" active={onRfqManager}>
+          RFQ Manager
+        </NavRow>
+      </div>
+
+      {/* Rate Cards sub-section */}
       <div className="space-y-1">
         <div className="px-3 mb-2 text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
           Rate Cards

@@ -16,7 +16,7 @@ import { Brand, IdentityMenu, MobileNav } from "./ui";
 
 const MODULES = [
   { key: "calculator",  label: "Calculator",  href: "/calculator"  },
-  { key: "rate_cards",  label: "Rate Cards",  href: "/rate-cards"  },
+  { key: "rate_cards",  label: "RFQs",        href: "/rfq-manager" },
   { key: "factoryos",   label: "FactoryOS",   href: "/factoryos"   },
   { key: "catalogue",   label: "Catalogue",   href: "/catalog"     },
   { key: "clearance",   label: "WarehouseOS", href: "/warehouse"   },
@@ -25,6 +25,7 @@ const MODULES = [
 function activeModuleKey(pathname) {
   if (pathname.startsWith("/calculator")) return "calculator";
   if (pathname.startsWith("/rate-cards")) return "rate_cards";
+  if (pathname.startsWith("/rfq-manager")) return "rate_cards";
   if (pathname.startsWith("/factoryos"))  return "factoryos";
   if (pathname.startsWith("/catalog"))    return "catalogue";
   if (pathname.startsWith("/warehouse"))  return "clearance";
@@ -90,14 +91,16 @@ function subTabsFor(pathname, session) {
     const role = session?.isAdmin ? "admin" : session?.modules?.rate_cards;
     if (role === "admin") {
       return [
-        { href: "/rate-cards",            label: "All Cards",    short: "All"    },
+        { href: "/rfq-manager",           label: "RFQ Manager",  short: "RFQs"   },
+        { href: "/rate-cards",            label: "Rate Cards",   short: "Cards"  },
         { href: "/rate-cards/quotes",     label: "Past Quotes",  short: "Quotes" },
         { href: "/rate-cards/admin/new",  label: "+ New Card",   short: "New"    },
       ];
     }
     if (role === "client") {
       return [
-        { href: "/rate-cards",        label: "My Rate Cards", short: "Cards"  },
+        { href: "/rfq-manager",       label: "RFQ Manager",   short: "RFQs"   },
+        { href: "/rate-cards",        label: "Rate Cards",    short: "Cards"  },
         { href: "/rate-cards/quotes", label: "Past Quotes",   short: "Quotes" },
       ];
     }
@@ -165,7 +168,11 @@ export default function AppHeader({ session }) {
   // shell scaffold; the sidebar's own visibility (staff-only) is handled
   // inside the layout, not here.
   const warehouseHasSidebar = active === "clearance";
-  const sidebarReplacesSubtabsOnDesktop = factoryosHasSidebar || warehouseHasSidebar;
+  // RFQs module — both /rate-cards and /rfq-manager mount the same sidebar
+  // (RFQ Manager + Rate Cards toggle).
+  const rateCardsHasSidebar = active === "rate_cards";
+  const sidebarReplacesSubtabsOnDesktop =
+    factoryosHasSidebar || warehouseHasSidebar || rateCardsHasSidebar;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });

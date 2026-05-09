@@ -34,7 +34,7 @@ export default function EditRateCard({ initialCard, initialItems }) {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mt-1 dark:text-white">Edit rate card</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-            Client: <strong>{card.clientName || card.clientEmail}</strong> · Created {card.created ? new Date(card.created).toLocaleDateString() : "—"}
+            Customer: <strong>{card.clientName || card.clientEmail}</strong> · Created {card.created ? new Date(card.created).toLocaleDateString() : "—"}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

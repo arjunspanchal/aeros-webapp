@@ -46,7 +46,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Jobs</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-            {role === "account_manager" ? "Jobs for your clients" : "All jobs"} · {jobs.length} total
+            {role === "account_manager" ? "Jobs for your customers" : "All jobs"} · {jobs.length} total
           </p>
         </div>
         {(role === "admin" || role === "factory_manager") && (
@@ -87,7 +87,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
           onChange={(e) => setQ(e.target.value)}
         />
         <select className={`${inputCls} sm:w-56`} value={clientId} onChange={(e) => setClientId(e.target.value)}>
-          <option value="all">All clients</option>
+          <option value="all">All customers</option>
           {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <button
@@ -105,7 +105,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
             <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-500 uppercase dark:text-gray-400">
               <tr>
                 <th className="text-left px-4 py-2 font-medium">J#</th>
-                <th className="text-left px-4 py-2 font-medium">Client / Brand</th>
+                <th className="text-left px-4 py-2 font-medium">Customer / Brand</th>
                 <th className="text-left px-4 py-2 font-medium">Item</th>
                 <th className="text-right px-4 py-2 font-medium">Qty</th>
                 <th className="text-left px-4 py-2 font-medium">City</th>

@@ -62,7 +62,7 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
     sections.push({
       label: "Resources",
       items: [
-        { href: "/factoryos/admin/clients",  label: "Clients" },
+        { href: "/factoryos/admin/clients",  label: "Customers" },
         { href: "/factoryos/admin/vendors",  label: "Vendors" },
         { href: "/factoryos/admin/machines", label: "Machines" },
         // User management moved to /admin/access (hub-level) — covers
