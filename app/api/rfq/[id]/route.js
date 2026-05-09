@@ -3,11 +3,30 @@
 
 import { getSession } from "@/lib/auth/session";
 import { requireInternal } from "@/lib/auth/policy";
+import { dbSelect } from "@/lib/db/supabase";
 import { getRfqQuote, updateRfqQuote, deleteRfqQuote } from "@/lib/rfq/store";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 10 * 1024 * 1024;
+
+// True if `email` is linked to client `clientId` via user_clients.
+async function userOwnsClient(email, clientId) {
+  if (!email || !clientId) return false;
+  const userRows = await dbSelect("users", {
+    select: "id",
+    filter: { email: `ilike.${email.toLowerCase()}` },
+    limit: 1,
+  });
+  const userId = userRows[0]?.id;
+  if (!userId) return false;
+  const links = await dbSelect("user_clients", {
+    select: "client_id",
+    filter: { user_id: `eq.${userId}`, client_id: `eq.${clientId}` },
+    limit: 1,
+  });
+  return links.length > 0;
+}
 
 export async function GET(_req, { params }) {
   const session = getSession();
@@ -16,13 +35,14 @@ export async function GET(_req, { params }) {
   const quote = await getRfqQuote(params.id);
   if (!quote) return new Response("Not found", { status: 404 });
 
-  // Customers can only fetch their own quotes.
-  if (session.modules?.factoryos === "customer") {
-    if ((quote.clientEmail || "").toLowerCase() !== (session.email || "").toLowerCase()) {
-      return new Response("Not found", { status: 404 });
-    }
+  // Internal users always see the row.
+  if (session.isAdmin || requireInternal(session)) {
+    return Response.json({ quote });
   }
 
+  // Everyone else: only if they're linked to the quote's client.
+  const owns = await userOwnsClient(session.email, quote.clientId);
+  if (!owns) return new Response("Not found", { status: 404 });
   return Response.json({ quote });
 }
 
