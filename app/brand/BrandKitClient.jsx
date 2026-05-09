@@ -129,24 +129,108 @@ export default function BrandKitClient({ initialFiles, loadError }) {
     });
   }
 
-  async function downloadSvg(variant) {
-    // Fetch the static SVG file from public/brand/, then save with a clean
-    // filename so vendor downloads don't pick up cache-busted query strings.
+  // ---- Logo download (4 formats: SVG / PNG / JPEG / PDF) ----------------
+  // SVG: fetch the static file, rename the download.
+  // PNG / JPEG: rasterize to canvas at 2× source (2048 px) for high quality.
+  // PDF: lazy-import jspdf, embed the rasterized PNG as a single page sized
+  // to the artwork.
+  // JPEG can't be transparent, so transparent variants get a white fallback
+  // background; all other variants keep their visual bg in the export.
+
+  const RASTER_SIZE = 2048;
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function rasterize(variant, { width = RASTER_SIZE, fillBg = null } = {}) {
+    const r = await fetch(variant.file);
+    if (!r.ok) throw new Error(`Could not load ${variant.file} (${r.status})`);
+    const svgText = await r.text();
+    const svgBlob = new Blob([svgText], { type: "image/svg+xml" });
+    const svgUrl  = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = (e) => reject(new Error("SVG failed to load into <img>"));
+      img.src = svgUrl;
+    });
+
+    const aspect = (img.naturalHeight || img.height) / (img.naturalWidth || img.width);
+    const w = width;
+    const h = Math.max(1, Math.round(w * aspect));
+    const canvas = document.createElement("canvas");
+    canvas.width  = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (fillBg) {
+      ctx.fillStyle = fillBg;
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(svgUrl);
+    return canvas;
+  }
+
+  async function downloadLogo(variant, format) {
     try {
-      const r = await fetch(variant.file);
-      if (!r.ok) throw new Error(`Could not load ${variant.file} (${r.status})`);
-      const svg = await r.text();
-      const blob = new Blob([svg], { type: "image/svg+xml" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href = url;
-      a.download = `${variant.id}.svg`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      if (format === "svg") {
+        const r = await fetch(variant.file);
+        if (!r.ok) throw new Error(`Could not load ${variant.file} (${r.status})`);
+        const svg = await r.text();
+        downloadBlob(new Blob([svg], { type: "image/svg+xml" }), `${variant.id}.svg`);
+        return;
+      }
+      // JPEG can't carry alpha; transparent variants need a white fallback
+      // so the wordmark doesn't end up on a black background after default
+      // canvas init.
+      const isTransparent = variant.bg === "transparent";
+      const canvas = await rasterize(variant, {
+        width: RASTER_SIZE,
+        fillBg: format === "jpeg" ? (isTransparent ? "#FFFFFF" : variant.bg) : (isTransparent ? null : variant.bg),
+      });
+      if (format === "png") {
+        canvas.toBlob((blob) => {
+          if (!blob) { alert("PNG export failed"); return; }
+          downloadBlob(blob, `${variant.id}.png`);
+        }, "image/png");
+        return;
+      }
+      if (format === "jpeg") {
+        canvas.toBlob((blob) => {
+          if (!blob) { alert("JPEG export failed"); return; }
+          downloadBlob(blob, `${variant.id}.jpg`);
+        }, "image/jpeg", 0.95);
+        return;
+      }
+      if (format === "pdf") {
+        // Lazy-load jspdf so the brand page stays light for users who never
+        // request a PDF.
+        const mod = await import("jspdf");
+        const JsPDF = mod.jsPDF || mod.default;
+        const pngDataUrl = canvas.toDataURL("image/png");
+        const orientation = canvas.width >= canvas.height ? "landscape" : "portrait";
+        const pdf = new JsPDF({
+          orientation,
+          unit: "pt",
+          format: [canvas.width, canvas.height],
+          compress: true,
+        });
+        pdf.addImage(pngDataUrl, "PNG", 0, 0, canvas.width, canvas.height);
+        pdf.save(`${variant.id}.pdf`);
+        return;
+      }
     } catch (e) {
-      alert(e.message);
+      alert(e.message || "Download failed");
     }
   }
 
@@ -221,39 +305,11 @@ export default function BrandKitClient({ initialFiles, loadError }) {
         <SectionHeader
           eyebrow="01"
           title="Logos"
-          subtitle="Click any variant to download as SVG. Wordmark only — no separate logomark today."
+          subtitle="Pick a variant + format. SVG keeps full vector fidelity; PNG / JPEG render at 2048 px; PDF wraps the PNG in a single-page document. Wordmark only — no separate logomark today."
         />
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {LOGO_VARIANTS.map((v) => (
-            <button
-              key={v.id}
-              onClick={() => downloadSvg(v)}
-              className={`group flex h-40 flex-col items-center justify-center overflow-hidden rounded-lg border p-6 transition-all ${
-                v.dark ? "border-gray-800" : "border-gray-200 hover:border-gray-300"
-              } hover:shadow-md`}
-              style={{
-                background:
-                  v.bg === "transparent"
-                    ? "repeating-conic-gradient(#f3f4f6 0% 25%, white 0% 50%) 50% / 16px 16px"
-                    : v.bg,
-              }}
-              title={`Download ${v.id}.svg`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={v.file}
-                alt={v.label}
-                className="max-h-20 w-auto"
-                loading="lazy"
-              />
-              <span
-                className={`mt-3 text-[11px] uppercase tracking-wide ${
-                  v.dark ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                {v.label} · download SVG
-              </span>
-            </button>
+            <LogoCard key={v.id} variant={v} onDownload={downloadLogo} />
           ))}
         </div>
       </section>
@@ -392,6 +448,69 @@ export default function BrandKitClient({ initialFiles, loadError }) {
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+// Logo card — preview + 4 format download buttons (SVG / PNG / JPEG / PDF).
+// PDF uses a lazy-imported jspdf, so it shows a small "preparing…" state
+// on first click while the chunk loads.
+function LogoCard({ variant, onDownload }) {
+  const [busyFormat, setBusyFormat] = useState(null);
+  async function handle(format) {
+    setBusyFormat(format);
+    try {
+      await onDownload(variant, format);
+    } finally {
+      setTimeout(() => setBusyFormat(null), 300);
+    }
+  }
+  const FORMATS = ["svg", "png", "jpeg", "pdf"];
+  return (
+    <div
+      className={`overflow-hidden rounded-lg border ${
+        variant.dark ? "border-gray-800" : "border-gray-200"
+      }`}
+    >
+      <div
+        className="flex h-32 items-center justify-center p-6"
+        style={{
+          background:
+            variant.bg === "transparent"
+              ? "repeating-conic-gradient(#f3f4f6 0% 25%, white 0% 50%) 50% / 16px 16px"
+              : variant.bg,
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={variant.file} alt={variant.label} className="max-h-16 w-auto" loading="lazy" />
+      </div>
+      <div className={`flex items-center justify-between gap-2 border-t px-3 py-2 ${
+        variant.dark ? "border-gray-800 bg-gray-900" : "border-gray-200 bg-white"
+      }`}>
+        <span className={`text-[11px] uppercase tracking-wide truncate ${
+          variant.dark ? "text-gray-400" : "text-gray-500"
+        }`}>
+          {variant.label}
+        </span>
+        <div className="flex shrink-0 gap-1">
+          {FORMATS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => handle(f)}
+              disabled={busyFormat !== null}
+              title={`Download ${variant.id}.${f === "jpeg" ? "jpg" : f}`}
+              className={`rounded px-2 py-1 text-[10px] font-mono uppercase tracking-wide transition-colors disabled:opacity-50 ${
+                variant.dark
+                  ? "bg-gray-800 text-gray-200 hover:bg-gray-700"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              {busyFormat === f ? "…" : f}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
