@@ -168,7 +168,11 @@ export default function AppHeader({ session }) {
   // shell scaffold; the sidebar's own visibility (staff-only) is handled
   // inside the layout, not here.
   const warehouseHasSidebar = active === "clearance";
-  const sidebarReplacesSubtabsOnDesktop = factoryosHasSidebar || warehouseHasSidebar;
+  // RFQs module — both /rate-cards and /rfq-manager mount the same sidebar
+  // (RFQ Manager + Rate Cards toggle).
+  const rateCardsHasSidebar = active === "rate_cards";
+  const sidebarReplacesSubtabsOnDesktop =
+    factoryosHasSidebar || warehouseHasSidebar || rateCardsHasSidebar;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
