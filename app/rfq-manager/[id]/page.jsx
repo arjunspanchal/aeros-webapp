@@ -79,7 +79,7 @@ export default async function RfqDetailPage({ params }) {
         </div>
         <RfqDetailActions
           quoteId={quote.id}
-          downloadUrl={quote.url}
+          downloadUrl={`/api/rfq/${quote.id}/file?download=1`}
           filename={quote.filename}
           isInternal={isInternal}
         />
@@ -107,20 +107,27 @@ export default async function RfqDetailPage({ params }) {
         )}
       </dl>
 
-      {/* PDF viewer */}
+      {/* PDF viewer — streams through the in-app proxy so the browser
+          renders inline regardless of how Supabase serves the object. */}
       <div className="mt-5 bg-white border border-gray-200 rounded-xl overflow-hidden dark:bg-gray-900 dark:border-gray-800">
-        {quote.url ? (
-          <iframe
-            src={quote.url}
-            title={quote.filename || "RFQ PDF"}
-            className="w-full"
-            style={{ height: "calc(100vh - 360px)", minHeight: 480 }}
-          />
-        ) : (
+        <object
+          data={`/api/rfq/${quote.id}/file`}
+          type={quote.contentType || "application/pdf"}
+          className="w-full block"
+          style={{ height: "calc(100vh - 360px)", minHeight: 480 }}
+          aria-label={quote.filename || "RFQ PDF"}
+        >
           <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
-            Couldn&apos;t generate a download link for this PDF. Try refreshing the page.
+            Your browser can&apos;t display this PDF inline.{" "}
+            <a
+              href={`/api/rfq/${quote.id}/file?download=1`}
+              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 underline"
+            >
+              Download instead
+            </a>
+            .
           </div>
-        )}
+        </object>
       </div>
     </div>
   );
