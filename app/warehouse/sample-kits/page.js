@@ -5,7 +5,7 @@ import { canManageSampleKits, listKits } from "@/lib/warehouse/sampleKits";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Sample kits — WarehouseOS" };
+export const metadata = { title: "Kit Manager — WarehouseOS" };
 
 function fmtINR(n) {
   if (n == null) return "—";
@@ -32,7 +32,7 @@ export default async function SampleKitsPage() {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Sample kits</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Kit Manager</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Predefined groupings (e.g. PET Cup Sample Kit). Each kit appears as one line item on a sample dispatch; components are warehouse packing reference only.
           </p>

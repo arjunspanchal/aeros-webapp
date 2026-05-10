@@ -47,8 +47,7 @@ export function warehouseSections(session) {
       items: [
         { href: "/warehouse/sample-dispatch",     label: "Queue", exact: true },
         { href: "/warehouse/sample-dispatch/new", label: "New dispatch" },
-        { href: "/warehouse/sample-kits",         label: "Sample kits" },
-      { href: "/warehouse/sample-kits/new",     label: "Kit Manager" },
+        { href: "/warehouse/sample-kits",         label: "Kit Manager" },
       ],
     });
   }

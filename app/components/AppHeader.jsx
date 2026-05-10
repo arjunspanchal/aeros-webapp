@@ -150,8 +150,7 @@ function subTabsFor(pathname, session) {
     }
     if (canDispatch) {
       tabs.push({ href: "/warehouse/sample-dispatch",     label: "Dispatch",  short: "Disp"   });
-      tabs.push({ href: "/warehouse/sample-kits",         label: "Kits",        short: "Kits"   });
-      tabs.push({ href: "/warehouse/sample-kits/new",     label: "Kit Manager", short: "Mgr"    });
+      tabs.push({ href: "/warehouse/sample-kits",         label: "Kit Manager", short: "Kits" });
     }
     return tabs;
   }

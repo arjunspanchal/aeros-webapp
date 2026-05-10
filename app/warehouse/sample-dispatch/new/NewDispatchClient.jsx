@@ -46,20 +46,38 @@ export default function NewDispatchClient({ products, kits = [], defaultManagedB
     if (!kitId) return;
     const kit = kits.find((k) => k.id === kitId);
     if (!kit) return;
-    const newLine = {
-      description: kit.name,
-      quantity: 1,
-      price: kit.default_price ?? 0,
-      gst_pct: kit.default_gst_pct ?? 18,
-      master_product_id: null,
-      sample_kit_id: kit.id,
-    };
+
+    // Expand the kit's components into individual line items so the
+    // dispatch lists every SKU separately (e.g. PP Cup Kit → 600ml +
+    // 350ml sippers + lids as their own lines, all back-linked to the
+    // kit via sample_kit_id). If the kit has no components, fall back
+    // to a single line carrying the kit's name + default price.
+    const gst = kit.default_gst_pct ?? 18;
+    const components = Array.isArray(kit.components) ? kit.components : [];
+    const newLines = components.length > 0
+      ? components.map((c) => ({
+          description:       c.description,
+          quantity:          Number(c.quantity_per_kit) || 1,
+          price:             0,
+          gst_pct:           gst,
+          master_product_id: c.master_product_id || null,
+          sample_kit_id:     kit.id,
+        }))
+      : [{
+          description:       kit.name,
+          quantity:          1,
+          price:             kit.default_price ?? 0,
+          gst_pct:           gst,
+          master_product_id: null,
+          sample_kit_id:     kit.id,
+        }];
+
     setItems((rows) => {
-      // Replace a single empty starter row instead of appending below it.
+      // Replace the single empty starter row instead of appending after it.
       if (rows.length === 1 && !rows[0].description.trim() && !rows[0].sample_kit_id) {
-        return [newLine];
+        return newLines;
       }
-      return [...rows, newLine];
+      return [...rows, ...newLines];
     });
     setKitPickerValue("");
   }
