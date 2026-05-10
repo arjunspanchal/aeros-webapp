@@ -10,6 +10,7 @@ function emptyLine() {
     price: 0,
     gst_pct: 18,
     master_product_id: null,
+    sample_kit_id: null,
   };
 }
 
@@ -17,9 +18,10 @@ function fmtINR(n) {
   return `₹${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export default function NewDispatchClient({ products, defaultManagedBy }) {
+export default function NewDispatchClient({ products, kits = [], defaultManagedBy }) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
+  const [kitPickerValue, setKitPickerValue] = useState("");
 
   const [form, setForm] = useState({
     dispatch_date: today,
@@ -40,6 +42,27 @@ export default function NewDispatchClient({ products, defaultManagedBy }) {
     setItems((rows) => rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
   }
   function addLine()  { setItems((rows) => [...rows, emptyLine()]); }
+  function addKit(kitId) {
+    if (!kitId) return;
+    const kit = kits.find((k) => k.id === kitId);
+    if (!kit) return;
+    const newLine = {
+      description: kit.name,
+      quantity: 1,
+      price: kit.default_price ?? 0,
+      gst_pct: kit.default_gst_pct ?? 18,
+      master_product_id: null,
+      sample_kit_id: kit.id,
+    };
+    setItems((rows) => {
+      // Replace a single empty starter row instead of appending below it.
+      if (rows.length === 1 && !rows[0].description.trim() && !rows[0].sample_kit_id) {
+        return [newLine];
+      }
+      return [...rows, newLine];
+    });
+    setKitPickerValue("");
+  }
   function removeLine(i) {
     setItems((rows) => rows.length === 1 ? rows : rows.filter((_, idx) => idx !== i));
   }
@@ -149,9 +172,25 @@ export default function NewDispatchClient({ products, defaultManagedBy }) {
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Items</h2>
-          <button type="button" onClick={addLine} className="text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400">+ Add item</button>
+          <div className="flex items-center gap-2">
+            {kits.length > 0 && (
+              <select
+                value={kitPickerValue}
+                onChange={(e) => addKit(e.target.value)}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-gray-400 focus:outline-none dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+              >
+                <option value="">+ Add sample kit</option>
+                {kits.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.name}{k.default_price != null ? ` — ₹${Number(k.default_price).toFixed(2)}` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button type="button" onClick={addLine} className="text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400">+ Add item</button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">

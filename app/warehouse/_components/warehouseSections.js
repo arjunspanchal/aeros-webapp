@@ -31,6 +31,7 @@ export const WAREHOUSE_SECTIONS = [
     items: [
       { href: "/warehouse/sample-dispatch",     label: "Queue", exact: true },
       { href: "/warehouse/sample-dispatch/new", label: "New dispatch" },
+      { href: "/warehouse/sample-kits",         label: "Sample kits" },
     ],
   },
 ];

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/hub/session";
 import { canManageSampleDispatch } from "@/lib/warehouse/sampleDispatches";
+import { listKits } from "@/lib/warehouse/sampleKits";
 import { dbSelect } from "@/lib/db/supabase";
 import NewDispatchClient from "./NewDispatchClient";
 
@@ -22,12 +23,16 @@ export default async function NewSampleDispatchPage() {
   }
 
   let products = [];
+  let kits = [];
   try {
     products = await dbSelect("master_products", {
       select: "id,sku,product_name,category",
       order: "product_name.asc",
       limit: 1000,
     });
+  } catch {}
+  try {
+    kits = await listKits({ activeOnly: true });
   } catch {}
 
   return (
@@ -40,6 +45,7 @@ export default async function NewSampleDispatchPage() {
       </div>
       <NewDispatchClient
         products={products}
+        kits={kits}
         defaultManagedBy={session.name || session.email}
       />
     </div>
