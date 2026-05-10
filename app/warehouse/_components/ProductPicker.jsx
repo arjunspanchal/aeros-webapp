@@ -4,8 +4,10 @@
 // master_products. Replaces the native <datalist> control, which the
 // browser renders with low-contrast text we can't reach via CSS.
 //
-// onChange fires with { description, master_product_id }. master_product_id
-// is set when the user explicitly picks a row, cleared when they free-type.
+// onChange fires with { description, master_product_id, price }. The
+// linked product's price_per_unit (when present) flows through as
+// `price` on pick — consumers like the dispatch form auto-fill the
+// rate column from it. master_product_id is cleared on free-text edit.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -42,7 +44,9 @@ export default function ProductPicker({
   }, []);
 
   function pick(p) {
-    onChange({ description: productLabel(p), master_product_id: p.id });
+    const payload = { description: productLabel(p), master_product_id: p.id };
+    if (p.price_per_unit != null) payload.price = Number(p.price_per_unit);
+    onChange(payload);
     setOpen(false);
     setActiveIdx(-1);
   }
