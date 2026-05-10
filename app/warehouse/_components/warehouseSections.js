@@ -26,4 +26,11 @@ export const WAREHOUSE_SECTIONS = [
       { href: "/warehouse/inventory/audits",    label: "Stock audits" },
     ],
   },
+  {
+    label: "Sample Dispatch",
+    items: [
+      { href: "/warehouse/sample-dispatch",     label: "Queue", exact: true },
+      { href: "/warehouse/sample-dispatch/new", label: "New dispatch" },
+    ],
+  },
 ];

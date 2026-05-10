@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getSession } from "@/lib/hub/session";
 import { canManageClearance } from "@/lib/clearance/admin";
+import { canManageSampleDispatch } from "@/lib/warehouse/sampleDispatches";
 
 export const metadata = {
   title: "WarehouseOS — Aeros",
@@ -32,10 +33,23 @@ const STAFF_TILES = [
   },
 ];
 
+const SAMPLE_DISPATCH_TILE = {
+  key: "sample-dispatch",
+  href: "/warehouse/sample-dispatch",
+  title: "Sample Dispatch",
+  description: "CMs raise sample dispatches; warehouse staff work the queue, capture AWB, and print the dispatch note.",
+  accent: "from-sky-500 to-blue-600",
+};
+
 export default function WarehouseHubPage() {
   const session = getSession();
   const showStaff = canManageClearance(session);
-  const tiles = showStaff ? [PUBLIC_TILE, ...STAFF_TILES] : [PUBLIC_TILE];
+  const showSampleDispatch = canManageSampleDispatch(session);
+  const tiles = [
+    PUBLIC_TILE,
+    ...(showStaff ? STAFF_TILES : []),
+    ...(showSampleDispatch ? [SAMPLE_DISPATCH_TILE] : []),
+  ];
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
