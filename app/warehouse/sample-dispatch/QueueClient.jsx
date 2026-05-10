@@ -84,7 +84,6 @@ export default function QueueClient({ initialDispatches }) {
               <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Managed by</th>
               <th className="px-4 py-3 text-right">Items</th>
-              <th className="px-4 py-3 text-right">Total (incl. GST)</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">AWB</th>
               <th className="px-4 py-3" />
@@ -92,7 +91,7 @@ export default function QueueClient({ initialDispatches }) {
           </thead>
           <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
             {rows.length === 0 ? (
-              <tr><td colSpan={9} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">No dispatches in this view.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">No dispatches in this view.</td></tr>
             ) : rows.map((d) => (
               <tr key={d.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{d.dispatch_no}</td>
@@ -100,7 +99,6 @@ export default function QueueClient({ initialDispatches }) {
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{d.customer_name}</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{d.managed_by || "—"}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-200">{(d.items || []).length}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-200">{fmtINR(d.total_incl_gst)}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset capitalize ${STATUS_BADGE[d.status] || ""}`}>
                     {d.status}

@@ -241,9 +241,7 @@ export default function NewDispatchClient({
               >
                 <option value="">+ Add sample kit</option>
                 {kits.map((k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.name}{k.default_price != null ? ` — ₹${Number(k.default_price).toFixed(2)}` : ""}
-                  </option>
+                  <option key={k.id} value={k.id}>{k.name}</option>
                 ))}
               </select>
             )}
@@ -255,63 +253,32 @@ export default function NewDispatchClient({
             <thead>
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 <th className="px-2 py-2 w-10">#</th>
-                <th className="px-2 py-2 min-w-[260px]">Description</th>
-                <th className="px-2 py-2 w-24 text-right">Qty</th>
-                <th className="px-2 py-2 w-28 text-right">Price (₹)</th>
-                <th className="px-2 py-2 w-20 text-right">GST %</th>
-                <th className="px-2 py-2 w-32 text-right">Total (incl.)</th>
+                <th className="px-2 py-2 min-w-[320px]">Description</th>
+                <th className="px-2 py-2 w-28 text-right">Qty</th>
                 <th className="px-2 py-2 w-10" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {items.map((ln, i) => {
-                const lineExcl = Number(ln.quantity || 0) * Number(ln.price || 0);
-                const lineIncl = lineExcl * (1 + Number(ln.gst_pct || 0) / 100);
-                return (
-                  <tr key={i} className="align-top">
-                    <td className="px-2 py-2 text-gray-500 dark:text-gray-400">{i + 1}</td>
-                    <td className="px-2 py-2">
-                      <ProductPicker
-                        products={products}
-                        value={ln.description}
-                        onChange={(v) => setLine(i, v)}
-                        inputClassName={inputCls}
-                      />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input type="number" min="0" step="0.01" value={ln.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} className={`${inputCls} text-right tabular-nums`} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input type="number" min="0" step="0.01" value={ln.price} onChange={(e) => setLine(i, { price: e.target.value })} className={`${inputCls} text-right tabular-nums`} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input type="number" min="0" step="0.01" value={ln.gst_pct} onChange={(e) => setLine(i, { gst_pct: e.target.value })} className={`${inputCls} text-right tabular-nums`} />
-                    </td>
-                    <td className="px-2 py-2 text-right tabular-nums text-gray-700 dark:text-gray-200 pt-4">{fmtINR(lineIncl)}</td>
-                    <td className="px-2 py-2">
-                      <button type="button" onClick={() => removeLine(i)} className="text-gray-400 hover:text-red-600" title="Remove line" disabled={items.length === 1}>×</button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {items.map((ln, i) => (
+                <tr key={i} className="align-top">
+                  <td className="px-2 py-2 text-gray-500 dark:text-gray-400">{i + 1}</td>
+                  <td className="px-2 py-2">
+                    <ProductPicker
+                      products={products}
+                      value={ln.description}
+                      onChange={(v) => setLine(i, v)}
+                      inputClassName={inputCls}
+                    />
+                  </td>
+                  <td className="px-2 py-2">
+                    <input type="number" min="0" step="0.01" value={ln.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} className={`${inputCls} text-right tabular-nums`} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <button type="button" onClick={() => removeLine(i)} className="text-gray-400 hover:text-red-600" title="Remove line" disabled={items.length === 1}>×</button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
-            <tfoot>
-              <tr className="border-t border-gray-200 dark:border-gray-800">
-                <td colSpan={5} className="px-2 py-3 text-right text-xs uppercase tracking-wide text-gray-500">Subtotal (excl. GST)</td>
-                <td className="px-2 py-3 text-right tabular-nums text-gray-700 dark:text-gray-200">{fmtINR(totals.excl)}</td>
-                <td />
-              </tr>
-              <tr>
-                <td colSpan={5} className="px-2 py-1 text-right text-xs uppercase tracking-wide text-gray-500">GST</td>
-                <td className="px-2 py-1 text-right tabular-nums text-gray-700 dark:text-gray-200">{fmtINR(totals.gst)}</td>
-                <td />
-              </tr>
-              <tr>
-                <td colSpan={5} className="px-2 py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">Total (incl. GST)</td>
-                <td className="px-2 py-2 text-right tabular-nums text-base font-semibold text-gray-900 dark:text-gray-100">{fmtINR(totals.incl)}</td>
-                <td />
-              </tr>
-            </tfoot>
           </table>
         </div>
       </section>

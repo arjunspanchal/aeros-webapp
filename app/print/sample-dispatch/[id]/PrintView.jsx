@@ -2,9 +2,6 @@
 
 import { useEffect } from "react";
 
-function fmtINR(n) {
-  return `₹${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 function fmtDate(d) {
   if (!d) return "";
   const dt = new Date(d);
@@ -79,10 +76,6 @@ export default function PrintView({ dispatch: d }) {
               <th style={th()}>Order ID</th>
               <th style={th()}>Item Description</th>
               <th style={{ ...th(), textAlign: "right" }}>Quantity</th>
-              <th style={{ ...th(), textAlign: "right" }}>Price/pc</th>
-              <th style={{ ...th(), textAlign: "right" }}>Total (Excl. GST)</th>
-              <th style={{ ...th(), textAlign: "right" }}>GST</th>
-              <th style={{ ...th(), textAlign: "right" }}>Total (Incl. GST)</th>
             </tr>
           </thead>
           <tbody>
@@ -92,21 +85,9 @@ export default function PrintView({ dispatch: d }) {
                 <td style={{ ...td(), fontFamily: "monospace" }}>{ln.order_id}</td>
                 <td style={td()}>{ln.description}</td>
                 <td style={{ ...td(), textAlign: "right" }}>{ln.quantity}</td>
-                <td style={{ ...td(), textAlign: "right" }}>{fmtINR(ln.price)}</td>
-                <td style={{ ...td(), textAlign: "right" }}>{fmtINR(ln.total_excl_gst)}</td>
-                <td style={{ ...td(), textAlign: "right" }}>{ln.gst_pct}%</td>
-                <td style={{ ...td(), textAlign: "right" }}>{fmtINR(ln.total_incl_gst)}</td>
               </tr>
             ))}
           </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={5} style={{ ...td(), textAlign: "right", fontWeight: 600 }}>Subtotal</td>
-              <td style={{ ...td(), textAlign: "right" }}>{fmtINR(d.total_excl_gst)}</td>
-              <td style={{ ...td(), textAlign: "right" }}>{fmtINR(d.total_gst)}</td>
-              <td style={{ ...td(), textAlign: "right", fontWeight: 700 }}>{fmtINR(d.total_incl_gst)}</td>
-            </tr>
-          </tfoot>
         </table>
       </section>
 

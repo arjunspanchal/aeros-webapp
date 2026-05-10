@@ -7,11 +7,6 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Kit Manager — WarehouseOS" };
 
-function fmtINR(n) {
-  if (n == null) return "—";
-  return `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 export default async function SampleKitsPage() {
   const session = getSession();
   if (!session) redirect("/login");
@@ -66,8 +61,6 @@ export default async function SampleKitsPage() {
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Components</th>
-                <th className="px-4 py-3 text-right">Default price</th>
-                <th className="px-4 py-3 text-right">GST %</th>
                 <th className="px-4 py-3 text-right" />
               </tr>
             </thead>
@@ -76,8 +69,6 @@ export default async function SampleKitsPage() {
                 <tr key={k.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{k.name}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{k.component_count} {k.component_count === 1 ? "item" : "items"}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{fmtINR(k.default_price)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{k.default_gst_pct}%</td>
                   <td className="px-4 py-3 text-right">
                     <Link href={`/warehouse/sample-kits/${k.id}`} className="text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400">Edit →</Link>
                   </td>

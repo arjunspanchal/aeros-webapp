@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import ProductPicker from "../_components/ProductPicker";
 
 function emptyComponent() {
-  return { description: "", master_product_id: null, quantity_per_kit: 1, unit_price: "" };
+  return { description: "", master_product_id: null, quantity_per_kit: 1 };
 }
 
 export default function KitForm({ products, initial, kitId, mode = "create" }) {
@@ -18,12 +18,7 @@ export default function KitForm({ products, initial, kitId, mode = "create" }) {
     active: initial?.active ?? true,
   });
   const [components, setComponents] = useState(
-    initial?.components?.length
-      ? initial.components.map((c) => ({
-          ...c,
-          unit_price: c.unit_price == null ? "" : c.unit_price,
-        }))
-      : [emptyComponent()],
+    initial?.components?.length ? initial.components.map((c) => ({ ...c })) : [emptyComponent()],
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -101,14 +96,6 @@ export default function KitForm({ products, initial, kitId, mode = "create" }) {
             <label className={labelCls}>Description</label>
             <textarea rows={2} value={form.description} onChange={(e) => setField("description", e.target.value)} className={inputCls} placeholder="What's special about this kit (optional)" />
           </div>
-          <div>
-            <label className={labelCls}>Default price (₹)</label>
-            <input type="number" step="0.01" value={form.default_price} onChange={(e) => setField("default_price", e.target.value)} className={inputCls} placeholder="optional" />
-          </div>
-          <div>
-            <label className={labelCls}>Default GST %</label>
-            <input type="number" step="0.01" value={form.default_gst_pct} onChange={(e) => setField("default_gst_pct", e.target.value)} className={inputCls} />
-          </div>
           <div className="sm:col-span-2 flex items-center gap-2">
             <input id="active" type="checkbox" checked={form.active} onChange={(e) => setField("active", e.target.checked)} className="rounded border-gray-300" />
             <label htmlFor="active" className="text-sm text-gray-700 dark:text-gray-200">Active (shows up in the dispatch form picker)</label>
@@ -129,9 +116,8 @@ export default function KitForm({ products, initial, kitId, mode = "create" }) {
             <thead>
               <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 <th className="px-2 py-2 w-10">#</th>
-                <th className="px-2 py-2 min-w-[260px]">Item</th>
-                <th className="px-2 py-2 w-24 text-right">Qty / kit</th>
-                <th className="px-2 py-2 w-28 text-right">Price (₹)</th>
+                <th className="px-2 py-2 min-w-[320px]">Item</th>
+                <th className="px-2 py-2 w-28 text-right">Qty / kit</th>
                 <th className="px-2 py-2 w-10" />
               </tr>
             </thead>
@@ -143,25 +129,12 @@ export default function KitForm({ products, initial, kitId, mode = "create" }) {
                     <ProductPicker
                       products={products}
                       value={c.description}
-                      onChange={(v) => {
-                        // ProductPicker.onChange sends { description,
-                        // master_product_id, price? } — accept the price
-                        // as a starting unit_price when the master row
-                        // has one, but never overwrite a manual price.
-                        const patch = { description: v.description, master_product_id: v.master_product_id ?? null };
-                        if (v.price != null && (c.unit_price === "" || c.unit_price == null)) {
-                          patch.unit_price = Number(v.price);
-                        }
-                        setComp(i, patch);
-                      }}
+                      onChange={(v) => setComp(i, { description: v.description, master_product_id: v.master_product_id ?? null })}
                       inputClassName={inputCls}
                     />
                   </td>
                   <td className="px-2 py-2">
                     <input type="number" min="0" step="0.01" value={c.quantity_per_kit} onChange={(e) => setComp(i, { quantity_per_kit: e.target.value })} className={`${inputCls} text-right tabular-nums`} />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input type="number" min="0" step="0.01" placeholder="catalog" value={c.unit_price} onChange={(e) => setComp(i, { unit_price: e.target.value })} className={`${inputCls} text-right tabular-nums`} />
                   </td>
                   <td className="px-2 py-2">
                     <button type="button" onClick={() => removeComp(i)} className="text-gray-400 hover:text-red-600" disabled={components.length === 1}>×</button>
