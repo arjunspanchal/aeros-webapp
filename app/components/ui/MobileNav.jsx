@@ -151,13 +151,20 @@ export function MobileNav({ modules, activeKey, currentPath, session, onSignOut 
                 <p className="text-sm font-medium text-ink-900 truncate">{name}</p>
                 {email && <p className="text-xs font-mono text-ink-400 truncate mt-0.5">{email}</p>}
                 {badge && <p className="text-xs text-ink-600 mt-1">{badge}</p>}
+                <Link
+                  href="/profile"
+                  onClick={() => setOpen(false)}
+                  className="mt-3 inline-flex items-center justify-center h-9 px-3 rounded text-sm text-ink-800 hover:bg-ink-50 transition-colors w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600"
+                >
+                  Edit profile
+                </Link>
                 <button
                   type="button"
                   onClick={() => {
                     setOpen(false);
                     onSignOut();
                   }}
-                  className="mt-3 inline-flex items-center justify-center h-9 px-3 rounded text-sm text-ink-600 hover:bg-ink-50 hover:text-ink-800 transition-colors w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600"
+                  className="mt-2 inline-flex items-center justify-center h-9 px-3 rounded text-sm text-ink-600 hover:bg-ink-50 hover:text-ink-800 transition-colors w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600"
                 >
                   Sign out
                 </button>
