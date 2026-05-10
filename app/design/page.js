@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Design — Aeros",
   description:
-    "Download Keylines, KLDs, outlines and mockups for Aeros products.",
+    "Download keylines and mockups for Aeros products. Keyline = KLD = outline (same file).",
 };
 
 export default async function DesignPage() {
@@ -38,8 +38,8 @@ export default async function DesignPage() {
         title="Design"
         subtitle={
           canManage
-            ? "Browse products, upload and manage design assets — KLDs, keylines, outlines, mockups."
-            : "Browse products and download design assets — KLDs, keylines, outlines, mockups."
+            ? "Browse products, upload and manage keylines (KLD / outline) and mockups."
+            : "Browse products and download keylines (KLD / outline) and mockups."
         }
         itemCount={products.length}
         itemLabel="products"

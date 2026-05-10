@@ -45,7 +45,7 @@ const DESIGN_OPTION = {
   key: "design",
   href: "/design",
   title: "Design",
-  description: "Download keylines, KLDs, outlines, and mockups for any product. Upload + manage if you're on the design / staff team.",
+  description: "Download keylines (KLD / outline) and mockups for any product. Upload + manage if you're on the design / staff team.",
   accent: "from-violet-600 to-indigo-700",
 };
 

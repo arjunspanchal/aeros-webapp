@@ -2,7 +2,9 @@
 
 import { useMemo, useRef, useState } from "react";
 
-const FILE_TYPES = ["KLD", "Keyline", "Outline", "Mockup", "Other"];
+// Keyline = KLD = outline (same artefact). Collapsing keeps uploaders
+// from agonising over which dropdown value to pick.
+const FILE_TYPES = ["Keyline", "Mockup", "Other"];
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // mirrors server cap
 
 const filterSelectCls =
