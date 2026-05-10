@@ -114,10 +114,6 @@ export default function DetailClient({ initial }) {
               <th className="px-4 py-2">Order ID</th>
               <th className="px-4 py-2">Description</th>
               <th className="px-4 py-2 text-right">Qty</th>
-              <th className="px-4 py-2 text-right">Price</th>
-              <th className="px-4 py-2 text-right">Excl. GST</th>
-              <th className="px-4 py-2 text-right">GST</th>
-              <th className="px-4 py-2 text-right">Incl. GST</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
@@ -127,33 +123,9 @@ export default function DetailClient({ initial }) {
                 <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-200">{ln.order_id}</td>
                 <td className="px-4 py-2 text-gray-800 dark:text-gray-100">{ln.description}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{ln.quantity}</td>
-                <td className="px-4 py-2 text-right tabular-nums">{fmtINR(ln.price)}</td>
-                <td className="px-4 py-2 text-right tabular-nums">{fmtINR(ln.total_excl_gst)}</td>
-                <td className="px-4 py-2 text-right tabular-nums">{ln.gst_pct}%</td>
-                <td className="px-4 py-2 text-right tabular-nums">{fmtINR(ln.total_incl_gst)}</td>
               </tr>
             ))}
           </tbody>
-          <tfoot className="bg-gray-50 dark:bg-gray-900/60">
-            <tr>
-              <td colSpan={5} />
-              <td className="px-4 py-2 text-right text-xs uppercase tracking-wide text-gray-500">Subtotal</td>
-              <td />
-              <td className="px-4 py-2 text-right tabular-nums">{fmtINR(d.total_excl_gst)}</td>
-            </tr>
-            <tr>
-              <td colSpan={5} />
-              <td className="px-4 py-2 text-right text-xs uppercase tracking-wide text-gray-500">GST</td>
-              <td />
-              <td className="px-4 py-2 text-right tabular-nums">{fmtINR(d.total_gst)}</td>
-            </tr>
-            <tr>
-              <td colSpan={5} />
-              <td className="px-4 py-2 text-right text-sm font-semibold text-gray-900 dark:text-gray-100">Total</td>
-              <td />
-              <td className="px-4 py-2 text-right tabular-nums text-base font-semibold text-gray-900 dark:text-gray-100">{fmtINR(d.total_incl_gst)}</td>
-            </tr>
-          </tfoot>
         </table>
       </section>
 
