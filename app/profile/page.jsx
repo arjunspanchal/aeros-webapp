@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AppHeader from "../components/AppHeader";
 import { getSession, hasAnyAccess, ROLES } from "@/lib/auth/session";
+import { findUserByEmail } from "@/lib/factoryos/repo";
+import ProfileForm from "./ProfileForm";
 
 export const dynamic = "force-dynamic";
 
@@ -9,18 +11,26 @@ export const metadata = {
   title: "Profile · Aeros",
 };
 
-// Top-level profile entry from the IdentityMenu dropdown. Customers already
-// have a fully-featured profile editor at /factoryos/customer/profile, so we
-// hand them off there. Staff / admins see a read-only account view here
-// until a generic profile-edit endpoint exists for them.
-export default function ProfilePage() {
+// Top-level profile entry from the IdentityMenu dropdown.
+// - FactoryOS customers already have a fully-featured editor at
+//   /factoryos/customer/profile, so we hand them off there to avoid
+//   duplicating UX.
+// - Master-password admins (no email on the session) can't be looked up in
+//   the user table, so they get a read-only account view.
+// - Everyone else (staff, FactoryOS internal roles, AMs) gets the editor:
+//   photo, name, designation, phone — saved through /api/factoryos/profile,
+//   the same self-service endpoint customers use.
+export default async function ProfilePage() {
   const session = getSession();
   if (!hasAnyAccess(session)) redirect("/login");
   if (session?.modules?.factoryos === ROLES.CUSTOMER) {
     redirect("/factoryos/customer/profile");
   }
 
-  const name = session?.name || (session?.isAdmin ? "Admin" : session?.email) || "—";
+  const editable = !!session?.email;
+  const user = editable ? await findUserByEmail(session.email) : null;
+
+  const fallbackName = session?.name || (session?.isAdmin ? "Admin" : session?.email) || "—";
   const email = session?.isAdmin ? null : session?.email;
   const modules = Object.entries(session?.modules || {}).filter(([, role]) => !!role);
 
@@ -33,30 +43,40 @@ export default function ProfilePage() {
         </Link>
         <h1 className="text-2xl font-bold text-ink-900 mt-4">Your profile</h1>
         <p className="text-sm text-ink-600 mt-1">
-          Account details for the Aeros web app.
+          {editable
+            ? "Update your photo, name, designation, and phone."
+            : "Account details for the Aeros web app."}
         </p>
 
-        <section className="mt-6 bg-white border border-ink-200 rounded-xl p-5 space-y-4">
-          <Field label="Name" value={name} />
-          {email && <Field label="Email" value={email} mono />}
-          {session?.isAdmin && <Field label="Role" value="Admin (master password)" />}
-          {modules.length > 0 && (
-            <div>
-              <p className="text-xs uppercase tracking-wide text-ink-400 mb-1.5">Modules</p>
-              <ul className="space-y-1">
-                {modules.map(([key, role]) => (
-                  <li key={key} className="text-sm text-ink-800 flex items-center justify-between">
-                    <span>{labelForModule(key)}</span>
-                    <span className="text-xs font-mono text-ink-500">{role}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </section>
+        {editable && user ? (
+          <ProfileForm initial={user} />
+        ) : (
+          <section className="mt-6 bg-white border border-ink-200 rounded-xl p-5 space-y-4">
+            <Field label="Name" value={fallbackName} />
+            {email && <Field label="Email" value={email} mono />}
+            {session?.isAdmin && <Field label="Role" value="Admin (master password)" />}
+            {modules.length > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wide text-ink-400 mb-1.5">Modules</p>
+                <ul className="space-y-1">
+                  {modules.map(([key, role]) => (
+                    <li key={key} className="text-sm text-ink-800 flex items-center justify-between">
+                      <span>{labelForModule(key)}</span>
+                      <span className="text-xs font-mono text-ink-500">{role}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <p className="text-xs text-ink-500">
+              Master-password admins don&apos;t have a per-user record, so this page
+              is read-only for them.
+            </p>
+          </section>
+        )}
 
         <p className="mt-4 text-xs text-ink-500">
-          To change your name, email, or access level, ping{" "}
+          Need to change your email or access level? Ping{" "}
           <a className="underline hover:text-ink-900" href="mailto:arjun@aeros-x.com">
             arjun@aeros-x.com
           </a>
