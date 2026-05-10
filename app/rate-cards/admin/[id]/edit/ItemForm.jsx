@@ -2,45 +2,25 @@
 // Structured editor for a rate-card line item.
 //
 // Flow:
-//   1. Admin picks an SKU from the Aeros Products Master (catalog base). Pick
-//      auto-fills product name / material / carton / case pack / cup spec.
+//   1. Admin picks an SKU from the Aeros Products Master, or flips to
+//      "Custom" mode to type a one-off item that isn't in the catalogue.
 //   2. Admin overlays brand + print (plain/printed) per item.
-//   3. Pricing mode chooses between:
-//        • cup_formula — live rate from computeCupRateCurve() against
-//          current paper rates (prices auto-update on RM change).
-//        • fixed       — admin types per-tier rates manually.
+//   3. Admin types qty + rate per tier — pricing is always fixed. The
+//      legacy "cup_formula" mode (live recompute via computeCupRateCurve)
+//      was retired here; the read-side in lib/rate-cards/pricing.js still
+//      tolerates it for any rows still on disk so old cards keep
+//      rendering, but new writes always set pricingMode="fixed".
 
 import { useEffect, useMemo, useState } from "react";
 import { Field, inputCls } from "@/app/calculator/_components/ui";
-import { SIZE_OPTS, CUP_QTY_TIERS } from "@/lib/calc/cup-calculator";
-
-const WALL_TYPES = ["Single Wall", "Double Wall", "Ripple"];
-const COATING_OPTS = ["None", "PE", "2PE", "PLA", "Aqueous"];
-const COVERAGE_OPTS = [10, 30, 100];
-
-const EMPTY_CUP_SPEC = {
-  wallType: "Double Wall",
-  size: "8oz",
-  casePack: "",
-  inner: { gsm: "", coating: "PE", print: false, colours: "", coverage: 30 },
-  outer: { gsm: "", coating: "PE", print: false, colours: "", coverage: 30 },
-};
-
-function mergeCupSpec(spec) {
-  if (!spec) return { ...EMPTY_CUP_SPEC };
-  return {
-    ...EMPTY_CUP_SPEC,
-    ...spec,
-    inner: { ...EMPTY_CUP_SPEC.inner, ...(spec.inner || {}) },
-    outer: { ...EMPTY_CUP_SPEC.outer, ...(spec.outer || {}) },
-  };
-}
 
 function normaliseTiers(raw) {
   // Accept either `[30000, 50000]` or `[{qty, rate}, ...]`.
   if (!Array.isArray(raw)) return [];
   return raw.map((t) => (typeof t === "number" ? { qty: t, rate: "" } : { qty: Number(t.qty) || 0, rate: t.rate ?? "" }));
 }
+
+const DEFAULT_TIER_QTYS = [25000, 50000, 100000, 250000];
 
 export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
   const [products, setProducts] = useState(null); // null = loading
@@ -65,8 +45,6 @@ export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
     cartonSize: initial.cartonSize || "",
     casePack: initial.casePack || "",
     moq: initial.moq || "",
-    pricingMode: initial.pricingMode || "fixed",
-    cupSpec: mergeCupSpec(initial.cupSpec),
     notes: initial.notes || "",
   });
 
@@ -101,48 +79,29 @@ export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
       setF((d) => ({ ...d, productId: "", productSku: "" }));
       return;
     }
-    setF((d) => {
-      // Auto-fill display fields and cup spec from the master, but only when
-      // those fields are still empty — don't clobber an admin-entered override.
-      const wallType = ["Single Wall", "Double Wall", "Ripple"].includes(p.wallType) ? p.wallType : d.cupSpec.wallType;
-      const size = SIZE_OPTS.includes(p.sizeVolume) ? p.sizeVolume : d.cupSpec.size;
-      return {
-        ...d,
-        productId: p.id,
-        productSku: p.sku || "",
-        productName: d.productName || p.productName || "",
-        material: d.material || p.material || "",
-        cartonSize: d.cartonSize || p.cartonDimensions || "",
-        casePack: d.casePack || (p.unitsPerCase != null ? String(p.unitsPerCase) : ""),
-        cupSpec: {
-          ...d.cupSpec,
-          wallType,
-          size,
-          inner: {
-            ...d.cupSpec.inner,
-            gsm: d.cupSpec.inner.gsm || (p.gsm != null ? String(p.gsm) : ""),
-            coating: d.cupSpec.inner.coating || p.coating || "None",
-          },
-        },
-      };
-    });
+    // Auto-fill display fields from the master, but only when those fields
+    // are still empty — don't clobber an admin-entered override.
+    setF((d) => ({
+      ...d,
+      productId: p.id,
+      productSku: p.sku || "",
+      productName: d.productName || p.productName || "",
+      material: d.material || p.material || "",
+      cartonSize: d.cartonSize || p.cartonDimensions || "",
+      casePack: d.casePack || (p.unitsPerCase != null ? String(p.unitsPerCase) : ""),
+    }));
   }
+
   const [tiers, setTiers] = useState(() => {
-    const base = initial.pricingMode === "fixed"
-      ? (initial.fixedRates?.length ? initial.fixedRates : normaliseTiers(initial.tierQtys))
-      : normaliseTiers(initial.tierQtys?.length ? initial.tierQtys : CUP_QTY_TIERS);
+    const base = initial.fixedRates?.length
+      ? initial.fixedRates
+      : normaliseTiers(initial.tierQtys || DEFAULT_TIER_QTYS);
     return base.length ? base : [{ qty: 30000, rate: "" }];
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
   const set = (k, v) => setF((d) => ({ ...d, [k]: v }));
-  const setCup = (path, v) => setF((d) => {
-    const next = { ...d, cupSpec: { ...d.cupSpec, inner: { ...d.cupSpec.inner }, outer: { ...d.cupSpec.outer } } };
-    if (path[0] === "inner" || path[0] === "outer") next.cupSpec[path[0]][path[1]] = v;
-    else next.cupSpec[path[0]] = v;
-    return next;
-  });
 
   function setTierQty(idx, qty) {
     setTiers((t) => t.map((row, i) => i === idx ? { ...row, qty: Number(qty) || 0 } : row));
@@ -178,18 +137,15 @@ export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
       cartonSize: f.cartonSize,
       casePack: f.casePack ? Number(f.casePack) : null,
       moq: f.moq,
-      pricingMode: f.pricingMode,
+      // Pricing is always fixed — admin types qty + rate per tier.
+      // cup_formula was retired; old rows still render through the
+      // read-side pricing module compat path.
+      pricingMode: "fixed",
+      cupSpec: null,
       tierQtys: validTiers.map((t) => Number(t.qty)),
+      fixedRates: validTiers.map((t) => ({ qty: Number(t.qty), rate: Number(t.rate) || 0 })),
       notes: f.notes,
     };
-
-    if (f.pricingMode === "cup_formula") {
-      payload.cupSpec = f.cupSpec;
-      payload.fixedRates = [];
-    } else {
-      payload.cupSpec = null;
-      payload.fixedRates = validTiers.map((t) => ({ qty: Number(t.qty), rate: Number(t.rate) || 0 }));
-    }
 
     setSaving(true);
     const ok = await onSubmit(payload);
@@ -341,81 +297,46 @@ export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
         </Field>
       </div>
 
-      {/* Pricing mode */}
-      <div>
-        <div className="text-xs font-medium text-gray-500 mb-2 dark:text-gray-400">Pricing mode</div>
-        <div className="flex gap-2">
-          <ModeBtn active={f.pricingMode === "fixed"} onClick={() => set("pricingMode", "fixed")}>
-            Fixed rates
-            <span className="block text-xs font-normal opacity-80">Admin-entered per tier. Used for PET, lids, anything without a paper RM index.</span>
-          </ModeBtn>
-          <ModeBtn active={f.pricingMode === "cup_formula"} onClick={() => set("pricingMode", "cup_formula")}>
-            Cup formula (live)
-            <span className="block text-xs font-normal opacity-80">Paper cup spec → rate curve. Recomputes when paper rates change.</span>
-          </ModeBtn>
-        </div>
-      </div>
-
-      {/* Cup spec */}
-      {f.pricingMode === "cup_formula" && (
-        <div className="border border-gray-200 rounded-lg p-3 dark:border-gray-700">
-          <div className="text-xs font-medium text-gray-500 mb-2 dark:text-gray-400">Cup specification</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="Wall type">
-              <select className={inputCls} value={f.cupSpec.wallType} onChange={(e) => setCup(["wallType"], e.target.value)}>
-                {WALL_TYPES.map((w) => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </Field>
-            <Field label="Size">
-              <select className={inputCls} value={f.cupSpec.size} onChange={(e) => setCup(["size"], e.target.value)}>
-                {SIZE_OPTS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
-            <Field label="Case pack override" hint="Blank = use default for size/wall">
-              <input type="number" className={inputCls} value={f.cupSpec.casePack} onChange={(e) => setCup(["casePack"], e.target.value)} />
-            </Field>
-          </div>
-
-          <PaperBlock
-            label="Inner (sidewall)"
-            paper={f.cupSpec.inner}
-            onChange={(k, v) => setCup(["inner", k], v)}
-          />
-          {(f.cupSpec.wallType === "Double Wall" || f.cupSpec.wallType === "Ripple") && (
-            <PaperBlock
-              label="Outer fan"
-              paper={f.cupSpec.outer}
-              onChange={(k, v) => setCup(["outer", k], v)}
-            />
-          )}
-
-          <p className="text-xs text-gray-400 mt-2 dark:text-gray-500">
-            Paper rates and conversion costs come from <code>lib/calc/cup-calculator.js</code> (<code>CUSTOMER_DEFAULTS</code>). Update those to shift all rate cards at once.
-          </p>
-        </div>
-      )}
-
-      {/* Tiers */}
+      {/* Quantity tiers + rates */}
       <div className="border border-gray-200 rounded-lg p-3 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-            {f.pricingMode === "fixed" ? "Quantity tiers + rates" : "Quantity tiers (rates computed live)"}
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Quantity tiers + rates
+            </div>
+            <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+              One row per quantity break — qty, then ₹ per piece at that volume.
+            </div>
           </div>
-          <button type="button" onClick={addTier} className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400">+ Add tier</button>
+          <button type="button" onClick={addTier} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">+ Add tier</button>
         </div>
         <div className="space-y-2">
           {tiers.map((t, i) => (
             <div key={i} className="flex items-center gap-2">
-              <input type="number" className={`${inputCls} w-40`} placeholder="Qty (e.g. 30000)"
-                value={t.qty || ""} onChange={(e) => setTierQty(i, e.target.value)} />
-              {f.pricingMode === "fixed" && (
-                <>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">@</span>
-                  <input type="number" step="0.01" className={`${inputCls} w-32`} placeholder="Rate (₹)"
-                    value={t.rate ?? ""} onChange={(e) => setTierRate(i, e.target.value)} />
-                </>
-              )}
-              <button type="button" onClick={() => removeTier(i)} className="text-xs text-red-500 hover:text-red-600 px-2">✕</button>
+              <input
+                type="number"
+                className={`${inputCls} flex-1`}
+                placeholder="Qty (e.g. 30000)"
+                value={t.qty || ""}
+                onChange={(e) => setTierQty(i, e.target.value)}
+              />
+              <span className="text-xs text-gray-400 dark:text-gray-500 w-4 text-center">@</span>
+              <input
+                type="number"
+                step="0.01"
+                className={`${inputCls} flex-1`}
+                placeholder="₹ per piece"
+                value={t.rate ?? ""}
+                onChange={(e) => setTierRate(i, e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => removeTier(i)}
+                aria-label="Remove tier"
+                className="text-xs text-red-500 hover:text-red-600 px-2 py-1"
+              >
+                ✕
+              </button>
             </div>
           ))}
         </div>
@@ -440,47 +361,4 @@ export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
   );
 }
 
-function ModeBtn({ active, onClick, children }) {
-  return (
-    <button type="button" onClick={onClick}
-      className={`flex-1 text-left text-sm font-medium px-3 py-2 rounded-lg border transition-colors ${
-        active
-          ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-400"
-          : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-      }`}>
-      {children}
-    </button>
-  );
-}
-
-function PaperBlock({ label, paper, onChange }) {
-  return (
-    <div className="mt-3">
-      <div className="text-xs text-gray-500 mb-2 dark:text-gray-400">{label}</div>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        <Field label="GSM">
-          <input type="number" className={inputCls} value={paper.gsm || ""} onChange={(e) => onChange("gsm", e.target.value)} placeholder="280" />
-        </Field>
-        <Field label="Coating">
-          <select className={inputCls} value={paper.coating || "None"} onChange={(e) => onChange("coating", e.target.value)}>
-            {["None", "PE", "2PE", "PLA", "Aqueous"].map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </Field>
-        <Field label="Printed">
-          <select className={inputCls} value={paper.print ? "yes" : "no"} onChange={(e) => onChange("print", e.target.value === "yes")}>
-            <option value="no">Plain</option>
-            <option value="yes">Printed (Flexo)</option>
-          </select>
-        </Field>
-        <Field label="Colours">
-          <input type="number" disabled={!paper.print} className={inputCls} value={paper.colours || ""} onChange={(e) => onChange("colours", e.target.value)} />
-        </Field>
-        <Field label="Coverage %">
-          <select disabled={!paper.print} className={inputCls} value={paper.coverage || 30} onChange={(e) => onChange("coverage", Number(e.target.value))}>
-            {[10, 30, 100].map((c) => <option key={c} value={c}>{c}%</option>)}
-          </select>
-        </Field>
-      </div>
-    </div>
-  );
-}
+// (ModeBtn / PaperBlock helpers retired with cup_formula mode.)
