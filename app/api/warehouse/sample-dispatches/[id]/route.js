@@ -4,8 +4,22 @@ import {
   canManageSampleDispatch,
   getDispatch,
   updateDispatchStatus,
+  updateDispatch,
   softDeleteDispatch,
 } from "@/lib/warehouse/sampleDispatches";
+
+// Field set that triggers a full edit (replace header + items). The
+// status / courier / AWB / notes flow stays on the lighter status path.
+const FULL_EDIT_FIELDS = new Set([
+  "items",
+  "dispatch_date",
+  "managed_by",
+  "customer_name",
+  "customer_contact",
+  "customer_billing_address",
+  "customer_delivery_address",
+  "customer_gstin",
+]);
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +44,10 @@ export async function PATCH(req, { params }) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
   try {
-    const dispatch = await updateDispatchStatus(params.id, body, session.factoryosUserId || null);
+    const isFullEdit = Object.keys(body || {}).some((k) => FULL_EDIT_FIELDS.has(k));
+    const dispatch = isFullEdit
+      ? await updateDispatch(params.id, body)
+      : await updateDispatchStatus(params.id, body, session.factoryosUserId || null);
     return NextResponse.json({ dispatch });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 400 });
