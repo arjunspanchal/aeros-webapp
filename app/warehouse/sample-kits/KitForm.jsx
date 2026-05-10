@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ProductPicker from "../_components/ProductPicker";
 
 function emptyComponent() {
   return { description: "", master_product_id: null, quantity_per_kit: 1 };
@@ -133,23 +134,12 @@ export default function KitForm({ products, initial, kitId, mode = "create" }) {
                 <tr key={i} className="align-top">
                   <td className="px-2 py-2 text-gray-500">{i + 1}</td>
                   <td className="px-2 py-2">
-                    <input
-                      list={`kit-product-list-${i}`}
+                    <ProductPicker
+                      products={products}
                       value={c.description}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        const match = products.find((p) => productLabel(p) === v || p.product_name === v);
-                        if (match) setComp(i, { description: productLabel(match), master_product_id: match.id });
-                        else setComp(i, { description: v, master_product_id: null });
-                      }}
-                      className={inputCls}
-                      placeholder="Type or pick from catalogue"
+                      onChange={(v) => setComp(i, v)}
+                      inputClassName={inputCls}
                     />
-                    <datalist id={`kit-product-list-${i}`}>
-                      {products.map((p) => (
-                        <option key={p.id} value={productLabel(p)} />
-                      ))}
-                    </datalist>
                   </td>
                   <td className="px-2 py-2">
                     <input type="number" min="0" step="0.01" value={c.quantity_per_kit} onChange={(e) => setComp(i, { quantity_per_kit: e.target.value })} className={`${inputCls} text-right tabular-nums`} />
