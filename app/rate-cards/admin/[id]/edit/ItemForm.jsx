@@ -45,6 +45,13 @@ function normaliseTiers(raw) {
 export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
   const [products, setProducts] = useState(null); // null = loading
   const [productQuery, setProductQuery] = useState("");
+  // Source mode: "master" pulls from the Aeros catalogue (default — almost
+  // all rate-card items are catalogued SKUs); "custom" lets admin type a
+  // one-off item that isn't in the master (e.g. a bespoke variant the
+  // customer asked for that we're trial-quoting before committing to the
+  // master). On open, we pick the mode from existing data: rows with a
+  // productId came from the master; rows without are custom.
+  const [source, setSource] = useState(initial.productId ? "master" : (initial.productName ? "custom" : "master"));
   const [f, setF] = useState({
     section: initial.section || "",
     sortOrder: initial.sortOrder || 0,
@@ -62,6 +69,15 @@ export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
     cupSpec: mergeCupSpec(initial.cupSpec),
     notes: initial.notes || "",
   });
+
+  // Switching source clears product-link metadata so a master pick can't
+  // leak into a custom row's saved payload (and vice versa). We DON'T clear
+  // the spec fields — admin may have already typed a name/material/dim.
+  function switchSource(next) {
+    if (next === source) return;
+    setSource(next);
+    setF((d) => ({ ...d, productId: "", productSku: "" }));
+  }
 
   useEffect(() => {
     fetch("/api/rate-cards/products")
@@ -140,7 +156,10 @@ export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
   async function submit(e) {
     e.preventDefault();
     setErr("");
-    if (!f.productId) { setErr("Pick a product from the Aeros master catalogue."); return; }
+    // productId required only when sourcing from the master. Custom items
+    // skip the master link and store productId/SKU as empty strings so the
+    // viewer / pricing layers know there's no upstream catalog row.
+    if (source === "master" && !f.productId) { setErr("Pick a product from the Aeros master catalogue."); return; }
     if (!f.productName) { setErr("Product name is required."); return; }
 
     const validTiers = tiers.filter((t) => Number(t.qty) > 0);
@@ -180,44 +199,93 @@ export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      {/* 1 — Product picker (Aeros Products Master) */}
+      {/* 1 — Source: master picker vs custom one-off. Default is master so
+          the common path (catalogued SKU) stays one-click. Custom mode
+          unlocks free-text name/SKU/spec for items not yet in the
+          Aeros Products Master. */}
       <div className="border border-gray-200 rounded-lg p-3 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-3">
           <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-            Product from Aeros master <span className="text-red-500">*</span>
+            Item source
           </div>
-          <div className="text-[11px] text-gray-400 dark:text-gray-500">
-            {products === null ? "Loading catalogue…" : `${products.length} products`}
+          <div className="inline-flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
+            <button
+              type="button"
+              onClick={() => switchSource("master")}
+              className={`px-3 py-1.5 transition-colors ${source === "master"
+                ? "bg-blue-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+            >
+              From Aeros master
+            </button>
+            <button
+              type="button"
+              onClick={() => switchSource("custom")}
+              className={`px-3 py-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${source === "custom"
+                ? "bg-blue-600 text-white"
+                : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+            >
+              Custom (not in master)
+            </button>
           </div>
         </div>
-        <input
-          className={`${inputCls} mb-2`}
-          placeholder="Search by name / SKU / size / material…"
-          value={productQuery}
-          onChange={(e) => setProductQuery(e.target.value)}
-        />
-        <select
-          required
-          className={inputCls}
-          value={f.productId}
-          onChange={(e) => onPickProduct(e.target.value)}
-        >
-          <option value="">— Select a master product —</option>
-          {filteredProducts.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.productName}{p.sku ? ` (${p.sku})` : ""}{p.sizeVolume ? ` · ${p.sizeVolume}` : ""}
-            </option>
-          ))}
-        </select>
-        {products !== null && products.length === 0 && (
-          <p className="mt-2 text-xs text-red-500">
-            No master products loaded. Check <code>CATALOG_BASE_ID</code> / <code>CATALOG_TABLE_ID</code> env vars.
-          </p>
-        )}
-        {f.productSku && (
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            SKU: <strong>{f.productSku}</strong> — master spec auto-filled below. Edit only to override for this card.
-          </p>
+
+        {source === "master" ? (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[11px] text-gray-400 dark:text-gray-500">
+                Product from Aeros master <span className="text-red-500">*</span>
+              </div>
+              <div className="text-[11px] text-gray-400 dark:text-gray-500">
+                {products === null ? "Loading catalogue…" : `${products.length} products`}
+              </div>
+            </div>
+            <input
+              className={`${inputCls} mb-2`}
+              placeholder="Search by name / SKU / size / material…"
+              value={productQuery}
+              onChange={(e) => setProductQuery(e.target.value)}
+            />
+            <select
+              required
+              className={inputCls}
+              value={f.productId}
+              onChange={(e) => onPickProduct(e.target.value)}
+            >
+              <option value="">— Select a master product —</option>
+              {filteredProducts.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.productName}{p.sku ? ` (${p.sku})` : ""}{p.sizeVolume ? ` · ${p.sizeVolume}` : ""}
+                </option>
+              ))}
+            </select>
+            {products !== null && products.length === 0 && (
+              <p className="mt-2 text-xs text-red-500">
+                No master products loaded. Check <code>CATALOG_BASE_ID</code> / <code>CATALOG_TABLE_ID</code> env vars.
+              </p>
+            )}
+            {f.productSku && (
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                SKU: <strong>{f.productSku}</strong> — master spec auto-filled below. Edit only to override for this card.
+              </p>
+            )}
+          </>
+        ) : (
+          <div className="space-y-2">
+            <div className="rounded-md bg-amber-50/80 border border-amber-200 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:border-amber-900 dark:text-amber-200">
+              Custom item — fill the spec fields below by hand. Leave Custom SKU
+              blank if there isn&apos;t one yet; the row stays unlinked from the
+              Aeros Products Master.
+            </div>
+            <Field label="Custom SKU" hint="Optional internal code for this one-off (free text)">
+              <input
+                className={inputCls}
+                value={f.productSku}
+                onChange={(e) => set("productSku", e.target.value)}
+                placeholder="e.g. CUSTOM-PCKG-001"
+              />
+            </Field>
+          </div>
         )}
       </div>
 
@@ -245,7 +313,12 @@ export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
 
       {/* 3 — Display fields (pre-filled from master, editable) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Field label="Product name *" hint="Pre-filled from master; edit to customise display">
+        <Field
+          label="Product name *"
+          hint={source === "master"
+            ? "Pre-filled from master; edit to customise display"
+            : "Type the custom item's display name"}
+        >
           <input required className={inputCls} value={f.productName} onChange={(e) => set("productName", e.target.value)} />
         </Field>
         <Field label="Section" hint="Group header, e.g. Paper Hot Cups — Printed">
