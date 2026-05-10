@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import ProductPicker from "../../_components/ProductPicker";
 
 function emptyLine() {
   return {
@@ -231,27 +232,12 @@ export default function NewDispatchClient({ products, kits = [], defaultManagedB
                   <tr key={i} className="align-top">
                     <td className="px-2 py-2 text-gray-500 dark:text-gray-400">{i + 1}</td>
                     <td className="px-2 py-2">
-                      <input
-                        list={`product-list-${i}`}
+                      <ProductPicker
+                        products={products}
                         value={ln.description}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          // If the user picks a datalist option, find the product and link it.
-                          const match = products.find((p) => productLabel(p) === v || p.product_name === v);
-                          if (match) {
-                            pickProduct(i, match.id);
-                          } else {
-                            setLine(i, { description: v, master_product_id: null });
-                          }
-                        }}
-                        className={inputCls}
-                        placeholder="Type or pick from catalogue"
+                        onChange={(v) => setLine(i, v)}
+                        inputClassName={inputCls}
                       />
-                      <datalist id={`product-list-${i}`}>
-                        {products.map((p) => (
-                          <option key={p.id} value={productLabel(p)} />
-                        ))}
-                      </datalist>
                     </td>
                     <td className="px-2 py-2">
                       <input type="number" min="0" step="0.01" value={ln.quantity} onChange={(e) => setLine(i, { quantity: e.target.value })} className={`${inputCls} text-right tabular-nums`} />
