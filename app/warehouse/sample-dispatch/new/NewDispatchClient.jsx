@@ -19,22 +19,41 @@ function fmtINR(n) {
   return `₹${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export default function NewDispatchClient({ products, kits = [], defaultManagedBy }) {
+export default function NewDispatchClient({
+  products,
+  kits = [],
+  defaultManagedBy,
+  mode = "create",
+  initial = null,
+  dispatchId = null,
+}) {
   const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
   const [kitPickerValue, setKitPickerValue] = useState("");
+  const isEdit = mode === "edit";
 
-  const [form, setForm] = useState({
-    dispatch_date: today,
-    managed_by: defaultManagedBy || "",
-    customer_name: "",
-    customer_contact: "",
-    customer_billing_address: "",
-    customer_delivery_address: "",
-    customer_gstin: "",
-    notes: "",
+  const [form, setForm] = useState(() => ({
+    dispatch_date:             initial?.dispatch_date || today,
+    managed_by:                initial?.managed_by ?? (defaultManagedBy || ""),
+    customer_name:             initial?.customer_name || "",
+    customer_contact:          initial?.customer_contact || "",
+    customer_billing_address:  initial?.customer_billing_address || "",
+    customer_delivery_address: initial?.customer_delivery_address || "",
+    customer_gstin:            initial?.customer_gstin || "",
+    notes:                     initial?.notes || "",
+  }));
+  const [items, setItems] = useState(() => {
+    const seed = (initial?.items || []).map((ln) => ({
+      order_id:          ln.order_id,
+      description:       ln.description || "",
+      quantity:          Number(ln.quantity ?? 1),
+      price:             Number(ln.price ?? 0),
+      gst_pct:           Number(ln.gst_pct ?? 18),
+      master_product_id: ln.master_product_id || null,
+      sample_kit_id:     ln.sample_kit_id || null,
+    }));
+    return seed.length > 0 ? seed : [emptyLine()];
   });
-  const [items, setItems] = useState([emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -133,14 +152,19 @@ export default function NewDispatchClient({ products, kits = [], defaultManagedB
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/warehouse/sample-dispatches", {
-        method: "POST",
+      const url = isEdit
+        ? `/api/warehouse/sample-dispatches/${dispatchId}`
+        : "/api/warehouse/sample-dispatches";
+      const res = await fetch(url, {
+        method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, items }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to create dispatch");
-      router.push(`/warehouse/sample-dispatch/${data.dispatch.id}`);
+      if (!res.ok) throw new Error(data?.error || (isEdit ? "Failed to save changes" : "Failed to create dispatch"));
+      const targetId = data.dispatch.id;
+      router.push(`/warehouse/sample-dispatch/${targetId}`);
+      router.refresh();
     } catch (e) {
       setError(e.message);
       setSubmitting(false);
@@ -295,7 +319,9 @@ export default function NewDispatchClient({ products, kits = [], defaultManagedB
       <div className="flex items-center justify-end gap-3">
         <button type="button" onClick={() => router.back()} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800">Cancel</button>
         <button disabled={submitting} className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100">
-          {submitting ? "Creating…" : "Create dispatch"}
+          {submitting
+            ? (isEdit ? "Saving…" : "Creating…")
+            : (isEdit ? "Save changes" : "Create dispatch")}
         </button>
       </div>
     </form>
