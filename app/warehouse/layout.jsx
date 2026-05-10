@@ -14,7 +14,7 @@ import AppHeader from "@/app/components/AppHeader";
 import Footer from "@/app/components/Footer";
 import ModuleShell from "@/app/_components/ModuleShell";
 import ModuleSidebar from "@/app/_components/ModuleSidebar";
-import { WAREHOUSE_SECTIONS } from "./_components/warehouseSections";
+import { warehouseSections } from "./_components/warehouseSections";
 
 export default function WarehouseLayout({ children }) {
   const session = getSession();
@@ -29,7 +29,7 @@ export default function WarehouseLayout({ children }) {
       {showShell ? (
         <ModuleShell
           label="WarehouseOS"
-          sidebar={<ModuleSidebar sections={WAREHOUSE_SECTIONS} ariaLabel="WarehouseOS sections" />}
+          sidebar={<ModuleSidebar sections={warehouseSections(session)} ariaLabel="WarehouseOS sections" />}
         >
           {children}
         </ModuleShell>

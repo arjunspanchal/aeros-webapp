@@ -129,9 +129,12 @@ function subTabsFor(pathname, session) {
   }
 
   if (active === "clearance") {
-    // WarehouseOS sub-tabs. Stock is public; Manage + Inventory are staff-only.
+    // WarehouseOS sub-tabs. Stock is public; Manage + Inventory are
+    // FM/FE/Admin only. Sample Dispatch is open to AMs (Customer
+    // Managers) too — they raise dispatches on behalf of customers.
     const role = session?.modules?.factoryos;
-    const adminish = role === "admin" || role === "factory_manager" || role === "factory_executive";
+    const adminish    = role === "admin" || role === "factory_manager" || role === "factory_executive";
+    const canDispatch = adminish || role === "account_manager" || session?.isAdmin;
     const tabs = [
       { href: "/warehouse",                    label: "Hub",       short: "Hub"   },
       { href: "/warehouse/clearance",          label: "Clearance", short: "Stock" },
@@ -144,6 +147,10 @@ function subTabsFor(pathname, session) {
       tabs.push({ href: "/warehouse/inventory/outward",   label: "Outward",   short: "Out"    });
       tabs.push({ href: "/warehouse/inventory/movements", label: "History",   short: "Hist"   });
       tabs.push({ href: "/warehouse/inventory/audits",    label: "Audits",    short: "Audit"  });
+    }
+    if (canDispatch) {
+      tabs.push({ href: "/warehouse/sample-dispatch",     label: "Dispatch",  short: "Disp"   });
+      tabs.push({ href: "/warehouse/sample-kits",         label: "Kit Manager", short: "Kits" });
     }
     return tabs;
   }
