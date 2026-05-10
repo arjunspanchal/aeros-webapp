@@ -115,7 +115,15 @@ function SignedInMenu({ session, onSignOut }) {
             {badge && <p className="text-xs text-ink-600 mt-1">{badge}</p>}
           </div>
           <div className="border-t border-ink-200" />
-          <div className="px-2 pt-2">
+          <div className="px-2 pt-2 space-y-1">
+            <Link
+              role="menuitem"
+              href="/profile"
+              onClick={() => setOpen(false)}
+              className="flex items-center w-full h-9 px-3 rounded text-sm text-ink-800 hover:bg-ink-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            >
+              Edit profile
+            </Link>
             <Button
               variant="tertiary"
               size="sm"
