@@ -30,6 +30,7 @@ function activeModuleKey(pathname) {
   if (pathname.startsWith("/catalog"))    return "catalogue";
   if (pathname.startsWith("/warehouse"))  return "clearance";
   if (pathname.startsWith("/clearance"))  return "clearance";
+  if (pathname.startsWith("/design"))     return "design";
   return null;
 }
 
@@ -154,6 +155,11 @@ export default function AppHeader({ session }) {
   const active = activeModuleKey(pathname);
   const modules = session?.modules || {};
   const available = MODULES.filter((m) => !!modules[m.key]);
+  // Design module is open to every authenticated user — append it to
+  // the nav unconditionally if the user is signed in.
+  if (session) {
+    available.push({ key: "design", label: "Design", href: "/design" });
+  }
   const subTabs = subTabsFor(pathname, session);
 
   // Modules whose desktop sub-tabs are replaced by an in-page sidebar (left
