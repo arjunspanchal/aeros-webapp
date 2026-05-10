@@ -5,7 +5,8 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
   const [quotes, setQuotes] = useState(initialQuotes || []);
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState(""); // client id (internal only)
-  const [uploadOpen, setUploadOpen] = useState(false);
+  const [modalMode, setModalMode] = useState(null); // null | "upload" | "edit"
+  const [editingQuote, setEditingQuote] = useState(null);
   const [busyDelete, setBusyDelete] = useState(null);
 
   const clientById = useMemo(
@@ -48,7 +49,27 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
 
   function onUploaded(newQuote) {
     setQuotes((prev) => [newQuote, ...prev]);
-    setUploadOpen(false);
+    closeModal();
+  }
+
+  function onEdited(updatedQuote) {
+    setQuotes((prev) => prev.map((q) => (q.id === updatedQuote.id ? updatedQuote : q)));
+    closeModal();
+  }
+
+  function openUpload() {
+    setEditingQuote(null);
+    setModalMode("upload");
+  }
+
+  function openEdit(quote) {
+    setEditingQuote(quote);
+    setModalMode("edit");
+  }
+
+  function closeModal() {
+    setModalMode(null);
+    setEditingQuote(null);
   }
 
   return (
@@ -80,7 +101,7 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
         {canUpload && (
           <button
             type="button"
-            onClick={() => setUploadOpen(true)}
+            onClick={openUpload}
             className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg whitespace-nowrap"
           >
             + Upload RFQ
@@ -147,13 +168,21 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
                       <span className="text-xs text-gray-400">—</span>
                     )}
                     {canUpload && (
-                      <button
-                        onClick={() => onDelete(q)}
-                        disabled={busyDelete === q.id}
-                        className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 disabled:opacity-50"
-                      >
-                        {busyDelete === q.id ? "…" : "Delete"}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => openEdit(q)}
+                          className="text-xs text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => onDelete(q)}
+                          disabled={busyDelete === q.id}
+                          className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 disabled:opacity-50"
+                        >
+                          {busyDelete === q.id ? "…" : "Delete"}
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>
@@ -174,12 +203,23 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
         </div>
       </div>
 
-      {uploadOpen && (
-        <UploadModal
+      {modalMode === "upload" && (
+        <QuoteModal
+          mode="upload"
           clients={clients || []}
           currentEmail={currentEmail}
-          onClose={() => setUploadOpen(false)}
-          onUploaded={onUploaded}
+          onClose={closeModal}
+          onSaved={onUploaded}
+        />
+      )}
+      {modalMode === "edit" && editingQuote && (
+        <QuoteModal
+          mode="edit"
+          existing={editingQuote}
+          clients={clients || []}
+          currentEmail={currentEmail}
+          onClose={closeModal}
+          onSaved={onEdited}
         />
       )}
     </div>
@@ -193,13 +233,21 @@ function formatBytes(n) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function UploadModal({ clients, onClose, onUploaded }) {
-  const [aerosRfq, setAerosRfq] = useState("");
-  const [customerRfq, setCustomerRfq] = useState("");
-  const [clientId, setClientId] = useState("");
-  const [brand, setBrand] = useState("");
-  const [productName, setProductName] = useState("");
-  const [notes, setNotes] = useState("");
+function QuoteModal({ mode, existing, clients, onClose, onSaved }) {
+  const isEdit = mode === "edit" && !!existing;
+  // In edit mode, prefer the saved client_id when matching a row in the
+  // current clients list; otherwise fall back to "" so the dropdown
+  // shows the empty state and the user can re-pick.
+  const initialClientId = isEdit
+    ? (clients.some((c) => c.id === existing.clientId) ? existing.clientId : "")
+    : "";
+
+  const [aerosRfq, setAerosRfq] = useState(isEdit ? (existing.aerosRfqNumber || "") : "");
+  const [customerRfq, setCustomerRfq] = useState(isEdit ? (existing.customerRfqNumber || "") : "");
+  const [clientId, setClientId] = useState(initialClientId);
+  const [brand, setBrand] = useState(isEdit ? (existing.brand || "") : "");
+  const [productName, setProductName] = useState(isEdit ? (existing.productName || "") : "");
+  const [notes, setNotes] = useState(isEdit ? (existing.notes || "") : "");
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -211,38 +259,53 @@ function UploadModal({ clients, onClose, onUploaded }) {
     setErr("");
     if (!aerosRfq.trim()) { setErr("Aeros RFQ number is required"); return; }
     if (!brand.trim()) { setErr("Brand is required"); return; }
-    if (!file) { setErr("Pick a PDF to upload"); return; }
     if (!clientId) { setErr("Pick a customer"); return; }
-    if (file.size > 10 * 1024 * 1024) { setErr("File exceeds 10 MB"); return; }
-    if (!file.type.toLowerCase().includes("pdf")) { setErr("Only PDFs are supported"); return; }
+    // File only required on upload — edit-mode keeps the existing PDF.
+    if (!isEdit) {
+      if (!file) { setErr("Pick a PDF to upload"); return; }
+      if (file.size > 10 * 1024 * 1024) { setErr("File exceeds 10 MB"); return; }
+      if (!file.type.toLowerCase().includes("pdf")) { setErr("Only PDFs are supported"); return; }
+    }
 
     setBusy(true);
     try {
-      const fileBase64 = await fileToBase64(file);
-      const res = await fetch("/api/rfq", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          aerosRfqNumber: aerosRfq.trim(),
-          customerRfqNumber: customerRfq.trim() || null,
-          clientId,
-          clientEmail: selectedClient?.contactEmail || null,
-          brand: brand.trim(),
-          productName: productName.trim() || null,
-          notes: notes.trim() || null,
-          filename: file.name,
-          contentType: file.type || "application/pdf",
-          fileBase64,
-        }),
-      });
+      const payload = {
+        aerosRfqNumber: aerosRfq.trim(),
+        customerRfqNumber: customerRfq.trim() || null,
+        clientId,
+        clientEmail: selectedClient?.contactEmail || null,
+        brand: brand.trim(),
+        productName: productName.trim() || null,
+        notes: notes.trim() || null,
+      };
+      let res;
+      if (isEdit) {
+        res = await fetch(`/api/rfq/${existing.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        const fileBase64 = await fileToBase64(file);
+        res = await fetch("/api/rfq", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            filename: file.name,
+            contentType: file.type || "application/pdf",
+            fileBase64,
+          }),
+        });
+      }
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || "Upload failed");
+        throw new Error(j.error || (isEdit ? "Update failed" : "Upload failed"));
       }
       const { quote } = await res.json();
-      onUploaded(quote);
+      onSaved(quote);
     } catch (e2) {
-      setErr(e2?.message || "Upload failed");
+      setErr(e2?.message || (isEdit ? "Update failed" : "Upload failed"));
     } finally {
       setBusy(false);
     }
@@ -257,8 +320,14 @@ function UploadModal({ clients, onClose, onUploaded }) {
         <form onSubmit={submit} className="p-5 sm:p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Upload RFQ quote</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">PDF up to 10 MB. The customer sees this in their RFQ Manager.</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {isEdit ? "Edit RFQ quote" : "Upload RFQ quote"}
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {isEdit
+                  ? "Update the metadata for this quote. Replacing the PDF means delete + re-upload."
+                  : "PDF up to 10 MB. The customer sees this in their RFQ Manager."}
+              </p>
             </div>
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none p-1 -mr-1">✕</button>
           </div>
@@ -327,17 +396,28 @@ function UploadModal({ clients, onClose, onUploaded }) {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">PDF <span className="text-red-500">*</span></label>
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              required
-              className="w-full text-sm text-gray-700 dark:text-gray-200 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/30 dark:file:text-blue-300"
-            />
-            {file && <p className="text-[11px] text-gray-400 mt-1">{file.name} · {formatBytes(file.size)}</p>}
-          </div>
+          {isEdit ? (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 px-3 py-2 text-xs text-gray-600 dark:text-gray-300">
+              <span className="font-medium text-gray-700 dark:text-gray-200">PDF:</span>{" "}
+              <span className="font-mono break-all">{existing.filename}</span>
+              {existing.bytes ? <span className="text-gray-400 ml-2">· {formatBytes(existing.bytes)}</span> : null}
+              <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                File can&apos;t be replaced here — delete and re-upload to swap.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">PDF <span className="text-red-500">*</span></label>
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+                required
+                className="w-full text-sm text-gray-700 dark:text-gray-200 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/30 dark:file:text-blue-300"
+              />
+              {file && <p className="text-[11px] text-gray-400 mt-1">{file.name} · {formatBytes(file.size)}</p>}
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Notes</label>
@@ -365,7 +445,7 @@ function UploadModal({ clients, onClose, onUploaded }) {
               disabled={busy}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-60"
             >
-              {busy ? "Uploading…" : "Upload"}
+              {busy ? (isEdit ? "Saving…" : "Uploading…") : (isEdit ? "Save changes" : "Upload")}
             </button>
           </div>
         </form>
