@@ -26,7 +26,7 @@ export default async function NewSampleDispatchPage() {
   let kits = [];
   try {
     products = await dbSelect("master_products", {
-      select: "id,sku,product_name,category",
+      select: "id,sku,product_name,category,price_per_unit",
       order: "product_name.asc",
       limit: 1000,
     });

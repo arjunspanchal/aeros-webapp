@@ -56,14 +56,24 @@ export default function NewDispatchClient({ products, kits = [], defaultManagedB
     const gst = kit.default_gst_pct ?? 18;
     const components = Array.isArray(kit.components) ? kit.components : [];
     const newLines = components.length > 0
-      ? components.map((c) => ({
-          description:       c.description,
-          quantity:          Number(c.quantity_per_kit) || 1,
-          price:             0,
-          gst_pct:           gst,
-          master_product_id: c.master_product_id || null,
-          sample_kit_id:     kit.id,
-        }))
+      ? components.map((c) => {
+          // Look up the linked master product so the dispatch line carries
+          // the catalog rate by default. Falls back to 0 when the
+          // component is free-text (no master_product_id) or the master
+          // row has no price_per_unit set yet.
+          const product = c.master_product_id
+            ? products.find((p) => p.id === c.master_product_id)
+            : null;
+          const price = product?.price_per_unit == null ? 0 : Number(product.price_per_unit);
+          return {
+            description:       c.description,
+            quantity:          Number(c.quantity_per_kit) || 1,
+            price,
+            gst_pct:           gst,
+            master_product_id: c.master_product_id || null,
+            sample_kit_id:     kit.id,
+          };
+        })
       : [{
           description:       kit.name,
           quantity:          1,
