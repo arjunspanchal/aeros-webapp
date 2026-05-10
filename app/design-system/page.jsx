@@ -1,9 +1,10 @@
-// Design-system showcase. URL: /design.
+// Design-system showcase. URL: /design-system (moved from /design so the
+// customer-facing Design module — KLD / keyline downloads — can own /design).
 //
 // Hidden from nav by enumeration — no link points here. Not in the middleware
 // matcher (verified: middleware.js's matcher covers only the modules + their
-// API namespaces, not /design). Ugly-honest by intent: a QA reference for
-// every primitive and token, in one place, no marketing copy.
+// API namespaces, not /design-system). Ugly-honest by intent: a QA reference
+// for every primitive and token, in one place, no marketing copy.
 //
 // Self-contained light island: the wrapper sets bg-ink-50 + text-ink-800 so
 // the page renders consistently regardless of the user's theme cookie.

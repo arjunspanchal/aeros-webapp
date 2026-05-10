@@ -30,7 +30,9 @@ function activeModuleKey(pathname) {
   if (pathname.startsWith("/catalog"))    return "catalogue";
   if (pathname.startsWith("/warehouse"))  return "clearance";
   if (pathname.startsWith("/clearance"))  return "clearance";
-  if (pathname.startsWith("/design"))     return "design";
+  // Match /design and /design/... but NOT /design-system (the internal
+  // brand-tokens QA page, which intentionally has no nav highlight).
+  if (pathname === "/design" || pathname.startsWith("/design/")) return "design";
   return null;
 }
 
