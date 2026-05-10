@@ -39,6 +39,16 @@ const ALL_OPTIONS = [
   },
 ];
 
+// Always available to any signed-in user — designers / printers don't
+// need a module flag to download keylines + mockups.
+const DESIGN_OPTION = {
+  key: "design",
+  href: "/design",
+  title: "Design",
+  description: "Download keylines, KLDs, outlines, and mockups for any product. Upload + manage if you're on the design / staff team.",
+  accent: "from-violet-600 to-indigo-700",
+};
+
 // Tiles open to anyone (no session required). Currently just the Clearance
 // stock listing — staff Manage page stays gated. Easy to add Catalogue or
 // other read-only views here if/when they should be public too.
@@ -61,6 +71,9 @@ export default function HomeClient({ session, footer }) {
   const options = isAuthed
     ? ALL_OPTIONS.filter((o) => !!modules[o.key])
     : ALL_OPTIONS.filter((o) => PUBLIC_OPTION_KEYS.has(o.key));
+  // Design is open to every authenticated user — designers / printers
+  // (e.g. Akif) don't need a module flag to download keylines.
+  if (isAuthed) options.push(DESIGN_OPTION);
   const showAccessTile = canManageAccess(session);
 
   return (
