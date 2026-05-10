@@ -3,7 +3,7 @@
 
 import { getSession } from "@/lib/auth/session";
 import { requireInternal } from "@/lib/auth/policy";
-import { getRfqQuote, deleteRfqQuote } from "@/lib/rfq/store";
+import { getRfqQuote, deleteRfqQuote, updateRfqQuote } from "@/lib/rfq/store";
 
 export const runtime = "nodejs";
 
@@ -22,6 +22,29 @@ export async function GET(_req, { params }) {
   }
 
   return Response.json({ quote });
+}
+
+// Edit metadata only (RFQ #s, brand, product, customer, notes). The PDF
+// itself can't be replaced through PATCH — to swap files, delete + re-
+// upload via POST /api/rfq.
+export async function PATCH(req, { params }) {
+  const session = getSession();
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireInternal(session)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => null);
+  if (!body) return Response.json({ error: "Invalid JSON" }, { status: 400 });
+
+  try {
+    const quote = await updateRfqQuote(params.id, body);
+    if (!quote) return Response.json({ error: "Not found" }, { status: 404 });
+    return Response.json({ quote });
+  } catch (err) {
+    console.error("[rfq] update failed", err);
+    return Response.json({ error: err?.message || "Update failed" }, { status: 500 });
+  }
 }
 
 export async function DELETE(_req, { params }) {
