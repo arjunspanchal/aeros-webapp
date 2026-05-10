@@ -76,14 +76,19 @@ export default function NewDispatchClient({
     const components = Array.isArray(kit.components) ? kit.components : [];
     const newLines = components.length > 0
       ? components.map((c) => {
-          // Look up the linked master product so the dispatch line carries
-          // the catalog rate by default. Falls back to 0 when the
-          // component is free-text (no master_product_id) or the master
-          // row has no price_per_unit set yet.
-          const product = c.master_product_id
-            ? products.find((p) => p.id === c.master_product_id)
-            : null;
-          const price = product?.price_per_unit == null ? 0 : Number(product.price_per_unit);
+          // Price priority on the dispatch line:
+          //   1. component.unit_price (kit-level override saved on the kit)
+          //   2. linked master_products.price_per_unit (catalog rate)
+          //   3. 0 (manual entry)
+          // ~22% of master_products have no price today, so the kit-level
+          // override is what makes auto-fill actually work.
+          let price = 0;
+          if (c.unit_price != null && c.unit_price !== "") {
+            price = Number(c.unit_price);
+          } else if (c.master_product_id) {
+            const product = products.find((p) => p.id === c.master_product_id);
+            if (product?.price_per_unit != null) price = Number(product.price_per_unit);
+          }
           return {
             description:       c.description,
             quantity:          Number(c.quantity_per_kit) || 1,
