@@ -1,4 +1,5 @@
 import { getSession, requireManager, requireAdminStrict } from "@/lib/auth/session";
+import { resolveFactoryosUserId } from "@/lib/hub/users";
 import { updateEmployee, deleteEmployee, deactivateEmployee, getEmployee } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 
@@ -10,7 +11,8 @@ async function assertCanEdit(session, employeeId) {
   if (session.modules?.factoryos === ROLES.ADMIN) return;
   const emp = await getEmployee(employeeId);
   if (!emp) throw new Response("Not found", { status: 404 });
-  if (emp.managerId !== session.factoryosUserId) {
+  const myUserId = await resolveFactoryosUserId(session);
+  if (emp.managerId !== myUserId) {
     throw new Response("Not your employee", { status: 403 });
   }
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, requireManager } from "@/lib/auth/session";
+import { resolveFactoryosUserId } from "@/lib/hub/users";
 import { listEmployees, listAttendance, listUsers } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import { todayYmdIST } from "@/lib/factoryos/hr";
@@ -26,9 +27,10 @@ export default async function AttendancePage({ searchParams }) {
   // is ignored unless the caller is Admin (prevents URL-tampering bypass).
   const isAdmin = session.modules?.factoryos === ROLES.ADMIN;
   const showAll = isAdmin;
+  const myUserId = isAdmin ? null : await resolveFactoryosUserId(session);
   const employees = isAdmin
     ? allEmployees
-    : allEmployees.filter((e) => e.managerId === session.factoryosUserId);
+    : allEmployees.filter((e) => e.managerId === myUserId);
 
   // Pull attendance for the picked date, only for the displayed employees.
   // Filtering by employee set prevents other managers' attendance from
@@ -62,7 +64,7 @@ export default async function AttendancePage({ searchParams }) {
           managerMap={managerMap}
           canViewAll={session.modules?.factoryos === ROLES.ADMIN}
           showingAll={showAll}
-          currentUserId={session.factoryosUserId || null}
+          currentUserId={myUserId}
         />
       </main>
     </div>

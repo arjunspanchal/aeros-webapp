@@ -1,4 +1,5 @@
 import { getSession, requireInternal, requireManager, requireAdminStrict, requireRole } from "@/lib/auth/session";
+import { resolveFactoryosUserId } from "@/lib/hub/users";
 import { listEmployees, createEmployee } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
@@ -14,7 +15,7 @@ export async function GET(req) {
     const activeOnly = url.searchParams.get("active") === "1";
     const managerUserId = requireAdminStrict(session)
       ? url.searchParams.get("managerUserId") || undefined
-      : session.factoryosUserId; // FM is force-scoped to themselves.
+      : (await resolveFactoryosUserId(session)); // FM is force-scoped to themselves.
     const employees = await listEmployees({ activeOnly, managerUserId });
     return Response.json({ employees });
   } catch (e) {
@@ -44,8 +45,9 @@ export async function POST(req) {
     // Factory Manager can only create employees reporting to themselves —
     // ignore any managerId they send and bind ownership to their userId.
     // Admin can assign any manager (or none).
-    const managerId =
-      requireRole(session, "factoryos", "factory_manager") ? session.factoryosUserId : body.managerId || null;
+    const managerId = requireRole(session, "factoryos", "factory_manager")
+      ? (await resolveFactoryosUserId(session))
+      : body.managerId || null;
 
     const employee = await createEmployee({
       name: body.name.trim(),

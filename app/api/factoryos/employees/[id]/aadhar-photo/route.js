@@ -1,4 +1,5 @@
 import { getSession, requireManager } from "@/lib/auth/session";
+import { resolveFactoryosUserId } from "@/lib/hub/users";
 import {
   attachEmployeeAadhar,
   getEmployee,
@@ -14,7 +15,9 @@ const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif
 async function assertCanEdit(session, employeeId) {
   const emp = await getEmployee(employeeId);
   if (!emp) throw new Response("Not found", { status: 404 });
-  if (session.modules?.factoryos !== ROLES.ADMIN && emp.managerId !== session.factoryosUserId) {
+  if (session.modules?.factoryos === ROLES.ADMIN) return emp;
+  const myUserId = await resolveFactoryosUserId(session);
+  if (emp.managerId !== myUserId) {
     throw new Response("Not your employee", { status: 403 });
   }
   return emp;

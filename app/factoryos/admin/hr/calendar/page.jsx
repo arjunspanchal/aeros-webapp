@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, requireManager } from "@/lib/auth/session";
+import { resolveFactoryosUserId } from "@/lib/hub/users";
 import { listEmployees, listAttendance, listUsers } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import {
@@ -28,9 +29,10 @@ export default async function CalendarPage({ searchParams }) {
 
   const isAdmin = session.modules?.factoryos === ROLES.ADMIN;
   const showAll = isAdmin;
+  const myUserId = isAdmin ? null : await resolveFactoryosUserId(session);
   const employees = isAdmin
     ? allEmployees
-    : allEmployees.filter((e) => e.managerId === session.factoryosUserId);
+    : allEmployees.filter((e) => e.managerId === myUserId);
 
   const from = monthStart(monthKey);
   const to = monthEnd(monthKey);

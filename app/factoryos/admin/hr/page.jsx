@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, requireManager } from "@/lib/auth/session";
+import { resolveFactoryosUserId } from "@/lib/hub/users";
 import { listEmployees, listUsers, listAttendance } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import {
@@ -26,7 +27,11 @@ export default async function HrPage() {
   // Factory Manager sees only their own reports. Admin sees everyone.
   // Critical: filter server-side so other managers' data never ships to the client.
   const isAdmin = session.modules?.factoryos === ROLES.ADMIN;
-  const employees = isAdmin ? allEmployees : allEmployees.filter((e) => e.managerId === session.factoryosUserId);
+  // Cookie-first, DB-fallback. Pre-PR-1.5a cookies have no factoryosUserId
+  // — without this fallback the filter below would null-match and Rahul
+  // would see an empty roster.
+  const myUserId = isAdmin ? null : await resolveFactoryosUserId(session);
+  const employees = isAdmin ? allEmployees : allEmployees.filter((e) => e.managerId === myUserId);
 
   // Compute current-month attendance gaps for the scoped employees.
   const monthKey = currentMonthKeyIST();
@@ -79,7 +84,7 @@ export default async function HrPage() {
           initialEmployees={employees}
           factoryManagers={factoryManagers}
           isAdmin={isAdmin}
-          currentUserId={session.factoryosUserId || null}
+          currentUserId={myUserId}
         />
       </main>
     </div>
