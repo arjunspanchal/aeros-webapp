@@ -58,6 +58,12 @@ export default function CalculatorPickerPage() {
             desc: "Landed cost from FOB through duty, freight, clearance, handling and margin. Multi-item LCL or FCL.",
             accent: "from-rose-600 to-red-700",
           },
+          {
+            href: "/calculator/express-ship",
+            title: "Express Ship Calculator (India / China → USA)",
+            desc: "DHL Express air landed price — product, freight on chargeable kg, US duty, MPF and margin. Single SKU per quote.",
+            accent: "from-slate-700 to-gray-900",
+          },
         ]
       : []),
   ];
