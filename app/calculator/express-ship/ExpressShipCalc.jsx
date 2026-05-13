@@ -14,6 +14,7 @@ import {
   ORIGINS,
   defaultHtsusForCategory,
 } from "@/lib/factoryos/express-ship-calc";
+import { exportExpressShipPDF } from "./export";
 
 // --- formatters -------------------------------------------------------------
 
@@ -569,8 +570,8 @@ export default function ExpressShipCalc() {
           </div>
         </Card>
 
-        {/* Save */}
-        <Card title="Save">
+        {/* Save & export */}
+        <Card title="Save & export">
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => saveQuote({ asNew: false })}
@@ -584,6 +585,20 @@ export default function ExpressShipCalc() {
                 className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"
               >Save as new</button>
             )}
+            <button
+              onClick={() => exportExpressShipPDF({
+                form: {
+                  quoteRef: quoteRef || (product ? `EXP ${new Date().toISOString().slice(0, 10)} — ${product.sku}` : ""),
+                  product,
+                  exFactoryInrPerUnit: Number(exFactoryInrPerUnit) || 0,
+                  originPostcode,
+                },
+                result,
+              })}
+              disabled={!canSave}
+              className="px-4 py-2 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium hover:bg-black dark:hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Opens a print-ready view; pick 'Save as PDF' in the browser dialog."
+            >Export PDF</button>
             {saveStatus === "success" && <span className="self-center text-xs text-green-600">Saved.</span>}
             {saveStatus === "success_update" && <span className="self-center text-xs text-green-600">Updated.</span>}
             {saveStatus === "success_new" && <span className="self-center text-xs text-green-600">Saved as new.</span>}
