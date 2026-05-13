@@ -105,6 +105,27 @@ export default function ProductCard({ product }) {
           </dl>
         )}
 
+        {/* Compatible products — populated server-side for round lids,
+            listing the cups/tubs/bowls that match the lid's rim diameter. */}
+        {product.compatibleWith?.length > 0 && (
+          <div className="mb-3">
+            <div className="mb-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+              Compatible with
+            </div>
+            <ul className="flex flex-wrap gap-1">
+              {product.compatibleWith.map((c) => (
+                <li
+                  key={c.id}
+                  title={c.productName}
+                  className="rounded bg-brand-50 px-2 py-0.5 text-xs text-brand-800 ring-1 ring-brand-200 dark:bg-amber-900/30 dark:text-amber-200 dark:ring-amber-800"
+                >
+                  {c.productName}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Pricing — hidden on the public catalogue. Visible to admin in
             /catalog/manage where the field still appears in the editor. */}
         <div className="mb-4 mt-auto">
