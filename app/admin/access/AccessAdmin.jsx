@@ -6,6 +6,7 @@
 // re-renders with the latest snapshot.
 
 import { useMemo, useState } from "react";
+import { PRICING_TIERS, TIER_BY_KEY } from "@/lib/calc/pricing-tiers";
 
 const inputCls =
   "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:focus:ring-blue-400";
@@ -220,6 +221,26 @@ function UserRow({ user, clients, onSaved }) {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-4">
+                  <label className={labelCls}>Pricing tier</label>
+                  <div className="flex flex-wrap gap-2">
+                    {PRICING_TIERS.map((t) => {
+                      const active = String(form.marginPct) === String(t.margin) && String(form.marginCupsPct) === String(t.margin);
+                      return (
+                        <button
+                          type="button"
+                          key={t.key}
+                          onClick={() => { set("marginPct", String(t.margin)); set("marginCupsPct", String(t.margin)); }}
+                          className={`text-xs px-3 py-1.5 rounded-lg border transition ${active ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-gray-200 text-gray-700 hover:border-gray-300 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200"}`}
+                          title={t.note}
+                        >
+                          {t.key} · {t.margin}%
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">Sets both bag and cup margin. Override either below for one-offs.</p>
+                </div>
                 <div><label className={labelCls}>Margin % — bags / boxes</label><input type="number" step="0.5" className={inputCls} value={form.marginPct} onChange={(e) => set("marginPct", e.target.value)} /></div>
                 <div><label className={labelCls}>Margin % — cups</label><input type="number" step="0.5" className={inputCls} value={form.marginCupsPct} onChange={(e) => set("marginCupsPct", e.target.value)} /></div>
                 <div><label className={labelCls}>Discount %</label><input type="number" step="0.5" className={inputCls} value={form.discountPct} onChange={(e) => set("discountPct", e.target.value)} /></div>

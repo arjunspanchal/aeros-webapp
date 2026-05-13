@@ -14,6 +14,8 @@ import {
   STANDARD_CUP_DIMS,
   getOuterFanCount, getSidewallDims,
 } from "@/lib/calc/cup-calculator";
+import { USD_RATE } from "@/lib/calc/calculator";
+import { tierFromMargin } from "@/lib/calc/pricing-tiers";
 
 const STORAGE_PREFIX = "aeros:cup:order:";
 
@@ -1665,16 +1667,38 @@ export default function CupCalculator({ scope = "default" }) {
                     marginTop: ".75rem",
                     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
                   }}>
+                    {(() => {
+                      const tier = tierFromMargin(result.mp);
+                      if (!tier) return null;
+                      return (
+                        <div style={{ marginBottom: "1rem" }}>
+                          <span style={{
+                            display: "inline-block",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            letterSpacing: ".04em",
+                            textTransform: "uppercase",
+                            background: "rgba(255,255,255,0.18)",
+                            border: "1px solid rgba(255,255,255,0.25)",
+                            color: "#fff",
+                            padding: "3px 10px",
+                            borderRadius: 999,
+                          }}>{tier} · {result.mp}% margin</span>
+                        </div>
+                      );
+                    })()}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
                       <div>
                         <div style={{ fontSize: 13, color: "#bfdbfe", marginBottom: 8, fontWeight: 400 }}>Selling Price / cup</div>
                         <div style={{ fontSize: 44, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em" }}>{f2(result.sp)}</div>
+                        <div style={{ fontSize: 12, color: "#bfdbfe", marginTop: 6 }}>${(result.sp / USD_RATE).toFixed(4)} @ ₹{USD_RATE}/$</div>
                       </div>
                       <div>
                         <div style={{ fontSize: 13, color: "#bfdbfe", marginBottom: 8, fontWeight: 400 }}>
                           Cost / Case ({cpNum || "—"})
                         </div>
                         <div style={{ fontSize: 44, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em" }}>{f2(result.spCase)}</div>
+                        <div style={{ fontSize: 12, color: "#bfdbfe", marginTop: 6 }}>${(result.spCase / USD_RATE).toFixed(2)} @ ₹{USD_RATE}/$</div>
                       </div>
                     </div>
                     <div style={{
@@ -1688,6 +1712,9 @@ export default function CupCalculator({ scope = "default" }) {
                       <div style={{ fontSize: 44, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em" }}>
                         ₹{orderTotal > 0 ? orderTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                       </div>
+                      {orderTotal > 0 && (
+                        <div style={{ fontSize: 12, color: "#bfdbfe", marginTop: 6 }}>${(orderTotal / USD_RATE).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} @ ₹{USD_RATE}/$</div>
+                      )}
                     </div>
                   </div>
                   <div style={{
