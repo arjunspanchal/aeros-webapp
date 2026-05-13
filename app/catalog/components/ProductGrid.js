@@ -5,19 +5,33 @@ import ProductCard from './ProductCard';
 
 export default function ProductGrid({ products, categories }) {
   const [query, setQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  // Empty Set = "All". Click a chip to add/remove it from the filter so the
+  // grid can show, e.g., Lids + Paper Cups together.
+  const [selected, setSelected] = useState(() => new Set());
+
+  const toggleCategory = (cat) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
+  const clearCategories = () => setSelected(new Set());
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter((p) => {
-      if (selectedCategory !== 'All' && p.category !== selectedCategory) return false;
+      if (selected.size && !selected.has(p.category)) return false;
       if (q) {
         const haystack = `${p.productName} ${p.sku} ${p.category} ${p.subCategory} ${p.material} ${p.sizeVolume}`.toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
     });
-  }, [products, query, selectedCategory]);
+  }, [products, query, selected]);
+
+  const selectedList = useMemo(() => Array.from(selected), [selected]);
 
   return (
     <div>
@@ -40,11 +54,15 @@ export default function ProductGrid({ products, categories }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <CategoryChip active={selectedCategory === 'All'} onClick={() => setSelectedCategory('All')}>
+          <CategoryChip active={selected.size === 0} onClick={clearCategories}>
             All ({products.length})
           </CategoryChip>
           {categories.map((cat) => (
-            <CategoryChip key={cat} active={selectedCategory === cat} onClick={() => setSelectedCategory(cat)}>
+            <CategoryChip
+              key={cat}
+              active={selected.has(cat)}
+              onClick={() => toggleCategory(cat)}
+            >
               {cat}
             </CategoryChip>
           ))}
@@ -56,7 +74,14 @@ export default function ProductGrid({ products, categories }) {
         Showing <span className="font-semibold text-gray-900 dark:text-white">{filtered.length}</span>{' '}
         {filtered.length === 1 ? 'product' : 'products'}
         {query && <> for &ldquo;<span className="font-semibold text-gray-900 dark:text-white">{query}</span>&rdquo;</>}
-        {selectedCategory !== 'All' && <> in <span className="font-semibold text-gray-900 dark:text-white">{selectedCategory}</span></>}
+        {selectedList.length > 0 && (
+          <>
+            {' '}in{' '}
+            <span className="font-semibold text-gray-900 dark:text-white">
+              {selectedList.join(' + ')}
+            </span>
+          </>
+        )}
       </p>
 
       {/* Grid */}
