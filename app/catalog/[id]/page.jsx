@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fetchCatalogProductById } from "@/lib/catalog";
+import { fetchCatalogProductById, canManageCatalogue } from "@/lib/catalog";
 import { getSession } from "@/lib/hub/session";
 import AppHeader from "../../components/AppHeader";
 import Footer from "../../components/Footer";
@@ -23,9 +23,18 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function ProductDetailPage({ params }) {
-  const product = await fetchCatalogProductById(params.id);
-  if (!product) notFound();
+  const fetched = await fetchCatalogProductById(params.id);
+  if (!fetched) notFound();
   const session = getSession();
+  // Notes are an internal scratchpad — supplier codes, dual-rate breakdowns,
+  // staging paths — so we only expose them to viewers who can already see
+  // them on /catalog/manage (admins, FM/FE, account managers). Customers
+  // browsing the public detail page never see the field. We redact at the
+  // server boundary (rather than just hiding the JSX) so the value doesn't
+  // ship in the RSC payload when ProductGallery — a client component —
+  // receives the product as a prop.
+  const canSeeInternalNotes = canManageCatalogue(session);
+  const product = canSeeInternalNotes ? fetched : { ...fetched, notes: "" };
 
   // Spec rows shown in the right-hand details column. Same fields the card
   // surfaces, plus everything else that's set on the product. Each row is
@@ -173,12 +182,19 @@ export default async function ProductDetailPage({ params }) {
               </section>
             )}
 
-            {/* Notes — only when the admin has actually written something. */}
-            {product.notes && (
-              <section className="mt-6">
-                <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Notes
-                </h2>
+            {/* Internal notes — staff-only. Holds supplier codes, dual-rate
+                breakdowns, and other commentary the admin keeps for context.
+                Customers see nothing here. */}
+            {canSeeInternalNotes && product.notes && (
+              <section className="mt-6 rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/40 dark:bg-amber-900/10">
+                <div className="mb-2 flex items-center gap-2">
+                  <h2 className="text-xs font-medium uppercase tracking-wide text-amber-800 dark:text-amber-300">
+                    Internal notes
+                  </h2>
+                  <span className="rounded-full bg-amber-200/70 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                    Staff only
+                  </span>
+                </div>
                 <p className="whitespace-pre-line text-sm text-gray-700 dark:text-gray-300">
                   {product.notes}
                 </p>
