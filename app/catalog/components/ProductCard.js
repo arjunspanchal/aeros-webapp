@@ -160,10 +160,26 @@ export default function ProductCard({ product }) {
           </div>
         )}
 
-        {/* Pricing — hidden on the public catalogue. Visible to admin in
-            /catalog/manage where the field still appears in the editor. */}
+        {/* Pricing — landed in India (INR) and landed in USA (USD). When
+            the product has no `pricePerUnit` we fall back to the legacy
+            "Price on request" line. */}
         <div className="mb-4 mt-auto">
-          <span className="text-sm text-gray-400 dark:text-gray-500 italic">Price on request</span>
+          {product.landed?.available ? (
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+              <dt className="text-gray-500 dark:text-gray-400">Landed in India</dt>
+              <dt className="text-gray-500 dark:text-gray-400">Landed in USA</dt>
+              <dd className="font-semibold text-gray-900 dark:text-white">
+                {product.landed.landedInrFormatted}
+                <span className="ml-1 text-[10px] font-normal text-gray-400 dark:text-gray-500">/pc</span>
+              </dd>
+              <dd className="font-semibold text-gray-900 dark:text-white">
+                {product.landed.landedUsdFormatted}
+                <span className="ml-1 text-[10px] font-normal text-gray-400 dark:text-gray-500">/pc</span>
+              </dd>
+            </dl>
+          ) : (
+            <span className="text-sm text-gray-400 dark:text-gray-500 italic">Price on request</span>
+          )}
         </div>
 
         {/* CTA buttons */}
