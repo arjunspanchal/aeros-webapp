@@ -31,6 +31,7 @@ const COLUMNS = [
   "hts_code_us",
   "country_of_origin",
   "price_per_unit",
+  "ex_factory_inr",
 ].join(",");
 
 // Master row → camelCase the calculator expects. Numeric columns come back
@@ -55,6 +56,7 @@ function rowToProduct(row) {
     htsCodeUs: row.hts_code_us || "",
     countryOfOrigin: row.country_of_origin || "",
     pricePerUnit: numOrNull(row.price_per_unit),
+    exFactoryInr: numOrNull(row.ex_factory_inr),
   };
 }
 

@@ -115,8 +115,12 @@ export default function ExpressShipCalc() {
     } else if (p.category) {
       setHtsus(defaultHtsusForCategory(p.category) || "");
     }
-    if (p.pricePerUnit && !exFactoryInrPerUnit) {
-      setExFactoryInrPerUnit(String(p.pricePerUnit));
+    // Seed from the dedicated ex-factory column. price_per_unit is the
+    // rate-card sell price (already margin-loaded) so we deliberately don't
+    // touch it here — using it as FOB would double-count margin and inflate
+    // the entered value the duty calc sees.
+    if (p.exFactoryInr && !exFactoryInrPerUnit) {
+      setExFactoryInrPerUnit(String(p.exFactoryInr));
     }
     if (p.countryOfOrigin === "China") setOrigin("CN");
     else if (p.countryOfOrigin === "India") setOrigin("IN");
@@ -454,6 +458,8 @@ export default function ExpressShipCalc() {
                 <div>Units/case: <strong>{product.unitsPerCase ?? "—"}</strong></div>
                 <div>Gross/case: <strong>{product.grossWeightKg ? `${product.grossWeightKg} kg` : "⚠ fallback used"}</strong></div>
                 <div>Item wt: <strong>{product.itemWeightG ? `${product.itemWeightG} g` : "—"}</strong></div>
+                <div>Ex-factory: <strong>{product.exFactoryInr ? `₹${product.exFactoryInr}/pc` : "⚠ not set"}</strong></div>
+                <div>Sell rate-card: <strong>{product.pricePerUnit ? `₹${product.pricePerUnit}/pc` : "—"}</strong></div>
               </div>
             </div>
           )}
