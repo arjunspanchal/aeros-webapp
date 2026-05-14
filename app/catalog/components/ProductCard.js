@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 // Category icon map — fallback placeholder for products with no uploaded
 // photos. When a product has at least one entry in `images` we render that
 // instead (see ProductCard below).
@@ -79,20 +81,27 @@ export default function ProductCard({ product }) {
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:shadow-md dark:border-gray-800 dark:bg-gray-900">
-      {/* Hero area — uploaded photo when present, category icon as fallback. */}
-      <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-brand-50 text-brand-300 transition group-hover:bg-brand-100 dark:bg-amber-900/30 dark:text-amber-400 dark:group-hover:bg-amber-900/50">
+      {/* Hero area — uploaded photo when present, category icon as fallback.
+          The whole tile is a Link to the product detail page (Amazon-style
+          card → detail navigation). */}
+      <Link
+        href={`/catalog/${product.id}`}
+        prefetch={false}
+        aria-label={`View ${product.productName} details`}
+        className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-brand-50 text-brand-300 transition group-hover:bg-brand-100 dark:bg-amber-900/30 dark:text-amber-400 dark:group-hover:bg-amber-900/50"
+      >
         {heroImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img
             src={heroImage.thumbnailUrl || heroImage.url}
             alt={product.productName}
-            className="h-full w-full object-contain"
+            className="h-full w-full object-contain transition-transform group-hover:scale-[1.02]"
             loading="lazy"
           />
         ) : (
           icon
         )}
-      </div>
+      </Link>
 
       {/* Body */}
       <div className="flex flex-1 flex-col p-4">
@@ -106,9 +115,16 @@ export default function ProductCard({ product }) {
           )}
         </div>
 
-        {/* Name */}
+        {/* Name — also linked to the detail page so the title is a click
+            target even when the user skips the image. */}
         <h3 className="mb-3 line-clamp-2 text-sm font-semibold text-gray-900 dark:text-white">
-          {product.productName}
+          <Link
+            href={`/catalog/${product.id}`}
+            prefetch={false}
+            className="hover:text-brand-700 dark:hover:text-amber-300"
+          >
+            {product.productName}
+          </Link>
         </h3>
 
         {/* Spec pills */}
