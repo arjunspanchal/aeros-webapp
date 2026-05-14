@@ -1,4 +1,6 @@
-// Category icon map — used as placeholder since catalog has no photos
+// Category icon map — fallback placeholder for products with no uploaded
+// photos. When a product has at least one entry in `images` we render that
+// instead (see ProductCard below).
 const CATEGORY_ICONS = {
   'Paper Cups': (
     <svg viewBox="0 0 64 64" fill="none" className="h-16 w-16" aria-hidden="true">
@@ -57,6 +59,12 @@ const DEFAULT_ICON = (
 
 export default function ProductCard({ product }) {
   const icon = CATEGORY_ICONS[product.category] || DEFAULT_ICON;
+  // Prefer an uploaded photo when available, fall back to the category icon
+  // placeholder. Photos come from master_product_photos via the airtable shim
+  // and resolve to public catalog-photos bucket URLs.
+  const heroImage = Array.isArray(product.images) && product.images.length > 0
+    ? product.images[0]
+    : null;
 
   const specs = [
     product.sizeVolume && { label: 'Size', value: product.sizeVolume },
@@ -71,9 +79,19 @@ export default function ProductCard({ product }) {
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:shadow-md dark:border-gray-800 dark:bg-gray-900">
-      {/* Icon area */}
-      <div className="flex items-center justify-center bg-brand-50 py-8 text-brand-300 transition group-hover:bg-brand-100 dark:bg-amber-900/30 dark:text-amber-400 dark:group-hover:bg-amber-900/50">
-        {icon}
+      {/* Hero area — uploaded photo when present, category icon as fallback. */}
+      <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-brand-50 text-brand-300 transition group-hover:bg-brand-100 dark:bg-amber-900/30 dark:text-amber-400 dark:group-hover:bg-amber-900/50">
+        {heroImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={heroImage.thumbnailUrl || heroImage.url}
+            alt={product.productName}
+            className="h-full w-full object-contain"
+            loading="lazy"
+          />
+        ) : (
+          icon
+        )}
       </div>
 
       {/* Body */}
