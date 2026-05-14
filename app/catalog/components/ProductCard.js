@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 // Category icon map — fallback placeholder for products with no uploaded
 // photos. When a product has at least one entry in `images` we render that
 // instead (see ProductCard below).
@@ -80,40 +82,26 @@ export default function ProductCard({ product }) {
   return (
     <div className="group flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition hover:shadow-md dark:border-gray-800 dark:bg-gray-900">
       {/* Hero area — uploaded photo when present, category icon as fallback.
-          When there's a photo, the whole tile is a link that opens the
-          full-resolution image in a new tab. */}
-      <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-brand-50 text-brand-300 transition group-hover:bg-brand-100 dark:bg-amber-900/30 dark:text-amber-400 dark:group-hover:bg-amber-900/50">
+          The whole tile is a Link to the product detail page (Amazon-style
+          card → detail navigation). */}
+      <Link
+        href={`/catalog/${product.id}`}
+        prefetch={false}
+        aria-label={`View ${product.productName} details`}
+        className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-brand-50 text-brand-300 transition group-hover:bg-brand-100 dark:bg-amber-900/30 dark:text-amber-400 dark:group-hover:bg-amber-900/50"
+      >
         {heroImage ? (
-          <a
-            href={heroImage.largeUrl || heroImage.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`View ${product.productName} image full size`}
-            className="block h-full w-full"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={heroImage.thumbnailUrl || heroImage.url}
-              alt={product.productName}
-              className="h-full w-full object-contain transition-transform group-hover:scale-[1.02]"
-              loading="lazy"
-            />
-            {/* Zoom-glass affordance — fades in on hover so the click target
-                reads as openable without crowding the resting state. */}
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-gray-700 opacity-0 shadow-sm ring-1 ring-black/5 transition group-hover:opacity-100 dark:bg-gray-900/85 dark:text-gray-200"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="7" />
-                <path strokeLinecap="round" d="M21 21l-4.3-4.3M8 11h6M11 8v6" />
-              </svg>
-            </span>
-          </a>
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={heroImage.thumbnailUrl || heroImage.url}
+            alt={product.productName}
+            className="h-full w-full object-contain transition-transform group-hover:scale-[1.02]"
+            loading="lazy"
+          />
         ) : (
           icon
         )}
-      </div>
+      </Link>
 
       {/* Body */}
       <div className="flex flex-1 flex-col p-4">
@@ -127,9 +115,16 @@ export default function ProductCard({ product }) {
           )}
         </div>
 
-        {/* Name */}
+        {/* Name — also linked to the detail page so the title is a click
+            target even when the user skips the image. */}
         <h3 className="mb-3 line-clamp-2 text-sm font-semibold text-gray-900 dark:text-white">
-          {product.productName}
+          <Link
+            href={`/catalog/${product.id}`}
+            prefetch={false}
+            className="hover:text-brand-700 dark:hover:text-amber-300"
+          >
+            {product.productName}
+          </Link>
         </h3>
 
         {/* Spec pills */}
