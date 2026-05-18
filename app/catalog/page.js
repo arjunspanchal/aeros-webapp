@@ -1,4 +1,4 @@
-import { fetchCatalog, getCatalogCategories } from '@/lib/catalog';
+import { fetchCatalog, getCatalogCategories, canManageCatalogue } from '@/lib/catalog';
 import { getSession } from '@/lib/hub/session';
 import ProductGrid from './components/ProductGrid';
 import AppHeader from '../components/AppHeader';
@@ -24,6 +24,12 @@ export default async function CatalogPage() {
 
   const categories = getCatalogCategories(products);
   const session = getSession();
+  // Mask the internal-notes field for non-staff viewers so it doesn't ship
+  // in the RSC payload to ProductGrid (a client component). The list cards
+  // never render notes, but RSC serialises every prop the client gets.
+  if (!canManageCatalogue(session)) {
+    products = products.map((p) => ({ ...p, notes: "" }));
+  }
 
   return (
     <>
