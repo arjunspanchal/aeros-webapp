@@ -11,9 +11,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+// The "what they do" taxonomy is intentionally short — at the show floor
+// you're triaging into broad buyer buckets, not classifying for a CRM
+// system. Old NRA leads captured under the longer list (Operator,
+// Disposables, etc.) still display their original value; the chip just
+// won't highlight as active when editing.
 const CATEGORIES = [
-  "Operator", "Distributor", "Disposables", "Packaging", "Equipment",
-  "Refrigeration", "Beverage", "Smallwares", "Cleaning", "POS / Tech", "Other",
+  "Cafe", "Restaurant", "Distributor", "Manufacturer",
 ];
 const INTERESTS = [
   "Marketplace", "Aeros Select", "Factory OS", "Show offer", "Just exploring",
