@@ -30,6 +30,18 @@ function clean(value, max = 500) {
   return value.trim().slice(0, max);
 }
 
+// Only accept URLs from our own Supabase Storage bucket. Empty string is
+// also valid (admin clearing the image).
+function cleanCardUrl(value) {
+  if (typeof value !== "string") return undefined;
+  const s = value.trim();
+  if (s === "") return "";
+  const supabaseUrl = process.env.SUPABASE_URL || "";
+  const allowedPrefix = `${supabaseUrl}/storage/v1/object/public/nra-card-images/`;
+  if (!s.startsWith(allowedPrefix)) return undefined;
+  return s.slice(0, 500);
+}
+
 function sanitizeInterests(list) {
   if (!Array.isArray(list)) return undefined;
   const seen = new Set();
@@ -92,6 +104,8 @@ export async function PATCH(request, { params }) {
   }
   const country = clean(body?.country, 60);
   if (country !== undefined) patch.country = country;
+  const cardUrl = cleanCardUrl(body?.card_image_url);
+  if (cardUrl !== undefined) patch.card_image_url = cardUrl;
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No editable fields supplied" }, { status: 400 });

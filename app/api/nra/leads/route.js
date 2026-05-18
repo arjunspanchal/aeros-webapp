@@ -31,6 +31,19 @@ function clean(value, max = 500) {
   return value.trim().slice(0, max);
 }
 
+// Only accept image URLs from our own Supabase Storage bucket. Defends
+// against a client sending an arbitrary URL (would let someone link a
+// random image to a lead row and have us serve it from the admin UI).
+function cleanUrl(value) {
+  if (typeof value !== "string") return "";
+  const s = value.trim();
+  if (!s) return "";
+  const supabaseUrl = process.env.SUPABASE_URL || "";
+  const allowedPrefix = `${supabaseUrl}/storage/v1/object/public/nra-card-images/`;
+  if (!s.startsWith(allowedPrefix)) return "";
+  return s.slice(0, 500);
+}
+
 function sanitizeInterests(list) {
   if (!Array.isArray(list)) return [];
   const seen = new Set();
@@ -91,6 +104,7 @@ export async function POST(request) {
     record_type: RECORD_TYPES.has(recordTypeRaw) ? recordTypeRaw : "exhibitor",
     priority: PRIORITIES.has(priorityRaw) ? priorityRaw : "P2",
     country: clean(body?.country, 60),
+    card_image_url: cleanUrl(body?.card_image_url),
     source,
     show: clean(body?.show, 40) || "nra-2026",
   };

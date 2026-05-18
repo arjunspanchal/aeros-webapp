@@ -98,29 +98,77 @@ export async function POST(request) {
   }
   const imageBuffer = Buffer.from(base64, "base64");
 
+  // Run OCR and upload in parallel — OCR usually takes 1-2s, upload usually
+  // 200-400ms. We need both before responding, so saving the latency.
+  let extracted, cardImageUrl;
   try {
-    const { object } = await generateObject({
-      model: anthropic("claude-sonnet-4-5"),
-      schema: CardSchema,
-      system: SYSTEM,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Extract the contact details from this business card." },
-            { type: "image", image: imageBuffer, mediaType },
-          ],
-        },
-      ],
-      temperature: 0,
-    });
-
-    return NextResponse.json({ extracted: object });
+    [extracted, cardImageUrl] = await Promise.all([
+      runOcr(imageBuffer, mediaType),
+      uploadCardImage(imageBuffer, mediaType).catch((e) => {
+        // Upload failure shouldn't kill the scan — return "" and let the
+        // lead save without an image. Log so we can debug later.
+        console.error("[nra/scan] upload failed:", e?.message || e);
+        return "";
+      }),
+    ]);
   } catch (e) {
-    // Hide raw provider errors (might leak the model id / API quirks).
     return NextResponse.json(
       { error: e?.message?.slice(0, 200) || "Scan failed" },
       { status: 500 },
     );
   }
+
+  return NextResponse.json({ extracted, card_image_url: cardImageUrl });
+}
+
+async function runOcr(imageBuffer, mediaType) {
+  const { object } = await generateObject({
+    model: anthropic("claude-sonnet-4-5"),
+    schema: CardSchema,
+    system: SYSTEM,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Extract the contact details from this business card." },
+          { type: "image", image: imageBuffer, mediaType },
+        ],
+      },
+    ],
+    temperature: 0,
+  });
+  return object;
+}
+
+// Upload the JPEG to the public `nra-card-images` Supabase Storage bucket.
+// Path is a random UUID so the URL is effectively unguessable. Bucket is
+// public-read so the admin UI can render the thumbnail without a signed URL.
+async function uploadCardImage(imageBuffer, mediaType) {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase storage not configured");
+  }
+  const ext = mediaType === "image/png" ? "png"
+            : mediaType === "image/webp" ? "webp"
+            : "jpg";
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const url = `${supabaseUrl}/storage/v1/object/nra-card-images/${path}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      apikey: supabaseKey,
+      Authorization: `Bearer ${supabaseKey}`,
+      "Content-Type": mediaType,
+      "x-upsert": "false",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
+    body: imageBuffer,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Storage upload ${res.status}: ${body.slice(0, 200)}`);
+  }
+  return `${supabaseUrl}/storage/v1/object/public/nra-card-images/${path}`;
 }
