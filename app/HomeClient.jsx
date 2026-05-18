@@ -141,7 +141,7 @@ export default function HomeClient({ session, footer }) {
                       NRA 2026 · Booth #12937
                     </h2>
                     <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-                      Lead capture for the show floor — visitor self-registration, owner-mode list/export, business-card scan.
+                      Scan business cards on the show floor — booth #, contact details, follow-up notes. Internal use only.
                     </p>
                   </div>
                   <span className="hidden sm:inline text-sm font-medium text-blue-700 group-hover:text-blue-800 dark:text-blue-400 dark:group-hover:text-blue-300 shrink-0">

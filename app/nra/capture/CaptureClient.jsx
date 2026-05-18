@@ -1,20 +1,14 @@
 "use client";
 
-// Trade-show lead capture. Three modes:
-//   - "form"   : visitor-facing self-registration (default)
-//   - "thanks" : success screen with vCard download + 10s auto-reset
-//   - "owner"  : private dashboard for Arjun (unlocked via 5 taps on the
-//                Aeros wordmark within 3 seconds, persisted in sessionStorage)
+// Internal lead-capture tool for NRA Show 2026. Two tabs:
+//   - "capture" : scan a business card OR fill the form manually  (default)
+//   - "list"    : every lead captured this show, with search + export
 //
-// Submissions POST to /api/nra/leads. If the network is down (or the API
-// errors), the payload is queued in localStorage under "aeros:nra2026:outbox"
-// and a background sweep retries on mount + on the `online` event. The
-// visitor never sees a failure.
-//
-// Owner mode reads/edits/deletes via /api/nra/leads — the API gates GET /
-// PATCH / DELETE on a staff-admin hub session. The 5-tap gesture is the UX
-// gate; the cookie is the real security boundary.
+// The page is gated server-side in page.jsx — anyone reaching this client
+// component is a verified staff admin. Submit POSTs to /api/nra/leads with
+// a localStorage outbox fallback in case the wifi at McCormick is patchy.
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const CATEGORIES = [
@@ -26,7 +20,6 @@ const INTERESTS = [
 ];
 
 const OUTBOX_KEY = "aeros:nra2026:outbox";
-const OWNER_FLAG = "aeros:nra2026:owner";
 const SHOW = "nra-2026";
 
 const EMPTY_FORM = {
@@ -35,11 +28,6 @@ const EMPTY_FORM = {
 };
 
 // ─── helpers ────────────────────────────────────────────────────────────────
-
-function firstName(full) {
-  if (!full) return "there";
-  return full.trim().split(/\s+/)[0] || "there";
-}
 
 function readOutbox() {
   if (typeof window === "undefined") return [];
@@ -81,20 +69,6 @@ async function flushOutbox() {
   writeOutbox(remaining);
 }
 
-function buildVCard() {
-  return [
-    "BEGIN:VCARD",
-    "VERSION:3.0",
-    "FN:Aeros",
-    "ORG:Aeros — Boson Machines OPC Pvt Ltd",
-    "EMAIL;TYPE=INTERNET:hello@aeros.io",
-    "URL:https://aeros.io",
-    "NOTE:Met at NRA Show 2026 · Booth #12937 · McCormick Place, Chicago · May 16–19",
-    "END:VCARD",
-    "",
-  ].join("\r\n");
-}
-
 function downloadFile(filename, content, mime) {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -116,7 +90,7 @@ function csvEscape(value) {
 function leadsToCsv(leads) {
   const headers = [
     "created_at", "name", "company", "role", "email", "phone",
-    "category", "booth", "interests", "notes", "source",
+    "category", "booth", "interests", "notes",
   ];
   const lines = [headers.join(",")];
   for (const l of leads) {
@@ -124,103 +98,96 @@ function leadsToCsv(leads) {
       l.created_at,
       l.name, l.company, l.role, l.email, l.phone,
       l.category, l.booth, (l.interests || []).join("; "),
-      l.notes, l.source,
+      l.notes,
     ].map(csvEscape).join(","));
   }
   return lines.join("\n");
 }
 
-// ─── tap-gesture hook ───────────────────────────────────────────────────────
-
-function useTapGesture(target, onTrigger) {
-  const taps = useRef([]);
-  return useCallback(() => {
-    const now = Date.now();
-    taps.current = taps.current.filter((t) => now - t < 3000);
-    taps.current.push(now);
-    if (taps.current.length >= target) {
-      taps.current = [];
-      onTrigger();
-    }
-  }, [target, onTrigger]);
+// Resize + recompress a captured image client-side. Phone cameras produce
+// 3000×4000 JPEGs that are wasteful for OCR — Claude only needs ~1600px on
+// the long edge to read 8pt print. Cuts upload bytes by ~10x.
+async function resizeImage(file, maxEdge = 1600, quality = 0.8) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width * scale);
+  const h = Math.round(bitmap.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
 }
 
-// ─── component ──────────────────────────────────────────────────────────────
+// ─── root component ─────────────────────────────────────────────────────────
 
-export default function CaptureClient() {
-  const [mode, setMode] = useState("form"); // form | thanks | owner
+export default function CaptureClient({ session }) {
+  const [tab, setTab] = useState("capture"); // capture | list
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
-  const [submittedName, setSubmittedName] = useState("");
-  const [countdown, setCountdown] = useState(10);
+  const [justSavedName, setJustSavedName] = useState("");
+
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [outboxCount, setOutboxCount] = useState(0);
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Owner-mode unlock via 5 taps on wordmark
-  const enterOwner = useCallback(() => {
-    try { window.sessionStorage.setItem(OWNER_FLAG, "1"); } catch {}
-    setMode("owner");
-  }, []);
-  const handleWordmarkTap = useTapGesture(5, enterOwner);
-
-  // Restore owner mode from sessionStorage on mount + flush outbox
-  useEffect(() => {
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
     try {
-      if (window.sessionStorage.getItem(OWNER_FLAG) === "1") setMode("owner");
-    } catch {}
+      const res = await fetch(`/api/nra/leads?show=${SHOW}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json();
+      setLeads(data.leads || []);
+    } catch (e) {
+      setLoadError(e?.message || "Failed to load leads");
+    } finally {
+      setLoading(false);
+      setOutboxCount(readOutbox().length);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
     flushOutbox().catch(() => {});
-    const onOnline = () => flushOutbox().catch(() => {});
+    const onOnline = () => {
+      flushOutbox().then(refresh).catch(() => {});
+    };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-  }, []);
-
-  // Thanks-screen 10s countdown → reset to fresh form
-  useEffect(() => {
-    if (mode !== "thanks") return;
-    setCountdown(10);
-    const id = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          clearInterval(id);
-          resetToForm();
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [mode]);
-
-  function resetToForm() {
-    setForm(EMPTY_FORM);
-    setSubmittedName("");
-    setMode("form");
-  }
+  }, [refresh]);
 
   function validate() {
-    if (!form.name.trim()) return "Please enter your name.";
-    if (!form.company.trim()) return "Please enter your company.";
-    if (!form.email.trim()) return "Please enter your email.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "That email doesn't look right.";
+    if (!form.name.trim()) return "Please enter a name.";
+    if (!form.company.trim()) return "Please enter a company.";
+    const email = form.email.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return "Email looks off — leave it blank if unsure.";
+    }
     return null;
   }
 
-  async function handleSubmit(e, source = "self") {
+  async function handleSave(e) {
     e?.preventDefault?.();
     if (submitting) return;
     const err = validate();
     if (err) { alert(err); return; }
     setSubmitting(true);
     const payload = {
-      ...form,
       name: form.name.trim(),
       company: form.company.trim(),
       role: form.role.trim(),
       email: form.email.trim(),
       phone: form.phone.trim(),
       booth: form.booth.trim(),
+      category: form.category,
+      interests: form.interests,
       notes: form.notes.trim(),
-      source,
+      source: "owner",
       show: SHOW,
     };
     try {
@@ -233,65 +200,47 @@ export default function CaptureClient() {
     } catch {
       pushToOutbox(payload);
     } finally {
-      setSubmittedName(form.name);
-      if (source === "owner") {
-        // Owner-added lead — stay in owner mode, just clear the form.
-        setForm(EMPTY_FORM);
-        setSubmitting(false);
-      } else {
-        setSubmitting(false);
-        setMode("thanks");
-      }
+      setJustSavedName(form.name);
+      setForm(EMPTY_FORM);
+      setSubmitting(false);
+      setOutboxCount(readOutbox().length);
+      // Background refresh — no need to block the UI.
+      refresh().catch(() => {});
+      // Clear the toast after 4s.
+      setTimeout(() => setJustSavedName(""), 4000);
     }
-  }
-
-  function handleSaveVCard() {
-    downloadFile("aeros.vcf", buildVCard(), "text/vcard;charset=utf-8");
-  }
-
-  function exitOwner() {
-    try { window.sessionStorage.removeItem(OWNER_FLAG); } catch {}
-    resetToForm();
   }
 
   return (
     <div className="min-h-screen bg-ink-50 text-ink-800">
-      <Header
-        mode={mode}
-        onWordmarkTap={handleWordmarkTap}
-        onExitOwner={exitOwner}
-      />
+      <Header session={session} totalLeads={leads.length} outboxCount={outboxCount} />
 
-      {mode === "form" && (
-        <FormView
-          form={form}
-          setField={setField}
-          onSubmit={(e) => handleSubmit(e, "self")}
-          submitting={submitting}
-        />
-      )}
+      <div className="mx-auto max-w-3xl px-5 pt-4">
+        <TabBar tab={tab} setTab={setTab} />
+      </div>
 
-      {mode === "thanks" && (
-        <ThanksView
-          name={submittedName}
-          countdown={countdown}
-          onAnother={resetToForm}
-          onSaveVCard={handleSaveVCard}
-        />
-      )}
-
-      {mode === "owner" && (
-        <OwnerView
+      {tab === "capture" && (
+        <CaptureView
           form={form}
           setField={setField}
           setForm={setForm}
-          onAddOwnerLead={(e) => handleSubmit(e, "owner")}
+          onSave={handleSave}
           submitting={submitting}
+          justSavedName={justSavedName}
+        />
+      )}
+
+      {tab === "list" && (
+        <ListView
+          leads={leads}
+          loading={loading}
+          loadError={loadError}
+          refresh={refresh}
         />
       )}
 
       <footer className="border-t border-ink-200 px-5 py-6 text-center font-mono text-[11px] uppercase tracking-wider text-ink-400">
-        Aeros · NRA 2026 · Booth 12937
+        Aeros · NRA 2026 · Booth #12937 · McCormick Place · 16–19 May
       </footer>
     </div>
   );
@@ -299,107 +248,135 @@ export default function CaptureClient() {
 
 // ─── header ─────────────────────────────────────────────────────────────────
 
-function Header({ mode, onWordmarkTap, onExitOwner }) {
+function Header({ session, totalLeads, outboxCount }) {
   return (
     <header className="sticky top-0 z-40 border-b border-ink-200 bg-ink-50/95 backdrop-blur supports-[backdrop-filter]:bg-ink-50/80">
       <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-5">
-        <button
-          type="button"
-          onClick={onWordmarkTap}
-          className="select-none font-logo text-[14px] font-semibold uppercase tracking-[0.06em] text-ink-900 active:opacity-70"
-          aria-label="Aeros"
+        <Link
+          href="/hub"
+          className="font-logo text-[14px] font-semibold uppercase tracking-[0.06em] text-ink-900 active:opacity-70"
         >
-          <span className="text-ink-400">/</span> AEROS
-        </button>
-        {mode === "owner" ? (
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
-              Owner mode
-            </span>
-            <button
-              type="button"
-              onClick={onExitOwner}
-              className="rounded-md border border-ink-200 bg-white px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-ink-800 active:bg-ink-100"
-            >
-              Exit
-            </button>
+          <span className="text-ink-400">/</span> AEROS · NRA list
+        </Link>
+        <div className="text-right">
+          <div className="font-mono text-[11px] uppercase tracking-wider text-ink-900">
+            {totalLeads} leads
+            {outboxCount > 0 && (
+              <span className="ml-1 text-ink-400">+{outboxCount} queued</span>
+            )}
           </div>
-        ) : (
-          <div className="text-right">
-            <div className="font-mono text-[11px] uppercase tracking-wider text-ink-900">
-              NRA 2026 · Booth #12937
-            </div>
+          {session?.email && (
             <div className="font-mono text-[10px] uppercase tracking-wider text-ink-400">
-              Say hello
+              {session.email}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </header>
   );
 }
 
-// ─── form view ──────────────────────────────────────────────────────────────
-
-function FormView({ form, setField, onSubmit, submitting }) {
-  const fresh = !form.name && !form.company && !form.email;
+function TabBar({ tab, setTab }) {
   return (
-    <main className="mx-auto max-w-xl px-5 pb-16 pt-8">
-      {fresh && (
-        <section className="mb-10">
-          <h1 className="font-sans text-[40px] font-bold leading-[1.05] tracking-[-0.025em] text-ink-900">
-            Let&apos;s stay in touch.
-          </h1>
-          <p className="mt-4 text-[16px] leading-relaxed text-ink-600">
-            Drop your details and we&apos;ll follow up after the show with
-            anything you wanted to hear more about.
-          </p>
-        </section>
+    <div className="mb-4 flex gap-2">
+      <button
+        type="button"
+        onClick={() => setTab("capture")}
+        className={
+          "rounded-md border px-4 py-2 font-mono text-[11px] uppercase tracking-wider " +
+          (tab === "capture"
+            ? "border-ink-900 bg-ink-900 text-white"
+            : "border-ink-200 bg-white text-ink-800")
+        }
+      >
+        + Capture
+      </button>
+      <button
+        type="button"
+        onClick={() => setTab("list")}
+        className={
+          "rounded-md border px-4 py-2 font-mono text-[11px] uppercase tracking-wider " +
+          (tab === "list"
+            ? "border-ink-900 bg-ink-900 text-white"
+            : "border-ink-200 bg-white text-ink-800")
+        }
+      >
+        NRA list
+      </button>
+    </div>
+  );
+}
+
+// ─── capture view (scan + form) ────────────────────────────────────────────
+
+function CaptureView({ form, setField, setForm, onSave, submitting, justSavedName }) {
+  return (
+    <main className="mx-auto max-w-xl px-5 pb-16">
+      {justSavedName && (
+        <div className="mb-4 rounded-lg border border-ink-900 bg-ink-900 px-4 py-3 text-[14px] font-semibold text-white">
+          ✓ Saved {justSavedName}
+        </div>
       )}
 
-      <form onSubmit={onSubmit}>
+      <CardScanner
+        onScanned={(extracted) => {
+          // Merge into the form; only overwrite empty fields so a typed
+          // value never gets clobbered by a re-scan.
+          const merge = (k) => extracted[k] && !form[k] ? extracted[k] : form[k];
+          setForm({
+            ...form,
+            name:    merge("name"),
+            company: merge("company"),
+            role:    merge("role"),
+            email:   merge("email"),
+            phone:   merge("phone"),
+            booth:   merge("booth"),
+            notes:   extracted.notes && !form.notes ? extracted.notes : form.notes,
+          });
+        }}
+      />
+
+      <form onSubmit={onSave} className="mt-2">
         <FormFields form={form} setField={setField} />
-        <div className="mt-8">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-lg bg-ink-900 px-5 py-4 text-[16px] font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-60"
-          >
-            {submitting ? "Sending…" : "Submit"}
-          </button>
-          <p className="mt-3 text-center text-[13px] text-ink-400">
-            We&apos;ll only use this to follow up about Aeros.
-          </p>
-        </div>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="mt-6 w-full rounded-lg bg-ink-900 px-5 py-4 text-[16px] font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-60"
+        >
+          {submitting ? "Saving…" : "Save lead"}
+        </button>
       </form>
     </main>
   );
 }
 
-// Shared form fields, used in both visitor mode and owner-add mode. The
-// caller wraps these in a <form onSubmit={...}> with a submit button.
-// `perspective` flips field copy: "self" reads like "your name / your booth"
-// for a visitor self-registering; "owner" reads like "name / their booth #"
-// for Arjun logging exhibitors he meets on the floor.
-function FormFields({ form, setField, perspective = "self" }) {
-  const owner = perspective === "owner";
+// ─── form fields ────────────────────────────────────────────────────────────
+
+function FormFields({ form, setField }) {
   return (
     <div className="space-y-5">
       <Field
-        label={owner ? "Name" : "Your name"}
-        required
+        label="Name *"
         value={form.name}
         onChange={(v) => setField("name", v)}
         autoComplete="name"
         autoCapitalize="words"
         spellCheck={false}
+        required
       />
       <Field
-        label="Company"
-        required
+        label="Company *"
         value={form.company}
         onChange={(v) => setField("company", v)}
         autoComplete="organization"
+        required
+      />
+      <Field
+        label="Their booth #"
+        value={form.booth}
+        onChange={(v) => setField("booth", v)}
+        inputMode="numeric"
+        placeholder="e.g. 12937"
       />
       <Field
         label="Role"
@@ -410,13 +387,13 @@ function FormFields({ form, setField, perspective = "self" }) {
       />
       <Field
         label="Email"
-        required
         type="email"
         value={form.email}
         onChange={(v) => setField("email", v)}
         autoComplete="email"
         inputMode="email"
         spellCheck={false}
+        placeholder="Optional — leave blank if you don't have it"
       />
       <Field
         label="Phone"
@@ -426,17 +403,10 @@ function FormFields({ form, setField, perspective = "self" }) {
         inputMode="tel"
         placeholder="Optional"
       />
-      <Field
-        label={owner ? "Their booth #" : "Your booth (if exhibiting)"}
-        value={form.booth}
-        onChange={(v) => setField("booth", v)}
-        inputMode="numeric"
-        placeholder="Optional"
-      />
 
       <fieldset className="space-y-2">
         <legend className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
-          {owner ? "What they do" : "What you do"}
+          What they do
         </legend>
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.map((c) => {
@@ -462,7 +432,7 @@ function FormFields({ form, setField, perspective = "self" }) {
 
       <fieldset className="space-y-2">
         <legend className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
-          {owner ? "Topics to follow up on" : "Want to hear about"}
+          Topics to follow up on
         </legend>
         <p className="text-[13px] text-ink-400">Pick all that apply</p>
         <div className="flex flex-wrap gap-2">
@@ -494,25 +464,25 @@ function FormFields({ form, setField, perspective = "self" }) {
 
       <div>
         <label className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-ink-400">
-          Anything else?
+          Notes
         </label>
         <textarea
           value={form.notes}
           onChange={(e) => setField("notes", e.target.value)}
           rows={3}
           className="w-full rounded-lg border border-ink-200 bg-white px-3 py-3 text-[16px] text-ink-800 placeholder:text-ink-400 focus:border-ink-800 focus:outline-none"
-          placeholder="Optional"
+          placeholder="What did they care about? What did you promise to follow up on?"
         />
       </div>
     </div>
   );
 }
 
-function Field({ label, required, value, onChange, type = "text", ...rest }) {
+function Field({ label, value, onChange, type = "text", required, ...rest }) {
   return (
     <div>
       <label className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-ink-400">
-        {label}{required ? " *" : ""}
+        {label}
       </label>
       <input
         type={type}
@@ -526,106 +496,22 @@ function Field({ label, required, value, onChange, type = "text", ...rest }) {
   );
 }
 
-// ─── thanks view ────────────────────────────────────────────────────────────
+// ─── list view ──────────────────────────────────────────────────────────────
 
-function ThanksView({ name, countdown, onAnother, onSaveVCard }) {
-  return (
-    <main className="mx-auto max-w-xl px-5 pb-16 pt-12">
-      <div className="flex flex-col items-center text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-ink-900">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </div>
-        <h1 className="mt-6 font-sans text-[36px] font-bold leading-[1.1] tracking-[-0.025em] text-ink-900">
-          Thanks, {firstName(name)}.
-        </h1>
-        <p className="mt-3 max-w-sm text-[16px] leading-relaxed text-ink-600">
-          We&apos;ll follow up after the show with what you wanted to hear about.
-        </p>
-      </div>
-
-      <div className="mt-10 rounded-lg border border-ink-200 bg-white p-5">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
-          Find us
-        </div>
-        <div className="mt-2 font-sans text-[18px] font-bold text-ink-900">
-          Aeros · Booth #12937
-        </div>
-        <div className="mt-1 text-[14px] text-ink-600">
-          McCormick Place, Chicago · May 16–19
-        </div>
-      </div>
-
-      <div className="mt-6 space-y-3">
-        <button
-          type="button"
-          onClick={onSaveVCard}
-          className="w-full rounded-lg bg-ink-900 px-5 py-4 text-[16px] font-semibold text-white transition-opacity active:opacity-80"
-        >
-          Save Aeros to your contacts
-        </button>
-        <button
-          type="button"
-          onClick={onAnother}
-          className="w-full rounded-lg border border-ink-200 bg-white px-5 py-4 text-[16px] font-semibold text-ink-800 transition-colors active:bg-ink-100"
-        >
-          Register someone else
-        </button>
-      </div>
-
-      <p className="mt-6 text-center font-mono text-[11px] uppercase tracking-wider text-ink-400">
-        Resetting in {countdown}s
-      </p>
-    </main>
-  );
-}
-
-// ─── owner view ─────────────────────────────────────────────────────────────
-
-function OwnerView({ form, setField, setForm, onAddOwnerLead, submitting }) {
-  const [tab, setTab] = useState("list"); // list | add
-  const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+function ListView({ leads, loading, loadError, refresh }) {
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editPatch, setEditPatch] = useState(null);
   const [exportOpen, setExportOpen] = useState(false);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setLoadError("");
-    try {
-      const res = await fetch(`/api/nra/leads?show=${SHOW}`, { cache: "no-store" });
-      if (res.status === 401) {
-        setLoadError("Sign in to the Aeros hub as an admin to see leads.");
-        setLeads([]);
-      } else if (!res.ok) {
-        throw new Error(String(res.status));
-      } else {
-        const data = await res.json();
-        setLeads(data.leads || []);
-      }
-    } catch (e) {
-      setLoadError(e?.message || "Failed to load leads");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return leads;
-    return leads.filter((l) => {
-      return [l.name, l.company, l.role, l.email, l.phone, l.category, l.notes]
-        .some((v) => (v || "").toLowerCase().includes(q));
-    });
+    return leads.filter((l) =>
+      [l.name, l.company, l.role, l.email, l.phone, l.category, l.booth, l.notes]
+        .some((v) => (v || "").toLowerCase().includes(q))
+    );
   }, [leads, query]);
-
-  const outboxCount = typeof window !== "undefined" ? readOutbox().length : 0;
 
   async function handleSave(id) {
     if (!editPatch) return;
@@ -687,26 +573,20 @@ function OwnerView({ form, setField, setForm, onAddOwnerLead, submitting }) {
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-5 pb-16 pt-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
-            Captured leads
-          </div>
-          <div className="font-sans text-[28px] font-bold leading-[1.1] tracking-[-0.02em] text-ink-900">
-            {loading ? "…" : leads.length}
-            {outboxCount > 0 && (
-              <span className="ml-2 align-middle font-mono text-[11px] uppercase tracking-wider text-ink-400">
-                +{outboxCount} queued
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="relative">
+    <main className="mx-auto max-w-3xl px-5 pb-16">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search name, company, booth…"
+          className="flex-1 rounded-lg border border-ink-200 bg-white px-3 py-3 text-[16px] text-ink-800 placeholder:text-ink-400 focus:border-ink-800 focus:outline-none"
+        />
+        <div className="relative shrink-0">
           <button
             type="button"
             onClick={() => setExportOpen((o) => !o)}
-            className="rounded-md border border-ink-200 bg-white px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-ink-800 active:bg-ink-100"
+            className="rounded-md border border-ink-200 bg-white px-3 py-3 font-mono text-[11px] uppercase tracking-wider text-ink-800 active:bg-ink-100"
           >
             Export ▾
           </button>
@@ -733,105 +613,42 @@ function OwnerView({ form, setField, setForm, onAddOwnerLead, submitting }) {
         </div>
       </div>
 
-      <div className="mb-4 flex gap-2">
-        <button
-          type="button"
-          onClick={() => setTab("list")}
-          className={"rounded-md border px-3 py-2 font-mono text-[11px] uppercase tracking-wider " + (tab === "list" ? "border-ink-900 bg-ink-900 text-white" : "border-ink-200 bg-white text-ink-800")}
-        >
-          List
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("add")}
-          className={"rounded-md border px-3 py-2 font-mono text-[11px] uppercase tracking-wider " + (tab === "add" ? "border-ink-900 bg-ink-900 text-white" : "border-ink-200 bg-white text-ink-800")}
-        >
-          + Add lead
-        </button>
-      </div>
-
-      {tab === "list" && (
-        <>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search name, company, email…"
-            className="mb-4 w-full rounded-lg border border-ink-200 bg-white px-3 py-3 text-[16px] text-ink-800 placeholder:text-ink-400 focus:border-ink-800 focus:outline-none"
-          />
-
-          {loading && <p className="text-[14px] text-ink-400">Loading…</p>}
-          {loadError && (
-            <div className="rounded-lg border border-ink-200 bg-white p-4 text-[14px] text-ink-800">
-              <p className="font-semibold">Couldn&apos;t load leads.</p>
-              <p className="mt-1 text-ink-400">{loadError}</p>
-            </div>
-          )}
-
-          {!loading && !loadError && filtered.length === 0 && (
-            <p className="text-[14px] text-ink-400">
-              {leads.length === 0 ? "No leads yet." : "No leads match that search."}
-            </p>
-          )}
-
-          <ul className="space-y-3">
-            {filtered.map((l) => (
-              <li key={l.id} className="rounded-lg border border-ink-200 bg-white p-4">
-                {editingId === l.id ? (
-                  <EditCard
-                    initial={l}
-                    patch={editPatch}
-                    setPatch={setEditPatch}
-                    onCancel={() => { setEditingId(null); setEditPatch(null); }}
-                    onSave={() => handleSave(l.id)}
-                  />
-                ) : (
-                  <LeadCard
-                    lead={l}
-                    onEdit={() => { setEditingId(l.id); setEditPatch({ ...l }); }}
-                    onDelete={() => handleDelete(l.id)}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {tab === "add" && (
-        <div>
-          <p className="mb-4 text-[14px] text-ink-600">
-            Add a lead you met on the floor. Tagged as owner-added.
-          </p>
-          <CardScanner
-            onScanned={(extracted) => {
-              // Merge into the form, but only overwrite empty fields so the
-              // user's typing never gets clobbered by a re-scan.
-              const merge = (k) => extracted[k] && !form[k] ? extracted[k] : form[k];
-              setForm({
-                ...form,
-                name:    merge("name"),
-                company: merge("company"),
-                role:    merge("role"),
-                email:   merge("email"),
-                phone:   merge("phone"),
-                booth:   merge("booth"),
-                notes:   extracted.notes && !form.notes ? extracted.notes : form.notes,
-              });
-            }}
-          />
-          <form onSubmit={onAddOwnerLead}>
-            <FormFields form={form} setField={setField} perspective="owner" />
-            <button
-              type="submit"
-              disabled={submitting}
-              className="mt-6 w-full rounded-lg bg-ink-900 px-5 py-4 text-[16px] font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-60"
-            >
-              {submitting ? "Saving…" : "Save lead"}
-            </button>
-          </form>
+      {loading && <p className="text-[14px] text-ink-400">Loading…</p>}
+      {loadError && (
+        <div className="rounded-lg border border-ink-200 bg-white p-4 text-[14px] text-ink-800">
+          <p className="font-semibold">Couldn&apos;t load leads.</p>
+          <p className="mt-1 text-ink-400">{loadError}</p>
         </div>
       )}
+
+      {!loading && !loadError && filtered.length === 0 && (
+        <p className="text-[14px] text-ink-400">
+          {leads.length === 0
+            ? "No leads captured yet. Switch to + Capture to add the first one."
+            : "No leads match that search."}
+        </p>
+      )}
+
+      <ul className="space-y-3">
+        {filtered.map((l) => (
+          <li key={l.id} className="rounded-lg border border-ink-200 bg-white p-4">
+            {editingId === l.id ? (
+              <EditCard
+                patch={editPatch}
+                setPatch={setEditPatch}
+                onCancel={() => { setEditingId(null); setEditPatch(null); }}
+                onSave={() => handleSave(l.id)}
+              />
+            ) : (
+              <LeadCard
+                lead={l}
+                onEdit={() => { setEditingId(l.id); setEditPatch({ ...l }); }}
+                onDelete={() => handleDelete(l.id)}
+              />
+            )}
+          </li>
+        ))}
+      </ul>
     </main>
   );
 }
@@ -844,25 +661,31 @@ function LeadCard({ lead, onEdit, onDelete }) {
     <div>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="truncate font-sans text-[16px] font-semibold text-ink-900">{lead.name}</span>
-            <span className={"rounded-md border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider " + (lead.source === "owner" ? "border-ink-800 bg-ink-800 text-white" : "border-ink-200 text-ink-400")}>
-              {lead.source}
-            </span>
-          </div>
+          <div className="truncate font-sans text-[16px] font-semibold text-ink-900">{lead.name}</div>
           <div className="mt-0.5 truncate text-[14px] text-ink-600">
             {lead.company}{lead.role ? ` · ${lead.role}` : ""}
           </div>
         </div>
-        <div className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-ink-400">
-          {date}
+        <div className="shrink-0 text-right">
+          {lead.booth && (
+            <div className="font-mono text-[11px] uppercase tracking-wider text-ink-900">
+              Booth {lead.booth}
+            </div>
+          )}
+          <div className="font-mono text-[10px] uppercase tracking-wider text-ink-400">
+            {date}
+          </div>
         </div>
       </div>
       <div className="mt-2 space-y-0.5 text-[13px] text-ink-600">
-        <div className="break-all">{lead.email}{lead.phone ? ` · ${lead.phone}` : ""}</div>
-        {(lead.category || lead.booth) && (
-          <div>
-            {lead.category}{lead.category && lead.booth ? " · " : ""}{lead.booth ? `Booth ${lead.booth}` : ""}
+        {(lead.email || lead.phone) && (
+          <div className="break-all">
+            {lead.email}{lead.email && lead.phone ? " · " : ""}{lead.phone}
+          </div>
+        )}
+        {lead.category && (
+          <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
+            {lead.category}
           </div>
         )}
         {Array.isArray(lead.interests) && lead.interests.length > 0 && (
@@ -897,12 +720,12 @@ function EditCard({ patch, setPatch, onCancel, onSave }) {
   const set = (k, v) => setPatch({ ...patch, [k]: v });
   return (
     <div className="space-y-3">
-      <Field label="Name" required value={patch.name} onChange={(v) => set("name", v)} />
-      <Field label="Company" required value={patch.company} onChange={(v) => set("company", v)} />
+      <Field label="Name *" value={patch.name} onChange={(v) => set("name", v)} required />
+      <Field label="Company *" value={patch.company} onChange={(v) => set("company", v)} required />
+      <Field label="Booth #" value={patch.booth || ""} onChange={(v) => set("booth", v)} inputMode="numeric" />
       <Field label="Role" value={patch.role || ""} onChange={(v) => set("role", v)} />
-      <Field label="Email" type="email" value={patch.email} onChange={(v) => set("email", v)} />
+      <Field label="Email" type="email" value={patch.email || ""} onChange={(v) => set("email", v)} />
       <Field label="Phone" value={patch.phone || ""} onChange={(v) => set("phone", v)} />
-      <Field label="Booth" value={patch.booth || ""} onChange={(v) => set("booth", v)} />
       <div>
         <label className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-ink-400">Notes</label>
         <textarea
@@ -934,17 +757,15 @@ function EditCard({ patch, setPatch, onCancel, onSave }) {
 
 // ─── card scanner ───────────────────────────────────────────────────────────
 
-// Wraps a hidden <input type="file" capture="environment"> so a tap launches
-// the rear camera on iOS Safari and Chrome Android. After capture we resize
-// the image client-side (network is unreliable at McCormick), POST to
-// /api/nra/leads/scan, and call onScanned with the extracted fields.
-//
-// Always lets the user review before saving — OCR isn't perfect.
+// Hidden <input type="file" capture="environment"> opens the rear camera on
+// iOS Safari and Chrome Android. After capture we downscale client-side
+// (network is unreliable at McCormick), POST to /api/nra/leads/scan, and
+// hand the extracted fields up via onScanned.
 function CardScanner({ onScanned }) {
   const inputRef = useRef(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
-  const [warn, setWarn] = useState(""); // low-confidence warning
+  const [warn, setWarn] = useState("");
 
   async function handleFile(file) {
     if (!file) return;
@@ -959,10 +780,10 @@ function CardScanner({ onScanned }) {
         body: JSON.stringify({ image: dataUrl }),
       });
       if (res.status === 401) {
-        throw new Error("Owner mode required (sign in as admin).");
+        throw new Error("Session expired — sign in again.");
       }
       if (res.status === 503) {
-        throw new Error("Card scanner not configured yet.");
+        throw new Error("Card scanner not configured (ANTHROPIC_API_KEY missing).");
       }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -977,23 +798,17 @@ function CardScanner({ onScanned }) {
       setError(e?.message || "Scan failed. Try again or fill manually.");
     } finally {
       setScanning(false);
-      // Reset input so the same file can be re-selected next time.
       if (inputRef.current) inputRef.current.value = "";
     }
   }
 
   return (
-    <div className="mb-4 rounded-lg border border-dashed border-ink-200 bg-white p-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
-          Quick add
-        </div>
-      </div>
+    <div className="mb-6 rounded-lg border border-dashed border-ink-200 bg-white p-4">
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={scanning}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-ink-900 px-4 py-3 text-[15px] font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-ink-900 px-4 py-4 text-[16px] font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-60"
       >
         {scanning ? (
           <>
@@ -1002,7 +817,7 @@ function CardScanner({ onScanned }) {
           </>
         ) : (
           <>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
               <circle cx="12" cy="13" r="4" />
             </svg>
@@ -1018,8 +833,8 @@ function CardScanner({ onScanned }) {
         className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0])}
       />
-      <p className="mt-2 text-[12px] text-ink-400">
-        Snap the card with your rear camera. You can edit anything before saving.
+      <p className="mt-2 text-center text-[12px] text-ink-400">
+        Or type the details below. Booth # is the field that&apos;ll matter most later.
       </p>
       {warn && (
         <p className="mt-2 rounded-md border border-ink-200 bg-ink-50 px-3 py-2 text-[12px] text-ink-800">
@@ -1033,20 +848,4 @@ function CardScanner({ onScanned }) {
       )}
     </div>
   );
-}
-
-// Resize + recompress a captured image client-side. Phone cameras produce
-// 3000×4000 JPEGs that are wasteful for OCR — Claude only needs ~1600px on
-// the long edge to read 8pt print. Cuts upload bytes by ~10x.
-async function resizeImage(file, maxEdge = 1600, quality = 0.8) {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
-  const w = Math.round(bitmap.width * scale);
-  const h = Math.round(bitmap.height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(bitmap, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", quality);
 }
