@@ -33,6 +33,7 @@ const EMPTY_FORM = {
   name: "", company: "", role: "", email: "", phone: "",
   category: "", booth: "", interests: [], notes: "",
   record_type: "exhibitor", priority: "P2", country: "",
+  card_image_url: "",
 };
 
 // ─── country code → country lookup ──────────────────────────────────────────
@@ -148,6 +149,7 @@ function leadsToCsv(leads) {
   const headers = [
     "created_at", "record_type", "priority", "name", "company", "role",
     "email", "phone", "country", "category", "booth", "interests", "notes",
+    "card_image_url",
   ];
   const lines = [headers.join(",")];
   for (const l of leads) {
@@ -158,6 +160,7 @@ function leadsToCsv(leads) {
       l.email, l.phone, l.country,
       l.category, l.booth, (l.interests || []).join("; "),
       l.notes,
+      l.card_image_url,
     ].map(csvEscape).join(","));
   }
   return lines.join("\n");
@@ -260,6 +263,7 @@ export default function CaptureClient({ session }) {
       record_type: form.record_type,
       priority: form.priority,
       country: form.country.trim(),
+      card_image_url: form.card_image_url,
       source: "owner",
       show: SHOW,
     };
@@ -408,10 +412,13 @@ function CaptureView({ form, setField, setForm, onSave, submitting, justSavedNam
       )}
 
       <CardScanner
-        onScanned={(extracted) => {
+        cardImageUrl={form.card_image_url}
+        onClearImage={() => setForm({ ...form, card_image_url: "" })}
+        onScanned={(extracted, cardImageUrl) => {
           // Merge into the form; only overwrite empty fields so a typed
           // value never gets clobbered by a re-scan. Country is derived
-          // from phone if the scan didn't return one explicitly.
+          // from phone if the scan didn't return one explicitly. The card
+          // image URL always wins on re-scan (latest photo is canonical).
           const merge = (k) => extracted[k] && !form[k] ? extracted[k] : form[k];
           const scannedCountry = extracted.country || detectCountry(extracted.phone || "");
           setForm({
@@ -424,6 +431,7 @@ function CaptureView({ form, setField, setForm, onSave, submitting, justSavedNam
             booth:   merge("booth"),
             country: scannedCountry && !form.country ? scannedCountry : form.country,
             notes:   extracted.notes && !form.notes ? extracted.notes : form.notes,
+            card_image_url: cardImageUrl || form.card_image_url,
           });
         }}
       />
@@ -812,7 +820,23 @@ function LeadCard({ lead, onEdit, onDelete }) {
     ? new Date(lead.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : "";
   return (
-    <div>
+    <div className="flex gap-3">
+      {lead.card_image_url && (
+        <a
+          href={lead.card_image_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lead.card_image_url}
+            alt={`${lead.name || "Lead"} business card`}
+            className="h-14 w-14 rounded-md border border-ink-200 object-cover"
+          />
+        </a>
+      )}
+      <div className="min-w-0 flex-1">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -888,6 +912,7 @@ function LeadCard({ lead, onEdit, onDelete }) {
         >
           Delete
         </button>
+      </div>
       </div>
     </div>
   );
@@ -980,7 +1005,7 @@ function EditCard({ patch, setPatch, onCancel, onSave }) {
 // iOS Safari and Chrome Android. After capture we downscale client-side
 // (network is unreliable at McCormick), POST to /api/nra/leads/scan, and
 // hand the extracted fields up via onScanned.
-function CardScanner({ onScanned }) {
+function CardScanner({ onScanned, cardImageUrl, onClearImage }) {
   const inputRef = useRef(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
@@ -1008,8 +1033,10 @@ function CardScanner({ onScanned }) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.error || `Scan failed (${res.status})`);
       }
-      const { extracted } = await res.json();
-      onScanned(extracted);
+      const payload = await res.json();
+      const extracted = payload.extracted || {};
+      const cardImageUrl = payload.card_image_url || "";
+      onScanned(extracted, cardImageUrl);
       if (extracted.confidence === "low") {
         setWarn("Low confidence — double-check the fields below.");
       }
@@ -1055,6 +1082,40 @@ function CardScanner({ onScanned }) {
       <p className="mt-2 text-center text-[12px] text-ink-400">
         Or type the details below. Booth # is the field that&apos;ll matter most later.
       </p>
+      {cardImageUrl && (
+        <div className="mt-3 flex items-start gap-3 rounded-md border border-ink-200 bg-ink-50 px-3 py-2">
+          <a
+            href={cardImageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cardImageUrl}
+              alt="Scanned card"
+              className="h-16 w-16 rounded border border-ink-200 object-cover"
+            />
+          </a>
+          <div className="min-w-0 flex-1">
+            <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
+              Card image saved
+            </div>
+            <div className="mt-0.5 text-[12px] text-ink-600">
+              Tap to view full size.
+            </div>
+            {onClearImage && (
+              <button
+                type="button"
+                onClick={onClearImage}
+                className="mt-1 font-mono text-[11px] uppercase tracking-wider text-ink-400 underline active:text-ink-800"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {warn && (
         <p className="mt-2 rounded-md border border-ink-200 bg-ink-50 px-3 py-2 text-[12px] text-ink-800">
           {warn}
