@@ -8,8 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CATEGORIES = new Set([
-  "Operator", "Distributor", "Disposables", "Packaging", "Equipment",
-  "Refrigeration", "Beverage", "Smallwares", "Cleaning", "POS / Tech", "Other",
+  "Cafe", "Restaurant", "Distributor", "Manufacturer",
 ]);
 const INTERESTS = new Set([
   "Marketplace", "Aeros Select", "Factory OS", "Show offer", "Just exploring",
