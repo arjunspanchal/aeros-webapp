@@ -518,6 +518,7 @@ const html = `<!DOCTYPE html>
           <span class="card-tag">Co-founder</span>
         </div>
         <div class="card-row"><span class="lbl">Phone</span><span class="val">+91 84335 36369</span></div>
+        <div class="card-row"><span class="lbl">US phone</span><span class="val"><a href="tel:+13124463981" style="color: var(--ink); text-decoration: underline;">+1 (312) 446 3981</a> · <span style="color: var(--muted); font-size: 12px;">valid 10 days only</span></span></div>
         <div class="card-row"><span class="lbl">Email</span><span class="val">arjun@aeros-x.com</span></div>
         <div class="card-row"><span class="lbl">Passport</span><span class="val"><span class="placeholder">last 4 — fill in</span></span></div>
         <div class="card-row"><span class="lbl">Visa</span><span class="val"><span class="placeholder">B1/B2 expiry — fill in</span></span></div>
