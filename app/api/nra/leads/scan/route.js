@@ -38,8 +38,9 @@ const CardSchema = z.object({
   company: z.string().describe("Company / organisation name. Empty string if not visible."),
   role:    z.string().describe("Job title or role. Empty string if not visible."),
   email:   z.string().describe("Email address. Empty string if not visible."),
-  phone:   z.string().describe("Phone number, formatted as printed. Empty string if not visible."),
+  phone:   z.string().describe("Phone number, formatted as printed. Include the leading + and country code when visible (e.g. '+1 312-555-0000'). Empty string if not visible."),
   booth:   z.string().describe("Booth number IF mentioned on the card (rare; only NRA-specific cards). Empty string if not visible."),
+  country: z.string().describe("Country inferred from the address printed on the card, OR the phone country code. Use the full English country name (e.g. 'United States', 'India', 'United Kingdom'). Empty string if neither address nor country code is visible."),
   notes:   z.string().describe("Anything else worth capturing — secondary contact, tagline, address city. Empty string if nothing notable."),
   confidence: z.enum(["high", "medium", "low"]).describe("How confident the extraction is. 'low' if the image is blurry, not a business card, or partially obscured."),
 });

@@ -18,6 +18,13 @@ const CATEGORIES = [
 const INTERESTS = [
   "Marketplace", "Aeros Select", "Factory OS", "Show offer", "Just exploring",
 ];
+const RECORD_TYPES = ["exhibitor", "visitor"];
+const PRIORITIES = ["P0", "P1", "P2"];
+const PRIORITY_LABEL = {
+  P0: "P0 — hot, follow up this week",
+  P1: "P1 — interested, follow up post-show",
+  P2: "P2 — captured, no urgency",
+};
 
 const OUTBOX_KEY = "aeros:nra2026:outbox";
 const SHOW = "nra-2026";
@@ -25,7 +32,57 @@ const SHOW = "nra-2026";
 const EMPTY_FORM = {
   name: "", company: "", role: "", email: "", phone: "",
   category: "", booth: "", interests: [], notes: "",
+  record_type: "exhibitor", priority: "P2", country: "",
 };
+
+// ─── country code → country lookup ──────────────────────────────────────────
+// Compact subset focused on the demographics most likely at NRA (food-service
+// industry tradeshow in Chicago). Longest-prefix wins (e.g. "+971" beats "+9").
+const COUNTRY_CODES = {
+  // 3-digit
+  "971": "United Arab Emirates", "972": "Israel", "973": "Bahrain",
+  "966": "Saudi Arabia", "974": "Qatar", "965": "Kuwait", "968": "Oman",
+  "961": "Lebanon", "962": "Jordan", "964": "Iraq",
+  "212": "Morocco", "213": "Algeria", "216": "Tunisia", "218": "Libya",
+  "234": "Nigeria", "254": "Kenya", "255": "Tanzania", "256": "Uganda",
+  "351": "Portugal", "352": "Luxembourg", "353": "Ireland", "354": "Iceland",
+  "356": "Malta", "357": "Cyprus", "358": "Finland", "359": "Bulgaria",
+  "370": "Lithuania", "371": "Latvia", "372": "Estonia",
+  "374": "Armenia", "375": "Belarus", "380": "Ukraine",
+  "381": "Serbia", "385": "Croatia", "386": "Slovenia",
+  "420": "Czech Republic", "421": "Slovakia",
+  "593": "Ecuador", "595": "Paraguay", "598": "Uruguay",
+  "880": "Bangladesh", "886": "Taiwan",
+  "960": "Maldives", "977": "Nepal", "992": "Tajikistan", "994": "Azerbaijan",
+  "995": "Georgia", "998": "Uzbekistan",
+  // 2-digit
+  "20": "Egypt", "27": "South Africa", "30": "Greece", "31": "Netherlands",
+  "32": "Belgium", "33": "France", "34": "Spain", "36": "Hungary",
+  "39": "Italy", "40": "Romania", "41": "Switzerland", "43": "Austria",
+  "44": "United Kingdom", "45": "Denmark", "46": "Sweden", "47": "Norway",
+  "48": "Poland", "49": "Germany",
+  "51": "Peru", "52": "Mexico", "54": "Argentina", "55": "Brazil",
+  "56": "Chile", "57": "Colombia", "58": "Venezuela",
+  "60": "Malaysia", "61": "Australia", "62": "Indonesia", "63": "Philippines",
+  "64": "New Zealand", "65": "Singapore", "66": "Thailand",
+  "81": "Japan", "82": "South Korea", "84": "Vietnam", "86": "China",
+  "90": "Turkey", "91": "India", "92": "Pakistan", "94": "Sri Lanka",
+  // 1-digit
+  "1": "United States / Canada",
+  "7": "Russia / Kazakhstan",
+};
+
+function detectCountry(phone) {
+  if (typeof phone !== "string") return "";
+  const cleaned = phone.replace(/[^\d+]/g, "");
+  if (!cleaned.startsWith("+")) return "";
+  const digits = cleaned.slice(1);
+  for (const len of [3, 2, 1]) {
+    const code = digits.slice(0, len);
+    if (COUNTRY_CODES[code]) return COUNTRY_CODES[code];
+  }
+  return "";
+}
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -89,14 +146,16 @@ function csvEscape(value) {
 
 function leadsToCsv(leads) {
   const headers = [
-    "created_at", "name", "company", "role", "email", "phone",
-    "category", "booth", "interests", "notes",
+    "created_at", "record_type", "priority", "name", "company", "role",
+    "email", "phone", "country", "category", "booth", "interests", "notes",
   ];
   const lines = [headers.join(",")];
   for (const l of leads) {
     lines.push([
       l.created_at,
-      l.name, l.company, l.role, l.email, l.phone,
+      l.record_type, l.priority,
+      l.name, l.company, l.role,
+      l.email, l.phone, l.country,
       l.category, l.booth, (l.interests || []).join("; "),
       l.notes,
     ].map(csvEscape).join(","));
@@ -133,7 +192,18 @@ export default function CaptureClient({ session }) {
   const [loadError, setLoadError] = useState("");
   const [outboxCount, setOutboxCount] = useState(0);
 
-  const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const setField = (k, v) => setForm((f) => {
+    const next = { ...f, [k]: v };
+    // Auto-detect country from phone, but only if the user hasn't manually
+    // typed a country yet (or the detection still matches what's there).
+    if (k === "phone") {
+      const detected = detectCountry(v);
+      if (detected && (!f.country || f.country === detectCountry(f.phone))) {
+        next.country = detected;
+      }
+    }
+    return next;
+  });
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -187,6 +257,9 @@ export default function CaptureClient({ session }) {
       category: form.category,
       interests: form.interests,
       notes: form.notes.trim(),
+      record_type: form.record_type,
+      priority: form.priority,
+      country: form.country.trim(),
       source: "owner",
       show: SHOW,
     };
@@ -237,6 +310,10 @@ export default function CaptureClient({ session }) {
           loadError={loadError}
           refresh={refresh}
         />
+      )}
+
+      {tab === "data" && (
+        <DataView leads={leads} loading={loading} loadError={loadError} />
       )}
 
       <footer className="border-t border-ink-200 px-5 py-6 text-center font-mono text-[11px] uppercase tracking-wider text-ink-400">
@@ -303,6 +380,18 @@ function TabBar({ tab, setTab }) {
       >
         NRA list
       </button>
+      <button
+        type="button"
+        onClick={() => setTab("data")}
+        className={
+          "rounded-md border px-4 py-2 font-mono text-[11px] uppercase tracking-wider " +
+          (tab === "data"
+            ? "border-ink-900 bg-ink-900 text-white"
+            : "border-ink-200 bg-white text-ink-800")
+        }
+      >
+        Data
+      </button>
     </div>
   );
 }
@@ -321,8 +410,10 @@ function CaptureView({ form, setField, setForm, onSave, submitting, justSavedNam
       <CardScanner
         onScanned={(extracted) => {
           // Merge into the form; only overwrite empty fields so a typed
-          // value never gets clobbered by a re-scan.
+          // value never gets clobbered by a re-scan. Country is derived
+          // from phone if the scan didn't return one explicitly.
           const merge = (k) => extracted[k] && !form[k] ? extracted[k] : form[k];
+          const scannedCountry = extracted.country || detectCountry(extracted.phone || "");
           setForm({
             ...form,
             name:    merge("name"),
@@ -331,6 +422,7 @@ function CaptureView({ form, setField, setForm, onSave, submitting, justSavedNam
             email:   merge("email"),
             phone:   merge("phone"),
             booth:   merge("booth"),
+            country: scannedCountry && !form.country ? scannedCountry : form.country,
             notes:   extracted.notes && !form.notes ? extracted.notes : form.notes,
           });
         }}
@@ -401,8 +493,70 @@ function FormFields({ form, setField }) {
         onChange={(v) => setField("phone", v)}
         autoComplete="tel"
         inputMode="tel"
-        placeholder="Optional"
+        placeholder='Optional — start with "+91", "+1", etc. to auto-detect country'
       />
+      <Field
+        label="Country"
+        value={form.country}
+        onChange={(v) => setField("country", v)}
+        placeholder="Auto-detected from phone — edit if needed"
+      />
+
+      <fieldset className="space-y-2">
+        <legend className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
+          Type of record
+        </legend>
+        <div className="flex gap-2">
+          {RECORD_TYPES.map((t) => {
+            const active = form.record_type === t;
+            return (
+              <button
+                type="button"
+                key={t}
+                onClick={() => setField("record_type", t)}
+                className={
+                  "min-h-[44px] flex-1 rounded-md border px-3 py-2 text-[14px] capitalize transition-colors " +
+                  (active
+                    ? "border-ink-900 bg-ink-900 text-white"
+                    : "border-ink-200 bg-white text-ink-800 active:bg-ink-100")
+                }
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-2">
+        <legend className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
+          Priority
+        </legend>
+        <div className="flex gap-2">
+          {PRIORITIES.map((p) => {
+            const active = form.priority === p;
+            return (
+              <button
+                type="button"
+                key={p}
+                onClick={() => setField("priority", p)}
+                title={PRIORITY_LABEL[p]}
+                className={
+                  "min-h-[44px] flex-1 rounded-md border px-3 py-2 text-[14px] font-semibold transition-colors " +
+                  (active
+                    ? "border-ink-900 bg-ink-900 text-white"
+                    : "border-ink-200 bg-white text-ink-800 active:bg-ink-100")
+                }
+              >
+                {p}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-ink-400">
+          {PRIORITY_LABEL[form.priority]}
+        </p>
+      </fieldset>
 
       <fieldset className="space-y-2">
         <legend className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
@@ -661,7 +815,26 @@ function LeadCard({ lead, onEdit, onDelete }) {
     <div>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate font-sans text-[16px] font-semibold text-ink-900">{lead.name}</div>
+          <div className="flex items-center gap-2">
+            <span className="truncate font-sans text-[16px] font-semibold text-ink-900">{lead.name}</span>
+            {lead.priority && (
+              <span className={
+                "shrink-0 rounded-md border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider " +
+                (lead.priority === "P0"
+                  ? "border-ink-900 bg-ink-900 text-white"
+                  : lead.priority === "P1"
+                    ? "border-ink-800 text-ink-900"
+                    : "border-ink-200 text-ink-400")
+              }>
+                {lead.priority}
+              </span>
+            )}
+            {lead.record_type && (
+              <span className="shrink-0 rounded-md border border-ink-200 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-ink-400">
+                {lead.record_type}
+              </span>
+            )}
+          </div>
           <div className="mt-0.5 truncate text-[14px] text-ink-600">
             {lead.company}{lead.role ? ` · ${lead.role}` : ""}
           </div>
@@ -681,6 +854,11 @@ function LeadCard({ lead, onEdit, onDelete }) {
         {(lead.email || lead.phone) && (
           <div className="break-all">
             {lead.email}{lead.email && lead.phone ? " · " : ""}{lead.phone}
+          </div>
+        )}
+        {lead.country && (
+          <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
+            {lead.country}
           </div>
         )}
         {lead.category && (
@@ -726,6 +904,47 @@ function EditCard({ patch, setPatch, onCancel, onSave }) {
       <Field label="Role" value={patch.role || ""} onChange={(v) => set("role", v)} />
       <Field label="Email" type="email" value={patch.email || ""} onChange={(v) => set("email", v)} />
       <Field label="Phone" value={patch.phone || ""} onChange={(v) => set("phone", v)} />
+      <Field label="Country" value={patch.country || ""} onChange={(v) => set("country", v)} />
+      <div>
+        <label className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-ink-400">Type</label>
+        <div className="flex gap-2">
+          {RECORD_TYPES.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => set("record_type", t)}
+              className={
+                "min-h-[44px] flex-1 rounded-md border px-3 py-2 text-[14px] capitalize " +
+                ((patch.record_type || "exhibitor") === t
+                  ? "border-ink-900 bg-ink-900 text-white"
+                  : "border-ink-200 bg-white text-ink-800")
+              }
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-ink-400">Priority</label>
+        <div className="flex gap-2">
+          {PRIORITIES.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => set("priority", p)}
+              className={
+                "min-h-[44px] flex-1 rounded-md border px-3 py-2 text-[14px] font-semibold " +
+                ((patch.priority || "P2") === p
+                  ? "border-ink-900 bg-ink-900 text-white"
+                  : "border-ink-200 bg-white text-ink-800")
+              }
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
       <div>
         <label className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-ink-400">Notes</label>
         <textarea
@@ -847,5 +1066,127 @@ function CardScanner({ onScanned }) {
         </p>
       )}
     </div>
+  );
+}
+
+// ─── data view (stats breakdown) ────────────────────────────────────────────
+
+// End-of-day quick-look: total count, plus breakdowns by record type,
+// priority, country, and category. Pure read-only — switch to NRA list
+// for per-row editing.
+function DataView({ leads, loading, loadError }) {
+  const stats = useMemo(() => buildStats(leads), [leads]);
+
+  if (loading) {
+    return <main className="mx-auto max-w-3xl px-5 pb-16"><p className="text-[14px] text-ink-400">Loading…</p></main>;
+  }
+  if (loadError) {
+    return (
+      <main className="mx-auto max-w-3xl px-5 pb-16">
+        <div className="rounded-lg border border-ink-200 bg-white p-4 text-[14px] text-ink-800">
+          <p className="font-semibold">Couldn&apos;t load leads.</p>
+          <p className="mt-1 text-ink-400">{loadError}</p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="mx-auto max-w-3xl px-5 pb-16 space-y-6">
+      <section>
+        <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">Total captured</div>
+        <div className="mt-1 font-sans text-[48px] font-bold leading-[1.0] tracking-[-0.025em] text-ink-900">
+          {stats.total}
+        </div>
+      </section>
+
+      <StatCardRow
+        title="By type"
+        rows={stats.byRecordType}
+        total={stats.total}
+        labelTransform={(k) => k}
+      />
+
+      <StatCardRow
+        title="By priority"
+        rows={stats.byPriority}
+        total={stats.total}
+        labelTransform={(k) => k}
+      />
+
+      <StatCardRow
+        title="Top countries"
+        rows={stats.byCountry.slice(0, 8)}
+        total={stats.total}
+        labelTransform={(k) => k || "Unknown"}
+      />
+
+      <StatCardRow
+        title="Top categories"
+        rows={stats.byCategory.slice(0, 8)}
+        total={stats.total}
+        labelTransform={(k) => k || "Unspecified"}
+      />
+    </main>
+  );
+}
+
+function buildStats(leads) {
+  const total = leads.length;
+  const counter = () => new Map();
+  const byType = counter();
+  const byPriority = counter();
+  const byCountry = counter();
+  const byCategory = counter();
+  for (const l of leads) {
+    const t = l.record_type || "exhibitor";
+    byType.set(t, (byType.get(t) || 0) + 1);
+    const p = l.priority || "P2";
+    byPriority.set(p, (byPriority.get(p) || 0) + 1);
+    const c = (l.country || "").trim();
+    byCountry.set(c, (byCountry.get(c) || 0) + 1);
+    const cat = (l.category || "").trim();
+    byCategory.set(cat, (byCategory.get(cat) || 0) + 1);
+  }
+  const sortDesc = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]);
+  return {
+    total,
+    byRecordType: sortDesc(byType),
+    byPriority: sortDesc(byPriority),
+    byCountry: sortDesc(byCountry),
+    byCategory: sortDesc(byCategory),
+  };
+}
+
+function StatCardRow({ title, rows, total, labelTransform }) {
+  if (rows.length === 0) return null;
+  return (
+    <section>
+      <div className="mb-3 font-mono text-[11px] uppercase tracking-wider text-ink-400">{title}</div>
+      <div className="space-y-2">
+        {rows.map(([key, count]) => {
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+          return (
+            <div key={key || "_blank"} className="rounded-lg border border-ink-200 bg-white p-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="truncate text-[14px] font-semibold capitalize text-ink-900">
+                  {labelTransform(key)}
+                </span>
+                <span className="shrink-0 font-mono text-[12px] text-ink-600">
+                  {count}{" "}
+                  <span className="text-ink-400">({pct}%)</span>
+                </span>
+              </div>
+              <div className="mt-2 h-1 w-full rounded-full bg-ink-100">
+                <div
+                  className="h-1 rounded-full bg-ink-900"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

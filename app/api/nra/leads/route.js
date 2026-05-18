@@ -17,6 +17,8 @@ const CATEGORIES = new Set([
 const INTERESTS = new Set([
   "Marketplace", "Aeros Select", "Factory OS", "Show offer", "Just exploring",
 ]);
+const RECORD_TYPES = new Set(["exhibitor", "visitor"]);
+const PRIORITIES = new Set(["P0", "P1", "P2"]);
 
 function isStaffAdmin(session) {
   if (!session) return false;
@@ -74,6 +76,8 @@ export async function POST(request) {
   const source = "owner";
 
   const category = clean(body?.category, 60);
+  const recordTypeRaw = clean(body?.record_type, 12).toLowerCase();
+  const priorityRaw = clean(body?.priority, 4).toUpperCase();
   const row = {
     name,
     company,
@@ -84,6 +88,9 @@ export async function POST(request) {
     booth: clean(body?.booth, 30),
     interests: sanitizeInterests(body?.interests),
     notes: clean(body?.notes, 2000),
+    record_type: RECORD_TYPES.has(recordTypeRaw) ? recordTypeRaw : "exhibitor",
+    priority: PRIORITIES.has(priorityRaw) ? priorityRaw : "P2",
+    country: clean(body?.country, 60),
     source,
     show: clean(body?.show, 40) || "nra-2026",
   };
