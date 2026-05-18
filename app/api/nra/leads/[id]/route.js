@@ -14,6 +14,8 @@ const CATEGORIES = new Set([
 const INTERESTS = new Set([
   "Marketplace", "Aeros Select", "Factory OS", "Show offer", "Just exploring",
 ]);
+const RECORD_TYPES = new Set(["exhibitor", "visitor"]);
+const PRIORITIES = new Set(["P0", "P1", "P2"]);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -78,6 +80,18 @@ export async function PATCH(request, { params }) {
   if (category !== undefined) patch.category = CATEGORIES.has(category) ? category : "";
   const interests = sanitizeInterests(body?.interests);
   if (interests !== undefined) patch.interests = interests;
+  const recordTypeRaw = clean(body?.record_type, 12);
+  if (recordTypeRaw !== undefined) {
+    const v = recordTypeRaw.toLowerCase();
+    patch.record_type = RECORD_TYPES.has(v) ? v : "exhibitor";
+  }
+  const priorityRaw = clean(body?.priority, 4);
+  if (priorityRaw !== undefined) {
+    const v = priorityRaw.toUpperCase();
+    patch.priority = PRIORITIES.has(v) ? v : "P2";
+  }
+  const country = clean(body?.country, 60);
+  if (country !== undefined) patch.country = country;
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No editable fields supplied" }, { status: 400 });
