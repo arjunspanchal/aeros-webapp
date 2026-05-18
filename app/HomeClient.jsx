@@ -109,23 +109,47 @@ export default function HomeClient({ session, footer }) {
             <div className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-3 px-1">
               Admin
             </div>
-            <Link
-              href="/admin/access"
-              className="group relative block overflow-hidden rounded-2xl border p-5 sm:p-6 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800 dark:hover:border-gray-700"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-red-600" />
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">User Access</h2>
-                  <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-                    Single editor for who can sign in and what they see — roles, pricing, linked clients, active status.
-                  </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Link
+                href="/admin/access"
+                className="group relative block overflow-hidden rounded-2xl border p-5 sm:p-6 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800 dark:hover:border-gray-700"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-red-600" />
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">User Access</h2>
+                    <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                      Single editor for who can sign in and what they see — roles, pricing, linked clients, active status.
+                    </p>
+                  </div>
+                  <span className="hidden sm:inline text-sm font-medium text-blue-700 group-hover:text-blue-800 dark:text-blue-400 dark:group-hover:text-blue-300 shrink-0">
+                    Open →
+                  </span>
                 </div>
-                <span className="hidden sm:inline text-sm font-medium text-blue-700 group-hover:text-blue-800 dark:text-blue-400 dark:group-hover:text-blue-300 shrink-0">
-                  Open →
-                </span>
-              </div>
-            </Link>
+              </Link>
+              {/* NRA 2026 lead-capture — temporary admin tile for the show
+                  (May 16-19 2026). Remove or repurpose after. The /nra/capture
+                  route itself stays accessible as a deep link / phone bookmark. */}
+              <Link
+                href="/nra/capture"
+                className="group relative block overflow-hidden rounded-2xl border p-5 sm:p-6 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800 dark:hover:border-gray-700"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-gray-700 to-gray-900" />
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
+                      NRA 2026 · Booth #12937
+                    </h2>
+                    <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                      Lead capture for the show floor — visitor self-registration, owner-mode list/export, business-card scan.
+                    </p>
+                  </div>
+                  <span className="hidden sm:inline text-sm font-medium text-blue-700 group-hover:text-blue-800 dark:text-blue-400 dark:group-hover:text-blue-300 shrink-0">
+                    Open →
+                  </span>
+                </div>
+              </Link>
+            </div>
           </div>
         )}
 
