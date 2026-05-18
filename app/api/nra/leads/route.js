@@ -1,6 +1,7 @@
 // Lead capture API for trade-show booth registration.
-// POST is public — anyone walking past Booth #12937 can submit.
-// GET is admin-only — only staff admins can see who signed in.
+// Admin-only end-to-end — POST, GET, PATCH, DELETE all require a staff-
+// admin hub session. The public visitor form was scrapped on 2026-05-17;
+// the only writer is now Arjun walking the floor in owner mode.
 
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
@@ -43,6 +44,11 @@ function sanitizeInterests(list) {
 }
 
 export async function POST(request) {
+  const session = getSession();
+  if (!isStaffAdmin(session)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let body;
   try {
     body = await request.json();
@@ -54,14 +60,18 @@ export async function POST(request) {
   const company = clean(body?.company, 160);
   const email = clean(body?.email, 200);
 
+  // Floor-walking lookahead: we often won't have an email at all (just a
+  // booth + business card). Name + company are still required, email is
+  // optional but if present must look valid.
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
   if (!company) return NextResponse.json({ error: "Company is required" }, { status: 400 });
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return NextResponse.json({ error: "Valid email is required" }, { status: 400 });
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: "Email looks malformed" }, { status: 400 });
   }
 
-  const sourceRaw = clean(body?.source, 10).toLowerCase();
-  const source = sourceRaw === "owner" ? "owner" : "self";
+  // `source` was 'self' | 'owner' when there was a public visitor form.
+  // Visitor flow is gone, so default to 'owner' and ignore the client value.
+  const source = "owner";
 
   const category = clean(body?.category, 60);
   const row = {
