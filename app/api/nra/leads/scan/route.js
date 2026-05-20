@@ -56,6 +56,21 @@ Common pitfalls to avoid:
 - Names on Asian cards often appear in two scripts — return the Latin-script version.
 - Trim whitespace; preserve casing as printed.
 
+Country field — INFERENCE IS ENCOURAGED here, unlike the others. Identify
+the country from ANY signal on the card, in this order:
+  1. Explicit country name printed on the card.
+  2. Phone country code (e.g. "+1" → United States / Canada, "+91" → India,
+     "+44" → United Kingdom).
+  3. Postal code format: 5 digits with optional US state abbreviation
+     (e.g. "KY 40209", "TX 75247", "CA 94025") → United States. 6-letter
+     alphanumeric like "SW1A 1AA" → United Kingdom. PIN code patterns vary.
+  4. State / province / city name (e.g. "Mumbai", "Toronto", "London").
+  5. Address country if printed.
+Return the full English country name. If two countries split a code
+(e.g. +1 = US + Canada), pick the one that the address / state /
+phone area code points at. Empty string only if there is genuinely no
+signal at all.
+
 Set confidence to "low" if the image is blurry, not a business card, badly cropped, or you had to guess any major field.`;
 
 export async function POST(request) {

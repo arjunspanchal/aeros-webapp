@@ -517,15 +517,21 @@ function CaptureView({ form, setField, setForm, onSave, submitting, justSavedNam
           // image URL always wins on re-scan (latest photo is canonical).
           const merge = (k) => extracted[k] && !form[k] ? extracted[k] : form[k];
           const scannedCountry = extracted.country || detectCountry(extracted.phone || "");
+          const mergedCountry = scannedCountry && !form.country ? scannedCountry : form.country;
+          // Apply country-code normalization at scan-merge time too, not
+          // just at save time. "502-555-1234" + country "United States"
+          // becomes "+1 502-555-1234" in the form immediately, so the
+          // user sees what will actually be saved.
+          const mergedPhone = normalizePhoneWithCountryCode(merge("phone"), mergedCountry);
           setForm({
             ...form,
             name:    merge("name"),
             company: merge("company"),
             role:    merge("role"),
             email:   merge("email"),
-            phone:   merge("phone"),
+            phone:   mergedPhone,
             booth:   merge("booth"),
-            country: scannedCountry && !form.country ? scannedCountry : form.country,
+            country: mergedCountry,
             notes:   extracted.notes && !form.notes ? extracted.notes : form.notes,
             card_image_url: cardImageUrl || form.card_image_url,
           });
