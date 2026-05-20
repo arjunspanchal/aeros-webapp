@@ -11,7 +11,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CATEGORIES = new Set([
-  "Cafe", "Restaurant", "Distributor", "Manufacturer",
+  "Operator", "Distributor", "Disposables", "Packaging", "Equipment",
+  "Refrigeration", "Beverage", "Smallwares", "Cleaning", "POS / Tech",
+  "Other Vendor", "Other Customer",
 ]);
 const INTERESTS = new Set([
   "Marketplace", "Aeros Select", "Factory OS", "Show offer", "Just exploring",
@@ -57,6 +59,26 @@ function sanitizeInterests(list) {
   return out;
 }
 
+// Multi-select since 2026-05-19. Also accepts a legacy `category: "X"`
+// string so an outbox flush from a pre-migration client still validates.
+function sanitizeCategories(input) {
+  const list = Array.isArray(input)
+    ? input
+    : typeof input === "string" && input.trim()
+      ? [input]
+      : [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of list) {
+    const v = clean(raw, 60);
+    if (!v || seen.has(v)) continue;
+    if (!CATEGORIES.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
 export async function POST(request) {
   const session = getSession();
   if (!isStaffAdmin(session)) {
@@ -87,16 +109,20 @@ export async function POST(request) {
   // Visitor flow is gone, so default to 'owner' and ignore the client value.
   const source = "owner";
 
-  const category = clean(body?.category, 60);
   const recordTypeRaw = clean(body?.record_type, 12).toLowerCase();
   const priorityRaw = clean(body?.priority, 4).toUpperCase();
+  // Prefer the new `categories` array; fall back to the legacy `category`
+  // string from any in-flight outbox payloads queued before the migration.
+  const categories = sanitizeCategories(
+    body?.categories !== undefined ? body.categories : body?.category
+  );
   const row = {
     name,
     company,
     role: clean(body?.role, 120),
     email,
     phone: clean(body?.phone, 60),
-    category: CATEGORIES.has(category) ? category : "",
+    categories,
     booth: clean(body?.booth, 30),
     interests: sanitizeInterests(body?.interests),
     notes: clean(body?.notes, 2000),
