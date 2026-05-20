@@ -12,9 +12,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const CATEGORIES = [
-  "Operator", "Distributor", "Disposables", "Packaging", "Equipment",
-  "Refrigeration", "Beverage", "Smallwares", "Cleaning", "POS / Tech",
-  "Other Vendor", "Other Customer",
+  "Operator", "Distributor", "Online Store", "Disposables", "Packaging",
+  "Equipment", "Refrigeration", "Beverage", "Smallwares", "Cleaning",
+  "POS / Tech", "Other Vendor", "Other Customer",
 ];
 const INTERESTS = [
   "Marketplace", "Aeros Select", "Factory OS", "Show offer", "Just exploring",

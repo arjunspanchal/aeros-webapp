@@ -11,9 +11,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CATEGORIES = new Set([
-  "Operator", "Distributor", "Disposables", "Packaging", "Equipment",
-  "Refrigeration", "Beverage", "Smallwares", "Cleaning", "POS / Tech",
-  "Other Vendor", "Other Customer",
+  "Operator", "Distributor", "Online Store", "Disposables", "Packaging",
+  "Equipment", "Refrigeration", "Beverage", "Smallwares", "Cleaning",
+  "POS / Tech", "Other Vendor", "Other Customer",
 ]);
 const INTERESTS = new Set([
   "Marketplace", "Aeros Select", "Factory OS", "Show offer", "Just exploring",
