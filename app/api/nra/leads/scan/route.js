@@ -34,7 +34,7 @@ function isStaffAdmin(session) {
 // on the card (no booth number, no role, no notes) it returns "" rather
 // than hallucinating. We let the user review/edit before save.
 const CardSchema = z.object({
-  name:    z.string().describe("Person's full name from the card. Empty string if not visible."),
+  name:    z.string().describe("Person's full name from the card. If no human name is printed but a company / brand name is, return the company name here too (mirrors the company field). Empty string only if neither is visible."),
   company: z.string().describe("Company / organisation name. Empty string if not visible."),
   role:    z.string().describe("Job title or role. Empty string if not visible."),
   email:   z.string().describe("Email address. Empty string if not visible."),
@@ -55,6 +55,7 @@ Common pitfalls to avoid:
 - If multiple emails, pick the most personal-looking one (no info@/sales@ unless that's the only one); put others in notes.
 - Names on Asian cards often appear in two scripts — return the Latin-script version.
 - Trim whitespace; preserve casing as printed.
+- If the card shows only a company / brand identity (no individual's name), put the company name into BOTH the name and company fields. Branded cards without a person are still a valid lead — don't return an empty name in that case.
 
 Country field — INFERENCE IS ENCOURAGED here, unlike the others. Identify
 the country from ANY signal on the card, in this order:
