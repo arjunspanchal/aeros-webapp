@@ -86,6 +86,38 @@ function detectCountry(phone) {
   return "";
 }
 
+// Reverse of COUNTRY_CODES. Includes the combined "+1" / "+7" entries
+// (for round-tripping a value detectCountry returned) plus the canonical
+// individual country names a human is likely to type into the Country
+// field (United States, Canada, Russia, Kazakhstan). Built from
+// COUNTRY_CODES at module load so the two stay in sync.
+const COUNTRY_TO_CODE = (() => {
+  const m = {};
+  for (const [code, country] of Object.entries(COUNTRY_CODES)) {
+    m[country] = code;
+  }
+  // Hand-roll the few aliases the +1 / +7 entries don't cover on their own.
+  m["United States"] = "1";
+  m["USA"] = "1";
+  m["US"] = "1";
+  m["Canada"] = "1";
+  m["Russia"] = "7";
+  m["Kazakhstan"] = "7";
+  return m;
+})();
+
+// If the phone is missing a country code, prefix the detected country's
+// calling code. Leaves a phone alone if it already starts with "+", if
+// the country is unknown to our table, or if the phone is empty.
+function normalizePhoneWithCountryCode(phone, country) {
+  const trimmed = (phone || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("+")) return trimmed;
+  const code = COUNTRY_TO_CODE[(country || "").trim()];
+  if (!code) return trimmed;
+  return `+${code} ${trimmed}`;
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function readOutbox() {
@@ -255,19 +287,20 @@ export default function CaptureClient({ session }) {
     const err = validate();
     if (err) { alert(err); return; }
     setSubmitting(true);
+    const country = form.country.trim();
     const payload = {
       name: form.name.trim(),
       company: form.company.trim(),
       role: form.role.trim(),
       email: form.email.trim(),
-      phone: form.phone.trim(),
+      phone: normalizePhoneWithCountryCode(form.phone, country),
       booth: form.booth.trim(),
       categories: form.categories,
       interests: form.interests,
       notes: form.notes.trim(),
       record_type: form.record_type,
       priority: form.priority,
-      country: form.country.trim(),
+      country,
       card_image_url: form.card_image_url,
       source: "owner",
       show: SHOW,
