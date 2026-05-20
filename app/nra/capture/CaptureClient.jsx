@@ -34,7 +34,7 @@ const EMPTY_FORM = {
   name: "", company: "", role: "", email: "", phone: "",
   categories: [], booth: "", interests: [], notes: "",
   record_type: "exhibitor", priority: "P2", country: "",
-  card_image_url: "",
+  card_image_urls: [],
 };
 
 // ─── country code → country lookup ──────────────────────────────────────────
@@ -219,13 +219,16 @@ function leadsToCsv(leads) {
   const headers = [
     "created_at", "record_type", "priority", "name", "company", "role",
     "email", "phone", "country", "categories", "booth", "interests", "notes",
-    "card_image_url",
+    "card_image_urls",
   ];
   const lines = [headers.join(",")];
   for (const l of leads) {
     const cats = Array.isArray(l.categories)
       ? l.categories
       : (l.category ? [l.category] : []);
+    const imgs = Array.isArray(l.card_image_urls)
+      ? l.card_image_urls
+      : (l.card_image_url ? [l.card_image_url] : []);
     lines.push([
       l.created_at,
       l.record_type, l.priority,
@@ -234,7 +237,7 @@ function leadsToCsv(leads) {
       cats.join("; "),
       l.booth, (l.interests || []).join("; "),
       l.notes,
-      l.card_image_url,
+      imgs.join("; "),
     ].map(csvEscape).join(","));
   }
   return lines.join("\n");
@@ -359,7 +362,7 @@ export default function CaptureClient({ session }) {
       record_type: form.record_type,
       priority: form.priority,
       country,
-      card_image_url: form.card_image_url,
+      card_image_urls: form.card_image_urls,
       source: "owner",
       show: SHOW,
     };
@@ -508,13 +511,18 @@ function CaptureView({ form, setField, setForm, onSave, submitting, justSavedNam
       )}
 
       <CardScanner
-        cardImageUrl={form.card_image_url}
-        onClearImage={() => setForm({ ...form, card_image_url: "" })}
+        cardImageUrls={form.card_image_urls}
+        onRemoveImage={(i) => {
+          const next = [...form.card_image_urls];
+          next.splice(i, 1);
+          setForm({ ...form, card_image_urls: next });
+        }}
         onScanned={(extracted, cardImageUrl) => {
           // Merge into the form; only overwrite empty fields so a typed
           // value never gets clobbered by a re-scan. Country is derived
-          // from phone if the scan didn't return one explicitly. The card
-          // image URL always wins on re-scan (latest photo is canonical).
+          // from phone if the scan didn't return one explicitly. The
+          // image URL appends — front + back of card can each get their
+          // own slot, capped at 2 total.
           const merge = (k) => extracted[k] && !form[k] ? extracted[k] : form[k];
           const scannedCountry = extracted.country || detectCountry(extracted.phone || "");
           const mergedCountry = scannedCountry && !form.country ? scannedCountry : form.country;
@@ -523,6 +531,9 @@ function CaptureView({ form, setField, setForm, onSave, submitting, justSavedNam
           // becomes "+1 502-555-1234" in the form immediately, so the
           // user sees what will actually be saved.
           const mergedPhone = normalizePhoneWithCountryCode(merge("phone"), mergedCountry);
+          const mergedImages = cardImageUrl
+            ? [...form.card_image_urls, cardImageUrl].slice(0, 2)
+            : form.card_image_urls;
           setForm({
             ...form,
             name:    merge("name"),
@@ -533,7 +544,7 @@ function CaptureView({ form, setField, setForm, onSave, submitting, justSavedNam
             booth:   merge("booth"),
             country: mergedCountry,
             notes:   extracted.notes && !form.notes ? extracted.notes : form.notes,
-            card_image_url: cardImageUrl || form.card_image_url,
+            card_image_urls: mergedImages,
           });
         }}
       />
@@ -931,21 +942,31 @@ function LeadCard({ lead, onEdit, onDelete }) {
   const date = lead.created_at
     ? new Date(lead.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : "";
+  // Tolerant of legacy single-string rows in case anything slipped past
+  // the migration as a non-array value.
+  const images = Array.isArray(lead.card_image_urls)
+    ? lead.card_image_urls
+    : (lead.card_image_url ? [lead.card_image_url] : []);
   return (
     <div className="flex gap-3">
-      {lead.card_image_url && (
+      {images.length > 0 && (
         <a
-          href={lead.card_image_url}
+          href={images[0]}
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0"
+          className="relative shrink-0"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={lead.card_image_url}
+            src={images[0]}
             alt={`${lead.name || "Lead"} business card`}
             className="h-14 w-14 rounded-md border border-ink-200 object-cover"
           />
+          {images.length > 1 && (
+            <span className="absolute -right-1 -top-1 rounded-full border border-white bg-ink-900 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-white">
+              +{images.length - 1}
+            </span>
+          )}
         </a>
       )}
       <div className="min-w-0 flex-1">
@@ -1124,7 +1145,13 @@ function EditCard({ patch, setPatch, onCancel, onSave }) {
 // iOS Safari and Chrome Android. After capture we downscale client-side
 // (network is unreliable at McCormick), POST to /api/nra/leads/scan, and
 // hand the extracted fields up via onScanned.
-function CardScanner({ onScanned, cardImageUrl, onClearImage }) {
+function CardScanner({ onScanned, cardImageUrls = [], onRemoveImage }) {
+  const MAX_IMAGES = 2;
+  const remaining = MAX_IMAGES - cardImageUrls.length;
+  const buttonLabel =
+    cardImageUrls.length === 0 ? "Scan business card" :
+    cardImageUrls.length === 1 ? "Scan back of card" :
+    "Max 2 photos — remove one to re-scan";
   const inputRef = useRef(null);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState("");
@@ -1167,12 +1194,13 @@ function CardScanner({ onScanned, cardImageUrl, onClearImage }) {
     }
   }
 
+  const atLimit = remaining <= 0;
   return (
     <div className="mb-6 rounded-lg border border-dashed border-ink-200 bg-white p-4">
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        disabled={scanning}
+        disabled={scanning || atLimit}
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-ink-900 px-4 py-4 text-[16px] font-semibold text-white transition-opacity active:opacity-80 disabled:opacity-60"
       >
         {scanning ? (
@@ -1186,7 +1214,7 @@ function CardScanner({ onScanned, cardImageUrl, onClearImage }) {
               <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
               <circle cx="12" cy="13" r="4" />
             </svg>
-            Scan business card
+            {buttonLabel}
           </>
         )}
       </button>
@@ -1201,38 +1229,42 @@ function CardScanner({ onScanned, cardImageUrl, onClearImage }) {
       <p className="mt-2 text-center text-[12px] text-ink-400">
         Or type the details below. Booth # is the field that&apos;ll matter most later.
       </p>
-      {cardImageUrl && (
-        <div className="mt-3 flex items-start gap-3 rounded-md border border-ink-200 bg-ink-50 px-3 py-2">
-          <a
-            href={cardImageUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={cardImageUrl}
-              alt="Scanned card"
-              className="h-16 w-16 rounded border border-ink-200 object-cover"
-            />
-          </a>
-          <div className="min-w-0 flex-1">
-            <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
-              Card image saved
-            </div>
-            <div className="mt-0.5 text-[12px] text-ink-600">
-              Tap to view full size.
-            </div>
-            {onClearImage && (
-              <button
-                type="button"
-                onClick={onClearImage}
-                className="mt-1 font-mono text-[11px] uppercase tracking-wider text-ink-400 underline active:text-ink-800"
+      {cardImageUrls.length > 0 && (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {cardImageUrls.map((url, i) => (
+            <div
+              key={url}
+              className="flex items-start gap-2 rounded-md border border-ink-200 bg-ink-50 p-2"
+            >
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0"
               >
-                Remove
-              </button>
-            )}
-          </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={url}
+                  alt={`Card ${i === 0 ? "front" : "back"}`}
+                  className="h-16 w-16 rounded border border-ink-200 object-cover"
+                />
+              </a>
+              <div className="min-w-0 flex-1">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-ink-400">
+                  {i === 0 ? "Front" : "Back"}
+                </div>
+                {onRemoveImage && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveImage(i)}
+                    className="mt-1 font-mono text-[11px] uppercase tracking-wider text-ink-400 underline active:text-ink-800"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
       {warn && (

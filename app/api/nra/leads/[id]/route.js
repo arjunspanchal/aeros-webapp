@@ -31,16 +31,33 @@ function clean(value, max = 500) {
   return value.trim().slice(0, max);
 }
 
-// Only accept URLs from our own Supabase Storage bucket. Empty string is
-// also valid (admin clearing the image).
-function cleanCardUrl(value) {
-  if (typeof value !== "string") return undefined;
-  const s = value.trim();
-  if (s === "") return "";
+// Accepts the new `card_image_urls` array OR a legacy `card_image_url`
+// string. Returns undefined if the caller didn't send either (PATCH
+// leaves the column alone in that case). Empty array is a valid value
+// (admin clearing all images).
+function sanitizeCardUrls(input) {
+  if (input === undefined || input === null) return undefined;
   const supabaseUrl = process.env.SUPABASE_URL || "";
   const allowedPrefix = `${supabaseUrl}/storage/v1/object/public/nra-card-images/`;
-  if (!s.startsWith(allowedPrefix)) return undefined;
-  return s.slice(0, 500);
+  const list = Array.isArray(input)
+    ? input
+    : typeof input === "string"
+      ? (input.trim() === "" ? [] : [input])
+      : [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of list) {
+    if (typeof raw !== "string") continue;
+    const s = raw.trim();
+    if (!s) continue;
+    if (!s.startsWith(allowedPrefix)) continue;
+    const v = s.slice(0, 500);
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+    if (out.length >= 2) break;
+  }
+  return out;
 }
 
 function sanitizeInterests(list) {
@@ -128,8 +145,12 @@ export async function PATCH(request, { params }) {
   }
   const country = clean(body?.country, 60);
   if (country !== undefined) patch.country = country;
-  const cardUrl = cleanCardUrl(body?.card_image_url);
-  if (cardUrl !== undefined) patch.card_image_url = cardUrl;
+  // Accept either `card_image_urls` (new) or `card_image_url` (legacy).
+  const cardUrlsInput = body?.card_image_urls !== undefined
+    ? body.card_image_urls
+    : body?.card_image_url;
+  const cardUrls = sanitizeCardUrls(cardUrlsInput);
+  if (cardUrls !== undefined) patch.card_image_urls = cardUrls;
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No editable fields supplied" }, { status: 400 });

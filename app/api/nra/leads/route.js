@@ -35,7 +35,7 @@ function clean(value, max = 500) {
 // Only accept image URLs from our own Supabase Storage bucket. Defends
 // against a client sending an arbitrary URL (would let someone link a
 // random image to a lead row and have us serve it from the admin UI).
-function cleanUrl(value) {
+function cleanCardUrl(value) {
   if (typeof value !== "string") return "";
   const s = value.trim();
   if (!s) return "";
@@ -43,6 +43,28 @@ function cleanUrl(value) {
   const allowedPrefix = `${supabaseUrl}/storage/v1/object/public/nra-card-images/`;
   if (!s.startsWith(allowedPrefix)) return "";
   return s.slice(0, 500);
+}
+
+// Accepts the new `card_image_urls` array OR a legacy `card_image_url`
+// single string (for outbox payloads queued before the migration).
+// Caps at 2 images per lead — front + back is the use case; more than
+// that and the card is probably being scanned multiple times by accident.
+function sanitizeCardUrls(input) {
+  const list = Array.isArray(input)
+    ? input
+    : typeof input === "string" && input.trim()
+      ? [input]
+      : [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of list) {
+    const v = cleanCardUrl(raw);
+    if (!v || seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+    if (out.length >= 2) break;
+  }
+  return out;
 }
 
 function sanitizeInterests(list) {
@@ -129,7 +151,9 @@ export async function POST(request) {
     record_type: RECORD_TYPES.has(recordTypeRaw) ? recordTypeRaw : "exhibitor",
     priority: PRIORITIES.has(priorityRaw) ? priorityRaw : "P2",
     country: clean(body?.country, 60),
-    card_image_url: cleanUrl(body?.card_image_url),
+    card_image_urls: sanitizeCardUrls(
+      body?.card_image_urls !== undefined ? body.card_image_urls : body?.card_image_url
+    ),
     source,
     show: clean(body?.show, 40) || "nra-2026",
   };
