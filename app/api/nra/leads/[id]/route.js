@@ -56,6 +56,26 @@ function sanitizeInterests(list) {
   return out;
 }
 
+// Categories is multi-select. Accept an array OR a legacy single string.
+// Returns undefined if neither was supplied (so the PATCH leaves it alone).
+function sanitizeCategories(input) {
+  if (input === undefined) return undefined;
+  const list = Array.isArray(input)
+    ? input
+    : typeof input === "string" && input.trim()
+      ? [input]
+      : [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of list) {
+    const v = typeof raw === "string" ? raw.trim().slice(0, 60) : "";
+    if (!v || seen.has(v) || !CATEGORIES.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
 export async function PATCH(request, { params }) {
   const session = getSession();
   if (!isStaffAdmin(session)) {
@@ -89,8 +109,11 @@ export async function PATCH(request, { params }) {
   if (booth !== undefined) patch.booth = booth;
   const notes = clean(body?.notes, 2000);
   if (notes !== undefined) patch.notes = notes;
-  const category = clean(body?.category, 60);
-  if (category !== undefined) patch.category = CATEGORIES.has(category) ? category : "";
+  // Categories: array since 2026-05-19. Accepts either `categories` (new)
+  // or `category` (legacy) on input.
+  const categoriesInput = body?.categories !== undefined ? body.categories : body?.category;
+  const categories = sanitizeCategories(categoriesInput);
+  if (categories !== undefined) patch.categories = categories;
   const interests = sanitizeInterests(body?.interests);
   if (interests !== undefined) patch.interests = interests;
   const recordTypeRaw = clean(body?.record_type, 12);

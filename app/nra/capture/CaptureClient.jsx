@@ -32,7 +32,7 @@ const SHOW = "nra-2026";
 
 const EMPTY_FORM = {
   name: "", company: "", role: "", email: "", phone: "",
-  category: "", booth: "", interests: [], notes: "",
+  categories: [], booth: "", interests: [], notes: "",
   record_type: "exhibitor", priority: "P2", country: "",
   card_image_url: "",
 };
@@ -149,17 +149,21 @@ function csvEscape(value) {
 function leadsToCsv(leads) {
   const headers = [
     "created_at", "record_type", "priority", "name", "company", "role",
-    "email", "phone", "country", "category", "booth", "interests", "notes",
+    "email", "phone", "country", "categories", "booth", "interests", "notes",
     "card_image_url",
   ];
   const lines = [headers.join(",")];
   for (const l of leads) {
+    const cats = Array.isArray(l.categories)
+      ? l.categories
+      : (l.category ? [l.category] : []);
     lines.push([
       l.created_at,
       l.record_type, l.priority,
       l.name, l.company, l.role,
       l.email, l.phone, l.country,
-      l.category, l.booth, (l.interests || []).join("; "),
+      cats.join("; "),
+      l.booth, (l.interests || []).join("; "),
       l.notes,
       l.card_image_url,
     ].map(csvEscape).join(","));
@@ -258,7 +262,7 @@ export default function CaptureClient({ session }) {
       email: form.email.trim(),
       phone: form.phone.trim(),
       booth: form.booth.trim(),
-      category: form.category,
+      categories: form.categories,
       interests: form.interests,
       notes: form.notes.trim(),
       record_type: form.record_type,
@@ -571,14 +575,21 @@ function FormFields({ form, setField }) {
         <legend className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
           What they do
         </legend>
+        <p className="text-[13px] text-ink-400">Pick all that apply</p>
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.map((c) => {
-            const active = form.category === c;
+            const active = (form.categories || []).includes(c);
             return (
               <button
                 type="button"
                 key={c}
-                onClick={() => setField("category", active ? "" : c)}
+                onClick={() => {
+                  const current = form.categories || [];
+                  const next = active
+                    ? current.filter((x) => x !== c)
+                    : [...current, c];
+                  setField("categories", next);
+                }}
                 className={
                   "min-h-[44px] rounded-md border px-3 py-2 text-[14px] transition-colors " +
                   (active
@@ -670,10 +681,13 @@ function ListView({ leads, loading, loadError, refresh }) {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return leads;
-    return leads.filter((l) =>
-      [l.name, l.company, l.role, l.email, l.phone, l.category, l.booth, l.notes]
-        .some((v) => (v || "").toLowerCase().includes(q))
-    );
+    return leads.filter((l) => {
+      const cats = Array.isArray(l.categories)
+        ? l.categories.join(" ")
+        : (l.category || "");
+      return [l.name, l.company, l.role, l.email, l.phone, cats, l.booth, l.notes]
+        .some((v) => (v || "").toLowerCase().includes(q));
+    });
   }, [leads, query]);
 
   async function handleSave(id) {
@@ -886,11 +900,18 @@ function LeadCard({ lead, onEdit, onDelete }) {
             {lead.country}
           </div>
         )}
-        {lead.category && (
-          <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
-            {lead.category}
-          </div>
-        )}
+        {(() => {
+          // Tolerant of legacy single-string rows just in case anything
+          // slipped through the migration as a non-array value.
+          const cats = Array.isArray(lead.categories)
+            ? lead.categories
+            : (lead.category ? [lead.category] : []);
+          return cats.length > 0 ? (
+            <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
+              {cats.join(" · ")}
+            </div>
+          ) : null;
+        })()}
         {Array.isArray(lead.interests) && lead.interests.length > 0 && (
           <div className="font-mono text-[11px] uppercase tracking-wider text-ink-400">
             {lead.interests.join(" · ")}
@@ -1207,8 +1228,20 @@ function buildStats(leads) {
     byPriority.set(p, (byPriority.get(p) || 0) + 1);
     const c = (l.country || "").trim();
     byCountry.set(c, (byCountry.get(c) || 0) + 1);
-    const cat = (l.category || "").trim();
-    byCategory.set(cat, (byCategory.get(cat) || 0) + 1);
+    // Multi-tag: each category bumps its own bucket. The totals across
+    // categories can exceed total leads — that's intentional. Empty
+    // arrays roll up into "" so we still see "unspecified" share.
+    const cats = Array.isArray(l.categories)
+      ? l.categories
+      : (l.category ? [l.category] : []);
+    if (cats.length === 0) {
+      byCategory.set("", (byCategory.get("") || 0) + 1);
+    } else {
+      for (const cat of cats) {
+        const v = (cat || "").trim();
+        byCategory.set(v, (byCategory.get(v) || 0) + 1);
+      }
+    }
   }
   const sortDesc = (m) => [...m.entries()].sort((a, b) => b[1] - a[1]);
   return {
