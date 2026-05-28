@@ -145,6 +145,8 @@ export async function PATCH(request, { params }) {
   }
   const country = clean(body?.country, 60);
   if (country !== undefined) patch.country = country;
+  const tag = clean(body?.tag, 60);
+  if (tag !== undefined) patch.tag = tag;
   // Accept either `card_image_urls` (new) or `card_image_url` (legacy).
   const cardUrlsInput = body?.card_image_urls !== undefined
     ? body.card_image_urls

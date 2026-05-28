@@ -151,6 +151,7 @@ export async function POST(request) {
     record_type: RECORD_TYPES.has(recordTypeRaw) ? recordTypeRaw : "exhibitor",
     priority: PRIORITIES.has(priorityRaw) ? priorityRaw : "P2",
     country: clean(body?.country, 60),
+    tag: clean(body?.tag, 60),
     card_image_urls: sanitizeCardUrls(
       body?.card_image_urls !== undefined ? body.card_image_urls : body?.card_image_url
     ),

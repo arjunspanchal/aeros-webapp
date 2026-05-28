@@ -32,7 +32,7 @@ const SHOW = "nra-2026";
 
 const EMPTY_FORM = {
   name: "", company: "", role: "", email: "", phone: "",
-  categories: [], booth: "", interests: [], notes: "",
+  categories: [], booth: "", interests: [], notes: "", tag: "",
   record_type: "exhibitor", priority: "P2", country: "",
   card_image_urls: [],
 };
@@ -218,7 +218,7 @@ function csvEscape(value) {
 function leadsToCsv(leads) {
   const headers = [
     "created_at", "record_type", "priority", "name", "company", "role",
-    "email", "phone", "country", "categories", "booth", "interests", "notes",
+    "email", "phone", "country", "tag", "categories", "booth", "interests", "notes",
     "card_image_urls",
   ];
   const lines = [headers.join(",")];
@@ -233,7 +233,7 @@ function leadsToCsv(leads) {
       l.created_at,
       l.record_type, l.priority,
       l.name, l.company, l.role,
-      l.email, l.phone, l.country,
+      l.email, l.phone, l.country, l.tag,
       cats.join("; "),
       l.booth, (l.interests || []).join("; "),
       l.notes,
@@ -362,6 +362,7 @@ export default function CaptureClient({ session }) {
       record_type: form.record_type,
       priority: form.priority,
       country,
+      tag: form.tag.trim(),
       card_image_urls: form.card_image_urls,
       source: "owner",
       show: SHOW,
@@ -744,6 +745,14 @@ function FormFields({ form, setField }) {
         </div>
       </fieldset>
 
+      <Field
+        label="Tag"
+        value={form.tag}
+        onChange={(v) => setField("tag", v)}
+        placeholder='Short memory aid — e.g. "PLA cutlery", "Call him", "Not important"'
+        maxLength={60}
+      />
+
       <div>
         <label className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-ink-400">
           Notes
@@ -793,7 +802,7 @@ function ListView({ leads, loading, loadError, refresh }) {
       const cats = Array.isArray(l.categories)
         ? l.categories.join(" ")
         : (l.category || "");
-      return [l.name, l.company, l.role, l.email, l.phone, cats, l.booth, l.notes]
+      return [l.name, l.company, l.role, l.email, l.phone, cats, l.booth, l.tag, l.notes]
         .some((v) => (v || "").toLowerCase().includes(q));
     });
   }, [leads, query]);
@@ -864,7 +873,7 @@ function ListView({ leads, loading, loadError, refresh }) {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search name, company, booth…"
+          placeholder="Search name, company, booth, tag…"
           className="flex-1 rounded-lg border border-ink-200 bg-white px-3 py-3 text-[16px] text-ink-800 placeholder:text-ink-400 focus:border-ink-800 focus:outline-none"
         />
         <div className="relative shrink-0">
@@ -995,6 +1004,11 @@ function LeadCard({ lead, onEdit, onDelete }) {
           <div className="mt-0.5 truncate text-[14px] text-ink-600">
             {lead.company}{lead.role ? ` · ${lead.role}` : ""}
           </div>
+          {lead.tag && (
+            <div className="mt-1 inline-block max-w-full truncate rounded-md bg-ink-100 px-2 py-0.5 font-sans text-[12px] font-medium italic text-ink-900">
+              {lead.tag}
+            </div>
+          )}
         </div>
         <div className="shrink-0 text-right">
           {lead.booth && (
@@ -1070,6 +1084,7 @@ function EditCard({ patch, setPatch, onCancel, onSave }) {
       <Field label="Email" type="email" value={patch.email || ""} onChange={(v) => set("email", v)} />
       <Field label="Phone" value={patch.phone || ""} onChange={(v) => set("phone", v)} />
       <Field label="Country" value={patch.country || ""} onChange={(v) => set("country", v)} />
+      <Field label="Tag" value={patch.tag || ""} onChange={(v) => set("tag", v)} maxLength={60} />
       <div>
         <label className="mb-1 block font-mono text-[11px] uppercase tracking-wider text-ink-400">Type</label>
         <div className="flex gap-2">
