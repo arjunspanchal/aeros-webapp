@@ -5,14 +5,29 @@ import ProductCard from './ProductCard';
 
 // Secondary facets, in display order. Only the rows with ≥2 distinct values
 // inside the currently-selected categories actually render — so a Paper Cup
-// shows Wall/Coating/Material rows, while Paper Straws (one value each)
-// shows nothing extra.
+// shows Size/Wall/Coating/Material rows, while Paper Straws (one value
+// each across most facets) shows only the dimension row.
 const FACETS = [
+  { key: 'sizeLabel', label: 'Size' },
   { key: 'wallType', label: 'Wall' },
   { key: 'coating', label: 'Coating' },
   { key: 'material', label: 'Material' },
   { key: 'subCategory', label: 'Sub-category' },
 ];
+
+// Sort facet values. For Size labels we sort by the first number we see
+// so "100ml, 130ml, 200ml" reads in order; "Ø 62 mm, Ø 73/75 mm, Ø 98 mm"
+// too. Falls back to locale-sort for everything else.
+function sortFacetValues(key, values) {
+  if (key !== 'sizeLabel') {
+    return values.slice().sort((a, b) => a.localeCompare(b));
+  }
+  const leading = (s) => {
+    const m = s.match(/(\d+(?:\.\d+)?)/);
+    return m ? Number.parseFloat(m[1]) : Number.POSITIVE_INFINITY;
+  };
+  return values.slice().sort((a, b) => leading(a) - leading(b) || a.localeCompare(b));
+}
 
 export default function ProductGrid({ products, categories }) {
   const [query, setQuery] = useState('');
@@ -76,7 +91,7 @@ export default function ProductGrid({ products, categories }) {
         if (!v) continue;
         counts.set(v, (counts.get(v) || 0) + 1);
       }
-      const values = Array.from(counts.keys()).sort((a, b) => a.localeCompare(b));
+      const values = sortFacetValues(key, Array.from(counts.keys()));
       return { key, label, values };
     }).filter((r) => r.values.length >= 2 || (facets[r.key]?.size > 0));
   }, [inSelection, selected, facets]);
