@@ -3,11 +3,23 @@
 import { useMemo, useState } from 'react';
 import ProductCard from './ProductCard';
 
+// Secondary facets, in display order. Only the rows with ≥2 distinct values
+// inside the currently-selected categories actually render — so a Paper Cup
+// shows Wall/Coating/Material rows, while Paper Straws (one value each)
+// shows nothing extra.
+const FACETS = [
+  { key: 'wallType', label: 'Wall' },
+  { key: 'coating', label: 'Coating' },
+  { key: 'material', label: 'Material' },
+  { key: 'subCategory', label: 'Sub-category' },
+];
+
 export default function ProductGrid({ products, categories }) {
   const [query, setQuery] = useState('');
-  // Empty Set = "All". Click a chip to add/remove it from the filter so the
-  // grid can show, e.g., Lids + Paper Cups together.
+  // Category multi-select. Empty Set = "All".
   const [selected, setSelected] = useState(() => new Set());
+  // Secondary facets: { wallType: Set<value>, coating: Set<value>, … }
+  const [facets, setFacets] = useState(() => ({}));
 
   const toggleCategory = (cat) => {
     setSelected((prev) => {
@@ -16,10 +28,31 @@ export default function ProductGrid({ products, categories }) {
       else next.add(cat);
       return next;
     });
+    // Category change can invalidate facet values (e.g. "PE" coating
+    // doesn't exist outside Paper Cups). Reset rather than try to migrate.
+    setFacets({});
   };
-  const clearCategories = () => setSelected(new Set());
+  const clearCategories = () => {
+    setSelected(new Set());
+    setFacets({});
+  };
 
-  const filtered = useMemo(() => {
+  const toggleFacet = (key, value) => {
+    setFacets((prev) => {
+      const next = { ...prev };
+      const cur = new Set(next[key] || []);
+      if (cur.has(value)) cur.delete(value);
+      else cur.add(value);
+      if (cur.size === 0) delete next[key];
+      else next[key] = cur;
+      return next;
+    });
+  };
+
+  // Stage 1: filter by search + category. We need this intermediate set
+  // to compute which facet values are available within the user's
+  // current category selection.
+  const inSelection = useMemo(() => {
     const q = query.trim().toLowerCase();
     return products.filter((p) => {
       if (selected.size && !selected.has(p.category)) return false;
@@ -30,6 +63,35 @@ export default function ProductGrid({ products, categories }) {
       return true;
     });
   }, [products, query, selected]);
+
+  // Derive secondary facet rows from products in the current category
+  // selection. Only emit a row when there's a real choice to make (≥2
+  // distinct values) or the user already picked something in it.
+  const facetRows = useMemo(() => {
+    if (selected.size === 0) return [];
+    return FACETS.map(({ key, label }) => {
+      const counts = new Map();
+      for (const p of inSelection) {
+        const v = p[key];
+        if (!v) continue;
+        counts.set(v, (counts.get(v) || 0) + 1);
+      }
+      const values = Array.from(counts.keys()).sort((a, b) => a.localeCompare(b));
+      return { key, label, values };
+    }).filter((r) => r.values.length >= 2 || (facets[r.key]?.size > 0));
+  }, [inSelection, selected, facets]);
+
+  // Stage 2: apply facet filters. AND across facet keys, OR within a key.
+  const filtered = useMemo(() => {
+    const active = Object.entries(facets);
+    if (active.length === 0) return inSelection;
+    return inSelection.filter((p) => {
+      for (const [key, values] of active) {
+        if (!values.has(p[key])) return false;
+      }
+      return true;
+    });
+  }, [inSelection, facets]);
 
   const selectedList = useMemo(() => Array.from(selected), [selected]);
 
@@ -54,19 +116,39 @@ export default function ProductGrid({ products, categories }) {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <CategoryChip active={selected.size === 0} onClick={clearCategories}>
+          <FilterChip active={selected.size === 0} onClick={clearCategories}>
             All ({products.length})
-          </CategoryChip>
+          </FilterChip>
           {categories.map((cat) => (
-            <CategoryChip
+            <FilterChip
               key={cat}
               active={selected.has(cat)}
               onClick={() => toggleCategory(cat)}
             >
               {cat}
-            </CategoryChip>
+            </FilterChip>
           ))}
         </div>
+
+        {/* Secondary facet rows — appear once a category is selected and
+            the facet has real options to choose between. */}
+        {facetRows.map(({ key, label, values }) => (
+          <div key={key} className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {label}
+            </span>
+            {values.map((v) => (
+              <FilterChip
+                key={v}
+                size="sm"
+                active={!!facets[key]?.has(v)}
+                onClick={() => toggleFacet(key, v)}
+              >
+                {v}
+              </FilterChip>
+            ))}
+          </div>
+        ))}
       </div>
 
       {/* Results count */}
@@ -100,12 +182,15 @@ export default function ProductGrid({ products, categories }) {
   );
 }
 
-function CategoryChip({ active, onClick, children }) {
+function FilterChip({ active, onClick, size = 'md', children }) {
+  const sizeCls = size === 'sm' ? 'px-3 py-1 text-xs' : 'px-4 py-1.5 text-sm';
   return (
     <button
       onClick={onClick}
       className={
-        'rounded-full px-4 py-1.5 text-sm font-medium transition ' +
+        'rounded-full font-medium transition ' +
+        sizeCls +
+        ' ' +
         (active
           ? 'bg-brand-600 text-white shadow-sm'
           : 'bg-white text-gray-700 ring-1 ring-gray-300 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-gray-800')
