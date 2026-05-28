@@ -10,6 +10,7 @@ import ProductCard from './ProductCard';
 const FACETS = [
   { key: 'sizeLabel', label: 'Size' },
   { key: 'wallType', label: 'Wall' },
+  { key: 'lidProcess', label: 'Process' },
   { key: 'coating', label: 'Coating' },
   { key: 'material', label: 'Material' },
   { key: 'subCategory', label: 'Sub-category' },
