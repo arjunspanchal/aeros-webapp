@@ -115,24 +115,27 @@ export default async function ProductDetailPage({ params }) {
               </p>
             )}
 
-            {/* All rates · India landed. Tiers come from
-                master_product_pricing — typically a single Plain (EXW) row
-                plus the Printed ladder (1k/2k/3k/5k/10k/20k/50k DDP) for
-                tubs and any other product with quantity slabs. */}
+            {/* Rate ladder. Tiers come from master_product_pricing and
+                feed onto the product via attachPricingTiers. We show the
+                india_landed_inr value (the all-in DDP-equivalent ₹/pc
+                a buyer pays delivered in India) and hide the raw
+                incoterm — the row-level EXW vs DDP distinction is a
+                seller-side concern that confused buyers. Savings % is
+                computed against the lowest-MOQ rung within each group. */}
             {(() => {
               const groups = groupTiersForDisplay(product.pricingTiers);
               if (!groups.length) return null;
               return (
                 <section className="mt-6 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                   <h2 className="border-b border-gray-200 px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                    All rates · India landed
+                    Pricing · Delivered in India
                   </h2>
                   {groups.map((g) => (
                     <RateTable key={g.key} group={g} />
                   ))}
-                  <p className="border-t border-gray-200 px-4 py-2 text-[11px] text-gray-400 dark:border-gray-800 dark:text-gray-500">
-                    Indicative ₹/pc, GST + freight included where the
-                    incoterm is DDP. Final quote confirmed on inquiry.
+                  <p className="border-t border-gray-200 px-4 py-3 text-[11px] text-gray-400 dark:border-gray-800 dark:text-gray-500">
+                    Indicative ₹/pc, GST and delivery within India
+                    included. Final quote confirmed on inquiry.
                   </p>
                 </section>
               );
@@ -240,7 +243,10 @@ function compactSpecs(rows) {
 // the groups Plain → Printed → anything else. Rows within each group are
 // sorted by MOQ ascending so the ladder reads small → large.
 const OFFERING_ORDER = ["plain", "custom_branded"];
-const OFFERING_LABELS = { plain: "Plain", custom_branded: "Printed" };
+const OFFERING_META = {
+  plain: { label: "Plain", subtitle: "No print" },
+  custom_branded: { label: "Printed", subtitle: "Your branded artwork" },
+};
 
 function groupTiersForDisplay(tiers) {
   if (!Array.isArray(tiers) || tiers.length === 0) return [];
@@ -254,51 +260,87 @@ function groupTiersForDisplay(tiers) {
     ...OFFERING_ORDER.filter((k) => byType.has(k)),
     ...Array.from(byType.keys()).filter((k) => !OFFERING_ORDER.includes(k)),
   ];
-  return orderedKeys.map((k) => ({
-    key: k,
-    label: OFFERING_LABELS[k] || k,
-    rows: byType.get(k).sort((a, b) => (a.minQty || 0) - (b.minQty || 0)),
-  }));
+  return orderedKeys.map((k) => {
+    const meta = OFFERING_META[k] || { label: k };
+    return {
+      key: k,
+      label: meta.label,
+      subtitle: meta.subtitle || null,
+      rows: byType.get(k).sort((a, b) => (a.minQty || 0) - (b.minQty || 0)),
+    };
+  });
 }
 
 function RateTable({ group }) {
-  const tierCount = group.rows.length;
+  const rows = group.rows;
+  if (rows.length === 0) return null;
+  // Savings % uses the smallest-MOQ rung as the baseline so a 50k-rung
+  // shows "Save 77%" vs the 1k entry rate. Single-rate groups (Plain
+  // is usually one row) skip the column entirely.
+  const baseline = Number(rows[0].indiaLandedInr);
+  const showSavings = rows.length > 1;
+  const cheapestPrice = Math.min(...rows.map((r) => Number(r.indiaLandedInr)));
+
   return (
     <div className="border-b border-gray-100 last:border-b-0 dark:border-gray-800">
-      <div className="flex items-baseline gap-2 px-4 pt-3 text-sm font-semibold text-gray-900 dark:text-gray-100">
-        {group.label}
-        <span className="text-xs font-normal text-gray-400 dark:text-gray-500">
-          {tierCount === 1 ? "1 rate" : `${tierCount} ladder rungs`}
+      <div className="flex items-baseline gap-2 px-4 pt-4 pb-1">
+        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {group.label}
         </span>
+        {group.subtitle && (
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            · {group.subtitle}
+          </span>
+        )}
       </div>
-      <table className="mt-1 w-full text-sm">
+      <table className="w-full text-sm">
         <thead>
           <tr className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
-            <th className="px-4 py-2 text-left font-medium">MOQ</th>
-            <th className="px-4 py-2 text-right font-medium">India landed</th>
-            <th className="px-4 py-2 text-right font-medium">Incoterm</th>
+            <th className="px-4 py-2 text-left font-medium">Order quantity</th>
+            <th className="px-4 py-2 text-right font-medium">Price /pc</th>
+            {showSavings && (
+              <th className="px-4 py-2 text-right font-medium">Savings</th>
+            )}
           </tr>
         </thead>
         <tbody>
-          {group.rows.map((t) => (
-            <tr
-              key={t.id}
-              className="border-t border-gray-100 dark:border-gray-800"
-            >
-              <td className="px-4 py-2 text-gray-900 dark:text-gray-100">
-                {t.minQty != null ? `${t.minQty.toLocaleString()}+` : "—"}
-              </td>
-              <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-gray-100">
-                ₹{Number(t.indiaLandedInr).toFixed(2)}
-                <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">
-                  /pc
-                </span>
-              </td>
-              <td className="px-4 py-2 text-right font-mono text-xs text-gray-500 dark:text-gray-400">
-                {t.incoterm || "—"}
-              </td>
-            </tr>
-          ))}
+          {rows.map((t) => {
+            const price = Number(t.indiaLandedInr);
+            const savingsPct =
+              baseline > 0 ? Math.round((1 - price / baseline) * 100) : 0;
+            const isBest = price === cheapestPrice && showSavings;
+            return (
+              <tr
+                key={t.id}
+                className="border-t border-gray-100 dark:border-gray-800"
+              >
+                <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">
+                  {t.minQty != null
+                    ? `${t.minQty.toLocaleString()}+ pcs`
+                    : "—"}
+                </td>
+                <td
+                  className={`px-4 py-2.5 text-right font-semibold ${
+                    isBest
+                      ? "text-brand-700 dark:text-amber-300"
+                      : "text-gray-900 dark:text-gray-100"
+                  }`}
+                >
+                  ₹{price.toFixed(2)}
+                  {isBest && (
+                    <span className="ml-2 inline-block rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand-700 ring-1 ring-brand-200 dark:bg-amber-900/30 dark:text-amber-200 dark:ring-amber-800">
+                      Best
+                    </span>
+                  )}
+                </td>
+                {showSavings && (
+                  <td className="px-4 py-2.5 text-right text-xs text-gray-500 dark:text-gray-400">
+                    {savingsPct > 0 ? `Save ${savingsPct}%` : "—"}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
