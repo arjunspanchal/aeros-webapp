@@ -104,38 +104,12 @@ export default async function ProductDetailPage({ params }) {
               {product.productName}
             </h1>
 
-            {/* Pricing — landed in India + landed in USA per piece. Falls
-                back to the "Price on request" line when pricePerUnit is
-                missing on the master row. */}
-            {product.landed?.available ? (
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                <div className="rounded-md border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900">
-                  <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Landed in India
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                    {product.landed.landedInrFormatted}
-                    <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">/pc</span>
-                  </p>
-                </div>
-                <div className="rounded-md border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900">
-                  <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Landed in USA
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                    {product.landed.landedUsdFormatted}
-                    <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">/pc</span>
-                  </p>
-                </div>
-                <p className="col-span-2 text-[11px] text-gray-400 dark:text-gray-500">
-                  Indicative. INR is the Aeros rate-card price per piece. USD
-                  includes DHL Express air freight from Mumbai and US import
-                  duty at the category MFN rate
-                  {product.landed.usdSource === "fallback" ? " (carton info pending — rough FX estimate)" : ""}.
-                  Final quote confirmed on inquiry.
-                </p>
-              </div>
-            ) : (
+            {/* Pricing display — the full rate ladder lives below in
+                the "All rates · India landed" section. When a product
+                has no pricing tiers yet (cups, lids, bags), fall back
+                to a "Price on request" cue so buyers know to inquire
+                via the WhatsApp / Email CTAs further down. */}
+            {!product.landed?.available && (
               <p className="mt-3 text-sm italic text-gray-400 dark:text-gray-500">
                 Price on request
               </p>
