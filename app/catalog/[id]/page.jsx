@@ -141,6 +141,29 @@ export default async function ProductDetailPage({ params }) {
               </p>
             )}
 
+            {/* All rates · India landed. Tiers come from
+                master_product_pricing — typically a single Plain (EXW) row
+                plus the Printed ladder (1k/2k/3k/5k/10k/20k/50k DDP) for
+                tubs and any other product with quantity slabs. */}
+            {(() => {
+              const groups = groupTiersForDisplay(product.pricingTiers);
+              if (!groups.length) return null;
+              return (
+                <section className="mt-6 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                  <h2 className="border-b border-gray-200 px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                    All rates · India landed
+                  </h2>
+                  {groups.map((g) => (
+                    <RateTable key={g.key} group={g} />
+                  ))}
+                  <p className="border-t border-gray-200 px-4 py-2 text-[11px] text-gray-400 dark:border-gray-800 dark:text-gray-500">
+                    Indicative ₹/pc, GST + freight included where the
+                    incoterm is DDP. Final quote confirmed on inquiry.
+                  </p>
+                </section>
+              );
+            })()}
+
             {/* Spec table */}
             {specs.length > 0 && (
               <dl className="mt-6 divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900">
@@ -236,4 +259,74 @@ function compactSpecs(rows) {
   return rows
     .filter(([, value]) => value !== null && value !== undefined && value !== "")
     .map(([label, value, opts]) => ({ label, value, mono: !!opts?.mono }));
+}
+
+// Group pricing tiers by offering_type for the rate-ladder section.
+// Drops tiers without an india_landed_inr (nothing to display) and orders
+// the groups Plain → Printed → anything else. Rows within each group are
+// sorted by MOQ ascending so the ladder reads small → large.
+const OFFERING_ORDER = ["plain", "custom_branded"];
+const OFFERING_LABELS = { plain: "Plain", custom_branded: "Printed" };
+
+function groupTiersForDisplay(tiers) {
+  if (!Array.isArray(tiers) || tiers.length === 0) return [];
+  const byType = new Map();
+  for (const t of tiers) {
+    if (t.indiaLandedInr == null) continue;
+    if (!byType.has(t.offeringType)) byType.set(t.offeringType, []);
+    byType.get(t.offeringType).push(t);
+  }
+  const orderedKeys = [
+    ...OFFERING_ORDER.filter((k) => byType.has(k)),
+    ...Array.from(byType.keys()).filter((k) => !OFFERING_ORDER.includes(k)),
+  ];
+  return orderedKeys.map((k) => ({
+    key: k,
+    label: OFFERING_LABELS[k] || k,
+    rows: byType.get(k).sort((a, b) => (a.minQty || 0) - (b.minQty || 0)),
+  }));
+}
+
+function RateTable({ group }) {
+  const tierCount = group.rows.length;
+  return (
+    <div className="border-b border-gray-100 last:border-b-0 dark:border-gray-800">
+      <div className="flex items-baseline gap-2 px-4 pt-3 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        {group.label}
+        <span className="text-xs font-normal text-gray-400 dark:text-gray-500">
+          {tierCount === 1 ? "1 rate" : `${tierCount} ladder rungs`}
+        </span>
+      </div>
+      <table className="mt-1 w-full text-sm">
+        <thead>
+          <tr className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+            <th className="px-4 py-2 text-left font-medium">MOQ</th>
+            <th className="px-4 py-2 text-right font-medium">India landed</th>
+            <th className="px-4 py-2 text-right font-medium">Incoterm</th>
+          </tr>
+        </thead>
+        <tbody>
+          {group.rows.map((t) => (
+            <tr
+              key={t.id}
+              className="border-t border-gray-100 dark:border-gray-800"
+            >
+              <td className="px-4 py-2 text-gray-900 dark:text-gray-100">
+                {t.minQty != null ? `${t.minQty.toLocaleString()}+` : "—"}
+              </td>
+              <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-gray-100">
+                ₹{Number(t.indiaLandedInr).toFixed(2)}
+                <span className="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500">
+                  /pc
+                </span>
+              </td>
+              <td className="px-4 py-2 text-right font-mono text-xs text-gray-500 dark:text-gray-400">
+                {t.incoterm || "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
