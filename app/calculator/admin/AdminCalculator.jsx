@@ -14,7 +14,7 @@ const MILLS_BY_TYPE = {
   "Brown Kraft": ["Ajit", "Jodhani", "Om Shivaay"],
   "Bleach Kraft White": ["JK", "BILT", "Pudumjee"],
   "OGR": ["JK", "BILT", "Pudumjee"],
-  "MG": ["Khateema", "Jani Mill"],
+  "MG": ["Khateema", "Jani Mill", "Om Shivaay"],
 };
 
 const GSM_OPTIONS = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140];
