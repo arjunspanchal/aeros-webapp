@@ -124,7 +124,22 @@ export function exportQuotePDF({ form, result, currency = "INR", unit = "mm" }) 
   .grid .v { font-size: 16px; font-weight: 600; margin-top: 2px; }
   h2 { font-size: 14px; margin: 24px 0 8px; color: #1e40af; }
   .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #eee; font-size: 11px; color: #888; }
-  @media print { body { margin: 20px; } }
+  @media print {
+    body { margin: 20px; }
+    /* Suppress the browser's auto-added URL / date / page-number chrome so the
+       customer PDF doesn't carry "https://webapp.aeros-x.com/calculator/admin"
+       across the top. Empty content directives win against the default. */
+    @page {
+      margin: 0.5in;
+      size: A4;
+      @top-left { content: ""; }
+      @top-center { content: ""; }
+      @top-right { content: ""; }
+      @bottom-left { content: ""; }
+      @bottom-center { content: ""; }
+      @bottom-right { content: ""; }
+    }
+  }
 </style></head><body>
 
 <h1>Aeros Paper Bag Rate Calculator</h1>
@@ -231,7 +246,20 @@ export function exportAdminQuotePDF({ form, breakdown, curve, currency = "INR", 
   .grid .k { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
   .grid .v { font-size: 14px; font-weight: 600; margin-top: 2px; }
   .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #eee; font-size: 11px; color: #888; }
-  @media print { body { margin: 18px; } }
+  @media print {
+    body { margin: 18px; }
+    /* Strip browser-added URL / date / page-number headers from the admin PDF too. */
+    @page {
+      margin: 0.5in;
+      size: A4;
+      @top-left { content: ""; }
+      @top-center { content: ""; }
+      @top-right { content: ""; }
+      @bottom-left { content: ""; }
+      @bottom-center { content: ""; }
+      @bottom-right { content: ""; }
+    }
+  }
 </style></head><body>
 
 <h1>Aeros Paper Bag Rate Calculator <span class="badge">INTERNAL</span></h1>
