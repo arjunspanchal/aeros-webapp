@@ -16,6 +16,14 @@ import {
 } from "@/lib/calc/cup-calculator";
 import { USD_RATE } from "@/lib/calc/calculator";
 import { tierFromMargin } from "@/lib/calc/pricing-tiers";
+import {
+  calculateTub,
+  TUB_SIZE_OPTS, TUB_SIZE_LABELS, TUB_DIMS,
+  TUB_CPM_DEFAULT, TUB_CASE_PACK_DEFAULT,
+  computeTubConversionCostPerUnit,
+  computeTubPackingCostPerUnit,
+  computeTubGlueCostPerUnit,
+} from "@/lib/calc/tub-calculator";
 
 const STORAGE_PREFIX = "aeros:cup:order:";
 
@@ -630,6 +638,8 @@ function loadSavedOrders(scope) {
 }
 
 export default function CupCalculator({ scope = "default" }) {
+  const [productType, setProductType] = useState("cup"); // "cup" | "tub"
+  const [tubSize, setTubSize] = useState("");
   const [cupVariant, setCupVariant] = useState("");
   const [quoteRef, setQuoteRef] = useState("");
   const [size, setSize] = useState("");
@@ -995,6 +1005,65 @@ export default function CupCalculator({ scope = "default" }) {
     setGlue(autoGlue.toFixed(4));
   }, [autoGlue]);
 
+  // Tub-mode auto-fill. When productType === "tub", these override the
+  // cup-side autoConv / autoPack / autoGlue values that were computed for
+  // the cupType/size combination (which is empty in tub mode).
+  const tubConv = useMemo(() => {
+    if (productType !== "tub" || !tubSize) return null;
+    return computeTubConversionCostPerUnit({
+      components: {
+        salary: parseFloat(convSalary) || 0,
+        electricity: parseFloat(convElec) || 0,
+        rent: parseFloat(convRent) || 0,
+        maintenance: parseFloat(convMaint) || 0,
+        qc: parseFloat(convQc) || 0,
+      },
+      monthlyHours: parseFloat(convHours) || 0,
+      machineCountSw: parseFloat(machineCountSw) || 0,
+      machineCountDw: parseFloat(machineCountDw) || 0,
+      cpm: TUB_CPM_DEFAULT,
+    });
+  }, [productType, tubSize, convSalary, convElec, convRent, convMaint, convQc, convHours, machineCountSw, machineCountDw]);
+  const tubPack = useMemo(() => {
+    if (productType !== "tub" || !tubSize) return null;
+    const cp = parseInt(casePack) || TUB_CASE_PACK_DEFAULT;
+    return computeTubPackingCostPerUnit({
+      casePack: cp,
+      materials: {
+        poly: parseFloat(packPoly) || 0,
+        carton: parseFloat(packCarton) || 0,
+        tape: parseFloat(packTape) || 0,
+        label: parseFloat(packLabel) || 0,
+      },
+      monthlyLabour: parseFloat(packLabour) || 0,
+      monthlyHours: parseFloat(convHours) || 0,
+      machineCountSw: parseFloat(machineCountSw) || 0,
+      machineCountDw: parseFloat(machineCountDw) || 0,
+      cpm: TUB_CPM_DEFAULT,
+    });
+  }, [productType, tubSize, casePack, packPoly, packCarton, packTape, packLabel, packLabour, convHours, machineCountSw, machineCountDw]);
+  const tubGlue = useMemo(() => {
+    if (productType !== "tub" || !tubSize) return null;
+    return computeTubGlueCostPerUnit({ size: tubSize });
+  }, [productType, tubSize]);
+  useEffect(() => {
+    if (productType !== "tub" || tubConv == null) return;
+    setConv(tubConv.toFixed(4));
+  }, [productType, tubConv]);
+  useEffect(() => {
+    if (productType !== "tub" || tubPack == null) return;
+    setPack(tubPack.total.toFixed(4));
+  }, [productType, tubPack]);
+  useEffect(() => {
+    if (productType !== "tub" || tubGlue == null) return;
+    setGlue(tubGlue.toFixed(4));
+  }, [productType, tubGlue]);
+  // When tub size changes, set the default case pack so packing math is right.
+  useEffect(() => {
+    if (productType !== "tub") return;
+    if (!casePack) setCasePack(String(TUB_CASE_PACK_DEFAULT));
+  }, [productType, tubSize]);
+
   // Papers filtered to the sidewall GSM / bottom 230 GSM. Rates may be blank
   // in the RM Master — we still surface the brand but only autofill rate when
   // it's populated, and flag the missing-rate case in the UI.
@@ -1048,6 +1117,17 @@ export default function CupCalculator({ scope = "default" }) {
   }, [ofGSM, masterPapers, ofPaperId]);
 
   function runCalculate() {
+    if (productType === "tub") {
+      const r = calculateTub({
+        size: tubSize, casePack, margin,
+        swGSM, swRate, swCoating, swCoatingRate,
+        swPrint, swColors, swRate1, swRateN,
+        btRate, btCoating: LOCKED_BT_COATING, btCoatingRate: "",
+        conv, pack, glue, otherCost,
+      });
+      setResult(r);
+      return;
+    }
     const r = calculate({
       wallType: cupType,
       size, casePack, margin,
@@ -1159,15 +1239,45 @@ export default function CupCalculator({ scope = "default" }) {
       <div className="card">
         <div className="card-title">Basics</div>
         <div className="field-row">
+          <Field label="Product type">
+            <div className="chips" style={{ marginTop: 2 }}>
+              <Chip label="Cup" selected={productType === "cup"} onClick={() => { setProductType("cup"); setResult(null); setTubSize(""); }} />
+              <Chip label="Tub" selected={productType === "tub"} onClick={() => { setProductType("tub"); setResult(null); setCupVariant(""); setSize(""); }} />
+            </div>
+          </Field>
           <Field label="Quote reference (shown on PDF)">
             <input
               type="text"
               value={quoteRef}
               onChange={(e) => setQuoteRef(e.target.value)}
-              placeholder="e.g. Wellbeing DW 8oz PE"
+              placeholder={productType === "tub" ? "e.g. Naturals 12oz tub 2PE" : "e.g. Wellbeing DW 8oz PE"}
             />
           </Field>
         </div>
+        {productType === "tub" && (
+          <div className="field-row">
+            <Field label="Tub size">
+              <div className="chips" style={{ marginTop: 2 }}>
+                {TUB_SIZE_OPTS.map((k) => (
+                  <Chip
+                    key={k}
+                    label={TUB_SIZE_LABELS[k]}
+                    selected={tubSize === k}
+                    onClick={() => { setTubSize(k); setResult(null); setCasePack(String(TUB_CASE_PACK_DEFAULT)); }}
+                  />
+                ))}
+              </div>
+            </Field>
+            {tubSize && TUB_DIMS[tubSize] && (
+              <Field label="Tub dimensions" note={`TD ${TUB_DIMS[tubSize].td} · BD ${TUB_DIMS[tubSize].bd} · H ${TUB_DIMS[tubSize].h} mm · ${TUB_DIMS[tubSize].sw[0]}×${TUB_DIMS[tubSize].sw[1]} mm blank · ${TUB_DIMS[tubSize].fans} fans · ${TUB_DIMS[tubSize].bottomRollDia} mm bottom roll`}>
+                <div className="spec-cell" style={{ marginTop: 2 }}>
+                  <div className="sc-val">{TUB_DIMS[tubSize].td} × {TUB_DIMS[tubSize].bd} × {TUB_DIMS[tubSize].h} mm</div>
+                </div>
+              </Field>
+            )}
+          </div>
+        )}
+        {productType === "cup" && (<>
         <div className="field-row">
           <Field label="Cup type">
             <select
@@ -1278,12 +1388,13 @@ export default function CupCalculator({ scope = "default" }) {
             SKU · {sku}{selectedProduct?.productName ? ` — ${selectedProduct.productName}` : ""}
           </div>
         )}
+        </>)}
         <div className="field-row">
-          <Field label="Order quantity (cups)">
+          <Field label={productType === "tub" ? "Order quantity (tubs)" : "Order quantity (cups)"}>
             <NumInput value={qty} onChange={setQty} placeholder="e.g. 50000" />
           </Field>
-          <Field label="Case pack" note={casePack && size && cupType ? `Auto-filled: ${cupType} ${size}` : ""}>
-            <NumInput value={casePack} onChange={setCasePack} placeholder="e.g. 1000" />
+          <Field label="Case pack" note={productType === "tub" ? `Default: ${TUB_CASE_PACK_DEFAULT} tubs/case` : (casePack && size && cupType ? `Auto-filled: ${cupType} ${size}` : "")}>
+            <NumInput value={casePack} onChange={setCasePack} placeholder={productType === "tub" ? String(TUB_CASE_PACK_DEFAULT) : "e.g. 1000"} />
           </Field>
           <Field label="Factory margin %">
             <NumInput value={margin} onChange={setMargin} placeholder="e.g. 15" />
