@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 import { CATEGORIES, STAGES } from "@/lib/factoryos/constants";
 
-function defaultJNumber() {
+// Fallback if the server didn't pass a precomputed J#. Returns "YYMM001"
+// (just the prefix + first-of-month seq) so the form never starts blank.
+function fallbackJNumber() {
   const d = new Date();
   const yy = String(d.getFullYear()).slice(-2);
   const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${yy}${mm}`;
+  return `${yy}${mm}001`;
 }
 
 const NEW_CLIENT = "__new";
@@ -30,11 +32,14 @@ export default function NewJobForm({
   catalogError = null,
   masterPapers = [],
   printingVendors = [],
+  initialJNumber,
 }) {
   const router = useRouter();
   const [clients, setClients] = useState(initialClients);
   const [form, setForm] = useState({
-    jNumber: `${defaultJNumber()}000`,
+    // Auto-incremented J# computed server-side from the highest sequence for
+    // the current month. Editable — operators can override if they need to.
+    jNumber: initialJNumber || fallbackJNumber(),
     clientId: "",
     newClientName: "",
     brand: "",
