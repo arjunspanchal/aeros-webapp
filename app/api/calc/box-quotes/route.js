@@ -83,7 +83,6 @@ function buildRow(body, session) {
       coverage_pct: body.coverage ? Number(body.coverage) : null,
       punching: !!body.punching,
     },
-    legacy_source: null, // null = native v2 row; rows imported from box_quotes carry the legacy id here
   };
 }
 
@@ -151,7 +150,7 @@ export async function PATCH(req) {
   // only edit rows whose client_email matches their session.
   const filterCol = idFilterCol(id);
   const existing = (await dbSelect("quotes_v2", {
-    select: "id,airtable_id,client_email,quote_type",
+    select: "id,client_email,quote_type",
     filter: { [filterCol]: `eq.${id}`, quote_type: `eq.${QUOTE_TYPE}` },
     limit: 1,
   }))[0];
@@ -161,12 +160,11 @@ export async function PATCH(req) {
   }
 
   // Build the patch — same shape as insert, then strip the immutable fields
-  // that PATCH should never touch (quote_type, generated_by, legacy_source).
+  // that PATCH should never touch (quote_type, generated_by).
   // quote_date stays as today on update — match the legacy save behaviour.
   const next = buildRow(body, session);
   delete next.quote_type;
   delete next.generated_by;
-  delete next.legacy_source;
 
   const updated = await dbUpdate("quotes_v2", "id", existing.id, next);
   return Response.json(rowToQuote(updated));

@@ -101,7 +101,6 @@ function buildRow(body, session) {
       outer_print_method: body.outerPrintMethod || null,
       cost_per_case_inr: num(body.costPerCase),
     },
-    legacy_source: null, // null = native v2 row; backfilled rows carry the legacy id here
   };
 }
 
@@ -176,7 +175,7 @@ export async function PATCH(req) {
   // check below.
   const filterCol = idFilterCol(id);
   const existing = (await dbSelect("quotes_v2", {
-    select: "id,airtable_id,client_email,quote_type",
+    select: "id,client_email,quote_type",
     filter: { [filterCol]: `eq.${id}`, quote_type: `eq.${QUOTE_TYPE}` },
     limit: 1,
   }))[0];
@@ -192,11 +191,10 @@ export async function PATCH(req) {
   }
 
   // Build patch from body, then strip immutable columns so PATCH can never
-  // mutate quote_type / generated_by / legacy_source.
+  // mutate quote_type / generated_by.
   const next = buildRow(body, session);
   delete next.quote_type;
   delete next.generated_by;
-  delete next.legacy_source;
 
   const updated = await dbUpdate("quotes_v2", "id", existing.id, next);
   return Response.json(rowToQuote(updated));
