@@ -51,6 +51,7 @@ function subTabsFor(pathname, session) {
         { href: "/calculator/admin",          label: "Bag",      short: "Bag" },
         { href: "/calculator/admin/box",      label: "Box",      short: "Box" },
         { href: "/calculator/admin/cup",      label: "Cup",      short: "Cup" },
+        { href: "/calculator/admin/wrap",     label: "Wrap",     short: "Wrap" },
         { href: "/calculator/admin/pp",       label: "PP",       short: "PP" },
         { href: "/calculator/admin/history",  label: "History",  short: "History" },
         { href: "/calculator/admin/rates",    label: "Rates",    short: "Rates" },
@@ -61,6 +62,7 @@ function subTabsFor(pathname, session) {
         { href: "/calculator/client",         label: "Bag",       short: "Bag" },
         { href: "/calculator/client/box",     label: "Box",       short: "Box" },
         { href: "/calculator/client/cup",     label: "Cup",       short: "Cup" },
+        { href: "/calculator/client/wrap",    label: "Wrap",      short: "Wrap" },
         { href: "/calculator/client/quotes",  label: "My Quotes", short: "Quotes" },
       ];
     }
