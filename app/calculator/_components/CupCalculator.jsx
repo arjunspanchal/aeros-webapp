@@ -1269,7 +1269,7 @@ export default function CupCalculator({ scope = "default" }) {
               </div>
             </Field>
             {tubSize && TUB_DIMS[tubSize] && (
-              <Field label="Tub dimensions" note={`TD ${TUB_DIMS[tubSize].td} · BD ${TUB_DIMS[tubSize].bd} · H ${TUB_DIMS[tubSize].h} mm · ${TUB_DIMS[tubSize].sw[0]}×${TUB_DIMS[tubSize].sw[1]} mm blank · ${TUB_DIMS[tubSize].fans} fans · ${TUB_DIMS[tubSize].bottomRollDia} mm bottom roll`}>
+              <Field label="Tub dimensions" note={`TD ${TUB_DIMS[tubSize].td} · BD ${TUB_DIMS[tubSize].bd} · H ${TUB_DIMS[tubSize].h} mm · ${TUB_DIMS[tubSize].sw[0]}×${TUB_DIMS[tubSize].sw[1]} mm blank · ${TUB_DIMS[tubSize].fans} fans · bottom ${TUB_DIMS[tubSize].bottomBlank[0]}×${TUB_DIMS[tubSize].bottomBlank[1]} mm @ ${TUB_DIMS[tubSize].bottomGsm} GSM`}>
                 <div className="spec-cell" style={{ marginTop: 2 }}>
                   <div className="sc-val">{TUB_DIMS[tubSize].td} × {TUB_DIMS[tubSize].bd} × {TUB_DIMS[tubSize].h} mm</div>
                 </div>
