@@ -33,6 +33,12 @@ export default function CalculatorPickerPage() {
       accent: "from-amber-600 to-orange-700",
     },
     {
+      href: `/calculator/${rolePath}/wrap`,
+      title: "Wrap Paper Rate Calculator",
+      desc: "Flat food-wrap sheets — paper from Master (Pudumjee / BILT), Flexo or Offset, per-sheet cost ladder.",
+      accent: "from-lime-600 to-green-700",
+    },
+    {
       href: "/calculator/container-stuffing",
       title: "Container Stuffing Calculator",
       desc: "Plan exports — FCL floor, FCL pallet or LCL. Multi-item loads with a top-down stuffing diagram.",
