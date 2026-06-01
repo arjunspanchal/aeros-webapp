@@ -816,6 +816,20 @@ export default function CupCalculator({ scope = "default" }) {
   const cupType = preset ? preset.wallType : "";
   const isDW = cupType === "Double Wall" || cupType === "Ripple";
 
+  // House rule: for DW / Ripple cups the print belongs on the OUTER wrap only —
+  // inner sidewall always stays plain. When switching INTO DW we clear any
+  // inner-print state so it doesn't silently inflate the rate, and the
+  // sidewall Printing section in the form is hidden (see render below).
+  useEffect(() => {
+    if (isDW && swPrint !== "No printing") {
+      setSwPrint("No printing");
+      setSwColors("");
+      setSwRate1("");
+      setSwRateN("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDW]);
+
   // Variants from DB for the currently picked cup type + size.
   const productVariants = cupType && size ? (productDims[cupType]?.[size] || []) : [];
   const selectedProduct = useMemo(
@@ -1450,13 +1464,27 @@ export default function CupCalculator({ scope = "default" }) {
           coating={swCoating} setCoating={setSwCoating}
           coatingRate={swCoatingRate} setCoatingRate={setSwCoatingRate}
         />
-        <div className="sect-divider">Printing</div>
-        <PrintSection
-          print={swPrint} setPrint={setSwPrint}
-          colors={swColors} setColors={setSwColors}
-          rate1={swRate1} setRate1={setSwRate1}
-          rateN={swRateN} setRateN={setSwRateN}
-        />
+        {/*
+          DW / Ripple convention: print sits on the outer wrap (see the "Outer
+          wall" card). The inner sidewall stays plain — so we hide the inner
+          Printing section entirely. SW cups have no outer wrap, so they
+          continue to print on the sidewall.
+        */}
+        {isDW ? (
+          <div className="soft-note" style={{ marginTop: ".75rem", fontSize: 12, color: "var(--text-secondary)" }}>
+            Inner sidewall is plain for {cupType} cups. Set print on the outer wrap below.
+          </div>
+        ) : (
+          <>
+            <div className="sect-divider">Printing</div>
+            <PrintSection
+              print={swPrint} setPrint={setSwPrint}
+              colors={swColors} setColors={setSwColors}
+              rate1={swRate1} setRate1={setSwRate1}
+              rateN={swRateN} setRateN={setSwRateN}
+            />
+          </>
+        )}
       </div>
 
       <div className="card">
