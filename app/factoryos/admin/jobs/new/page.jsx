@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { listClients, listUsers, listVendors } from "@/lib/factoryos/repo";
+import { listClients, listUsers, listVendors, getNextJobNumber } from "@/lib/factoryos/repo";
 import { listMasterPapers } from "@/lib/paper-rm";
 import { ROLES } from "@/lib/factoryos/constants";
 import { fetchCatalog } from "@/lib/catalog";
@@ -23,7 +23,7 @@ export default async function NewJobPage() {
   ) {
     redirect("/factoryos");
   }
-  const [clients, users, catalogResult, masterPapers, printingVendors] = await Promise.all([
+  const [clients, users, catalogResult, masterPapers, printingVendors, nextJNumber] = await Promise.all([
     listClients(),
     listUsers(),
     fetchCatalog()
@@ -34,6 +34,7 @@ export default async function NewJobPage() {
       }),
     listMasterPapers().catch((e) => { console.error("Master paper fetch failed:", e); return []; }),
     listVendors({ type: "Printing", activeOnly: true }).catch((e) => { console.error("Vendor fetch failed:", e); return []; }),
+    getNextJobNumber(),
   ]);
   const catalog = catalogResult.products;
   const catalogError = catalogResult.error;
@@ -62,6 +63,7 @@ export default async function NewJobPage() {
           catalogError={catalogError}
           masterPapers={masterPapers}
           printingVendors={printingVendors.map((v) => v.name)}
+          initialJNumber={nextJNumber}
         />
       </main>
     </div>
