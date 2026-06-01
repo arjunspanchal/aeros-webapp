@@ -72,23 +72,13 @@ export async function POST(req) {
     ? Number(body.outerGsm)
     : (defaults.outer || 280);
 
-  // House rule: DW / Ripple cups carry the print on the OUTER wrap; the inner
-  // sidewall stays plain. SW cups have only one wall, so they keep the print
-  // on the sidewall. The single `print` toggle from the client form is routed
-  // to whichever wall is appropriate.
   const cupInputs = {
     wallType, size,
     casePack,
     margin,
-    inner: {
-      gsm: innerGsm,
-      coating,
-      print: isDW ? false : print,
-      colours: isDW ? 0 : colours,
-      coverage: isDW ? null : coverage,
-    },
+    inner: { gsm: innerGsm, coating, print, colours, coverage },
     outer: isDW
-      ? { gsm: outerGsm, coating: "None", print, colours, coverage }
+      ? { gsm: outerGsm, coating: "None", print: false, colours: 0, coverage: null }
       : { gsm: 0, coating: "None", print: false, colours: 0, coverage: null },
   };
 
