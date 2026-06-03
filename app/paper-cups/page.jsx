@@ -70,7 +70,7 @@ export default async function PaperCupsPage() {
                 <Term label="Pricing basis">
                   Rates are <strong className="text-ink-900">EXW India, per piece</strong>. Toggle
                   between <strong className="text-ink-900">plain</strong> and{" "}
-                  <strong className="text-ink-900">printed</strong> cups in the masthead. FOB Nhava
+                  <strong className="text-ink-900">customised</strong> cups in the masthead. FOB Nhava
                   Sheva quoted on request.
                 </Term>
                 <Term label="Currency">
@@ -83,8 +83,8 @@ export default async function PaperCupsPage() {
                 </Term>
                 <Term label="Customisation">
                   Single-colour custom print across the range. Switch to{" "}
-                  <strong className="text-ink-900">Printed</strong> for live rates — printed cups
-                  carry their own quantity ladder from 5,000 pcs.
+                  <strong className="text-ink-900">Customised</strong> for live rates — customised
+                  cups carry their own quantity ladder from 5,000 pcs.
                 </Term>
               </section>
 
@@ -118,8 +118,9 @@ export default async function PaperCupsPage() {
                   costs.
                 </p>
                 <p>
-                  Plain: {data.plainPriced} of {data.total} sizes listed with live rates · Printed:{" "}
-                  {data.printedPriced} of {data.total}. The remainder are quoted on request.
+                  Plain: {data.plainPriced} of {data.total} sizes listed with live rates ·
+                  Customised: {data.printedPriced} of {data.total}. The remainder are quoted on
+                  request.
                 </p>
               </div>
             </>

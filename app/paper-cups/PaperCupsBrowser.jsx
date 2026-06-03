@@ -52,6 +52,21 @@ function parseDims(size) {
   return nums.length === 3 ? nums : null;
 }
 
+// Double-wall and ripple cups are built from two boards — show inner / outer
+// GSM when both are present; single-wall cups show their one board weight.
+function GsmValue({ r }) {
+  if (r.innerGsm != null && r.outerGsm != null) {
+    return (
+      <span title="Inner wall / outer wall GSM" className="whitespace-nowrap">
+        {r.innerGsm}
+        <span className="text-ink-400"> / </span>
+        {r.outerGsm}
+      </span>
+    );
+  }
+  return <>{r.gsm ?? "—"}</>;
+}
+
 function sizeLabel(size, unit) {
   const d = parseDims(size);
   if (!d) return null;
@@ -260,7 +275,9 @@ export default function PaperCupsBrowser({
           </button>
         </div>
       ) : (
-        filtered.map((section) => (
+        filtered.map((section) => {
+          const twoWall = section.rows.some((r) => r.innerGsm != null && r.outerGsm != null);
+          return (
           <div key={section.key} className="mt-8">
             <div className="flex items-baseline justify-between">
               <h3 className="text-base font-bold text-ink-900">{section.label}</h3>
@@ -277,7 +294,9 @@ export default function PaperCupsBrowser({
                     <th className="px-3 py-2 font-medium">Volume</th>
                     <th className="px-3 py-2 font-medium">Size (TD×BD×H)</th>
                     <th className="px-3 py-2 font-medium">Lining</th>
-                    <th className="px-3 py-2 text-right font-medium">GSM</th>
+                    <th className="px-3 py-2 text-right font-medium" title={twoWall ? "Inner wall / outer wall GSM" : undefined}>
+                      {twoWall ? "GSM (in/out)" : "GSM"}
+                    </th>
                     <th className="px-3 py-2 text-right font-medium">Case</th>
                     <th className="px-3 py-2 text-right font-medium">Unit rate</th>
                     <th className="px-3 py-2" />
@@ -320,7 +339,8 @@ export default function PaperCupsBrowser({
               ))}
             </div>
           </div>
-        ))
+          );
+        })
       )}
     </section>
   );
@@ -370,7 +390,9 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
         <td className="px-3 py-2 text-ink-600">{r.volume ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{r.lining}</td>
-        <td className="px-3 py-2 text-right text-ink-600">{r.gsm ?? "—"}</td>
+        <td className="px-3 py-2 text-right text-ink-600">
+          <GsmValue r={r} />
+        </td>
         <td className="px-3 py-2 text-right text-ink-600">
           {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
         </td>
@@ -460,7 +482,9 @@ function MobileCard({ r, off, unit, currency, usdPerInr }) {
         <Spec label="Size">{sizeLabel(r.size, unit) ?? "—"}</Spec>
         <Spec label="Lining">{r.lining}</Spec>
         <Spec label="Finish">{r.finish}</Spec>
-        <Spec label="GSM">{r.gsm ?? "—"}</Spec>
+        <Spec label={r.innerGsm != null && r.outerGsm != null ? "GSM (in/out)" : "GSM"}>
+          <GsmValue r={r} />
+        </Spec>
         <Spec label="Case pack">{r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}</Spec>
       </dl>
       {hasLadder && (
