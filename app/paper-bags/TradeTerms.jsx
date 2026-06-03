@@ -229,6 +229,75 @@ function PackPlaceholder({ title }) {
 // plus a one-time plate/cylinder charge per colour amortised over the run.
 // Printed rates are being finalised in the catalogue — kept "on request" here.
 
+// Print is priced by ink coverage — the share of the bag face carrying ink.
+// Three indicative bands, each drawn as a kraft bag with that much ink filled.
+const COVERAGE = [
+  {
+    pct: "15%",
+    word: "Light",
+    variant: "light",
+    body: "A logo or small mark on plain kraft — minimal ink and the most economical. Typical of simple branded retail and takeaway bags.",
+  },
+  {
+    pct: "50%",
+    word: "Medium",
+    variant: "medium",
+    body: "Logo plus text, borders or a part-background. A fuller branded look at a moderate ink cost.",
+  },
+  {
+    pct: "100%",
+    word: "Full",
+    variant: "full",
+    body: "Edge-to-edge flood colour or full-wrap artwork. The richest look and the most ink — so the highest print cost.",
+  },
+];
+
+function CoverageBag({ variant }) {
+  return (
+    <svg viewBox="0 0 80 100" className="h-16 w-auto" fill="none" aria-hidden="true">
+      {/* twisted handles */}
+      <g
+        className="text-ink-300"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M30 34 C30 22 37 22 40 31" />
+        <path d="M50 34 C50 22 43 22 40 31" />
+      </g>
+
+      {/* ink coverage */}
+      {variant === "light" && (
+        <circle cx="40" cy="62" r="10" className="text-ink-900" fill="currentColor" />
+      )}
+      {variant === "medium" && (
+        <g className="text-ink-900" fill="currentColor">
+          <rect x="17" y="61" width="46" height="24" />
+          <rect x="31" y="43" width="18" height="4" rx="1" />
+        </g>
+      )}
+      {variant === "full" && (
+        <>
+          <rect x="16" y="34" width="48" height="52" className="text-ink-900" fill="currentColor" />
+          <circle cx="40" cy="58" r="9" className="text-ink-50" fill="currentColor" />
+        </>
+      )}
+
+      {/* body outline on top */}
+      <rect
+        x="16"
+        y="34"
+        width="48"
+        height="52"
+        className="text-ink-300"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
 export function Customisation() {
   return (
     <section id="customisation" className="mt-12">
@@ -258,6 +327,48 @@ export function Customisation() {
           Send vector art (AI / PDF). We return a free dieline and digital mock-up for sign-off
           before any plate is cut.
         </TermCard>
+      </div>
+
+      {/* Ink-coverage explainer — what 15% / 50% / 100% means and why it drives cost. */}
+      <div className="mt-6 rounded-md border border-ink-200 bg-white p-5">
+        <p className="text-xs uppercase tracking-wide text-ink-400">
+          Print coverage &amp; cost
+        </p>
+        <p className="mt-2 max-w-2xl text-sm text-ink-600">
+          &ldquo;Coverage&rdquo; is the share of the bag&rsquo;s surface that carries ink. More
+          coverage means more ink and a richer look — and a higher print rate. These are the three
+          bands we quote against:
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {COVERAGE.map((c) => (
+            <div
+              key={c.variant}
+              className="rounded-md border border-ink-200 bg-ink-50 p-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-20 w-16 shrink-0 items-center justify-center rounded border border-ink-200 bg-white">
+                  <CoverageBag variant={c.variant} />
+                </div>
+                <div>
+                  <p className="font-mono text-2xl font-bold leading-none text-ink-900">
+                    {c.pct}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                    {c.word} coverage
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-ink-600">{c.body}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-4 text-xs leading-relaxed text-ink-500">
+          Colour count matters too — each ink colour needs its own plate, so a one-colour logo at
+          50% coverage prints cheaper than a four-colour design at the same coverage. Send your
+          artwork and we&rsquo;ll map it to a band and quote exactly.
+        </p>
       </div>
 
       {/* Printed MOQ — set expectations up front. */}
