@@ -87,6 +87,7 @@ export default function PaperCupsBrowser({
   const priced = offering === "printed" ? printedPriced : plainPriced;
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
+  const [volume, setVolume] = useState("all"); // "all" | oz number
   const [finish, setFinish] = useState("all"); // "all" | "white" | "brown"
   const [lining, setLining] = useState("all"); // "all" | "PE" | "Aqueous" | "PLA"
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
@@ -107,6 +108,13 @@ export default function PaperCupsBrowser({
     [sections],
   );
 
+  // Distinct oz sizes present in the data, ascending — drives the volume filter.
+  const volumeOptions = useMemo(() => {
+    const set = new Set();
+    for (const s of sections) for (const r of s.rows) if (r.oz != null) set.add(r.oz);
+    return [...set].sort((a, b) => a - b);
+  }, [sections]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sections
@@ -115,6 +123,7 @@ export default function PaperCupsBrowser({
         ...s,
         rows: s.rows.filter((r) => {
           if (q && !`${r.sku} ${r.name} ${r.volume}`.toLowerCase().includes(q)) return false;
+          if (volume !== "all" && r.oz !== volume) return false;
           if (finish === "white" && r.finish !== "White") return false;
           if (finish === "brown" && r.finish !== "Brown kraft") return false;
           if (lining !== "all" && r.lining !== lining) return false;
@@ -125,12 +134,13 @@ export default function PaperCupsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, finish, lining, availability, offering]);
+  }, [sections, query, type, volume, finish, lining, availability, offering]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
     query.trim() !== "" ||
     type !== "all" ||
+    volume !== "all" ||
     finish !== "all" ||
     lining !== "all" ||
     availability !== "all";
@@ -138,6 +148,7 @@ export default function PaperCupsBrowser({
   const reset = () => {
     setQuery("");
     setType("all");
+    setVolume("all");
     setFinish("all");
     setLining("all");
     setAvailability("all");
@@ -198,6 +209,23 @@ export default function PaperCupsBrowser({
             </div>
           </div>
         </div>
+
+        {/* Volume */}
+        {volumeOptions.length > 0 && (
+          <div className="mt-4">
+            <span className="block text-xs uppercase tracking-wide text-ink-400">Volume</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Chip active={volume === "all"} onClick={() => setVolume("all")}>
+                All
+              </Chip>
+              {volumeOptions.map((oz) => (
+                <Chip key={oz} active={volume === oz} onClick={() => setVolume(oz)}>
+                  {oz}oz
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           {/* Finish */}
