@@ -2,25 +2,49 @@
 
 // Client-side browser for the public paper-bag rate sheet. Receives the
 // already-fetched + grouped `sections` from the server page and owns all
-// filter state (search, type, material, availability). No data fetching here
-// — keeps the Supabase service-role read server-only.
+// filter state (search, type, material, availability). Displayed currency
+// comes from the shared CurrencyProvider. No data fetching here — keeps the
+// Supabase service-role read server-only.
 
 import { useMemo, useState } from "react";
+import { useCurrency } from "./Currency";
 
-const fmtInr = (v) =>
-  v == null ? null : `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// ── Money ──────────────────────────────────────────────────────────────────
+// Rates are stored in INR. USD is an indicative conversion at `usdPerInr`.
+function fmtUnit(currency, inr, usdPerInr) {
+  if (inr == null) return null;
+  if (currency === "USD") {
+    return `$${(inr / usdPerInr).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
+  }
+  return `₹${inr.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
-const fmtUsd = (v) =>
-  v == null ? null : `$${v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
+function fmtCase(currency, inr, casePack, usdPerInr) {
+  if (inr == null || !casePack) return null;
+  const total = inr * casePack;
+  if (currency === "USD") {
+    return `$${(total / usdPerInr).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `₹${total.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
 
-// "102 x 32 x 254 mm (W x G x H)" → "102 × 32 × 254"
-function stripUnit(size) {
+// ── Sizes ──────────────────────────────────────────────────────────────────
+// Pull the first three numbers (W × G × H) out of the raw size string.
+function parseDims(size) {
   if (!size) return null;
-  return size
-    .replace(/\s*mm\b.*$/i, "")
-    .replace(/\s*\(.*\)\s*$/, "")
-    .replace(/\s*x\s*/gi, " × ")
-    .trim();
+  const nums = (size.match(/\d+(?:\.\d+)?/g) || []).slice(0, 3).map(Number);
+  return nums.length ? nums : null;
+}
+
+function mmLine(size) {
+  const d = parseDims(size);
+  return d ? d.join(" × ") : null;
+}
+
+function inLine(size) {
+  const d = parseDims(size);
+  if (!d) return null;
+  return d.map((n) => (n / 25.4).toFixed(1)).join(" × ");
 }
 
 function materialLabel(r) {
@@ -38,7 +62,8 @@ function shortCode(key) {
   return m ? m[1] : key;
 }
 
-export default function PaperBagsBrowser({ sections, priced, total }) {
+export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 90 }) {
+  const { currency } = useCurrency();
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [material, setMaterial] = useState("all"); // "all" | "brown" | "white"
@@ -169,7 +194,8 @@ export default function PaperBagsBrowser({ sections, priced, total }) {
 
         <div className="mt-4 flex items-center justify-between border-t border-ink-100 pt-3">
           <span className="text-xs text-ink-500">
-            Showing <strong className="text-ink-900">{shown}</strong> of {total} bags
+            Showing <strong className="text-ink-900">{shown}</strong> of {total} bags · prices in{" "}
+            <strong className="text-ink-900">{currency}</strong>
           </span>
           {isFiltered && (
             <button
@@ -211,71 +237,90 @@ export default function PaperBagsBrowser({ sections, priced, total }) {
                   <tr className="border-b border-ink-200 bg-ink-100 text-left text-xs uppercase tracking-wide text-ink-400">
                     <th className="px-3 py-2 font-medium">Code</th>
                     <th className="px-3 py-2 font-medium">Bag</th>
-                    <th className="px-3 py-2 font-medium">Size (W×G×H mm)</th>
+                    <th className="px-3 py-2 font-medium">Size (W×G×H)</th>
                     <th className="px-3 py-2 font-medium">Material</th>
                     <th className="px-3 py-2 text-right font-medium">GSM</th>
-                    <th className="px-3 py-2 text-right font-medium">Case</th>
-                    <th className="px-3 py-2 text-right font-medium">Rate (EXW)</th>
-                    <th className="px-3 py-2 text-right font-medium">USD*</th>
+                    <th className="px-3 py-2 text-right font-medium">Case (pcs)</th>
+                    <th className="px-3 py-2 text-right font-medium">Unit rate</th>
+                    <th className="px-3 py-2 text-right font-medium">Case rate</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {section.rows.map((r) => (
-                    <tr key={r.sku} className="border-b border-ink-100 last:border-0">
-                      <td className="px-3 py-2 font-mono text-xs text-ink-600">{r.sku}</td>
-                      <td className="px-3 py-2 text-ink-900">{r.name}</td>
-                      <td className="px-3 py-2 text-ink-600">{stripUnit(r.size)}</td>
-                      <td className="px-3 py-2 text-ink-600">{materialLabel(r)}</td>
-                      <td className="px-3 py-2 text-right text-ink-600">{r.gsm ?? "—"}</td>
-                      <td className="px-3 py-2 text-right text-ink-600">
-                        {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {r.priceInr != null ? (
-                          <span className="font-medium text-ink-900">{fmtInr(r.priceInr)}</span>
-                        ) : (
-                          <span className="text-ink-400">On request</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right text-ink-400">
-                        {r.priceUsd != null ? fmtUsd(r.priceUsd) : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                  {section.rows.map((r) => {
+                    const unit = fmtUnit(currency, r.priceInr, usdPerInr);
+                    const caseRate = fmtCase(currency, r.priceInr, r.casePack, usdPerInr);
+                    return (
+                      <tr key={r.sku} className="border-b border-ink-100 last:border-0">
+                        <td className="px-3 py-2 font-mono text-xs text-ink-600">{r.sku}</td>
+                        <td className="px-3 py-2 text-ink-900">{r.name}</td>
+                        <td className="px-3 py-2 text-ink-600">
+                          {mmLine(r.size) ? (
+                            <>
+                              <span>{mmLine(r.size)} mm</span>
+                              <span className="block text-xs text-ink-400">{inLine(r.size)} in</span>
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-ink-600">{materialLabel(r)}</td>
+                        <td className="px-3 py-2 text-right text-ink-600">{r.gsm ?? "—"}</td>
+                        <td className="px-3 py-2 text-right text-ink-600">
+                          {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {unit ? (
+                            <span className="font-medium text-ink-900">{unit}</span>
+                          ) : (
+                            <span className="text-ink-400">On request</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right text-ink-600">{caseRate ?? "—"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
             {/* Mobile cards */}
             <div className="mt-3 space-y-2 md:hidden">
-              {section.rows.map((r) => (
-                <div key={r.sku} className="rounded-md border border-ink-200 bg-white p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-mono text-xs text-ink-400">{r.sku}</p>
-                      <p className="mt-0.5 font-medium text-ink-900">{r.name}</p>
+              {section.rows.map((r) => {
+                const unit = fmtUnit(currency, r.priceInr, usdPerInr);
+                const caseRate = fmtCase(currency, r.priceInr, r.casePack, usdPerInr);
+                return (
+                  <div key={r.sku} className="rounded-md border border-ink-200 bg-white p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs text-ink-400">{r.sku}</p>
+                        <p className="mt-0.5 font-medium text-ink-900">{r.name}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        {unit ? (
+                          <>
+                            <p className="font-semibold text-ink-900">{unit}</p>
+                            <p className="text-xs text-ink-400">
+                              {caseRate ? `${caseRate}/case` : "per piece"}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-ink-400">On request</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="shrink-0 text-right">
-                      {r.priceInr != null ? (
-                        <>
-                          <p className="font-semibold text-ink-900">{fmtInr(r.priceInr)}</p>
-                          <p className="text-xs text-ink-400">{fmtUsd(r.priceUsd)}</p>
-                        </>
-                      ) : (
-                        <p className="text-sm text-ink-400">On request</p>
-                      )}
-                    </div>
+                    <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-600">
+                      <Spec label="Size">
+                        {mmLine(r.size) ? `${mmLine(r.size)} mm · ${inLine(r.size)} in` : "—"}
+                      </Spec>
+                      <Spec label="Material">{materialLabel(r)}</Spec>
+                      <Spec label="GSM">{r.gsm ?? "—"}</Spec>
+                      <Spec label="Case pack">
+                        {r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}
+                      </Spec>
+                    </dl>
                   </div>
-                  <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-600">
-                    <Spec label="Size">{stripUnit(r.size) || "—"}</Spec>
-                    <Spec label="Material">{materialLabel(r)}</Spec>
-                    <Spec label="GSM">{r.gsm ?? "—"}</Spec>
-                    <Spec label="Case pack">
-                      {r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}
-                    </Spec>
-                  </dl>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))
