@@ -28,6 +28,13 @@ function fmtCase(currency, inr, casePack, usdPerInr) {
   return `₹${total.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
+// Compact quantity-break label: 50000 → "50k", 250000 → "250k", 1500 → "1,500".
+function fmtQty(n) {
+  if (n == null) return "—";
+  if (n >= 1000 && n % 1000 === 0) return `${n / 1000}k`;
+  return n.toLocaleString("en-IN");
+}
+
 // ── Sizes ──────────────────────────────────────────────────────────────────
 // Pull the first three numbers (W × G × H) out of the raw size string.
 function parseDims(size) {
@@ -73,24 +80,36 @@ function shortCode(key) {
   return m ? m[1] : key;
 }
 
-export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 90 }) {
+export default function PaperBagsBrowser({
+  sections,
+  printedSections = [],
+  priced,
+  total,
+  printedTotal = 0,
+  usdPerInr = 90,
+}) {
   const { currency, unit } = useDisplay();
+  const [offering, setOffering] = useState("plain"); // "plain" | "printed"
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [material, setMaterial] = useState("all"); // "all" | "brown" | "white"
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
 
+  const isPrinted = offering === "printed";
+  const activeSections = isPrinted ? printedSections : sections;
+  const activeTotal = isPrinted ? printedTotal : total;
+
   const typeOptions = useMemo(
     () => [
       { value: "all", label: "All" },
-      ...sections.map((s) => ({ value: s.key, label: shortCode(s.key), title: s.label })),
+      ...activeSections.map((s) => ({ value: s.key, label: shortCode(s.key), title: s.label })),
     ],
-    [sections],
+    [activeSections],
   );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return sections
+    return activeSections
       .filter((s) => type === "all" || s.key === type)
       .map((s) => ({
         ...s,
@@ -101,17 +120,30 @@ export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 
             if (material === "white" && !label.includes("white")) return false;
             if (material === "brown" && !label.includes("brown")) return false;
           }
-          if (availability === "priced" && r.priceInr == null) return false;
-          if (availability === "request" && r.priceInr != null) return false;
+          // Availability only applies to plain rates; printed rows are all priced.
+          if (!isPrinted) {
+            if (availability === "priced" && r.priceInr == null) return false;
+            if (availability === "request" && r.priceInr != null) return false;
+          }
           return true;
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, material, availability]);
+  }, [activeSections, isPrinted, query, type, material, availability]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
-    query.trim() !== "" || type !== "all" || material !== "all" || availability !== "all";
+    query.trim() !== "" ||
+    type !== "all" ||
+    material !== "all" ||
+    (!isPrinted && availability !== "all");
+
+  // Switching plain ⇄ printed clears the type chip, since the available types
+  // differ between the two sheets (e.g. printed has no FHB / LIQ yet).
+  const switchOffering = (next) => {
+    setOffering(next);
+    setType("all");
+  };
 
   const reset = () => {
     setQuery("");
@@ -125,8 +157,25 @@ export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 
       <div className="flex items-baseline justify-between border-b border-ink-300 pb-2">
         <h2 className="text-lg font-bold text-ink-900">Full rate sheet</h2>
         <span className="font-mono text-xs text-ink-400">
-          {priced} of {total} priced
+          {isPrinted ? `${printedTotal} bags printable` : `${priced} of ${total} priced`}
         </span>
+      </div>
+
+      {/* Plain ⇄ Printed view toggle */}
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="inline-flex rounded-md border border-ink-200 bg-white p-0.5">
+          <SegBtn active={!isPrinted} onClick={() => switchOffering("plain")}>
+            Plain
+          </SegBtn>
+          <SegBtn active={isPrinted} onClick={() => switchOffering("printed")}>
+            Printed
+          </SegBtn>
+        </div>
+        <p className="text-xs text-ink-500">
+          {isPrinted
+            ? "Custom-branded rates — per piece, by print tier and order quantity."
+            : "Stock plain (unprinted) bags — single per-piece rate."}
+        </p>
       </div>
 
       {/* Filter bar */}
@@ -182,30 +231,32 @@ export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 
             </div>
           </div>
 
-          {/* Availability */}
-          <div>
-            <span className="block text-xs uppercase tracking-wide text-ink-400">Availability</span>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {[
-                { value: "all", label: "All" },
-                { value: "priced", label: "Priced" },
-                { value: "request", label: "On request" },
-              ].map((opt) => (
-                <Chip
-                  key={opt.value}
-                  active={availability === opt.value}
-                  onClick={() => setAvailability(opt.value)}
-                >
-                  {opt.label}
-                </Chip>
-              ))}
+          {/* Availability — plain sheet only (printed rows are all priced). */}
+          {!isPrinted && (
+            <div>
+              <span className="block text-xs uppercase tracking-wide text-ink-400">Availability</span>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {[
+                  { value: "all", label: "All" },
+                  { value: "priced", label: "Priced" },
+                  { value: "request", label: "On request" },
+                ].map((opt) => (
+                  <Chip
+                    key={opt.value}
+                    active={availability === opt.value}
+                    onClick={() => setAvailability(opt.value)}
+                  >
+                    {opt.label}
+                  </Chip>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="mt-4 flex items-center justify-between border-t border-ink-100 pt-3">
           <span className="text-xs text-ink-500">
-            Showing <strong className="text-ink-900">{shown}</strong> of {total} bags · prices in{" "}
+            Showing <strong className="text-ink-900">{shown}</strong> of {activeTotal} bags · prices in{" "}
             <strong className="text-ink-900">{currency}</strong> · sizes in{" "}
             <strong className="text-ink-900">{unit}</strong>
           </span>
@@ -235,7 +286,16 @@ export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 
           </button>
         </div>
       ) : (
-        filtered.map((section) => (
+        filtered.map((section) =>
+          isPrinted ? (
+            <PrintedSection
+              key={section.key}
+              section={section}
+              currency={currency}
+              unit={unit}
+              usdPerInr={usdPerInr}
+            />
+          ) : (
           <div key={section.key} className="mt-8">
             <div className="flex items-baseline justify-between">
               <h3 className="text-base font-bold text-ink-900">{section.label}</h3>
@@ -324,9 +384,105 @@ export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 
               })}
             </div>
           </div>
-        ))
+          )
+        )
       )}
     </section>
+  );
+}
+
+// ── Printed view ────────────────────────────────────────────────────────────
+// One card per bag, showing its three print tiers (rows) against the order-
+// quantity breaks (columns). Cells are the per-piece rate in the chosen
+// currency; a blank break for a tier shows "—".
+function PrintedSection({ section, currency, unit, usdPerInr }) {
+  return (
+    <div className="mt-8">
+      <div className="flex items-baseline justify-between">
+        <h3 className="text-base font-bold text-ink-900">{section.label}</h3>
+        <span className="font-mono text-xs text-ink-400">{section.rows.length} bags</span>
+      </div>
+
+      <div className="mt-3 space-y-3">
+        {section.rows.map((r) => (
+          <div key={r.sku} className="overflow-hidden rounded-md border border-ink-200 bg-white">
+            {/* Bag header */}
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 border-b border-ink-100 px-4 py-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-ink-500">{r.sku}</span>
+                  <h4 className="truncate text-sm font-bold text-ink-900">{r.name}</h4>
+                </div>
+                <p className="mt-0.5 text-xs text-ink-500">
+                  {[sizeLabel(r.size, unit), materialLabel(r), r.gsm ? `${r.gsm} gsm` : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+            </div>
+
+            {/* Tier × quantity matrix */}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-ink-100 text-xs uppercase tracking-wide text-ink-400">
+                    <th className="px-4 py-2 text-left font-medium">Print tier</th>
+                    {r.qtyBreaks.map((q) => (
+                      <th key={q} className="px-4 py-2 text-right font-medium">
+                        {fmtQty(q)} pcs
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {r.tiers.map((t) => {
+                    const byQty = new Map(t.breaks.map((b) => [b.minQty, b.priceInr]));
+                    return (
+                      <tr key={t.code} className="border-b border-ink-100 last:border-0">
+                        <td className="px-4 py-2">
+                          <span className="font-medium text-ink-900">{t.coverage}% coverage</span>
+                          <span className="ml-1.5 text-xs text-ink-500">
+                            {t.colours}-colour
+                          </span>
+                        </td>
+                        {r.qtyBreaks.map((q) => {
+                          const rate = fmtUnit(currency, byQty.get(q) ?? null, usdPerInr);
+                          return (
+                            <td key={q} className="px-4 py-2 text-right">
+                              {rate ? (
+                                <span className="font-medium text-ink-900">{rate}</span>
+                              ) : (
+                                <span className="text-ink-300">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SegBtn({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={
+        "rounded px-3.5 py-1.5 text-sm font-semibold transition-colors " +
+        (active ? "bg-ink-900 text-white" : "text-ink-600 hover:text-ink-900")
+      }
+    >
+      {children}
+    </button>
   );
 }
 

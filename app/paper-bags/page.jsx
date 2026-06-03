@@ -102,8 +102,10 @@ export default async function PaperBagsPage() {
               {/* Filterable rate sheet */}
               <PaperBagsBrowser
                 sections={data.sections}
+                printedSections={data.printedSections}
                 priced={data.priced}
                 total={data.total}
+                printedTotal={data.printedTotal}
                 usdPerInr={USD_PER_INR_DIVISOR}
               />
 
