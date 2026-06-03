@@ -133,9 +133,19 @@ function findImage(base) {
 
 export function PackingVisual() {
   const tiles = [
-    { base: "bale-packing", title: "Bale-packed", sub: "Shrink-wrapped · SOS sacks" },
-    { base: "bale-packing-plain", title: "Bale-packed", sub: "Unwrapped bale · SOS sacks" },
-    { base: "carton-packing", title: "Carton-packed", sub: "PTH & FHB handle bags" },
+    {
+      base: "bale-packing",
+      title: "Bale-packed",
+      sub: "Shrink-wrapped · SOS sacks",
+      ref: "SOS Bag 6 (SOS-011)",
+    },
+    {
+      base: "bale-packing-plain",
+      title: "Bale-packed",
+      sub: "Unwrapped bale · SOS sacks",
+      ref: "SOS Bag 6 (SOS-011)",
+    },
+    { base: "carton-packing", title: "Carton-packed", sub: "PTH & FHB handle bags", ref: null },
   ];
 
   return (
@@ -175,6 +185,11 @@ export function PackingVisual() {
                 <p className="mt-0.5 font-mono text-[11px] uppercase tracking-wide text-ink-500">
                   {t.sub}
                 </p>
+                {t.ref && (
+                  <p className="mt-1 text-[11px] text-ink-400">
+                    Shown: <span className="font-medium text-ink-600">{t.ref}</span>
+                  </p>
+                )}
               </figcaption>
             </figure>
           );
