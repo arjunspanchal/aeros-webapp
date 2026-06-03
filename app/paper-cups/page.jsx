@@ -3,7 +3,7 @@ import { Brand } from "@/app/components/ui/Brand";
 import { CupGuide } from "./CupGuide";
 import { SupplyTerms, QualityChecks, PackingVisual } from "./TradeTerms";
 import PaperCupsBrowser from "./PaperCupsBrowser";
-import { CurrencyProvider, CurrencyToggle, UnitToggle, OfferingToggle } from "./Currency";
+import { CurrencyProvider, CurrencyToggle, UnitToggle } from "./Currency";
 
 // Public, no-login rate sheet shared directly with clients. Not in the
 // middleware matcher, so it renders for anyone with the link.
@@ -38,7 +38,6 @@ export default async function PaperCupsPage() {
           <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex flex-wrap items-center justify-between gap-3">
             <Brand size="md" href="/" />
             <div className="flex items-center gap-2">
-              <OfferingToggle />
               <CurrencyToggle />
               <UnitToggle />
             </div>

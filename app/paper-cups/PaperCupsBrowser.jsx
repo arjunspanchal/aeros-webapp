@@ -8,7 +8,7 @@
 // CurrencyProvider — no data fetching here.
 
 import { useMemo, useState } from "react";
-import { useDisplay } from "./Currency";
+import { useDisplay, OfferingToggle } from "./Currency";
 
 // ── Money ──────────────────────────────────────────────────────────────────
 function fmtUnit(currency, inr, usdPerInr) {
@@ -149,6 +149,17 @@ export default function PaperCupsBrowser({
         <h2 className="text-lg font-bold text-ink-900">Full rate sheet</h2>
         <span className="font-mono text-xs text-ink-400">
           {priced} of {total} priced
+        </span>
+      </div>
+
+      {/* Offering switch — flips the whole sheet between plain and customised rates. */}
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-ink-200 bg-white px-4 py-3">
+        <span className="text-xs font-medium uppercase tracking-wide text-ink-400">Showing rates for</span>
+        <OfferingToggle />
+        <span className="text-xs text-ink-500">
+          {offering === "printed"
+            ? "Custom single-colour print · quantity ladder from 5,000 pcs"
+            : "Plain, unprinted cups"}
         </span>
       </div>
 
