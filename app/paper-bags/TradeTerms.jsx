@@ -242,8 +242,8 @@ export function Customisation() {
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <TermCard label="Print">
-          Flexo &amp; offset, multi-colour, <strong className="text-ink-900">Pantone-matched</strong>.
-          Logos, full-wrap artwork and solids on brown or white kraft.
+          <strong className="text-ink-900">Flexographic</strong>, multi-colour,
+          Pantone-matched. Logos, full-wrap artwork and solids on brown or white kraft.
         </TermCard>
         <TermCard label="How print is priced">
           By <strong className="text-ink-900">ink coverage</strong> (light → full) and number of
