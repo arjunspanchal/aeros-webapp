@@ -61,8 +61,15 @@ function sizeLabel(size, unit) {
   return `${d.join(" × ")} mm`;
 }
 
-export default function PaperCupsBrowser({ sections, priced, total, usdPerInr = 90 }) {
-  const { currency, unit } = useDisplay();
+export default function PaperCupsBrowser({
+  sections,
+  plainPriced,
+  printedPriced,
+  total,
+  usdPerInr = 90,
+}) {
+  const { currency, unit, offering } = useDisplay();
+  const priced = offering === "printed" ? printedPriced : plainPriced;
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [finish, setFinish] = useState("all"); // "all" | "white" | "brown"
@@ -96,13 +103,14 @@ export default function PaperCupsBrowser({ sections, priced, total, usdPerInr = 
           if (finish === "white" && r.finish !== "White") return false;
           if (finish === "brown" && r.finish !== "Brown kraft") return false;
           if (lining !== "all" && r.lining !== lining) return false;
-          if (availability === "priced" && r.priceInr == null) return false;
-          if (availability === "request" && r.priceInr != null) return false;
+          const hasPrice = r[offering]?.entry != null;
+          if (availability === "priced" && !hasPrice) return false;
+          if (availability === "request" && hasPrice) return false;
           return true;
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, finish, lining, availability]);
+  }, [sections, query, type, finish, lining, availability, offering]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
@@ -277,12 +285,14 @@ export default function PaperCupsBrowser({ sections, priced, total, usdPerInr = 
                 </thead>
                 <tbody>
                   {section.rows.map((r) => {
-                    const hasLadder = r.slabs.length > 1;
+                    const off = r[offering];
+                    const hasLadder = off.slabs.length > 1;
                     const isOpen = expanded.has(r.sku);
                     return (
                       <FragmentRows
                         key={r.sku}
                         r={r}
+                        off={off}
                         unit={unit}
                         currency={currency}
                         usdPerInr={usdPerInr}
@@ -299,7 +309,14 @@ export default function PaperCupsBrowser({ sections, priced, total, usdPerInr = 
             {/* Mobile cards */}
             <div className="mt-3 space-y-2 md:hidden">
               {section.rows.map((r) => (
-                <MobileCard key={r.sku} r={r} unit={unit} currency={currency} usdPerInr={usdPerInr} />
+                <MobileCard
+                  key={r.sku}
+                  r={r}
+                  off={r[offering]}
+                  unit={unit}
+                  currency={currency}
+                  usdPerInr={usdPerInr}
+                />
               ))}
             </div>
           </div>
@@ -310,9 +327,9 @@ export default function PaperCupsBrowser({ sections, priced, total, usdPerInr = 
 }
 
 // One product = a summary row plus an expandable ladder detail row.
-function FragmentRows({ r, unit, currency, usdPerInr, hasLadder, isOpen, onToggle }) {
-  const entry = r.entry; // lowest qty (highest price)
-  const best = r.best; // highest qty (lowest price)
+function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, onToggle }) {
+  const entry = off.entry; // lowest qty (highest price)
+  const best = off.best; // highest qty (lowest price)
   const entryRate = fmtUnit(currency, entry?.priceInr, usdPerInr);
   const bestRate = fmtUnit(currency, best?.priceInr, usdPerInr);
 
@@ -372,7 +389,7 @@ function FragmentRows({ r, unit, currency, usdPerInr, hasLadder, isOpen, onToggl
       {hasLadder && isOpen && (
         <tr className="border-b border-ink-100 bg-ink-50/60">
           <td colSpan={9} className="px-3 py-3">
-            <LadderTable r={r} currency={currency} usdPerInr={usdPerInr} />
+            <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} />
           </td>
         </tr>
       )}
@@ -380,7 +397,7 @@ function FragmentRows({ r, unit, currency, usdPerInr, hasLadder, isOpen, onToggl
   );
 }
 
-function LadderTable({ r, currency, usdPerInr }) {
+function LadderTable({ r, off, currency, usdPerInr }) {
   return (
     <div className="rounded border border-ink-200 bg-white">
       <table className="w-full border-collapse text-xs">
@@ -392,7 +409,7 @@ function LadderTable({ r, currency, usdPerInr }) {
           </tr>
         </thead>
         <tbody>
-          {r.slabs.map((s) => (
+          {off.slabs.map((s) => (
             <tr key={s.minQty} className="border-b border-ink-50 last:border-0">
               <td className="px-3 py-1.5 text-ink-700">{s.minQty.toLocaleString("en-IN")}+</td>
               <td className="px-3 py-1.5 text-right font-medium text-ink-900">
@@ -409,10 +426,10 @@ function LadderTable({ r, currency, usdPerInr }) {
   );
 }
 
-function MobileCard({ r, unit, currency, usdPerInr }) {
-  const entry = r.entry;
-  const best = r.best;
-  const hasLadder = r.slabs.length > 1;
+function MobileCard({ r, off, unit, currency, usdPerInr }) {
+  const entry = off.entry;
+  const best = off.best;
+  const hasLadder = off.slabs.length > 1;
   return (
     <div className="rounded-md border border-ink-200 bg-white p-3">
       <div className="flex items-start justify-between gap-3">
@@ -449,7 +466,7 @@ function MobileCard({ r, unit, currency, usdPerInr }) {
       {hasLadder && (
         <div className="mt-2 border-t border-ink-100 pt-2">
           <p className="mb-1 text-[11px] uppercase tracking-wide text-ink-400">Quantity breaks</p>
-          <LadderTable r={r} currency={currency} usdPerInr={usdPerInr} />
+          <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} />
         </div>
       )}
     </div>

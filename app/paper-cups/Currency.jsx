@@ -12,17 +12,27 @@ const DisplayCtx = createContext({
   setCurrency: () => {},
   unit: "mm",
   setUnit: () => {},
+  offering: "plain",
+  setOffering: () => {},
 });
 
 export function useDisplay() {
   return useContext(DisplayCtx);
 }
 
-export function CurrencyProvider({ children, initialCurrency = "INR", initialUnit = "mm" }) {
+export function CurrencyProvider({
+  children,
+  initialCurrency = "INR",
+  initialUnit = "mm",
+  initialOffering = "plain",
+}) {
   const [currency, setCurrency] = useState(initialCurrency);
   const [unit, setUnit] = useState(initialUnit);
+  const [offering, setOffering] = useState(initialOffering);
   return (
-    <DisplayCtx.Provider value={{ currency, setCurrency, unit, setUnit }}>
+    <DisplayCtx.Provider
+      value={{ currency, setCurrency, unit, setUnit, offering, setOffering }}
+    >
       {children}
     </DisplayCtx.Provider>
   );
@@ -64,6 +74,22 @@ export function CurrencyToggle({ className = "" }) {
       options={[
         { value: "INR", label: "₹ INR" },
         { value: "USD", label: "$ USD" },
+      ]}
+    />
+  );
+}
+
+export function OfferingToggle({ className = "" }) {
+  const { offering, setOffering } = useDisplay();
+  return (
+    <Segmented
+      ariaLabel="Cup offering"
+      value={offering}
+      onChange={setOffering}
+      className={className}
+      options={[
+        { value: "plain", label: "Plain" },
+        { value: "printed", label: "Printed" },
       ]}
     />
   );
