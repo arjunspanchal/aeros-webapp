@@ -3,7 +3,7 @@ import { Brand } from "@/app/components/ui/Brand";
 import { BagGuide } from "./BagGuide";
 import { SupplyTerms, QualityChecks } from "./TradeTerms";
 import PaperBagsBrowser from "./PaperBagsBrowser";
-import { CurrencyProvider, CurrencyToggle } from "./Currency";
+import { CurrencyProvider, CurrencyToggle, UnitToggle } from "./Currency";
 
 // Public, no-login rate sheet shared directly with clients. Not in the
 // middleware matcher, so it renders for anyone with the link.
@@ -31,17 +31,15 @@ export default async function PaperBagsPage() {
   });
 
   return (
-    <CurrencyProvider initial="INR">
+    <CurrencyProvider initialCurrency="INR" initialUnit="mm">
       <div className="min-h-screen bg-ink-50 text-ink-800">
-        {/* Masthead — sticky so the currency toggle stays reachable. */}
+        {/* Masthead — sticky so the currency / unit toggles stay reachable. */}
         <header className="sticky top-0 z-20 border-b border-ink-200 bg-white">
-          <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex items-center justify-between gap-4">
+          <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex flex-wrap items-center justify-between gap-3">
             <Brand size="md" href="/" />
-            <div className="flex items-center gap-3">
-              <span className="hidden font-mono text-xs uppercase tracking-wider text-ink-400 sm:inline">
-                Rate Sheet
-              </span>
+            <div className="flex items-center gap-2">
               <CurrencyToggle />
+              <UnitToggle />
             </div>
           </div>
         </header>

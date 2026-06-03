@@ -7,7 +7,7 @@
 // Supabase service-role read server-only.
 
 import { useMemo, useState } from "react";
-import { useCurrency } from "./Currency";
+import { useDisplay } from "./Currency";
 
 // ── Money ──────────────────────────────────────────────────────────────────
 // Rates are stored in INR. USD is an indicative conversion at `usdPerInr`.
@@ -47,6 +47,17 @@ function inLine(size) {
   return d.map((n) => (n / 25.4).toFixed(1)).join(" × ");
 }
 
+// One size string in the chosen unit, e.g. "152 × 95 × 305 mm" or
+// "6.0 × 3.7 × 12.0 in".
+function sizeLabel(size, unit) {
+  if (unit === "in") {
+    const v = inLine(size);
+    return v ? `${v} in` : null;
+  }
+  const v = mmLine(size);
+  return v ? `${v} mm` : null;
+}
+
 function materialLabel(r) {
   const mat = r.material || "";
   const colour = r.colour;
@@ -63,7 +74,7 @@ function shortCode(key) {
 }
 
 export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 90 }) {
-  const { currency } = useCurrency();
+  const { currency, unit } = useDisplay();
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [material, setMaterial] = useState("all"); // "all" | "brown" | "white"
@@ -195,7 +206,8 @@ export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 
         <div className="mt-4 flex items-center justify-between border-t border-ink-100 pt-3">
           <span className="text-xs text-ink-500">
             Showing <strong className="text-ink-900">{shown}</strong> of {total} bags · prices in{" "}
-            <strong className="text-ink-900">{currency}</strong>
+            <strong className="text-ink-900">{currency}</strong> · sizes in{" "}
+            <strong className="text-ink-900">{unit}</strong>
           </span>
           {isFiltered && (
             <button
@@ -247,30 +259,21 @@ export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 
                 </thead>
                 <tbody>
                   {section.rows.map((r) => {
-                    const unit = fmtUnit(currency, r.priceInr, usdPerInr);
+                    const unitRate = fmtUnit(currency, r.priceInr, usdPerInr);
                     const caseRate = fmtCase(currency, r.priceInr, r.casePack, usdPerInr);
                     return (
                       <tr key={r.sku} className="border-b border-ink-100 last:border-0">
                         <td className="px-3 py-2 font-mono text-xs text-ink-600">{r.sku}</td>
                         <td className="px-3 py-2 text-ink-900">{r.name}</td>
-                        <td className="px-3 py-2 text-ink-600">
-                          {mmLine(r.size) ? (
-                            <>
-                              <span>{mmLine(r.size)} mm</span>
-                              <span className="block text-xs text-ink-400">{inLine(r.size)} in</span>
-                            </>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
+                        <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
                         <td className="px-3 py-2 text-ink-600">{materialLabel(r)}</td>
                         <td className="px-3 py-2 text-right text-ink-600">{r.gsm ?? "—"}</td>
                         <td className="px-3 py-2 text-right text-ink-600">
                           {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
                         </td>
                         <td className="px-3 py-2 text-right">
-                          {unit ? (
-                            <span className="font-medium text-ink-900">{unit}</span>
+                          {unitRate ? (
+                            <span className="font-medium text-ink-900">{unitRate}</span>
                           ) : (
                             <span className="text-ink-400">On request</span>
                           )}
@@ -286,7 +289,7 @@ export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 
             {/* Mobile cards */}
             <div className="mt-3 space-y-2 md:hidden">
               {section.rows.map((r) => {
-                const unit = fmtUnit(currency, r.priceInr, usdPerInr);
+                const unitRate = fmtUnit(currency, r.priceInr, usdPerInr);
                 const caseRate = fmtCase(currency, r.priceInr, r.casePack, usdPerInr);
                 return (
                   <div key={r.sku} className="rounded-md border border-ink-200 bg-white p-3">
@@ -296,9 +299,9 @@ export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 
                         <p className="mt-0.5 font-medium text-ink-900">{r.name}</p>
                       </div>
                       <div className="shrink-0 text-right">
-                        {unit ? (
+                        {unitRate ? (
                           <>
-                            <p className="font-semibold text-ink-900">{unit}</p>
+                            <p className="font-semibold text-ink-900">{unitRate}</p>
                             <p className="text-xs text-ink-400">
                               {caseRate ? `${caseRate}/case` : "per piece"}
                             </p>
@@ -309,9 +312,7 @@ export default function PaperBagsBrowser({ sections, priced, total, usdPerInr = 
                       </div>
                     </div>
                     <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-600">
-                      <Spec label="Size">
-                        {mmLine(r.size) ? `${mmLine(r.size)} mm · ${inLine(r.size)} in` : "—"}
-                      </Spec>
+                      <Spec label="Size">{sizeLabel(r.size, unit) ?? "—"}</Spec>
                       <Spec label="Material">{materialLabel(r)}</Spec>
                       <Spec label="GSM">{r.gsm ?? "—"}</Spec>
                       <Spec label="Case pack">
