@@ -239,8 +239,12 @@ function compactSpecs(rows) {
 // Drops tiers without an india_landed_inr (nothing to display) and orders
 // the groups Plain → Printed → anything else. Rows within each group are
 // sorted by MOQ ascending so the ladder reads small → large.
-const OFFERING_ORDER = ["plain", "custom_branded"];
-const OFFERING_LABELS = { plain: "Plain", custom_branded: "Printed" };
+const OFFERING_ORDER = ["plain", "generic_printed", "custom_branded"];
+const OFFERING_LABELS = {
+  plain: "Plain",
+  generic_printed: "Printed",
+  custom_branded: "Printed (legacy)",
+};
 
 function groupTiersForDisplay(tiers) {
   if (!Array.isArray(tiers) || tiers.length === 0) return [];
