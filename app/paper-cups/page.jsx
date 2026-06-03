@@ -81,7 +81,7 @@ export default async function PaperCupsPage() {
                   the unit rate drops as order quantity rises. Tap a row to see every break.
                 </Term>
                 <Term label="Customisation">
-                  Single-colour custom print across the range. Switch to{" "}
+                  Custom print up to 4 colours across the range. Switch to{" "}
                   <strong className="text-ink-900">Customised</strong> for live rates — customised
                   cups carry their own quantity ladder from 5,000 pcs.
                 </Term>
