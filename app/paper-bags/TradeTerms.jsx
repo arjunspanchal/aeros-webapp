@@ -38,7 +38,9 @@ export function SupplyTerms() {
           container gateway.
         </TermCard>
         <TermCard label="Packing">
-          Packed by the case; cartons palletised and shrink-wrapped for export on request.
+          <strong className="text-ink-900">Handle bags (PTH, FHB) are carton-packed</strong>;{" "}
+          <strong className="text-ink-900">SOS sacks are bale-packed</strong> in compressed bundles
+          to save volume. Both are palletised and shrink-wrapped for export on request.
         </TermCard>
       </div>
     </section>
