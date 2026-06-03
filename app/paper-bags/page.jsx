@@ -1,5 +1,7 @@
 import { fetchPaperBags, USD_PER_INR_DIVISOR } from "@/lib/paper-bags";
 import { Brand } from "@/app/components/ui/Brand";
+import { BagGuide } from "./BagGuide";
+import PaperBagsBrowser from "./PaperBagsBrowser";
 
 // Public, no-login rate sheet shared directly with clients. Not in the
 // middleware matcher, so it renders for anyone with the link.
@@ -10,12 +12,6 @@ export const metadata = {
   description:
     "Aeros plain kraft paper bag range — SOS sacks, twisted-handle, flat-handle and bottle bags. Per-piece rates, EXW India.",
 };
-
-const fmtInr = (v) =>
-  v == null ? null : `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const fmtUsd = (v) =>
-  v == null ? null : `$${v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`;
 
 export default async function PaperBagsPage() {
   let data = null;
@@ -82,94 +78,15 @@ export default async function PaperBagsPage() {
               </Term>
             </section>
 
-            {/* Sections */}
-            {data.sections.map((section) => (
-              <section key={section.key} className="mt-10">
-                <div className="flex items-baseline justify-between border-b border-ink-300 pb-2">
-                  <h2 className="text-lg font-bold text-ink-900">{section.label}</h2>
-                  <span className="font-mono text-xs text-ink-400">
-                    {section.rows.length} sizes
-                  </span>
-                </div>
-                {section.blurb && (
-                  <p className="mt-2 text-sm text-ink-600">{section.blurb}</p>
-                )}
+            {/* Educational guide */}
+            <BagGuide />
 
-                {/* Desktop table */}
-                <div className="mt-4 hidden overflow-hidden rounded-md border border-ink-200 bg-white md:block">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-ink-200 bg-ink-100 text-left text-xs uppercase tracking-wide text-ink-400">
-                        <th className="px-3 py-2 font-medium">Code</th>
-                        <th className="px-3 py-2 font-medium">Bag</th>
-                        <th className="px-3 py-2 font-medium">Size (W×G×H mm)</th>
-                        <th className="px-3 py-2 font-medium">Material</th>
-                        <th className="px-3 py-2 text-right font-medium">GSM</th>
-                        <th className="px-3 py-2 text-right font-medium">Case</th>
-                        <th className="px-3 py-2 text-right font-medium">Rate (EXW)</th>
-                        <th className="px-3 py-2 text-right font-medium">USD*</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {section.rows.map((r) => (
-                        <tr key={r.sku} className="border-b border-ink-100 last:border-0">
-                          <td className="px-3 py-2 font-mono text-xs text-ink-600">{r.sku}</td>
-                          <td className="px-3 py-2 text-ink-900">{r.name}</td>
-                          <td className="px-3 py-2 text-ink-600">{stripUnit(r.size)}</td>
-                          <td className="px-3 py-2 text-ink-600">{materialLabel(r)}</td>
-                          <td className="px-3 py-2 text-right text-ink-600">{r.gsm ?? "—"}</td>
-                          <td className="px-3 py-2 text-right text-ink-600">
-                            {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            {r.priceInr != null ? (
-                              <span className="font-medium text-ink-900">{fmtInr(r.priceInr)}</span>
-                            ) : (
-                              <span className="text-ink-400">On request</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-right text-ink-400">
-                            {r.priceUsd != null ? fmtUsd(r.priceUsd) : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Mobile cards */}
-                <div className="mt-4 space-y-2 md:hidden">
-                  {section.rows.map((r) => (
-                    <div key={r.sku} className="rounded-md border border-ink-200 bg-white p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-mono text-xs text-ink-400">{r.sku}</p>
-                          <p className="mt-0.5 font-medium text-ink-900">{r.name}</p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          {r.priceInr != null ? (
-                            <>
-                              <p className="font-semibold text-ink-900">{fmtInr(r.priceInr)}</p>
-                              <p className="text-xs text-ink-400">{fmtUsd(r.priceUsd)}</p>
-                            </>
-                          ) : (
-                            <p className="text-sm text-ink-400">On request</p>
-                          )}
-                        </div>
-                      </div>
-                      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-600">
-                        <Spec label="Size">{stripUnit(r.size) || "—"}</Spec>
-                        <Spec label="Material">{materialLabel(r)}</Spec>
-                        <Spec label="GSM">{r.gsm ?? "—"}</Spec>
-                        <Spec label="Case pack">
-                          {r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}
-                        </Spec>
-                      </dl>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ))}
+            {/* Filterable rate sheet */}
+            <PaperBagsBrowser
+              sections={data.sections}
+              priced={data.priced}
+              total={data.total}
+            />
 
             {/* Footnotes */}
             <div className="mt-10 space-y-1 text-xs text-ink-400">
@@ -208,32 +125,4 @@ function Term({ label, children }) {
       <dd className="mt-0.5">{children}</dd>
     </div>
   );
-}
-
-function Spec({ label, children }) {
-  return (
-    <div>
-      <dt className="text-ink-400">{label}</dt>
-      <dd className="text-ink-800">{children}</dd>
-    </div>
-  );
-}
-
-// "102 x 32 x 254 mm (W x G x H)" → "102 × 32 × 254"
-function stripUnit(size) {
-  if (!size) return null;
-  return size
-    .replace(/\s*mm\b.*$/i, "")
-    .replace(/\s*\(.*\)\s*$/, "")
-    .replace(/\s*x\s*/gi, " × ")
-    .trim();
-}
-
-function materialLabel(r) {
-  const mat = r.material || "";
-  const colour = r.colour;
-  if (/bleached/i.test(mat)) return "White kraft";
-  if (/ogr/i.test(mat)) return "OGR recycled";
-  if (/kraft/i.test(mat)) return colour === "White" ? "White kraft" : "Brown kraft";
-  return mat || (colour ?? "—");
 }
