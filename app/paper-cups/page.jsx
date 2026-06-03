@@ -3,7 +3,7 @@ import { Brand } from "@/app/components/ui/Brand";
 import { CupGuide } from "./CupGuide";
 import { SupplyTerms, QualityChecks, PackingVisual } from "./TradeTerms";
 import PaperCupsBrowser from "./PaperCupsBrowser";
-import { CurrencyProvider, CurrencyToggle, UnitToggle } from "./Currency";
+import { CurrencyProvider, CurrencyToggle, UnitToggle, OfferingToggle } from "./Currency";
 
 // Public, no-login rate sheet shared directly with clients. Not in the
 // middleware matcher, so it renders for anyone with the link.
@@ -31,13 +31,14 @@ export default async function PaperCupsPage() {
   });
 
   return (
-    <CurrencyProvider initialCurrency="INR" initialUnit="mm">
+    <CurrencyProvider initialCurrency="INR" initialUnit="mm" initialOffering="plain">
       <div className="min-h-screen bg-ink-50 text-ink-800">
         {/* Masthead — sticky so the currency / unit toggles stay reachable. */}
         <header className="sticky top-0 z-20 border-b border-ink-200 bg-white">
           <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex flex-wrap items-center justify-between gap-3">
             <Brand size="md" href="/" />
             <div className="flex items-center gap-2">
+              <OfferingToggle />
               <CurrencyToggle />
               <UnitToggle />
             </div>
@@ -67,8 +68,10 @@ export default async function PaperCupsPage() {
               {/* Pricing terms */}
               <section className="mt-8 grid gap-3 rounded-md border border-ink-200 bg-white p-5 text-sm text-ink-600 sm:grid-cols-2">
                 <Term label="Pricing basis">
-                  Rates are <strong className="text-ink-900">EXW India, per piece</strong>, for plain
-                  (unprinted) cups. FOB Nhava Sheva quoted on request.
+                  Rates are <strong className="text-ink-900">EXW India, per piece</strong>. Toggle
+                  between <strong className="text-ink-900">plain</strong> and{" "}
+                  <strong className="text-ink-900">printed</strong> cups in the masthead. FOB Nhava
+                  Sheva quoted on request.
                 </Term>
                 <Term label="Currency">
                   Quoted in <strong className="text-ink-900">INR (₹)</strong>. Switch the toggle for
@@ -79,8 +82,9 @@ export default async function PaperCupsPage() {
                   the unit rate drops as order quantity rises. Tap a row to see every break.
                 </Term>
                 <Term label="Customisation">
-                  Custom print across the full range — printed cups are a separate rate, available on
-                  request.
+                  Single-colour custom print across the range. Switch to{" "}
+                  <strong className="text-ink-900">Printed</strong> for live rates — printed cups
+                  carry their own quantity ladder from 5,000 pcs.
                 </Term>
               </section>
 
@@ -95,7 +99,8 @@ export default async function PaperCupsPage() {
               {/* Filterable rate sheet */}
               <PaperCupsBrowser
                 sections={data.sections}
-                priced={data.priced}
+                plainPriced={data.plainPriced}
+                printedPriced={data.printedPriced}
                 total={data.total}
                 usdPerInr={USD_PER_INR_DIVISOR}
               />
@@ -113,8 +118,8 @@ export default async function PaperCupsPage() {
                   costs.
                 </p>
                 <p>
-                  {data.priced} of {data.total} sizes are listed with live rates; the remainder are
-                  quoted on request.
+                  Plain: {data.plainPriced} of {data.total} sizes listed with live rates · Printed:{" "}
+                  {data.printedPriced} of {data.total}. The remainder are quoted on request.
                 </p>
               </div>
             </>

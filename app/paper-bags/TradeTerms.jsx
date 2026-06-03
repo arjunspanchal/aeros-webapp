@@ -230,25 +230,30 @@ function PackPlaceholder({ title }) {
 // Printed rates are being finalised in the catalogue — kept "on request" here.
 
 // Print is priced by ink coverage — the share of the bag face carrying ink.
-// Three indicative bands, each drawn as a kraft bag with that much ink filled.
+// We quote three set tiers; coverage and colour count move together, and each
+// is drawn as a kraft bag with that much ink filled. These match the printed
+// rate sheet's P10 / P30 / P100 tiers exactly.
 const COVERAGE = [
   {
-    pct: "15%",
+    pct: "10%",
+    colours: "1-colour",
     word: "Light",
     variant: "light",
-    body: "A logo or small mark on plain kraft — minimal ink and the most economical. Typical of simple branded retail and takeaway bags.",
+    body: "A single-colour logo or small mark on plain kraft — minimal ink and the most economical. Typical of simple branded retail and takeaway bags.",
   },
   {
-    pct: "50%",
+    pct: "30%",
+    colours: "2-colour",
     word: "Medium",
     variant: "medium",
-    body: "Logo plus text, borders or a part-background. A fuller branded look at a moderate ink cost.",
+    body: "Logo plus text, borders or a part-background in up to two colours. A fuller branded look at a moderate ink cost.",
   },
   {
     pct: "100%",
+    colours: "4-colour",
     word: "Full",
     variant: "full",
-    body: "Edge-to-edge flood colour or full-wrap artwork. The richest look and the most ink — so the highest print cost.",
+    body: "Edge-to-edge flood colour or full-wrap artwork, up to four colours. The richest look and the most ink — so the highest print cost.",
   },
 ];
 
@@ -336,8 +341,8 @@ export function Customisation() {
         </p>
         <p className="mt-2 max-w-2xl text-sm text-ink-600">
           &ldquo;Coverage&rdquo; is the share of the bag&rsquo;s surface that carries ink. More
-          coverage means more ink and a richer look — and a higher print rate. These are the three
-          bands we quote against:
+          coverage means more ink and a richer look — and a higher print rate. We quote three set
+          tiers, each pairing a coverage level with a colour count:
         </p>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -355,7 +360,7 @@ export function Customisation() {
                     {c.pct}
                   </p>
                   <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                    {c.word} coverage
+                    {c.word} · {c.colours}
                   </p>
                 </div>
               </div>
@@ -365,9 +370,10 @@ export function Customisation() {
         </div>
 
         <p className="mt-4 text-xs leading-relaxed text-ink-500">
-          Colour count matters too — each ink colour needs its own plate, so a one-colour logo at
-          50% coverage prints cheaper than a four-colour design at the same coverage. Send your
-          artwork and we&rsquo;ll map it to a band and quote exactly.
+          These three tiers are exactly what you&rsquo;ll see in the printed rate sheet below —
+          switch the sheet to <strong className="text-ink-700">Printed</strong> for the per-piece
+          rate at each tier and order quantity. Bespoke coverage or colour counts are quoted on
+          request.
         </p>
       </div>
 
@@ -386,8 +392,9 @@ export function Customisation() {
         </div>
         <p className="mt-3 text-xs leading-relaxed text-ink-500">
           Minimums are per design and ladder up with bag size. Flat-handle (FHB) and bottle (LIQ)
-          MOQs confirmed per SKU. <strong className="text-ink-700">Printed rates are quoted on
-          request</strong> against your size, coverage and colours.
+          MOQs confirmed per SKU. <strong className="text-ink-700">Live printed rates are in the
+          rate sheet below</strong> — switch it to <strong className="text-ink-700">Printed</strong>{" "}
+          for the per-piece price at each tier and order quantity.
         </p>
       </div>
     </section>
