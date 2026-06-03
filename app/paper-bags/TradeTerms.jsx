@@ -223,6 +223,168 @@ function PackPlaceholder({ title }) {
   );
 }
 
+// ── Printing & customisation ────────────────────────────────────────────────
+// Plain bags are stocked; printed/custom is the bigger half of the business.
+// Print is priced by ink coverage × colours (see the internal bag-rate calc),
+// plus a one-time plate/cylinder charge per colour amortised over the run.
+// Printed rates are being finalised in the catalogue — kept "on request" here.
+
+export function Customisation() {
+  return (
+    <section id="customisation" className="mt-12">
+      <div className="border-b border-ink-300 pb-2">
+        <h2 className="text-lg font-bold text-ink-900">Printing &amp; customisation</h2>
+      </div>
+      <p className="mt-2 max-w-2xl text-sm text-ink-600">
+        Every bag on this sheet is also made to order in your branding — your print, size, kraft
+        and GSM. Plain stock ships fast; custom is where most of our work is.
+      </p>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <TermCard label="Print">
+          Flexo &amp; offset, multi-colour, <strong className="text-ink-900">Pantone-matched</strong>.
+          Logos, full-wrap artwork and solids on brown or white kraft.
+        </TermCard>
+        <TermCard label="How print is priced">
+          By <strong className="text-ink-900">ink coverage</strong> (light → full) and number of
+          colours. A one-time plate/cylinder charge per colour amortises over the run — quoted with
+          your design.
+        </TermCard>
+        <TermCard label="Custom build">
+          Bespoke <strong className="text-ink-900">sizes, GSM and handle type</strong>, plus
+          white-kraft on any model. New sizes may carry a one-time die charge.
+        </TermCard>
+        <TermCard label="Artwork">
+          Send vector art (AI / PDF). We return a free dieline and digital mock-up for sign-off
+          before any plate is cut.
+        </TermCard>
+      </div>
+
+      {/* Printed MOQ — set expectations up front. */}
+      <div className="mt-3 rounded-md border border-ink-200 bg-white p-5">
+        <p className="text-xs uppercase tracking-wide text-ink-400">Printed minimum order</p>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <div className="flex items-baseline gap-3">
+            <span className="font-mono text-2xl font-bold text-ink-900">25,000</span>
+            <span className="text-sm text-ink-600">pcs / design — twisted-handle (PTH)</span>
+          </div>
+          <div className="flex items-baseline gap-3">
+            <span className="font-mono text-2xl font-bold text-ink-900">1,00,000</span>
+            <span className="text-sm text-ink-600">pcs / design — SOS sacks</span>
+          </div>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-ink-500">
+          Minimums are per design and ladder up with bag size. Flat-handle (FHB) and bottle (LIQ)
+          MOQs confirmed per SKU. <strong className="text-ink-700">Printed rates are quoted on
+          request</strong> against your size, coverage and colours.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+// ── Export & shipping readiness ─────────────────────────────────────────────
+export function ExportReadiness() {
+  return (
+    <section id="export" className="mt-12">
+      <div className="border-b border-ink-300 pb-2">
+        <h2 className="text-lg font-bold text-ink-900">Export &amp; shipping readiness</h2>
+      </div>
+      <p className="mt-2 max-w-2xl text-sm text-ink-600">
+        Set up to ship internationally from Nhava Sheva, with the paperwork importers need to clear
+        customs cleanly.
+      </p>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <TermCard label="Container loading">
+          Loaded for volume — SOS bales compress to fit more per container. Exact pieces per{" "}
+          <strong className="text-ink-900">20&prime; / 40&prime;</strong> confirmed per SKU at quote.
+        </TermCard>
+        <TermCard label="HS code">
+          <strong className="text-ink-900">4819.30</strong> (sacks &amp; bags, base ≥ 40 cm) /{" "}
+          <strong className="text-ink-900">4819.40</strong> (other paper bags).
+        </TermCard>
+        <TermCard label="Documents provided">
+          Commercial invoice, packing list, bill of lading, Certificate of Origin and FSC
+          chain-of-custody. Fumigation / phytosanitary on request.
+        </TermCard>
+        <TermCard label="Market compliance">
+          FSC-certified, food-contact safe, <strong className="text-ink-900">recyclable and
+          biodegradable</strong> — plastic-free kraft that meets single-use-plastic-ban rules in
+          most export markets.
+        </TermCard>
+      </div>
+    </section>
+  );
+}
+
+// ── Samples & how to order + contact CTA ────────────────────────────────────
+const WHATSAPP_URL = "https://wa.me/918433536369";
+const EMAIL = "arjun@aeros-x.com";
+
+export function OrderingAndSamples() {
+  const steps = [
+    { n: "01", title: "Share specs", body: "Size, quantity and plain or printed — by WhatsApp or email." },
+    { n: "02", title: "Get a quote", body: "We reply with the rate, MOQ and lead time for your spec." },
+    { n: "03", title: "Approve a sample", body: "Samples are chargeable and adjusted against your first order." },
+    { n: "04", title: "Confirm the PO", body: "50% advance confirms the order and locks production." },
+    { n: "05", title: "Production", body: "~30 days from the advance, with in-line QC across the run." },
+    { n: "06", title: "Dispatch", body: "Balance before dispatch; EXW India or FOB Nhava Sheva." },
+  ];
+
+  return (
+    <section id="order" className="mt-12">
+      <div className="border-b border-ink-300 pb-2">
+        <h2 className="text-lg font-bold text-ink-900">Samples &amp; how to order</h2>
+      </div>
+
+      <ol className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {steps.map((s) => (
+          <li key={s.n} className="flex gap-3 rounded-md border border-ink-200 bg-white p-4">
+            <span className="font-mono text-sm font-bold text-ink-300">{s.n}</span>
+            <div>
+              <p className="text-sm font-semibold text-ink-900">{s.title}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-ink-600">{s.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      {/* CTA */}
+      <div className="mt-4 flex flex-col items-start gap-3 rounded-md border border-ink-300 bg-ink-900 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-base font-bold text-white">Ready for a quote?</p>
+          <p className="mt-0.5 text-sm text-ink-300">
+            Send your size, quantity and artwork — we reply with rate, MOQ and lead time.
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-ink-900 hover:bg-ink-100"
+          >
+            WhatsApp us
+          </a>
+          <a
+            href={`mailto:${EMAIL}?subject=Paper%20bag%20enquiry`}
+            className="rounded-md border border-ink-500 px-4 py-2 text-sm font-semibold text-white hover:bg-ink-800"
+          >
+            Email
+          </a>
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-ink-500">
+        WhatsApp <span className="font-medium text-ink-700">+91 84335 36369</span> · {" "}
+        <a href={`mailto:${EMAIL}`} className="font-medium text-ink-700 underline-offset-2 hover:underline">
+          {EMAIL}
+        </a>
+      </p>
+    </section>
+  );
+}
+
 function TermCard({ label, children }) {
   return (
     <div className="rounded-md border border-ink-200 bg-white p-4 text-sm text-ink-600">

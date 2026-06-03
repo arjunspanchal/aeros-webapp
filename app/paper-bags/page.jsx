@@ -1,7 +1,14 @@
 import { fetchPaperBags, USD_PER_INR_DIVISOR } from "@/lib/paper-bags";
 import { Brand } from "@/app/components/ui/Brand";
 import { BagGuide } from "./BagGuide";
-import { SupplyTerms, QualityChecks, PackingVisual } from "./TradeTerms";
+import {
+  SupplyTerms,
+  QualityChecks,
+  PackingVisual,
+  Customisation,
+  ExportReadiness,
+  OrderingAndSamples,
+} from "./TradeTerms";
 import PaperBagsBrowser from "./PaperBagsBrowser";
 import { CurrencyProvider, CurrencyToggle, UnitToggle } from "./Currency";
 
@@ -82,13 +89,15 @@ export default async function PaperBagsPage() {
                 </Term>
               </section>
 
-              {/* Supply terms + packing visuals + quality/compliance */}
+              {/* Supply terms + packing visuals + export readiness + quality */}
               <SupplyTerms />
               <PackingVisual />
+              <ExportReadiness />
               <QualityChecks />
 
-              {/* Educational guide */}
+              {/* Educational guide + customisation */}
               <BagGuide />
+              <Customisation />
 
               {/* Filterable rate sheet */}
               <PaperBagsBrowser
@@ -97,6 +106,9 @@ export default async function PaperBagsPage() {
                 total={data.total}
                 usdPerInr={USD_PER_INR_DIVISOR}
               />
+
+              {/* Samples, ordering steps + contact CTA */}
+              <OrderingAndSamples />
 
               {/* Footnotes */}
               <div className="mt-10 space-y-1 text-xs text-ink-400">
