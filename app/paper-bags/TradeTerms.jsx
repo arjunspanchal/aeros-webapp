@@ -132,19 +132,10 @@ function findImage(base) {
 }
 
 export function PackingVisual() {
-  const items = [
-    {
-      base: "bale-packing",
-      title: "Bale-packed",
-      tag: "SOS sacks",
-      body: "Handle-less sacks are pressed into compact, strapped bales — more pieces per pallet and lower freight per bag.",
-    },
-    {
-      base: "carton-packing",
-      title: "Carton-packed",
-      tag: "PTH & FHB handle bags",
-      body: "Handle bags are boxed flat in counted cartons that protect the handles and keep the finish clean in transit.",
-    },
+  const tiles = [
+    { base: "bale-packing", title: "Bale-packed", sub: "Shrink-wrapped · SOS sacks" },
+    { base: "bale-packing-plain", title: "Bale-packed", sub: "Unwrapped bale · SOS sacks" },
+    { base: "carton-packing", title: "Carton-packed", sub: "PTH & FHB handle bags" },
   ];
 
   return (
@@ -153,16 +144,18 @@ export function PackingVisual() {
         <h2 className="text-lg font-bold text-ink-900">How your bags are packed</h2>
       </div>
       <p className="mt-2 max-w-2xl text-sm text-ink-600">
-        Orders ship one of two ways depending on the bag type — so you know exactly what arrives
-        on the pallet.
+        Handle-less <strong className="text-ink-900">SOS sacks ship as compact bales</strong> —
+        strapped and, for export, shrink-wrapped to protect them in transit.{" "}
+        <strong className="text-ink-900">Handle bags (PTH, FHB) ship carton-packed</strong> to keep
+        the handles and finish clean. Both are palletised on request.
       </p>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {items.map((it) => {
-          const src = findImage(it.base);
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {tiles.map((t) => {
+          const src = findImage(t.base);
           return (
             <figure
-              key={it.base}
+              key={t.base}
               className="overflow-hidden rounded-md border border-ink-200 bg-white"
             >
               <div className="aspect-[4/3] w-full bg-ink-50">
@@ -170,21 +163,18 @@ export function PackingVisual() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={src}
-                    alt={`${it.title} ${it.tag} — Aeros paper bags`}
+                    alt={`${t.title} — ${t.sub} — Aeros paper bags`}
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <PackPlaceholder title={it.title} />
+                  <PackPlaceholder title={t.title} />
                 )}
               </div>
-              <figcaption className="p-4">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-ink-900">{it.title}</h3>
-                  <span className="rounded bg-ink-100 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-ink-500">
-                    {it.tag}
-                  </span>
-                </div>
-                <p className="mt-1.5 text-xs leading-relaxed text-ink-600">{it.body}</p>
+              <figcaption className="p-3">
+                <h3 className="text-sm font-bold text-ink-900">{t.title}</h3>
+                <p className="mt-0.5 font-mono text-[11px] uppercase tracking-wide text-ink-500">
+                  {t.sub}
+                </p>
               </figcaption>
             </figure>
           );
