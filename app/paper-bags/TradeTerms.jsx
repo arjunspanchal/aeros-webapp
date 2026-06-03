@@ -285,6 +285,30 @@ export function Customisation() {
 
 // ── Export & shipping readiness ─────────────────────────────────────────────
 export function ExportReadiness() {
+  const containerImg = findImage("container-40ft");
+
+  const cards = (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+      <TermCard label="Container loading">
+        Loaded for volume — SOS bales compress to fit more per container. Exact pieces per{" "}
+        <strong className="text-ink-900">20&prime; / 40&prime;</strong> confirmed per SKU at quote.
+      </TermCard>
+      <TermCard label="HS code">
+        <strong className="text-ink-900">4819.30</strong> (sacks &amp; bags, base ≥ 40 cm) /{" "}
+        <strong className="text-ink-900">4819.40</strong> (other paper bags).
+      </TermCard>
+      <TermCard label="Documents provided">
+        Commercial invoice, packing list, bill of lading, Certificate of Origin and FSC
+        chain-of-custody. Fumigation / phytosanitary on request.
+      </TermCard>
+      <TermCard label="Market compliance">
+        FSC-certified, food-contact safe, <strong className="text-ink-900">recyclable and
+        biodegradable</strong> — plastic-free kraft that meets single-use-plastic-ban rules in
+        most export markets.
+      </TermCard>
+    </div>
+  );
+
   return (
     <section id="export" className="mt-12">
       <div className="border-b border-ink-300 pb-2">
@@ -295,25 +319,29 @@ export function ExportReadiness() {
         customs cleanly.
       </p>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <TermCard label="Container loading">
-          Loaded for volume — SOS bales compress to fit more per container. Exact pieces per{" "}
-          <strong className="text-ink-900">20&prime; / 40&prime;</strong> confirmed per SKU at quote.
-        </TermCard>
-        <TermCard label="HS code">
-          <strong className="text-ink-900">4819.30</strong> (sacks &amp; bags, base ≥ 40 cm) /{" "}
-          <strong className="text-ink-900">4819.40</strong> (other paper bags).
-        </TermCard>
-        <TermCard label="Documents provided">
-          Commercial invoice, packing list, bill of lading, Certificate of Origin and FSC
-          chain-of-custody. Fumigation / phytosanitary on request.
-        </TermCard>
-        <TermCard label="Market compliance">
-          FSC-certified, food-contact safe, <strong className="text-ink-900">recyclable and
-          biodegradable</strong> — plastic-free kraft that meets single-use-plastic-ban rules in
-          most export markets.
-        </TermCard>
-      </div>
+      {containerImg ? (
+        <div className="mt-4 grid gap-4 lg:grid-cols-2 lg:items-start">
+          <figure className="overflow-hidden rounded-md border border-ink-200 bg-white">
+            <div className="aspect-[3/4] w-full bg-ink-50 sm:aspect-[4/3] lg:aspect-[3/4]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={containerImg}
+                alt="40-foot container fully loaded with cargo-netted bale-packed SOS sacks"
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <figcaption className="p-3">
+              <h3 className="text-sm font-bold text-ink-900">40&prime; container — bale-loaded</h3>
+              <p className="mt-0.5 font-mono text-[11px] uppercase tracking-wide text-ink-500">
+                Cargo-netted SOS bales, loaded at origin
+              </p>
+            </figcaption>
+          </figure>
+          {cards}
+        </div>
+      ) : (
+        <div className="mt-4">{cards}</div>
+      )}
     </section>
   );
 }
