@@ -39,6 +39,26 @@ export default async function ProductDetailPage({ params }) {
   // Spec rows shown in the right-hand details column. Same fields the card
   // surfaces, plus everything else that's set on the product. Each row is
   // skipped when the underlying field is null / empty.
+  // Per-coating weight in gsm — added on top of the base paper.
+  // Used to render "base + coating = total" wall specs so customers see
+  // both the paper grade procured (e.g. 280gsm Stora Enso cup stock) and
+  // the finished coated wall (~298gsm). Values are industry-standard;
+  // vendor PT/MOQ confirms may shift PLA/Aqueous by a few gsm.
+  const COATING_GSM = { PE: 18, "2PE": 36, PLA: 30, Aqueous: 10, None: 0 };
+  function wallSpec(gsm, coating) {
+    if (gsm == null) return null;
+    const coatWeight = COATING_GSM[coating] ?? 0;
+    if (!coating || coating === "None" || coatWeight === 0) return `${gsm} gsm`;
+    return `${gsm} gsm base + ${coatWeight} gsm ${coating} = ${gsm + coatWeight} gsm total`;
+  }
+
+  // DW cups expose sidewall (inner), outer wall, and bottom separately.
+  // SW cups only have a sidewall. For the legacy `GSM` field we hide the
+  // duplicate when wall-specific values are present (avoids "280gsm" stub
+  // sitting next to "280 base + 18 PE = 298 gsm total" for the same wall).
+  const hasWallSplit = product.sidewallGsm != null || product.outerWallGsm != null;
+  const isDW = product.wallType === "Double Wall";
+
   const specs = compactSpecs([
     ["SKU",                product.sku, { mono: true }],
     ["Category",           product.category],
@@ -46,9 +66,17 @@ export default async function ProductDetailPage({ params }) {
     ["Size / Volume",      product.sizeVolume],
     ["Colour / Print",     product.colour && product.colour !== "N/A" ? product.colour : null],
     ["Material",           product.material],
-    ["GSM",                product.gsm != null ? `${product.gsm} gsm` : null],
+    // Legacy single-GSM row — only show when the wall-split fields are empty.
+    ["GSM",                !hasWallSplit && product.gsm != null ? `${product.gsm} gsm` : null],
+    // Wall-by-wall construction. Label differs for SW (just "Wall") vs DW
+    // ("Inner wall" / "Outer wall") since SW only has one paper.
+    [isDW ? "Inner wall (drink-side)" : "Wall",
+                           wallSpec(product.sidewallGsm, product.sidewallCoating)],
+    ["Outer wall",         isDW ? wallSpec(product.outerWallGsm, product.outerWallCoating) : null],
+    ["Bottom",             wallSpec(product.bottomGsm, product.bottomCoating)],
     ["Wall type",          product.wallType],
-    ["Coating",            product.coating],
+    // Hide the legacy single Coating row when wall-specific coatings are set
+    ["Coating",            !hasWallSplit ? product.coating : null],
     ["Top diameter",       product.topDiameter != null ? `${product.topDiameter} mm` : null],
     ["Bottom diameter",    product.bottomDiameter != null ? `${product.bottomDiameter} mm` : null],
     ["Height",             product.heightMm != null ? `${product.heightMm} mm` : null],
