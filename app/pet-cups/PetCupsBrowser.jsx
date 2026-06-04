@@ -173,7 +173,7 @@ export default function PetCupsBrowser({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Code, size or name — e.g. 16oz, dome, 90mm, sipper"
+              placeholder="Code, size or name — e.g. 16oz, 98mm, sipper, U-Shape"
               className="mt-1.5 h-10 w-full rounded border border-ink-200 bg-white px-3 text-sm text-ink-800 placeholder:text-ink-400 focus:border-ink-900 focus:outline-none focus:ring-1 focus:ring-ink-900"
             />
           </div>

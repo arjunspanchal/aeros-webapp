@@ -10,25 +10,16 @@ const GUIDE = [
       "Crystal-clear, rigid thermoformed cold cup with glass-like clarity. Standard tapered and U-shape profiles, custom-brandable.",
     feel: "Rigid, glass-clear",
     bestFor: "Juice, iced coffee, smoothies, soda",
-    sizing: "10oz – 24oz",
-  },
-  {
-    code: "Dome",
-    name: "Dome Lid",
-    blurb:
-      "A raised dome that clears whipped cream, fruit, scoops and tall garnishes. Straw-cross or solid top.",
-    feel: "Tall, domed",
-    bestFor: "Frappés, sundaes, topped drinks",
-    sizing: "Ø 73 – 90 mm",
+    sizing: "Ø 92 / 98 mm · 10oz – 24oz",
   },
   {
     code: "Flat",
     name: "Flat Lid",
     blurb:
-      "A low-profile flat lid in straw-cut and solid options, for round cups and square cold containers.",
+      "A low-profile flat lid with a straw cut, sized to the cup's top diameter. Clear PET, supplied plain.",
     feel: "Low, flat",
-    bestFor: "Iced drinks, salads, cold deli",
-    sizing: "Ø 62 – 148 mm · 125–180 mm sq",
+    bestFor: "Iced drinks, cold takeaway",
+    sizing: "Ø 98 mm",
   },
   {
     code: "Sipper",
@@ -37,7 +28,7 @@ const GUIDE = [
       "A flat lid with a raised drink spout — sip straight from the lid, no straw needed. Tidy and spill-resistant.",
     feel: "Flat, spouted",
     bestFor: "Takeaway cold drinks, on-the-go",
-    sizing: "Ø 92 – 98 mm",
+    sizing: "Ø 92 / 98 mm",
   },
 ];
 
@@ -48,9 +39,9 @@ export function PetGuide() {
         <h2 className="text-lg font-bold text-ink-900">Know your PET range</h2>
       </div>
       <p className="mt-2 max-w-2xl text-sm text-ink-600">
-        One clear cold cup, three lid styles. PET (polyethylene terephthalate, resin code 1)
-        is rigid, recyclable and glass-clear — ideal for cold drinks where you want to show off
-        the contents.
+        One clear cold cup in two top diameters (Ø92 / Ø98 mm), with matching flat and sipper
+        lids. PET (polyethylene terephthalate, resin code 1) is rigid, recyclable and glass-clear
+        — ideal for cold drinks where you want to show off the contents.
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -119,14 +110,6 @@ const ART = {
       <path d="M24 26 L56 26 L51 80 L29 80 Z" />
       <path d="M22 26 L58 26" />
       <path d="M34 32 L32 74" strokeWidth="1" opacity="0.5" />
-    </svg>
-  ),
-  // Dome lid: rim with a raised half-dome.
-  Dome: () => (
-    <svg {...SVG_PROPS} aria-hidden="true">
-      <path d="M20 60 L60 60" />
-      <path d="M24 60 a16 22 0 0 1 32 0" />
-      <path d="M40 38 L40 33 M37 35 L43 35" strokeWidth="1" opacity="0.6" />
     </svg>
   ),
   // Flat lid: rim with a low flat top and a straw cross.
