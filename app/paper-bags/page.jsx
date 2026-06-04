@@ -129,6 +129,11 @@ export default async function PaperBagsPage() {
                   {data.priced} of {data.total} sizes are listed with live rates; the remainder
                   are quoted on request.
                 </p>
+                <p>
+                  Carton CBM is the volume of one shipping carton (case pack). Values marked
+                  with ~ are estimated from the bag size where a carton spec isn&apos;t yet on
+                  file — confirmed on order.
+                </p>
               </div>
             </>
           )}

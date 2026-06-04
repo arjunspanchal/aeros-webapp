@@ -35,6 +35,13 @@ function fmtQty(n) {
   return n.toLocaleString("en-IN");
 }
 
+// Per-carton volume in m³. `est` rows (geometry-estimated, no real carton size
+// on file) are prefixed "~". e.g. 0.066 → "0.066 m³", est → "~0.028 m³".
+function fmtCbm(cbm, est) {
+  if (cbm == null) return "—";
+  return `${est ? "~" : ""}${cbm.toFixed(3)} m³`;
+}
+
 // ── Sizes ──────────────────────────────────────────────────────────────────
 // Pull the first three numbers (W × G × H) out of the raw size string.
 function parseDims(size) {
@@ -84,7 +91,7 @@ function materialLabel(r) {
   const mat = r.material || "";
   const colour = r.colour;
   if (/bleached/i.test(mat)) return "White kraft";
-  if (/ogr/i.test(mat)) return "OGR recycled";
+  if (/ogr/i.test(mat)) return colour === "White" ? "OGR white" : "OGR brown";
   if (/kraft/i.test(mat)) return colour === "White" ? "White kraft" : "Brown kraft";
   return mat || (colour ?? "—");
 }
@@ -135,8 +142,10 @@ export default function PaperBagsBrowser({
           if (q && !`${r.sku} ${r.name}`.toLowerCase().includes(q)) return false;
           if (material !== "all") {
             const label = materialLabel(r).toLowerCase();
-            if (material === "white" && !label.includes("white")) return false;
-            if (material === "brown" && !label.includes("brown")) return false;
+            if (material === "white" && label !== "white kraft") return false;
+            if (material === "brown" && label !== "brown kraft") return false;
+            if (material === "ogr-white" && label !== "ogr white") return false;
+            if (material === "ogr-brown" && label !== "ogr brown") return false;
           }
           if (size !== "all") {
             const h = bagHeight(r.size);
@@ -259,6 +268,8 @@ export default function PaperBagsBrowser({
                 { value: "all", label: "All" },
                 { value: "brown", label: "Brown kraft" },
                 { value: "white", label: "White kraft" },
+                { value: "ogr-white", label: "OGR white" },
+                { value: "ogr-brown", label: "OGR brown" },
               ].map((opt) => (
                 <Chip key={opt.value} active={material === opt.value} onClick={() => setMaterial(opt.value)}>
                   {opt.label}
@@ -385,6 +396,7 @@ export default function PaperBagsBrowser({
                     <th className="px-3 py-2 font-medium">Material</th>
                     <th className="px-3 py-2 text-right font-medium">GSM</th>
                     <th className="px-3 py-2 text-right font-medium">Case (pcs)</th>
+                    <th className="px-3 py-2 text-right font-medium">Carton CBM</th>
                     <th className="px-3 py-2 text-right font-medium">Unit rate</th>
                     <th className="px-3 py-2 text-right font-medium">Case rate</th>
                   </tr>
@@ -402,6 +414,9 @@ export default function PaperBagsBrowser({
                         <td className="px-3 py-2 text-right text-ink-600">{r.gsm ?? "—"}</td>
                         <td className="px-3 py-2 text-right text-ink-600">
                           {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right text-ink-600" title={r.cartonCbmEst ? "Estimated from bag size — no carton spec on file" : undefined}>
+                          {fmtCbm(r.cartonCbm, r.cartonCbmEst)}
                         </td>
                         <td className="px-3 py-2 text-right">
                           {unitRate ? (
@@ -450,6 +465,7 @@ export default function PaperBagsBrowser({
                       <Spec label="Case pack">
                         {r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}
                       </Spec>
+                      <Spec label="Carton CBM">{fmtCbm(r.cartonCbm, r.cartonCbmEst)}</Spec>
                     </dl>
                   </div>
                 );
@@ -486,7 +502,13 @@ function PrintedSection({ section, currency, unit, usdPerInr }) {
                   <h4 className="truncate text-sm font-bold text-ink-900">{r.name}</h4>
                 </div>
                 <p className="mt-0.5 text-xs text-ink-500">
-                  {[sizeLabel(r.size, unit), materialLabel(r), r.gsm ? `${r.gsm} gsm` : null]
+                  {[
+                    sizeLabel(r.size, unit),
+                    materialLabel(r),
+                    r.gsm ? `${r.gsm} gsm` : null,
+                    r.casePack ? `${r.casePack.toLocaleString("en-IN")}/case` : null,
+                    r.cartonCbm != null ? `${fmtCbm(r.cartonCbm, r.cartonCbmEst)}/carton` : null,
+                  ]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
