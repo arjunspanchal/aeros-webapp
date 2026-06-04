@@ -88,7 +88,7 @@ export default function PaperBagsBrowser({
   printedTotal = 0,
   usdPerInr = 90,
 }) {
-  const { currency, unit } = useDisplay();
+  const { currency, unit, market } = useDisplay();
   const [offering, setOffering] = useState("plain"); // "plain" | "printed"
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
@@ -114,6 +114,8 @@ export default function PaperBagsBrowser({
       .map((s) => ({
         ...s,
         rows: s.rows.filter((r) => {
+          // Market filter — rows carry a market tag (untagged ⇒ Exports).
+          if ((r.market || "Exports") !== market) return false;
           if (q && !`${r.sku} ${r.name}`.toLowerCase().includes(q)) return false;
           if (material !== "all") {
             const label = materialLabel(r).toLowerCase();
@@ -129,7 +131,18 @@ export default function PaperBagsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [activeSections, isPrinted, query, type, material, availability]);
+  }, [activeSections, isPrinted, query, type, material, availability, market]);
+
+  // Does the selected market have *any* bags at all (before other filters)?
+  // Distinguishes a genuinely empty market (Domestic, until SKUs are added)
+  // from a too-narrow filter set.
+  const marketHasRows = useMemo(
+    () =>
+      activeSections.some((s) =>
+        s.rows.some((r) => (r.market || "Exports") === market),
+      ),
+    [activeSections, market],
+  );
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
@@ -273,7 +286,26 @@ export default function PaperBagsBrowser({
       </div>
 
       {/* Results */}
-      {filtered.length === 0 ? (
+      {!marketHasRows ? (
+        <div className="mt-6 rounded-md border border-dashed border-ink-200 bg-white p-8 text-center">
+          <p className="font-semibold text-ink-900">
+            No {market.toLowerCase()}-market bags listed yet.
+          </p>
+          <p className="mt-1 text-sm text-ink-500">
+            {market === "Domestic"
+              ? "Our domestic India range is being added — switch to Exports for the full rate sheet, or contact us for domestic pricing."
+              : "Switch the market toggle to see the available range."}
+          </p>
+          {market === "Domestic" && (
+            <a
+              href="mailto:arjun@aeros-x.com?subject=Domestic%20paper-bag%20pricing"
+              className="mt-3 inline-flex rounded border border-ink-300 px-3 py-1.5 text-sm font-medium text-ink-800 hover:bg-ink-100"
+            >
+              Ask for domestic pricing
+            </a>
+          )}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="mt-6 rounded-md border border-dashed border-ink-200 bg-white p-8 text-center">
           <p className="font-semibold text-ink-900">No bags match these filters.</p>
           <p className="mt-1 text-sm text-ink-500">Try clearing the search or widening the type.</p>

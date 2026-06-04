@@ -12,6 +12,8 @@ const DisplayCtx = createContext({
   setCurrency: () => {},
   unit: "mm",
   setUnit: () => {},
+  market: "Exports",
+  setMarket: () => {},
 });
 
 export function useDisplay() {
@@ -23,11 +25,17 @@ export function useCurrency() {
   return useContext(DisplayCtx);
 }
 
-export function CurrencyProvider({ children, initialCurrency = "INR", initialUnit = "mm" }) {
+export function CurrencyProvider({
+  children,
+  initialCurrency = "INR",
+  initialUnit = "mm",
+  initialMarket = "Exports",
+}) {
   const [currency, setCurrency] = useState(initialCurrency);
   const [unit, setUnit] = useState(initialUnit);
+  const [market, setMarket] = useState(initialMarket);
   return (
-    <DisplayCtx.Provider value={{ currency, setCurrency, unit, setUnit }}>
+    <DisplayCtx.Provider value={{ currency, setCurrency, unit, setUnit, market, setMarket }}>
       {children}
     </DisplayCtx.Provider>
   );
@@ -85,6 +93,22 @@ export function UnitToggle({ className = "" }) {
       options={[
         { value: "mm", label: "mm" },
         { value: "in", label: "in" },
+      ]}
+    />
+  );
+}
+
+export function MarketToggle({ className = "" }) {
+  const { market, setMarket } = useDisplay();
+  return (
+    <Segmented
+      ariaLabel="Market"
+      value={market}
+      onChange={setMarket}
+      className={className}
+      options={[
+        { value: "Domestic", label: "Domestic" },
+        { value: "Exports", label: "Exports" },
       ]}
     />
   );
