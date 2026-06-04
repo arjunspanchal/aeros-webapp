@@ -65,6 +65,21 @@ function sizeLabel(size, unit) {
   return v ? `${v} mm` : null;
 }
 
+// Size buckets keyed off bag height (the 3rd dim of W × G × H) — the natural
+// proxy for "how big is the bag". Thresholds in mm; labels carry the range.
+const SIZE_BUCKETS = [
+  { value: "all", label: "All", title: null, test: () => true },
+  { value: "small", label: "Small", title: "Height ≤ 240 mm", test: (h) => h <= 240 },
+  { value: "medium", label: "Medium", title: "Height 240–360 mm", test: (h) => h > 240 && h <= 360 },
+  { value: "large", label: "Large", title: "Height > 360 mm", test: (h) => h > 360 },
+];
+
+// Bag height in mm = last of the parsed W × G × H dims.
+function bagHeight(size) {
+  const d = parseDims(size);
+  return d && d.length ? d[d.length - 1] : null;
+}
+
 function materialLabel(r) {
   const mat = r.material || "";
   const colour = r.colour;
@@ -93,6 +108,7 @@ export default function PaperBagsBrowser({
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [material, setMaterial] = useState("all"); // "all" | "brown" | "white"
+  const [size, setSize] = useState("all"); // "all" | "small" | "medium" | "large"
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
 
   const isPrinted = offering === "printed";
@@ -122,6 +138,11 @@ export default function PaperBagsBrowser({
             if (material === "white" && !label.includes("white")) return false;
             if (material === "brown" && !label.includes("brown")) return false;
           }
+          if (size !== "all") {
+            const h = bagHeight(r.size);
+            const bucket = SIZE_BUCKETS.find((b) => b.value === size);
+            if (h == null || !bucket?.test(h)) return false;
+          }
           // Availability only applies to plain rates; printed rows are all priced.
           if (!isPrinted) {
             if (availability === "priced" && r.priceInr == null) return false;
@@ -131,7 +152,7 @@ export default function PaperBagsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [activeSections, isPrinted, query, type, material, availability, market]);
+  }, [activeSections, isPrinted, query, type, material, size, availability, market]);
 
   // Does the selected market have *any* bags at all (before other filters)?
   // Distinguishes a genuinely empty market (Domestic, until SKUs are added)
@@ -149,6 +170,7 @@ export default function PaperBagsBrowser({
     query.trim() !== "" ||
     type !== "all" ||
     material !== "all" ||
+    size !== "all" ||
     (!isPrinted && availability !== "all");
 
   // Switching plain ⇄ printed clears the type chip, since the available types
@@ -162,6 +184,7 @@ export default function PaperBagsBrowser({
     setQuery("");
     setType("all");
     setMaterial("all");
+    setSize("all");
     setAvailability("all");
   };
 
@@ -227,7 +250,7 @@ export default function PaperBagsBrowser({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {/* Material */}
           <div>
             <span className="block text-xs uppercase tracking-wide text-ink-400">Material</span>
@@ -238,6 +261,23 @@ export default function PaperBagsBrowser({
                 { value: "white", label: "White kraft" },
               ].map((opt) => (
                 <Chip key={opt.value} active={material === opt.value} onClick={() => setMaterial(opt.value)}>
+                  {opt.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          {/* Size — bucketed by bag height. */}
+          <div>
+            <span className="block text-xs uppercase tracking-wide text-ink-400">Size (height)</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {SIZE_BUCKETS.map((opt) => (
+                <Chip
+                  key={opt.value}
+                  active={size === opt.value}
+                  onClick={() => setSize(opt.value)}
+                  title={opt.title}
+                >
                   {opt.label}
                 </Chip>
               ))}
