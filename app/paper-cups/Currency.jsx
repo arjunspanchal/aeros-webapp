@@ -89,7 +89,7 @@ export function OfferingToggle({ className = "" }) {
       className={className}
       options={[
         { value: "plain", label: "Plain" },
-        { value: "printed", label: "Printed" },
+        { value: "printed", label: "Customised" },
       ]}
     />
   );

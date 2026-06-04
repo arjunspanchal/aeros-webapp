@@ -3,7 +3,7 @@ import { Brand } from "@/app/components/ui/Brand";
 import { CupGuide } from "./CupGuide";
 import { SupplyTerms, QualityChecks, PackingVisual } from "./TradeTerms";
 import PaperCupsBrowser from "./PaperCupsBrowser";
-import { CurrencyProvider, CurrencyToggle, UnitToggle, OfferingToggle } from "./Currency";
+import { CurrencyProvider, CurrencyToggle, UnitToggle } from "./Currency";
 
 // Public, no-login rate sheet shared directly with clients. Not in the
 // middleware matcher, so it renders for anyone with the link.
@@ -38,7 +38,6 @@ export default async function PaperCupsPage() {
           <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex flex-wrap items-center justify-between gap-3">
             <Brand size="md" href="/" />
             <div className="flex items-center gap-2">
-              <OfferingToggle />
               <CurrencyToggle />
               <UnitToggle />
             </div>
@@ -70,7 +69,7 @@ export default async function PaperCupsPage() {
                 <Term label="Pricing basis">
                   Rates are <strong className="text-ink-900">EXW India, per piece</strong>. Toggle
                   between <strong className="text-ink-900">plain</strong> and{" "}
-                  <strong className="text-ink-900">printed</strong> cups in the masthead. FOB Nhava
+                  <strong className="text-ink-900">customised</strong> cups in the masthead. FOB Nhava
                   Sheva quoted on request.
                 </Term>
                 <Term label="Currency">
@@ -82,9 +81,9 @@ export default async function PaperCupsPage() {
                   the unit rate drops as order quantity rises. Tap a row to see every break.
                 </Term>
                 <Term label="Customisation">
-                  Single-colour custom print across the range. Switch to{" "}
-                  <strong className="text-ink-900">Printed</strong> for live rates — printed cups
-                  carry their own quantity ladder from 5,000 pcs.
+                  Custom print up to 4 colours across the range. Switch to{" "}
+                  <strong className="text-ink-900">Customised</strong> for live rates — customised
+                  cups carry their own quantity ladder from 5,000 pcs.
                 </Term>
               </section>
 
@@ -118,8 +117,9 @@ export default async function PaperCupsPage() {
                   costs.
                 </p>
                 <p>
-                  Plain: {data.plainPriced} of {data.total} sizes listed with live rates · Printed:{" "}
-                  {data.printedPriced} of {data.total}. The remainder are quoted on request.
+                  Plain: {data.plainPriced} of {data.total} sizes listed with live rates ·
+                  Customised: {data.printedPriced} of {data.total}. The remainder are quoted on
+                  request.
                 </p>
               </div>
             </>

@@ -8,7 +8,7 @@
 // CurrencyProvider — no data fetching here.
 
 import { useMemo, useState } from "react";
-import { useDisplay } from "./Currency";
+import { useDisplay, OfferingToggle } from "./Currency";
 
 // ── Money ──────────────────────────────────────────────────────────────────
 function fmtUnit(currency, inr, usdPerInr) {
@@ -52,6 +52,21 @@ function parseDims(size) {
   return nums.length === 3 ? nums : null;
 }
 
+// Double-wall and ripple cups are built from two boards — show inner / outer
+// GSM when both are present; single-wall cups show their one board weight.
+function GsmValue({ r }) {
+  if (r.innerGsm != null && r.outerGsm != null) {
+    return (
+      <span title="Inner wall / outer wall GSM" className="whitespace-nowrap">
+        {r.innerGsm}
+        <span className="text-ink-400"> / </span>
+        {r.outerGsm}
+      </span>
+    );
+  }
+  return <>{r.gsm ?? "—"}</>;
+}
+
 function sizeLabel(size, unit) {
   const d = parseDims(size);
   if (!d) return null;
@@ -72,6 +87,7 @@ export default function PaperCupsBrowser({
   const priced = offering === "printed" ? printedPriced : plainPriced;
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
+  const [volume, setVolume] = useState("all"); // "all" | oz number
   const [finish, setFinish] = useState("all"); // "all" | "white" | "brown"
   const [lining, setLining] = useState("all"); // "all" | "PE" | "Aqueous" | "PLA"
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
@@ -92,6 +108,13 @@ export default function PaperCupsBrowser({
     [sections],
   );
 
+  // Distinct oz sizes present in the data, ascending — drives the volume filter.
+  const volumeOptions = useMemo(() => {
+    const set = new Set();
+    for (const s of sections) for (const r of s.rows) if (r.oz != null) set.add(r.oz);
+    return [...set].sort((a, b) => a - b);
+  }, [sections]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sections
@@ -100,6 +123,7 @@ export default function PaperCupsBrowser({
         ...s,
         rows: s.rows.filter((r) => {
           if (q && !`${r.sku} ${r.name} ${r.volume}`.toLowerCase().includes(q)) return false;
+          if (volume !== "all" && r.oz !== volume) return false;
           if (finish === "white" && r.finish !== "White") return false;
           if (finish === "brown" && r.finish !== "Brown kraft") return false;
           if (lining !== "all" && r.lining !== lining) return false;
@@ -110,12 +134,13 @@ export default function PaperCupsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, finish, lining, availability, offering]);
+  }, [sections, query, type, volume, finish, lining, availability, offering]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
     query.trim() !== "" ||
     type !== "all" ||
+    volume !== "all" ||
     finish !== "all" ||
     lining !== "all" ||
     availability !== "all";
@@ -123,6 +148,7 @@ export default function PaperCupsBrowser({
   const reset = () => {
     setQuery("");
     setType("all");
+    setVolume("all");
     setFinish("all");
     setLining("all");
     setAvailability("all");
@@ -134,6 +160,17 @@ export default function PaperCupsBrowser({
         <h2 className="text-lg font-bold text-ink-900">Full rate sheet</h2>
         <span className="font-mono text-xs text-ink-400">
           {priced} of {total} priced
+        </span>
+      </div>
+
+      {/* Offering switch — flips the whole sheet between plain and customised rates. */}
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-ink-200 bg-white px-4 py-3">
+        <span className="text-xs font-medium uppercase tracking-wide text-ink-400">Showing rates for</span>
+        <OfferingToggle />
+        <span className="text-xs text-ink-500">
+          {offering === "printed"
+            ? "Custom print up to 4 colours · quantity ladder from 5,000 pcs"
+            : "Plain, unprinted cups"}
         </span>
       </div>
 
@@ -172,6 +209,23 @@ export default function PaperCupsBrowser({
             </div>
           </div>
         </div>
+
+        {/* Volume */}
+        {volumeOptions.length > 0 && (
+          <div className="mt-4">
+            <span className="block text-xs uppercase tracking-wide text-ink-400">Volume</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Chip active={volume === "all"} onClick={() => setVolume("all")}>
+                All
+              </Chip>
+              {volumeOptions.map((oz) => (
+                <Chip key={oz} active={volume === oz} onClick={() => setVolume(oz)}>
+                  {oz}oz
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 grid gap-4 sm:grid-cols-3">
           {/* Finish */}
@@ -260,7 +314,9 @@ export default function PaperCupsBrowser({
           </button>
         </div>
       ) : (
-        filtered.map((section) => (
+        filtered.map((section) => {
+          const twoWall = section.rows.some((r) => r.innerGsm != null && r.outerGsm != null);
+          return (
           <div key={section.key} className="mt-8">
             <div className="flex items-baseline justify-between">
               <h3 className="text-base font-bold text-ink-900">{section.label}</h3>
@@ -277,7 +333,9 @@ export default function PaperCupsBrowser({
                     <th className="px-3 py-2 font-medium">Volume</th>
                     <th className="px-3 py-2 font-medium">Size (TD×BD×H)</th>
                     <th className="px-3 py-2 font-medium">Lining</th>
-                    <th className="px-3 py-2 text-right font-medium">GSM</th>
+                    <th className="px-3 py-2 text-right font-medium" title={twoWall ? "Inner wall / outer wall GSM" : undefined}>
+                      {twoWall ? "GSM (in/out)" : "GSM"}
+                    </th>
                     <th className="px-3 py-2 text-right font-medium">Case</th>
                     <th className="px-3 py-2 text-right font-medium">Unit rate</th>
                     <th className="px-3 py-2" />
@@ -320,7 +378,8 @@ export default function PaperCupsBrowser({
               ))}
             </div>
           </div>
-        ))
+          );
+        })
       )}
     </section>
   );
@@ -370,7 +429,9 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
         <td className="px-3 py-2 text-ink-600">{r.volume ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{r.lining}</td>
-        <td className="px-3 py-2 text-right text-ink-600">{r.gsm ?? "—"}</td>
+        <td className="px-3 py-2 text-right text-ink-600">
+          <GsmValue r={r} />
+        </td>
         <td className="px-3 py-2 text-right text-ink-600">
           {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
         </td>
@@ -460,7 +521,9 @@ function MobileCard({ r, off, unit, currency, usdPerInr }) {
         <Spec label="Size">{sizeLabel(r.size, unit) ?? "—"}</Spec>
         <Spec label="Lining">{r.lining}</Spec>
         <Spec label="Finish">{r.finish}</Spec>
-        <Spec label="GSM">{r.gsm ?? "—"}</Spec>
+        <Spec label={r.innerGsm != null && r.outerGsm != null ? "GSM (in/out)" : "GSM"}>
+          <GsmValue r={r} />
+        </Spec>
         <Spec label="Case pack">{r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}</Spec>
       </dl>
       {hasLadder && (
