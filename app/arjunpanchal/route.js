@@ -1579,7 +1579,7 @@ const html = `<!DOCTYPE html>
 <!-- ─── NRA / TRAVEL NOTICE ─────────────────────────── -->
 <div class="notice">
   <div class="notice-inner">
-    <span class="notice-text"><span class="notice-label">/ NRA SHOW 2026 · WRAPPED</span> &nbsp;·&nbsp; <strong>Booth 12937</strong> &nbsp;·&nbsp; Back in Mumbai · thanks if we met in Chicago</span>
+    <span class="notice-text"><span class="notice-label">/ NRA SHOW 2026 · WRAPPED</span> &nbsp;·&nbsp; Thanks if we met at <strong>Booth 12937</strong> &nbsp;·&nbsp; See you 2027 · <strong>Booth 5549 North</strong></span>
     <span class="notice-actions">
       <a class="notice-cta" href="https://calendly.com/arjunspanchal/30min" target="_blank" rel="noopener">Book a follow-up →</a>
     </span>
@@ -1824,6 +1824,39 @@ const html = `<!DOCTYPE html>
         <p>All on the Aeros platform — spec, quote, design, ship. Reach my team on WhatsApp and we'll get it priced.</p>
       </div>
       <a href="https://wa.me/message/6Z4KO3ZWHQBMC1" target="_blank" rel="noopener">Reach my team →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ─── ON THE ROAD ──────────────────────────────────── -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">On the road</div>
+      <h2>Out of Mumbai. <span class="dim">Here's where, if you want to meet.</span></h2>
+    </div>
+    <div class="race-grid">
+      <div class="race-card">
+        <div class="race-head">
+          <div class="race-name">Delhi</div>
+          <span class="badge badge-up">Jul</span>
+        </div>
+        <div class="race-meta">3–4 days around HYROX Doubles · race day 26 Jul</div>
+      </div>
+      <div class="race-card">
+        <div class="race-head">
+          <div class="race-name">Sri Lanka</div>
+          <span class="badge badge-up">Aug</span>
+        </div>
+        <div class="race-meta">Friend's wedding · 22–27 August</div>
+      </div>
+      <div class="race-card">
+        <div class="race-head">
+          <div class="race-name">Ladakh</div>
+          <span class="badge badge-up">Sep</span>
+        </div>
+        <div class="race-meta">5–14 September · Ladakh Half on 13 Sept</div>
+      </div>
     </div>
   </div>
 </section>
