@@ -1579,10 +1579,9 @@ const html = `<!DOCTYPE html>
 <!-- ─── NRA / TRAVEL NOTICE ─────────────────────────── -->
 <div class="notice">
   <div class="notice-inner">
-    <span class="notice-text"><span class="notice-label">/ NRA SHOW 2026</span> &nbsp;·&nbsp; <strong>Booth 12937</strong> &nbsp;·&nbsp; In the US 13–24 May</span>
+    <span class="notice-text"><span class="notice-label">/ NRA SHOW 2026 · WRAPPED</span> &nbsp;·&nbsp; <strong>Booth 12937</strong> &nbsp;·&nbsp; Back in Mumbai · thanks if we met in Chicago</span>
     <span class="notice-actions">
-      <a class="notice-cta" href="https://www.aeros-x.com/nra" target="_blank" rel="noopener">Get the app →</a>
-      <a class="notice-cta" href="https://calendly.com/arjunspanchal/nra-show-aeros-discussion-with-arjun" target="_blank" rel="noopener">Book a meeting →</a>
+      <a class="notice-cta" href="https://calendly.com/arjunspanchal/30min" target="_blank" rel="noopener">Book a follow-up →</a>
     </span>
   </div>
 </div>
@@ -1841,7 +1840,7 @@ const html = `<!DOCTYPE html>
       <strong>Heads up:</strong> I'm allergic to phone calls. WhatsApp / iMessage / email
       are all good — usually a reply within a day. If I'm dark, my Aeros team has you:
       <a href="https://wa.me/message/6Z4KO3ZWHQBMC1" target="_blank" rel="noopener" style="color: var(--paper); border-bottom: 1px solid rgba(255,255,255,0.5);">team WhatsApp</a>.
-      &nbsp;Travel: in the US <strong>13–24 May 2026</strong> for NRA Show.
+      &nbsp;Back in Mumbai after <strong>NRA Show 2026</strong> — thanks if we connected at Booth 12937.
     </div>
 
     <div class="reach-subhead">Text first</div>
@@ -1868,15 +1867,7 @@ const html = `<!DOCTYPE html>
     <div class="reach-subhead">Schedule a call <span style="color: rgba(255,255,255,0.35); text-transform: none; letter-spacing: 0.02em; font-size: 11px;">(better than ringing me)</span></div>
     <div class="reach-grid">
 
-      <a class="reach-btn featured" href="https://calendly.com/arjunspanchal/nra-show-aeros-discussion-with-arjun" target="_blank" rel="noopener">
-        <span class="reach-btn-label">
-          <svg class="reach-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          NRA Show meeting · Booth 12937
-        </span>
-        <span class="reach-btn-arrow">→</span>
-      </a>
-
-      <a class="reach-btn" href="https://calendly.com/arjunspanchal/30min" target="_blank" rel="noopener">
+      <a class="reach-btn featured" href="https://calendly.com/arjunspanchal/30min" target="_blank" rel="noopener" style="grid-column: 1 / -1;">
         <span class="reach-btn-label">
           <svg class="reach-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           30-minute call
