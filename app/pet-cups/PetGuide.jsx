@@ -13,6 +13,15 @@ const GUIDE = [
     sizing: "Ø 92 / 98 mm · 10oz – 24oz",
   },
   {
+    code: "Dome",
+    name: "Dome Lid",
+    blurb:
+      "A raised dome that clears whipped cream, fruit, scoops and tall garnishes. Clear PET, supplied plain.",
+    feel: "Tall, domed",
+    bestFor: "Frappés, sundaes, topped drinks",
+    sizing: "Ø 92 / 98 mm",
+  },
+  {
     code: "Flat",
     name: "Flat Lid",
     blurb:
@@ -39,9 +48,9 @@ export function PetGuide() {
         <h2 className="text-lg font-bold text-ink-900">Know your PET range</h2>
       </div>
       <p className="mt-2 max-w-2xl text-sm text-ink-600">
-        One clear cold cup in two top diameters (Ø92 / Ø98 mm), with matching flat and sipper
-        lids. PET (polyethylene terephthalate, resin code 1) is rigid, recyclable and glass-clear
-        — ideal for cold drinks where you want to show off the contents.
+        One clear cold cup in two top diameters (Ø92 / Ø98 mm), with matching dome, flat and
+        sipper lids. PET (polyethylene terephthalate, resin code 1) is rigid, recyclable and
+        glass-clear — ideal for cold drinks where you want to show off the contents.
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -110,6 +119,14 @@ const ART = {
       <path d="M24 26 L56 26 L51 80 L29 80 Z" />
       <path d="M22 26 L58 26" />
       <path d="M34 32 L32 74" strokeWidth="1" opacity="0.5" />
+    </svg>
+  ),
+  // Dome lid: rim with a raised half-dome.
+  Dome: () => (
+    <svg {...SVG_PROPS} aria-hidden="true">
+      <path d="M20 60 L60 60" />
+      <path d="M24 60 a16 22 0 0 1 32 0" />
+      <path d="M40 38 L40 33 M37 35 L43 35" strokeWidth="1" opacity="0.6" />
     </svg>
   ),
   // Flat lid: rim with a low flat top and a straw cross.

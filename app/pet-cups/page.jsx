@@ -12,7 +12,7 @@ export const revalidate = 300;
 export const metadata = {
   title: "Aeros PET Cups & Lids — Rate Sheet",
   description:
-    "Aeros clear PET cold cup range with matching flat and sipper lids. Quantity-break rates on custom-branded cups, EXW India. Food-safe, recyclable.",
+    "Aeros clear PET cold cup range with matching dome, flat and sipper lids. Quantity-break rates on custom-branded cups, EXW India. Food-safe, recyclable.",
 };
 
 export default async function PetCupsPage() {
@@ -51,7 +51,8 @@ export default async function PetCupsPage() {
             <p className="mt-3 text-ink-600">
               Our complete clear PET cold-drink range, manufactured in Mumbai, India. Crystal-clear,
               rigid thermoformed cups in standard and U-shape profiles (Ø92 / Ø98 mm), with
-              matching flat and sipper lids. Cups plain or custom-branded; lids supplied clear.
+              matching dome, flat and sipper lids. Cups plain or custom-branded; lids supplied
+              clear.
             </p>
           </div>
 
