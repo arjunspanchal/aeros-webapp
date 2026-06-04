@@ -1910,6 +1910,19 @@ const html = `<!DOCTYPE html>
 
     </div>
 
+    <div class="reach-subhead">Find me online</div>
+    <div class="reach-grid">
+
+      <a class="reach-btn" href="https://instagram.com/theunknownvariablee" target="_blank" rel="noopener" style="grid-column: 1 / -1;">
+        <span class="reach-btn-label">
+          <svg class="reach-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+          Instagram · @theunknownvariablee
+        </span>
+        <span class="reach-btn-arrow">→</span>
+      </a>
+
+    </div>
+
     <div class="reach-subhead">Backup — if I'm slow</div>
     <div class="reach-grid">
 
