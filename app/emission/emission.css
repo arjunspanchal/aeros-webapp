@@ -1,0 +1,161 @@
+/* ==========================================================================
+   Emission · Service OS — scoped theme. Every token is namespaced under
+   .emission-root so nothing here can leak into the host Aeros app. Strict
+   greyscale + a single gold accent that is allowed ONLY on dark surfaces.
+   ========================================================================== */
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+.emission-root {
+  --em-ink: #0A0A0A;
+  --em-paper: #FFFFFF;
+  --em-g50: #FAFAFA;
+  --em-g100: #F5F5F5;
+  --em-g200: #E8E8E8;   /* hairline divider / border */
+  --em-g300: #D5D5D5;
+  --em-muted: #8A8A8A;  /* eyebrows, secondary labels */
+  --em-gold: #C9A84C;   /* dark surfaces only */
+
+  --em-sans: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --em-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  font-family: var(--em-sans);
+  color: var(--em-ink);
+  background: var(--em-g50);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.emission-root *,
+.emission-root *::before,
+.emission-root *::after { box-sizing: border-box; }
+
+/* ---- type ---------------------------------------------------------------- */
+.em-mono { font-family: var(--em-mono); font-feature-settings: "tnum" 1; }
+
+.em-eyebrow {
+  font-family: var(--em-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--em-muted);
+}
+.em-eyebrow--ondark { color: rgba(255,255,255,0.55); }
+
+.em-title { font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; }
+.em-title--dim { color: rgba(10,10,10,0.45); font-weight: 700; }
+.em-title--ondark { color: #fff; }
+.em-title--ondark .em-title--dim { color: rgba(255,255,255,0.45); }
+
+.em-label {
+  font-family: var(--em-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--em-muted);
+}
+
+/* ---- surfaces ------------------------------------------------------------ */
+.em-divider { height: 1px; background: var(--em-g200); border: 0; }
+
+.em-card {
+  background: var(--em-paper);
+  border: 1px solid var(--em-g200);
+  border-radius: 4px;
+}
+.em-card--dark { background: #141414; border-color: rgba(255,255,255,0.08); }
+
+/* thin ink left-border to flag attention rows (urgency via layout, never hue) */
+.em-flag { border-left: 2px solid var(--em-ink); }
+
+/* ---- status label -------------------------------------------------------- */
+.em-status {
+  font-family: var(--em-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--em-ink);
+  white-space: nowrap;
+}
+.em-status--muted { color: var(--em-muted); }
+.em-status--ondark { color: rgba(255,255,255,0.92); }
+
+/* ---- metadata pair ------------------------------------------------------- */
+.em-meta-k { font-family: var(--em-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--em-muted); }
+.em-meta-v { font-family: var(--em-mono); font-size: 13px; color: var(--em-ink); }
+.em-meta-v--ondark { color: #fff; }
+
+/* ---- inputs -------------------------------------------------------------- */
+.em-input, .em-select, .em-textarea {
+  width: 100%;
+  background: var(--em-paper);
+  border: 1px solid var(--em-g200);
+  border-radius: 4px;
+  padding: 12px 14px;
+  font-family: var(--em-sans);
+  font-size: 16px;            /* 16px avoids iOS zoom-on-focus at the counter */
+  color: var(--em-ink);
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+.em-input:focus, .em-select:focus, .em-textarea:focus { border-color: var(--em-ink); }
+.em-input::placeholder, .em-textarea::placeholder { color: var(--em-g300); }
+.em-textarea { resize: vertical; min-height: 64px; }
+
+/* ---- buttons ------------------------------------------------------------- */
+.em-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: var(--em-sans); font-size: 15px; font-weight: 700;
+  padding: 13px 18px; border-radius: 4px; border: 1px solid var(--em-ink);
+  background: var(--em-paper); color: var(--em-ink); cursor: pointer;
+  transition: opacity 0.12s ease, background 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.em-btn:active { opacity: 0.7; }
+.em-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.em-btn--primary { background: var(--em-ink); color: #fff; }
+.em-btn--ghost { border-color: var(--em-g200); }
+.em-btn--gold { background: var(--em-gold); border-color: var(--em-gold); color: var(--em-ink); }
+.em-btn--block { width: 100%; }
+.em-btn--sm { padding: 8px 12px; font-size: 13px; }
+
+.em-chip {
+  font-family: var(--em-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 6px 10px; border: 1px solid var(--em-g200); border-radius: 999px;
+  background: var(--em-paper); color: var(--em-muted); cursor: pointer; white-space: nowrap;
+}
+.em-chip--on { background: var(--em-ink); color: #fff; border-color: var(--em-ink); }
+
+/* ---- top bar (dark, gold accent lives here) ------------------------------ */
+.em-topbar {
+  background: var(--em-ink); color: #fff;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.em-topbar__accent { color: var(--em-gold); }
+
+/* ---- dark dashboard surface ---------------------------------------------- */
+.em-dark { background: var(--em-ink); color: #fff; min-height: 100vh; }
+.em-hero-number { color: var(--em-gold); font-weight: 800; letter-spacing: -0.03em; line-height: 0.95; }
+
+/* ---- nav tabs ------------------------------------------------------------ */
+.em-tab {
+  font-family: var(--em-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: rgba(255,255,255,0.55); padding: 6px 0; border-bottom: 2px solid transparent;
+}
+.em-tab--on { color: #fff; border-bottom-color: var(--em-gold); }
+
+/* PIN pad key */
+.em-key {
+  font-family: var(--em-mono); font-size: 24px; font-weight: 500;
+  aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
+  background: var(--em-paper); border: 1px solid var(--em-g200); border-radius: 6px;
+  color: var(--em-ink); cursor: pointer; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.em-key:active { background: var(--em-g100); }
+.em-pin-dot { width: 13px; height: 13px; border-radius: 999px; border: 1.5px solid var(--em-g300); }
+.em-pin-dot--on { background: var(--em-ink); border-color: var(--em-ink); }
+
+.em-link { color: var(--em-ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
