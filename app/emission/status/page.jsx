@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Eyebrow, Title, StatusLabel, Meta, Wordmark } from "../_components/ui";
+import { Eyebrow, Title, StatusLabel, Meta, Wordmark, PhoneInput, ServiceCentreInfo, Divider } from "../_components/ui";
 import { publicLookup } from "../_lib/client";
 import { fmtDate } from "../_lib/format";
 
@@ -36,11 +36,14 @@ export default function StatusPage() {
       <div style={{ flex: 1, padding: 24 }}>
         <div style={{ maxWidth: 420, margin: "0 auto" }}>
           <Eyebrow>JOB STATUS</Eyebrow>
-          <Title lead="Track your" tail="repair" style={{ fontSize: 28, marginTop: 6, marginBottom: 18 }} />
+          <Title lead="Track your" tail="repair" style={{ fontSize: 28, marginTop: 6, marginBottom: 6 }} />
+          <div className="em-label" style={{ marginBottom: 18, textTransform: "none", letterSpacing: "0.04em" }}>
+            Yamaha · Pioneer Authorised Service Centre
+          </div>
 
           <form onSubmit={lookup} style={{ display: "grid", gap: 12 }}>
             <input className="em-input em-mono" inputMode="numeric" placeholder="Job number" value={jobNo} onChange={(e) => setJobNo(e.target.value)} />
-            <input className="em-input" type="tel" inputMode="numeric" placeholder="Phone number on the job" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <PhoneInput value={phone} onChange={setPhone} placeholder="Phone on the job" />
             <button className="em-btn em-btn--primary em-btn--block" disabled={busy || !jobNo || !phone}>{busy ? "CHECKING…" : "CHECK STATUS"}</button>
           </form>
 
@@ -67,9 +70,8 @@ export default function StatusPage() {
             </div>
           ) : null}
 
-          <p className="em-label" style={{ textTransform: "none", letterSpacing: "0.03em", marginTop: 22, textAlign: "center" }}>
-            Emission Electronics · Goregaon, Mumbai · authorised Yamaha service centre
-          </p>
+          <Divider style={{ margin: "26px 0 18px" }} />
+          <ServiceCentreInfo />
         </div>
       </div>
     </div>

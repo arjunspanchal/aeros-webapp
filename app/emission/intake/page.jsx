@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../_components/AuthProvider";
-import { Eyebrow, Title, Field, Divider } from "../_components/ui";
+import { Eyebrow, Title, Field, Divider, PhoneInput } from "../_components/ui";
 import SignaturePad from "../_components/SignaturePad";
 import { listStaff, createJob, updateJob } from "../_lib/data";
 import { uploadObject } from "../_lib/client";
@@ -117,7 +117,7 @@ function IntakeInner() {
       <div style={{ display: "grid", gap: 14 }}>
         {/* Phone-first, large targets */}
         <Field label="Phone" required>
-          <input className="em-input" type="tel" inputMode="numeric" autoComplete="off" value={form.phone} onChange={set("phone")} placeholder="Mobile number" />
+          <PhoneInput value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} autoFocus />
         </Field>
         <Field label="Customer name" required>
           <input className="em-input" value={form.customer_name} onChange={set("customer_name")} placeholder="Full name" />

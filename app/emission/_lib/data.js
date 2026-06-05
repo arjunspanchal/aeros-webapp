@@ -75,6 +75,26 @@ export function updateClaim(session, id, patch) {
   return api.update("warranty_claims", "id", id, patch, tok(session));
 }
 
+// ---- Yamaha product price list (admin only) -------------------------------
+// Confidential purchase rates — staff tokens have NO grant, so these calls 403
+// for them. The owner-side page is the only caller.
+export function listProducts(session) {
+  return api.select(
+    "yamaha_products",
+    { select: "*", order: "sort_order.asc" },
+    tok(session),
+  );
+}
+export function createProduct(session, row) {
+  return api.insert("yamaha_products", row, tok(session));
+}
+export function updateProduct(session, id, patch) {
+  return api.update("yamaha_products", "id", id, patch, tok(session), { select: "*" });
+}
+export function deleteProduct(session, id) {
+  return api.remove("yamaha_products", "id", id, tok(session));
+}
+
 // ---- dashboard RPCs (admin only) ------------------------------------------
 export const dashOpenJobs = (session) => api.rpc("dash_open_jobs", {}, tok(session));
 export const dashAgedJobs = (session, ageDays = 15) => api.rpc("dash_aged_jobs", { p_age_days: ageDays }, tok(session));
