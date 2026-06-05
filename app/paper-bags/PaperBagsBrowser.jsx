@@ -35,6 +35,13 @@ function fmtQty(n) {
   return n.toLocaleString("en-IN");
 }
 
+// Per-carton volume in m³. `est` rows (geometry-estimated, no real carton size
+// on file) are prefixed "~". e.g. 0.066 → "0.066 m³", est → "~0.028 m³".
+function fmtCbm(cbm, est) {
+  if (cbm == null) return "—";
+  return `${est ? "~" : ""}${cbm.toFixed(3)} m³`;
+}
+
 // ── Sizes ──────────────────────────────────────────────────────────────────
 // Pull the first three numbers (W × G × H) out of the raw size string.
 function parseDims(size) {
@@ -65,11 +72,26 @@ function sizeLabel(size, unit) {
   return v ? `${v} mm` : null;
 }
 
+// Size buckets keyed off bag height (the 3rd dim of W × G × H) — the natural
+// proxy for "how big is the bag". Thresholds in mm; labels carry the range.
+const SIZE_BUCKETS = [
+  { value: "all", label: "All", title: null, test: () => true },
+  { value: "small", label: "Small", title: "Height ≤ 240 mm", test: (h) => h <= 240 },
+  { value: "medium", label: "Medium", title: "Height 240–360 mm", test: (h) => h > 240 && h <= 360 },
+  { value: "large", label: "Large", title: "Height > 360 mm", test: (h) => h > 360 },
+];
+
+// Bag height in mm = last of the parsed W × G × H dims.
+function bagHeight(size) {
+  const d = parseDims(size);
+  return d && d.length ? d[d.length - 1] : null;
+}
+
 function materialLabel(r) {
   const mat = r.material || "";
   const colour = r.colour;
   if (/bleached/i.test(mat)) return "White kraft";
-  if (/ogr/i.test(mat)) return "OGR recycled";
+  if (/ogr/i.test(mat)) return colour === "White" ? "OGR white" : "OGR brown";
   if (/kraft/i.test(mat)) return colour === "White" ? "White kraft" : "Brown kraft";
   return mat || (colour ?? "—");
 }
@@ -93,6 +115,7 @@ export default function PaperBagsBrowser({
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [material, setMaterial] = useState("all"); // "all" | "brown" | "white"
+  const [size, setSize] = useState("all"); // "all" | "small" | "medium" | "large"
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
 
   const isPrinted = offering === "printed";
@@ -119,8 +142,15 @@ export default function PaperBagsBrowser({
           if (q && !`${r.sku} ${r.name}`.toLowerCase().includes(q)) return false;
           if (material !== "all") {
             const label = materialLabel(r).toLowerCase();
-            if (material === "white" && !label.includes("white")) return false;
-            if (material === "brown" && !label.includes("brown")) return false;
+            if (material === "white" && label !== "white kraft") return false;
+            if (material === "brown" && label !== "brown kraft") return false;
+            if (material === "ogr-white" && label !== "ogr white") return false;
+            if (material === "ogr-brown" && label !== "ogr brown") return false;
+          }
+          if (size !== "all") {
+            const h = bagHeight(r.size);
+            const bucket = SIZE_BUCKETS.find((b) => b.value === size);
+            if (h == null || !bucket?.test(h)) return false;
           }
           // Availability only applies to plain rates; printed rows are all priced.
           if (!isPrinted) {
@@ -131,7 +161,7 @@ export default function PaperBagsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [activeSections, isPrinted, query, type, material, availability, market]);
+  }, [activeSections, isPrinted, query, type, material, size, availability, market]);
 
   // Does the selected market have *any* bags at all (before other filters)?
   // Distinguishes a genuinely empty market (Domestic, until SKUs are added)
@@ -149,6 +179,7 @@ export default function PaperBagsBrowser({
     query.trim() !== "" ||
     type !== "all" ||
     material !== "all" ||
+    size !== "all" ||
     (!isPrinted && availability !== "all");
 
   // Switching plain ⇄ printed clears the type chip, since the available types
@@ -162,6 +193,7 @@ export default function PaperBagsBrowser({
     setQuery("");
     setType("all");
     setMaterial("all");
+    setSize("all");
     setAvailability("all");
   };
 
@@ -227,7 +259,7 @@ export default function PaperBagsBrowser({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {/* Material */}
           <div>
             <span className="block text-xs uppercase tracking-wide text-ink-400">Material</span>
@@ -236,8 +268,27 @@ export default function PaperBagsBrowser({
                 { value: "all", label: "All" },
                 { value: "brown", label: "Brown kraft" },
                 { value: "white", label: "White kraft" },
+                { value: "ogr-white", label: "OGR white" },
+                { value: "ogr-brown", label: "OGR brown" },
               ].map((opt) => (
                 <Chip key={opt.value} active={material === opt.value} onClick={() => setMaterial(opt.value)}>
+                  {opt.label}
+                </Chip>
+              ))}
+            </div>
+          </div>
+
+          {/* Size — bucketed by bag height. */}
+          <div>
+            <span className="block text-xs uppercase tracking-wide text-ink-400">Size (height)</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {SIZE_BUCKETS.map((opt) => (
+                <Chip
+                  key={opt.value}
+                  active={size === opt.value}
+                  onClick={() => setSize(opt.value)}
+                  title={opt.title}
+                >
                   {opt.label}
                 </Chip>
               ))}
@@ -345,6 +396,7 @@ export default function PaperBagsBrowser({
                     <th className="px-3 py-2 font-medium">Material</th>
                     <th className="px-3 py-2 text-right font-medium">GSM</th>
                     <th className="px-3 py-2 text-right font-medium">Case (pcs)</th>
+                    <th className="px-3 py-2 text-right font-medium">Carton CBM</th>
                     <th className="px-3 py-2 text-right font-medium">Unit rate</th>
                     <th className="px-3 py-2 text-right font-medium">Case rate</th>
                   </tr>
@@ -362,6 +414,9 @@ export default function PaperBagsBrowser({
                         <td className="px-3 py-2 text-right text-ink-600">{r.gsm ?? "—"}</td>
                         <td className="px-3 py-2 text-right text-ink-600">
                           {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right text-ink-600" title={r.cartonCbmEst ? "Estimated from bag size — no carton spec on file" : undefined}>
+                          {fmtCbm(r.cartonCbm, r.cartonCbmEst)}
                         </td>
                         <td className="px-3 py-2 text-right">
                           {unitRate ? (
@@ -410,6 +465,7 @@ export default function PaperBagsBrowser({
                       <Spec label="Case pack">
                         {r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}
                       </Spec>
+                      <Spec label="Carton CBM">{fmtCbm(r.cartonCbm, r.cartonCbmEst)}</Spec>
                     </dl>
                   </div>
                 );
@@ -446,7 +502,13 @@ function PrintedSection({ section, currency, unit, usdPerInr }) {
                   <h4 className="truncate text-sm font-bold text-ink-900">{r.name}</h4>
                 </div>
                 <p className="mt-0.5 text-xs text-ink-500">
-                  {[sizeLabel(r.size, unit), materialLabel(r), r.gsm ? `${r.gsm} gsm` : null]
+                  {[
+                    sizeLabel(r.size, unit),
+                    materialLabel(r),
+                    r.gsm ? `${r.gsm} gsm` : null,
+                    r.casePack ? `${r.casePack.toLocaleString("en-IN")}/case` : null,
+                    r.cartonCbm != null ? `${fmtCbm(r.cartonCbm, r.cartonCbmEst)}/carton` : null,
+                  ]
                     .filter(Boolean)
                     .join(" · ")}
                 </p>
