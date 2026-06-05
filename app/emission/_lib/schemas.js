@@ -53,6 +53,23 @@ export const JobIntake = z.object({
   is_historical: z.boolean().optional(),
 });
 
+// Yamaha product price list (owner-only catalogue). purchase_rate is INR EXW
+// (cost to Emission). The selling figure "EXW Aeros" is derived at +10%.
+export const YAMAHA_MARKUP = 0.10;
+export function exwAeros(purchaseRate) {
+  return Math.round(Number(purchaseRate || 0) * (1 + YAMAHA_MARKUP));
+}
+
+export const ProductDraft = z.object({
+  category: z.string().min(1, "Category required"),
+  sub_category: z.string().nullable().optional(),
+  model_name: z.string().min(1, "Model name required"),
+  purchase_rate: z.coerce.number().nonnegative("Rate must be ≥ 0"),
+  remark: z.string().nullable().optional(),
+  sort_order: z.coerce.number().int().optional(),
+  active: z.boolean().optional(),
+});
+
 export const LineItemDraft = z.object({
   item_type: ItemType,
   part_no: z.string().nullable().optional(),

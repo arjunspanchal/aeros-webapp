@@ -8,6 +8,7 @@ const TABS = [
   { href: "/emission/jobs", label: "JOB LIST", admin: false },
   { href: "/emission/intake", label: "INTAKE", admin: false },
   { href: "/emission/dashboard", label: "DASHBOARD", admin: true },
+  { href: "/emission/products", label: "PRICE LIST", admin: true },
 ];
 
 export default function TopBar() {

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "../../_components/AuthProvider";
-import { Eyebrow, Title, StatusLabel, Meta, Field, Divider } from "../../_components/ui";
+import { Eyebrow, Title, StatusLabel, Meta, Field, Divider, PhoneInput } from "../../_components/ui";
 import SignaturePad from "../../_components/SignaturePad";
 import {
   getJobByNo, updateJob, listLineItems, addLineItem, updateLineItem,
@@ -237,7 +237,7 @@ function DetailsEditor({ session, job, onChange }) {
     <div style={{ display: "grid", gap: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <Field label="Customer"><input className="em-input" value={f.customer_name} onChange={set("customer_name")} /></Field>
-        <Field label="Phone"><input className="em-input" value={f.phone} onChange={set("phone")} /></Field>
+        <Field label="Phone"><PhoneInput value={f.phone} onChange={(v) => { setF((p) => ({ ...p, phone: v })); setOk(false); }} /></Field>
         <Field label="Brand"><input className="em-input" value={f.brand} onChange={set("brand")} /></Field>
         <Field label="Model"><input className="em-input" value={f.model} onChange={set("model")} /></Field>
         <Field label="Serial"><input className="em-input" value={f.serial_no} onChange={set("serial_no")} /></Field>

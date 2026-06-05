@@ -83,6 +83,17 @@ export async function update(table, filterCol, filterVal, patch, token, opts = {
   return (out && out[0]) || null;
 }
 
+export async function remove(table, filterCol, filterVal, token) {
+  const url = new URL(`${REST_URL}/${table}`);
+  url.searchParams.set(filterCol, `eq.${filterVal}`);
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: restHeaders(token, { Prefer: "return=minimal" }),
+    cache: "no-store",
+  });
+  return handle(res, `delete ${table}`);
+}
+
 export async function rpc(fn, params, token) {
   const res = await fetch(`${REST_URL}/rpc/${fn}`, {
     method: "POST",
