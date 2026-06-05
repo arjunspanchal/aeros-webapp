@@ -85,6 +85,7 @@ export default function PpCupsBrowser({
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [volume, setVolume] = useState("all"); // "all" | oz number
+  const [origin, setOrigin] = useState("all"); // "all" | country string
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
   const [expanded, setExpanded] = useState(() => new Set());
 
@@ -110,6 +111,13 @@ export default function PpCupsBrowser({
     return [...set].sort((a, b) => a - b);
   }, [sections]);
 
+  // Distinct countries of origin present, alphabetical — drives the origin filter.
+  const originOptions = useMemo(() => {
+    const set = new Set();
+    for (const s of sections) for (const r of s.rows) if (r.origin) set.add(r.origin);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [sections]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sections
@@ -119,12 +127,13 @@ export default function PpCupsBrowser({
         rows: s.rows.filter((r) => {
           if (
             q &&
-            !`${r.sku} ${r.name} ${r.forming ?? ""} ${r.volume ?? ""} ${r.size ?? ""}`
+            !`${r.sku} ${r.name} ${r.forming ?? ""} ${r.volume ?? ""} ${r.size ?? ""} ${r.origin ?? ""}`
               .toLowerCase()
               .includes(q)
           )
             return false;
           if (volume !== "all" && r.oz !== volume) return false;
+          if (origin !== "all" && r.origin !== origin) return false;
           const hasPrice = r[offering]?.entry != null;
           if (availability === "priced" && !hasPrice) return false;
           if (availability === "request" && hasPrice) return false;
@@ -132,16 +141,21 @@ export default function PpCupsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, volume, availability, offering]);
+  }, [sections, query, type, volume, origin, availability, offering]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
-    query.trim() !== "" || type !== "all" || volume !== "all" || availability !== "all";
+    query.trim() !== "" ||
+    type !== "all" ||
+    volume !== "all" ||
+    origin !== "all" ||
+    availability !== "all";
 
   const reset = () => {
     setQuery("");
     setType("all");
     setVolume("all");
+    setOrigin("all");
     setAvailability("all");
   };
 
@@ -212,6 +226,23 @@ export default function PpCupsBrowser({
               {volumeOptions.map((oz) => (
                 <Chip key={oz} active={volume === oz} onClick={() => setVolume(oz)}>
                   {oz}oz
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Country of origin */}
+        {originOptions.length > 0 && (
+          <div className="mt-4">
+            <span className="block text-xs uppercase tracking-wide text-ink-400">Country of origin</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Chip active={origin === "all"} onClick={() => setOrigin("all")}>
+                All
+              </Chip>
+              {originOptions.map((c) => (
+                <Chip key={c} active={origin === c} onClick={() => setOrigin(c)}>
+                  {c}
                 </Chip>
               ))}
             </div>
@@ -291,6 +322,7 @@ export default function PpCupsBrowser({
                     <th className="px-3 py-2 font-medium">Item</th>
                     <th className="px-3 py-2 font-medium">{section.isLid ? "Fits / capacity" : "Capacity"}</th>
                     <th className="px-3 py-2 font-medium">{section.isLid ? "Diameter / size" : "Size (TD×BD×H)"}</th>
+                    <th className="px-3 py-2 font-medium">Origin</th>
                     <th className="px-3 py-2 text-right font-medium">Case</th>
                     <th className="px-3 py-2 text-right font-medium">Unit rate</th>
                     <th className="px-3 py-2" />
@@ -385,6 +417,9 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
         </td>
         <td className="px-3 py-2 text-ink-600">{r.volume ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
+        <td className="px-3 py-2">
+          <OriginTag origin={r.origin} />
+        </td>
         <td className="px-3 py-2 text-right text-ink-600">
           {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
         </td>
@@ -402,7 +437,7 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
       </tr>
       {hasLadder && isOpen && (
         <tr className="border-b border-ink-100 bg-ink-50/60">
-          <td colSpan={7} className="px-3 py-3">
+          <td colSpan={8} className="px-3 py-3">
             <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} />
           </td>
         </tr>
@@ -474,6 +509,7 @@ function MobileCard({ r, off, unit, currency, usdPerInr }) {
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-600">
         <Spec label="Size">{sizeLabel(r.size, unit) ?? "—"}</Spec>
         <Spec label="Case pack">{r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}</Spec>
+        <Spec label="Origin">{r.origin ?? "—"}</Spec>
       </dl>
       {hasLadder && (
         <div className="mt-2 border-t border-ink-100 pt-2">
@@ -482,6 +518,17 @@ function MobileCard({ r, off, unit, currency, usdPerInr }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Country of origin shown as a compact mono badge — monochrome to fit the
+// Aeros palette (no flag emojis). Falls back to a muted dash when unknown.
+function OriginTag({ origin }) {
+  if (!origin) return <span className="text-ink-400">—</span>;
+  return (
+    <span className="inline-block whitespace-nowrap rounded border border-ink-200 bg-ink-50 px-1.5 py-0.5 text-xs font-medium text-ink-700">
+      {origin}
+    </span>
   );
 }
 
