@@ -15,6 +15,8 @@ const DisplayCtx = createContext({
   setUnit: () => {},
   offering: "plain",
   setOffering: () => {},
+  basis: "exw",
+  setBasis: () => {},
 });
 
 export function useDisplay() {
@@ -26,13 +28,24 @@ export function CurrencyProvider({
   initialCurrency = "INR",
   initialUnit = "mm",
   initialOffering = "plain",
+  initialBasis = "exw",
 }) {
   const [currency, setCurrency] = useState(initialCurrency);
   const [unit, setUnit] = useState(initialUnit);
   const [offering, setOffering] = useState(initialOffering);
+  const [basis, setBasis] = useState(initialBasis);
   return (
     <DisplayCtx.Provider
-      value={{ currency, setCurrency, unit, setUnit, offering, setOffering }}
+      value={{
+        currency,
+        setCurrency,
+        unit,
+        setUnit,
+        offering,
+        setOffering,
+        basis,
+        setBasis,
+      }}
     >
       {children}
     </DisplayCtx.Provider>
@@ -91,6 +104,22 @@ export function OfferingToggle({ className = "" }) {
       options={[
         { value: "plain", label: "Plain" },
         { value: "printed", label: "Customised" },
+      ]}
+    />
+  );
+}
+
+export function BasisToggle({ className = "" }) {
+  const { basis, setBasis } = useDisplay();
+  return (
+    <Segmented
+      ariaLabel="Pricing basis"
+      value={basis}
+      onChange={setBasis}
+      className={className}
+      options={[
+        { value: "exw", label: "Export · EXW" },
+        { value: "ddp", label: "India · DDP" },
       ]}
     />
   );

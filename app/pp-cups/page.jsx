@@ -10,7 +10,7 @@ import {
   OrderingAndSamples,
 } from "./TradeTerms";
 import PpCupsBrowser from "./PpCupsBrowser";
-import { CurrencyProvider, CurrencyToggle, UnitToggle } from "./Currency";
+import { CurrencyProvider, CurrencyToggle, UnitToggle, BasisToggle } from "./Currency";
 
 // Public, no-login rate sheet shared directly with clients. Not in the
 // middleware matcher, so it renders for anyone with the link.
@@ -45,6 +45,7 @@ export default async function PpCupsPage() {
           <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex flex-wrap items-center justify-between gap-3">
             <Brand size="md" href="/" />
             <div className="flex items-center gap-2">
+              <BasisToggle />
               <CurrencyToggle />
               <UnitToggle />
             </div>
@@ -76,10 +77,10 @@ export default async function PpCupsPage() {
               {/* Pricing terms */}
               <section className="mt-8 grid gap-3 rounded-md border border-ink-200 bg-white p-5 text-sm text-ink-600 sm:grid-cols-2">
                 <Term label="Pricing basis">
-                  Rates are <strong className="text-ink-900">EXW India, per piece</strong>. Toggle
-                  between <strong className="text-ink-900">plain</strong> and{" "}
-                  <strong className="text-ink-900">customised</strong> cups in the rate sheet. FOB
-                  Nhava Sheva quoted on request.
+                  Per piece, for <strong className="text-ink-900">full-container (FCL)</strong> loads.
+                  Toggle between <strong className="text-ink-900">Export · EXW India</strong> and{" "}
+                  <strong className="text-ink-900">India · DDP</strong> (delivered duty-paid) in the
+                  masthead. Part / LCL loads cost more — quoted on request.
                 </Term>
                 <Term label="Currency">
                   Quoted in <strong className="text-ink-900">INR (₹)</strong>. Switch the toggle for
@@ -127,8 +128,12 @@ export default async function PpCupsPage() {
                   invoicing is in INR unless otherwise agreed.
                 </p>
                 <p>
-                  Rates are EXW India, exclusive of freight, insurance, duties and GST. FOB Nhava
-                  Sheva and landed quotes available on request. Prices subject to change with resin
+                  All rates are for <strong className="text-ink-500">full-container (FCL)</strong>{" "}
+                  loads. <strong className="text-ink-500">Export · EXW India</strong> is ex-works,
+                  exclusive of freight, insurance, duties and GST.{" "}
+                  <strong className="text-ink-500">India · DDP</strong> is delivered duty-paid within
+                  India (freight included), exclusive of GST. Part / LCL loads, FOB Nhava Sheva and
+                  overseas landed quotes available on request. Prices subject to change with resin
                   costs.
                 </p>
                 <p>
