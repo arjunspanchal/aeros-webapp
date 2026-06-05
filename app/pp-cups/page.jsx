@@ -57,7 +57,7 @@ export default async function PpCupsPage() {
           <div className="max-w-2xl">
             <h1 className="text-display-md font-bold text-ink-900">PP Cups &amp; IM Lids</h1>
             <p className="mt-3 text-ink-600">
-              Our complete polypropylene cold-drink range, supplied from Mumbai, India. Tough,
+              Our complete polypropylene cold-drink range, supplied from China / India. Tough,
               flexible cups in flat-bottom and U-shape profiles (Ø90 mm), translucent or frosted,
               with matching injection-molded dome, flat and sipper lids. Cups plain or
               custom-branded; lids supplied plain. Country of origin is listed and filterable
