@@ -110,7 +110,10 @@ export default function PaperBagsBrowser({
   printedTotal = 0,
   usdPerInr = 90,
 }) {
-  const { currency, unit, market } = useDisplay();
+  const { currency, unit, market, rateMode } = useDisplay();
+  // Label for the rate basis the table is currently showing — kept in sync with
+  // the masthead RateModeToggle so each section states FCL vs DDP explicitly.
+  const basisLabel = rateMode === "ddp" ? "DDP India · incl. freight + GST" : "EXW India · bare";
   const [offering, setOffering] = useState("plain"); // "plain" | "printed"
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
@@ -377,11 +380,16 @@ export default function PaperBagsBrowser({
               currency={currency}
               unit={unit}
               usdPerInr={usdPerInr}
+              rateMode={rateMode}
+              basisLabel={basisLabel}
             />
           ) : (
           <div key={section.key} className="mt-8">
             <div className="flex items-baseline justify-between">
-              <h3 className="text-base font-bold text-ink-900">{section.label}</h3>
+              <div>
+                <h3 className="text-base font-bold text-ink-900">{section.label}</h3>
+                <span className="text-xs text-ink-400">Rates shown: {basisLabel}</span>
+              </div>
               <span className="font-mono text-xs text-ink-400">{section.rows.length} sizes</span>
             </div>
 
@@ -397,14 +405,20 @@ export default function PaperBagsBrowser({
                     <th className="px-3 py-2 text-right font-medium">GSM</th>
                     <th className="px-3 py-2 text-right font-medium">Case (pcs)</th>
                     <th className="px-3 py-2 text-right font-medium">Carton CBM</th>
-                    <th className="px-3 py-2 text-right font-medium">Unit rate</th>
+                    <th className="px-3 py-2 text-right font-medium">
+                      Unit rate
+                      <span className="block font-normal normal-case tracking-normal text-ink-300">
+                        {rateMode === "ddp" ? "DDP India" : "EXW India"}
+                      </span>
+                    </th>
                     <th className="px-3 py-2 text-right font-medium">Case rate</th>
                   </tr>
                 </thead>
                 <tbody>
                   {section.rows.map((r) => {
-                    const unitRate = fmtUnit(currency, r.priceInr, usdPerInr);
-                    const caseRate = fmtCase(currency, r.priceInr, r.casePack, usdPerInr);
+                    const rowInr = rateMode === "ddp" ? r.ddpInr ?? null : r.priceInr;
+                    const unitRate = fmtUnit(currency, rowInr, usdPerInr);
+                    const caseRate = fmtCase(currency, rowInr, r.casePack, usdPerInr);
                     return (
                       <tr key={r.sku} className="border-b border-ink-100 last:border-0">
                         <td className="px-3 py-2 font-mono text-xs text-ink-600">{r.sku}</td>
@@ -436,8 +450,9 @@ export default function PaperBagsBrowser({
             {/* Mobile cards */}
             <div className="mt-3 space-y-2 md:hidden">
               {section.rows.map((r) => {
-                const unitRate = fmtUnit(currency, r.priceInr, usdPerInr);
-                const caseRate = fmtCase(currency, r.priceInr, r.casePack, usdPerInr);
+                const rowInr = rateMode === "ddp" ? r.ddpInr ?? null : r.priceInr;
+                const unitRate = fmtUnit(currency, rowInr, usdPerInr);
+                const caseRate = fmtCase(currency, rowInr, r.casePack, usdPerInr);
                 return (
                   <div key={r.sku} className="rounded-md border border-ink-200 bg-white p-3">
                     <div className="flex items-start justify-between gap-3">
@@ -483,11 +498,14 @@ export default function PaperBagsBrowser({
 // One card per bag, showing its three print tiers (rows) against the order-
 // quantity breaks (columns). Cells are the per-piece rate in the chosen
 // currency; a blank break for a tier shows "—".
-function PrintedSection({ section, currency, unit, usdPerInr }) {
+function PrintedSection({ section, currency, unit, usdPerInr, rateMode, basisLabel }) {
   return (
     <div className="mt-8">
       <div className="flex items-baseline justify-between">
-        <h3 className="text-base font-bold text-ink-900">{section.label}</h3>
+        <div>
+          <h3 className="text-base font-bold text-ink-900">{section.label}</h3>
+          <span className="text-xs text-ink-400">Rates shown: {basisLabel}</span>
+        </div>
         <span className="font-mono text-xs text-ink-400">{section.rows.length} bags</span>
       </div>
 
@@ -530,7 +548,9 @@ function PrintedSection({ section, currency, unit, usdPerInr }) {
                 </thead>
                 <tbody>
                   {r.tiers.map((t) => {
-                    const byQty = new Map(t.breaks.map((b) => [b.minQty, b.priceInr]));
+                    const byQty = new Map(
+                      t.breaks.map((b) => [b.minQty, rateMode === "ddp" ? b.ddpInr ?? null : b.priceInr])
+                    );
                     return (
                       <tr key={t.code} className="border-b border-ink-100 last:border-0">
                         <td className="px-4 py-2">
