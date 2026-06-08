@@ -68,7 +68,8 @@ export default async function PetCupsPage() {
               {/* Pricing terms */}
               <section className="mt-8 grid gap-3 rounded-md border border-ink-200 bg-white p-5 text-sm text-ink-600 sm:grid-cols-2">
                 <Term label="Pricing basis">
-                  Rates are <strong className="text-ink-900">EXW India, per piece</strong>. Toggle
+                  Rates are <strong className="text-ink-900">EXW India, per piece</strong>, for{" "}
+                  <strong className="text-ink-900">full-container-load (FCL)</strong> orders. Toggle
                   between <strong className="text-ink-900">plain</strong> and{" "}
                   <strong className="text-ink-900">customised</strong> cups in the rate sheet. FOB
                   Nhava Sheva quoted on request.
@@ -86,6 +87,11 @@ export default async function PetCupsPage() {
                   Cups can be custom-printed; switch to{" "}
                   <strong className="text-ink-900">Customised</strong> for live rates. Lids are
                   supplied <strong className="text-ink-900">clear/plain</strong> across the range.
+                </Term>
+                <Term label="Container loads">
+                  All rates are for <strong className="text-ink-900">full container loads (FCL)</strong>{" "}
+                  — one item filling a 20&prime; / 40&prime; container. Part loads (LCL) or
+                  mixed-SKU containers cost more; ask for a specific quote.
                 </Term>
               </section>
 
@@ -114,9 +120,10 @@ export default async function PetCupsPage() {
                   invoicing is in INR unless otherwise agreed.
                 </p>
                 <p>
-                  Rates are EXW India, exclusive of freight, insurance, duties and GST. FOB Nhava
-                  Sheva and landed quotes available on request. Prices subject to change with resin
-                  costs.
+                  Rates are EXW India for full-container-load (FCL) orders, exclusive of freight,
+                  insurance, duties and GST. Part loads (LCL) and mixed-SKU containers are priced
+                  higher. FOB Nhava Sheva and landed quotes available on request. Prices subject to
+                  change with resin costs.
                 </p>
                 <p>
                   Plain: {data.plainPriced} of {data.total} items listed with live rates ·
