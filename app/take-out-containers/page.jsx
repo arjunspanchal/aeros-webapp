@@ -84,9 +84,9 @@ export default async function TakeOutContainersPage() {
                 <Term label="Plain vs custom">
                   Toggle the rate sheet between{" "}
                   <strong className="text-ink-900">Plain</strong> and{" "}
-                  <strong className="text-ink-900">Customised</strong>. Items that can be
-                  custom-printed carry a <em>Printable</em> badge; printing adds a one-time plate
-                  charge, billed separately.
+                  <strong className="text-ink-900">Customised</strong>. Under Customised, items with
+                  a printed rate show their ladder and the rest show <em>on request</em>; printing
+                  adds a one-time plate charge, billed separately.
                 </Term>
               </section>
 

@@ -303,7 +303,7 @@ export default function TakeOutBrowser({ sections, plainPriced, printedPriced, t
                   <thead>
                     <tr className="border-b border-ink-200 bg-ink-100 text-left text-xs uppercase tracking-wide text-ink-400">
                       <th className="px-3 py-2 font-medium">Code</th>
-                      <th className="px-3 py-2 font-medium">Item</th>
+                      {section.isLid && <th className="px-3 py-2 font-medium">Type</th>}
                       <th className="px-3 py-2 font-medium">{section.isLid ? "Fits" : "Capacity"}</th>
                       <th className="px-3 py-2 font-medium">{section.isLid ? "Lid size" : "Size (TD×BD×H)"}</th>
                       <th className="px-3 py-2 font-medium">Material</th>
@@ -397,12 +397,7 @@ function FragmentRows({ r, off, isLid, unit, currency, usdPerInr, hasLadder, isO
         onClick={hasLadder ? onToggle : undefined}
       >
         <td className="px-3 py-2 font-mono text-xs text-ink-600">{r.sku}</td>
-        <td className="px-3 py-2 text-ink-900">
-          <span className="inline-flex items-center gap-1.5">
-            {r.name || "—"}
-            {r.printable && <PrintableBadge />}
-          </span>
-        </td>
+        {isLid && <td className="px-3 py-2 text-ink-900">{r.name || "—"}</td>}
         <td className="px-3 py-2 text-ink-600">{(isLid ? r.fits : r.volume) ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{r.material ?? "—"}</td>
@@ -423,7 +418,7 @@ function FragmentRows({ r, off, isLid, unit, currency, usdPerInr, hasLadder, isO
       </tr>
       {hasLadder && isOpen && (
         <tr className="border-b border-ink-100 bg-ink-50/60">
-          <td colSpan={8} className="px-3 py-3">
+          <td colSpan={isLid ? 8 : 7} className="px-3 py-3">
             <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} />
           </td>
         </tr>
@@ -471,11 +466,8 @@ function MobileCard({ r, off, isLid, unit, currency, usdPerInr }) {
         <div className="min-w-0">
           <p className="font-mono text-xs text-ink-400">{r.sku}</p>
           <p className="mt-0.5 font-medium text-ink-900">
-            <span className="inline-flex items-center gap-1.5">
-              {(isLid ? sizeLabel(r.size, unit) : r.volume ?? sizeLabel(r.size, unit)) ?? "—"}
-              {r.name ? ` · ${r.name}` : ""}
-              {r.printable && <PrintableBadge />}
-            </span>
+            {(isLid ? sizeLabel(r.size, unit) : r.volume ?? sizeLabel(r.size, unit)) ?? "—"}
+            {r.name ? ` · ${r.name}` : ""}
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -508,17 +500,6 @@ function MobileCard({ r, off, isLid, unit, currency, usdPerInr }) {
         </div>
       )}
     </div>
-  );
-}
-
-function PrintableBadge() {
-  return (
-    <span
-      className="rounded-full border border-ink-300 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-500"
-      title="A custom-printed rate is available — switch the toggle to Customised"
-    >
-      Printable
-    </span>
   );
 }
 
