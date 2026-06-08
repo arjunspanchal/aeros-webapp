@@ -200,6 +200,27 @@ export default function PpCupsBrowser({
 
       {/* Filter bar */}
       <div className="mt-4 rounded-md border border-ink-200 bg-white p-4">
+        {/* Country of origin — surfaced first as a prominent panel. */}
+        {originOptions.length > 0 && (
+          <div className="mb-4 rounded-md border border-ink-300 bg-ink-50 p-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-700">
+                Country of origin
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                <Chip active={origin === "all"} onClick={() => setOrigin("all")}>
+                  All
+                </Chip>
+                {originOptions.map((c) => (
+                  <Chip key={c} active={origin === c} onClick={() => setOrigin(c)}>
+                    {c}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
           {/* Search */}
           <div>
@@ -245,23 +266,6 @@ export default function PpCupsBrowser({
               {volumeOptions.map((oz) => (
                 <Chip key={oz} active={volume === oz} onClick={() => setVolume(oz)}>
                   {oz}oz
-                </Chip>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Country of origin */}
-        {originOptions.length > 0 && (
-          <div className="mt-4">
-            <span className="block text-xs uppercase tracking-wide text-ink-400">Country of origin</span>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              <Chip active={origin === "all"} onClick={() => setOrigin("all")}>
-                All
-              </Chip>
-              {originOptions.map((c) => (
-                <Chip key={c} active={origin === c} onClick={() => setOrigin(c)}>
-                  {c}
                 </Chip>
               ))}
             </div>
