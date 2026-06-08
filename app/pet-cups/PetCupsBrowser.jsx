@@ -85,6 +85,7 @@ export default function PetCupsBrowser({
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [volume, setVolume] = useState("all"); // "all" | oz number
+  const [diameter, setDiameter] = useState("all"); // "all" | dia (mm)
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
   const [expanded, setExpanded] = useState(() => new Set());
 
@@ -110,6 +111,14 @@ export default function PetCupsBrowser({
     return [...set].sort((a, b) => a - b);
   }, [sections]);
 
+  // Distinct rim diameters (mm) across cups (TD) and lids (Ø), ascending —
+  // drives the cross-cutting diameter filter so a cup and its lid match up.
+  const diameterOptions = useMemo(() => {
+    const set = new Set();
+    for (const s of sections) for (const r of s.rows) if (r.dia != null) set.add(r.dia);
+    return [...set].sort((a, b) => a - b);
+  }, [sections]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sections
@@ -120,6 +129,7 @@ export default function PetCupsBrowser({
           if (q && !`${r.sku} ${r.name} ${r.volume ?? ""} ${r.size ?? ""}`.toLowerCase().includes(q))
             return false;
           if (volume !== "all" && r.oz !== volume) return false;
+          if (diameter !== "all" && r.dia !== diameter) return false;
           const hasPrice = r[offering]?.entry != null;
           if (availability === "priced" && !hasPrice) return false;
           if (availability === "request" && hasPrice) return false;
@@ -127,16 +137,21 @@ export default function PetCupsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, volume, availability, offering]);
+  }, [sections, query, type, volume, diameter, availability, offering]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
-    query.trim() !== "" || type !== "all" || volume !== "all" || availability !== "all";
+    query.trim() !== "" ||
+    type !== "all" ||
+    volume !== "all" ||
+    diameter !== "all" ||
+    availability !== "all";
 
   const reset = () => {
     setQuery("");
     setType("all");
     setVolume("all");
+    setDiameter("all");
     setAvailability("all");
   };
 
@@ -207,6 +222,25 @@ export default function PetCupsBrowser({
               {volumeOptions.map((oz) => (
                 <Chip key={oz} active={volume === oz} onClick={() => setVolume(oz)}>
                   {oz}oz
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Diameter (cup TD / lid Ø) */}
+        {diameterOptions.length > 0 && (
+          <div className="mt-4">
+            <span className="block text-xs uppercase tracking-wide text-ink-400">
+              Diameter <span className="normal-case text-ink-300">(cup TD / lid Ø)</span>
+            </span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Chip active={diameter === "all"} onClick={() => setDiameter("all")}>
+                All
+              </Chip>
+              {diameterOptions.map((d) => (
+                <Chip key={d} active={diameter === d} onClick={() => setDiameter(d)}>
+                  Ø{d}
                 </Chip>
               ))}
             </div>
