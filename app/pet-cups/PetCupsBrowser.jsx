@@ -29,6 +29,14 @@ function fmtCase(currency, inr, casePack, usdPerInr) {
   return `₹${total.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
+// Pick the active-basis unit price from a slab: FCL (priceInr / EXW) or India
+// DDP (ddpInr). DDP is null when the SKU has no delivered rate costed yet → the
+// row falls through to "On request" under the DDP basis.
+function pickInr(slab, rateMode) {
+  if (!slab) return null;
+  return rateMode === "ddp" ? slab.ddpInr ?? null : slab.priceInr;
+}
+
 // 25000 → "25K", 100000 → "1L", 1500 → "1.5K"
 function fmtQty(n) {
   if (n == null) return "";
@@ -80,8 +88,8 @@ export default function PetCupsBrowser({
   total,
   usdPerInr = 90,
 }) {
-  const { currency, unit, offering } = useDisplay();
-  const priced = offering === "printed" ? printedPriced : plainPriced;
+  const { currency, unit, offering, rateMode } = useDisplay();
+  const basisLabel = rateMode === "ddp" ? "DDP India · incl. freight + GST" : "EXW India · FCL";
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [volume, setVolume] = useState("all"); // "all" | oz number
@@ -130,14 +138,25 @@ export default function PetCupsBrowser({
             return false;
           if (volume !== "all" && r.oz !== volume) return false;
           if (diameter !== "all" && r.dia !== diameter) return false;
-          const hasPrice = r[offering]?.entry != null;
+          // "Priced" follows the active basis: a row counts as priced only if its
+          // entry slab has a live rate in the current FCL/DDP mode.
+          const hasPrice = pickInr(r[offering]?.entry, rateMode) != null;
           if (availability === "priced" && !hasPrice) return false;
           if (availability === "request" && hasPrice) return false;
           return true;
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, volume, diameter, availability, offering]);
+  }, [sections, query, type, volume, diameter, availability, offering, rateMode]);
+
+  // Items with a live rate in the current offering + basis (drives the header
+  // "n of N priced" tally so it stays honest when toggling FCL ↔ DDP).
+  const pricedCount = useMemo(() => {
+    let n = 0;
+    for (const s of sections)
+      for (const r of s.rows) if (pickInr(r[offering]?.entry, rateMode) != null) n += 1;
+    return n;
+  }, [sections, offering, rateMode]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
@@ -160,7 +179,7 @@ export default function PetCupsBrowser({
       <div className="flex items-baseline justify-between border-b border-ink-300 pb-2">
         <h2 className="text-lg font-bold text-ink-900">Full rate sheet</h2>
         <span className="font-mono text-xs text-ink-400">
-          {priced} of {total} priced
+          {pricedCount} of {total} priced
         </span>
       </div>
 
@@ -172,6 +191,9 @@ export default function PetCupsBrowser({
           {offering === "printed"
             ? "Custom-branded cups · quantity ladder from 1,000 pcs · lids are supplied plain"
             : "Plain, unprinted cups & lids"}
+        </span>
+        <span className="ml-auto rounded-full bg-ink-100 px-2.5 py-1 font-mono text-[11px] text-ink-600">
+          {basisLabel}
         </span>
       </div>
 
@@ -338,6 +360,7 @@ export default function PetCupsBrowser({
                         unit={unit}
                         currency={currency}
                         usdPerInr={usdPerInr}
+                        rateMode={rateMode}
                         hasLadder={hasLadder}
                         isOpen={isOpen}
                         onToggle={() => toggle(r.sku)}
@@ -358,6 +381,7 @@ export default function PetCupsBrowser({
                   unit={unit}
                   currency={currency}
                   usdPerInr={usdPerInr}
+                  rateMode={rateMode}
                 />
               ))}
             </div>
@@ -369,14 +393,16 @@ export default function PetCupsBrowser({
 }
 
 // One item = a summary row plus an expandable ladder detail row.
-function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, onToggle }) {
+function FragmentRows({ r, off, unit, currency, usdPerInr, rateMode, hasLadder, isOpen, onToggle }) {
   const entry = off.entry; // lowest qty (highest price)
   const best = off.best; // highest qty (lowest price)
-  const entryRate = fmtUnit(currency, entry?.priceInr, usdPerInr);
-  const bestRate = fmtUnit(currency, best?.priceInr, usdPerInr);
+  const entryInr = pickInr(entry, rateMode);
+  const bestInr = pickInr(best, rateMode);
+  const entryRate = fmtUnit(currency, entryInr, usdPerInr);
+  const bestRate = fmtUnit(currency, bestInr, usdPerInr);
 
   let rateCell;
-  if (!entry) {
+  if (entryInr == null) {
     rateCell = <span className="text-ink-400">On request</span>;
   } else if (hasLadder) {
     rateCell = (
@@ -429,7 +455,7 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
       {hasLadder && isOpen && (
         <tr className="border-b border-ink-100 bg-ink-50/60">
           <td colSpan={7} className="px-3 py-3">
-            <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} />
+            <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} rateMode={rateMode} />
           </td>
         </tr>
       )}
@@ -437,7 +463,7 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
   );
 }
 
-function LadderTable({ r, off, currency, usdPerInr }) {
+function LadderTable({ r, off, currency, usdPerInr, rateMode }) {
   return (
     <div className="rounded border border-ink-200 bg-white">
       <table className="w-full border-collapse text-xs">
@@ -449,27 +475,32 @@ function LadderTable({ r, off, currency, usdPerInr }) {
           </tr>
         </thead>
         <tbody>
-          {off.slabs.map((s) => (
-            <tr key={s.minQty} className="border-b border-ink-50 last:border-0">
-              <td className="px-3 py-1.5 text-ink-700">{s.minQty.toLocaleString("en-IN")}+</td>
-              <td className="px-3 py-1.5 text-right font-medium text-ink-900">
-                {fmtUnit(currency, s.priceInr, usdPerInr)}
-              </td>
-              <td className="px-3 py-1.5 text-right text-ink-600">
-                {fmtCase(currency, s.priceInr, r.casePack, usdPerInr) ?? "—"}
-              </td>
-            </tr>
-          ))}
+          {off.slabs.map((s) => {
+            const inr = pickInr(s, rateMode);
+            return (
+              <tr key={s.minQty} className="border-b border-ink-50 last:border-0">
+                <td className="px-3 py-1.5 text-ink-700">{s.minQty.toLocaleString("en-IN")}+</td>
+                <td className="px-3 py-1.5 text-right font-medium text-ink-900">
+                  {fmtUnit(currency, inr, usdPerInr) ?? <span className="text-ink-400">On request</span>}
+                </td>
+                <td className="px-3 py-1.5 text-right text-ink-600">
+                  {fmtCase(currency, inr, r.casePack, usdPerInr) ?? "—"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-function MobileCard({ r, off, unit, currency, usdPerInr }) {
+function MobileCard({ r, off, unit, currency, usdPerInr, rateMode }) {
   const entry = off.entry;
   const best = off.best;
   const hasLadder = off.slabs.length > 1;
+  const entryInr = pickInr(entry, rateMode);
+  const bestInr = pickInr(best, rateMode);
   return (
     <div className="rounded-md border border-ink-200 bg-white p-3">
       <div className="flex items-start justify-between gap-3">
@@ -480,12 +511,12 @@ function MobileCard({ r, off, unit, currency, usdPerInr }) {
           </p>
         </div>
         <div className="shrink-0 text-right">
-          {entry ? (
+          {entryInr != null ? (
             <>
               <p className="font-semibold text-ink-900">
                 {hasLadder
-                  ? `${fmtUnit(currency, best.priceInr, usdPerInr)}–${fmtUnit(currency, entry.priceInr, usdPerInr)}`
-                  : fmtUnit(currency, entry.priceInr, usdPerInr)}
+                  ? `${fmtUnit(currency, bestInr, usdPerInr)}–${fmtUnit(currency, entryInr, usdPerInr)}`
+                  : fmtUnit(currency, entryInr, usdPerInr)}
               </p>
               <p className="text-xs text-ink-400">
                 {hasLadder ? `${fmtQty(best.minQty)}–${fmtQty(entry.minQty)} pcs` : `min ${fmtQty(entry.minQty)} pcs`}
@@ -503,7 +534,7 @@ function MobileCard({ r, off, unit, currency, usdPerInr }) {
       {hasLadder && (
         <div className="mt-2 border-t border-ink-100 pt-2">
           <p className="mb-1 text-[11px] uppercase tracking-wide text-ink-400">Quantity breaks</p>
-          <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} />
+          <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} rateMode={rateMode} />
         </div>
       )}
     </div>

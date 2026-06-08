@@ -3,7 +3,8 @@ import { Brand } from "@/app/components/ui/Brand";
 import { PetGuide } from "./PetGuide";
 import { SupplyTerms, QualityChecks, PackingVisual } from "./TradeTerms";
 import PetCupsBrowser from "./PetCupsBrowser";
-import { CurrencyProvider, CurrencyToggle, UnitToggle } from "./Currency";
+import { CurrencyProvider, CurrencyToggle, UnitToggle, RateModeToggle } from "./Currency";
+import { PricingBasisValue, LoadsDeliveryValue, RateBasisFootnote } from "./RateBasisCopy";
 
 // Public, no-login rate sheet shared directly with clients. Not in the
 // middleware matcher, so it renders for anyone with the link.
@@ -31,13 +32,19 @@ export default async function PetCupsPage() {
   });
 
   return (
-    <CurrencyProvider initialCurrency="INR" initialUnit="mm" initialOffering="plain">
+    <CurrencyProvider
+      initialCurrency="INR"
+      initialUnit="mm"
+      initialOffering="plain"
+      initialRateMode="fcl"
+    >
       <div className="min-h-screen bg-ink-50 text-ink-800">
-        {/* Masthead — sticky so the currency / unit toggles stay reachable. */}
+        {/* Masthead — sticky so the basis / currency / unit toggles stay reachable. */}
         <header className="sticky top-0 z-20 border-b border-ink-200 bg-white">
           <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex flex-wrap items-center justify-between gap-3">
             <Brand size="md" href="/" />
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <RateModeToggle />
               <CurrencyToggle />
               <UnitToggle />
             </div>
@@ -68,11 +75,7 @@ export default async function PetCupsPage() {
               {/* Pricing terms */}
               <section className="mt-8 grid gap-3 rounded-md border border-ink-200 bg-white p-5 text-sm text-ink-600 sm:grid-cols-2">
                 <Term label="Pricing basis">
-                  Rates are <strong className="text-ink-900">EXW India, per piece</strong>, for{" "}
-                  <strong className="text-ink-900">full-container-load (FCL)</strong> orders. Toggle
-                  between <strong className="text-ink-900">plain</strong> and{" "}
-                  <strong className="text-ink-900">customised</strong> cups in the rate sheet. FOB
-                  Nhava Sheva quoted on request.
+                  <PricingBasisValue />
                 </Term>
                 <Term label="Currency">
                   Quoted in <strong className="text-ink-900">INR (₹)</strong>. Switch the toggle for
@@ -88,10 +91,8 @@ export default async function PetCupsPage() {
                   <strong className="text-ink-900">Customised</strong> for live rates. Lids are
                   supplied <strong className="text-ink-900">clear/plain</strong> across the range.
                 </Term>
-                <Term label="Container loads">
-                  All rates are for <strong className="text-ink-900">full container loads (FCL)</strong>{" "}
-                  — one item filling a 20&prime; / 40&prime; container. Part loads (LCL) or
-                  mixed-SKU containers cost more; ask for a specific quote.
+                <Term label="Loads &amp; delivery">
+                  <LoadsDeliveryValue />
                 </Term>
               </section>
 
@@ -119,12 +120,7 @@ export default async function PetCupsPage() {
                   case pack. USD is indicative only, converted from INR at ₹{USD_PER_INR_DIVISOR}/$ —
                   invoicing is in INR unless otherwise agreed.
                 </p>
-                <p>
-                  Rates are EXW India for full-container-load (FCL) orders, exclusive of freight,
-                  insurance, duties and GST. Part loads (LCL) and mixed-SKU containers are priced
-                  higher. FOB Nhava Sheva and landed quotes available on request. Prices subject to
-                  change with resin costs.
-                </p>
+                <RateBasisFootnote />
                 <p>
                   Plain: {data.plainPriced} of {data.total} items listed with live rates ·
                   Customised cups: {data.printedPriced} of {data.total}. The remainder are quoted on

@@ -1,10 +1,11 @@
 "use client";
 
 // Shared display preferences for the public PET cup & lid page: currency
-// (INR/USD), size unit (mm/in) and offering (plain/customised). A tiny context
-// so the sticky masthead toggles and the rate table stay in sync. Defaults:
-// INR (₹) — Aeros quotes in INR, USD is an indicative conversion — and mm, the
-// manufacturing unit.
+// (INR/USD), size unit (mm/in), offering (plain/customised) and rate basis
+// (FCL/EXW vs India DDP). A tiny context so the sticky masthead toggles and the
+// rate table stay in sync. Defaults: INR (₹) — Aeros quotes in INR, USD is an
+// indicative conversion — mm, the manufacturing unit, and FCL, the bare
+// ex-works export basis.
 
 import { createContext, useContext, useState } from "react";
 
@@ -15,6 +16,8 @@ const DisplayCtx = createContext({
   setUnit: () => {},
   offering: "plain",
   setOffering: () => {},
+  rateMode: "fcl",
+  setRateMode: () => {},
 });
 
 export function useDisplay() {
@@ -26,13 +29,24 @@ export function CurrencyProvider({
   initialCurrency = "INR",
   initialUnit = "mm",
   initialOffering = "plain",
+  initialRateMode = "fcl",
 }) {
   const [currency, setCurrency] = useState(initialCurrency);
   const [unit, setUnit] = useState(initialUnit);
   const [offering, setOffering] = useState(initialOffering);
+  const [rateMode, setRateMode] = useState(initialRateMode);
   return (
     <DisplayCtx.Provider
-      value={{ currency, setCurrency, unit, setUnit, offering, setOffering }}
+      value={{
+        currency,
+        setCurrency,
+        unit,
+        setUnit,
+        offering,
+        setOffering,
+        rateMode,
+        setRateMode,
+      }}
     >
       {children}
     </DisplayCtx.Provider>
@@ -91,6 +105,22 @@ export function OfferingToggle({ className = "" }) {
       options={[
         { value: "plain", label: "Plain" },
         { value: "printed", label: "Customised" },
+      ]}
+    />
+  );
+}
+
+export function RateModeToggle({ className = "" }) {
+  const { rateMode, setRateMode } = useDisplay();
+  return (
+    <Segmented
+      ariaLabel="Rate basis"
+      value={rateMode}
+      onChange={setRateMode}
+      className={className}
+      options={[
+        { value: "fcl", label: "FCL" },
+        { value: "ddp", label: "India DDP" },
       ]}
     />
   );
