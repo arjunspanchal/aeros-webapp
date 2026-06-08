@@ -94,6 +94,7 @@ export default function PetCupsBrowser({
   const [type, setType] = useState("all"); // "all" | section.key
   const [volume, setVolume] = useState("all"); // "all" | oz number
   const [diameter, setDiameter] = useState("all"); // "all" | dia (mm)
+  const [origin, setOrigin] = useState("all"); // "all" | country (e.g. "India")
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
   const [expanded, setExpanded] = useState(() => new Set());
 
@@ -127,6 +128,14 @@ export default function PetCupsBrowser({
     return [...set].sort((a, b) => a - b);
   }, [sections]);
 
+  // Distinct countries of origin present, sorted — drives the origin filter.
+  // Renders only once there are 2+ (e.g. when China cups join the India range).
+  const originOptions = useMemo(() => {
+    const set = new Set();
+    for (const s of sections) for (const r of s.rows) if (r.origin) set.add(r.origin);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [sections]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sections
@@ -134,10 +143,16 @@ export default function PetCupsBrowser({
       .map((s) => ({
         ...s,
         rows: s.rows.filter((r) => {
-          if (q && !`${r.sku} ${r.name} ${r.volume ?? ""} ${r.size ?? ""}`.toLowerCase().includes(q))
+          if (
+            q &&
+            !`${r.sku} ${r.name} ${r.volume ?? ""} ${r.size ?? ""} ${r.origin ?? ""}`
+              .toLowerCase()
+              .includes(q)
+          )
             return false;
           if (volume !== "all" && r.oz !== volume) return false;
           if (diameter !== "all" && r.dia !== diameter) return false;
+          if (origin !== "all" && r.origin !== origin) return false;
           // "Priced" follows the active basis: a row counts as priced only if its
           // entry slab has a live rate in the current FCL/DDP mode.
           const hasPrice = pickInr(r[offering]?.entry, rateMode) != null;
@@ -147,7 +162,7 @@ export default function PetCupsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, volume, diameter, availability, offering, rateMode]);
+  }, [sections, query, type, volume, diameter, origin, availability, offering, rateMode]);
 
   // Items with a live rate in the current offering + basis (drives the header
   // "n of N priced" tally so it stays honest when toggling FCL ↔ DDP).
@@ -159,11 +174,15 @@ export default function PetCupsBrowser({
   }, [sections, offering, rateMode]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
+  // Surface each item's origin only when the range spans more than one country —
+  // no point tagging every row "India" when that's the whole catalogue.
+  const showOrigin = originOptions.length > 1;
   const isFiltered =
     query.trim() !== "" ||
     type !== "all" ||
     volume !== "all" ||
     diameter !== "all" ||
+    origin !== "all" ||
     availability !== "all";
 
   const reset = () => {
@@ -171,6 +190,7 @@ export default function PetCupsBrowser({
     setType("all");
     setVolume("all");
     setDiameter("all");
+    setOrigin("all");
     setAvailability("all");
   };
 
@@ -269,6 +289,23 @@ export default function PetCupsBrowser({
           </div>
         )}
 
+        {/* Origin (India / China) — appears once the range spans 2+ countries. */}
+        {originOptions.length > 1 && (
+          <div className="mt-4">
+            <span className="block text-xs uppercase tracking-wide text-ink-400">Origin</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Chip active={origin === "all"} onClick={() => setOrigin("all")}>
+                All
+              </Chip>
+              {originOptions.map((c) => (
+                <Chip key={c} active={origin === c} onClick={() => setOrigin(c)}>
+                  {c}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Availability */}
         <div className="mt-4">
           <span className="block text-xs uppercase tracking-wide text-ink-400">Availability</span>
@@ -361,6 +398,7 @@ export default function PetCupsBrowser({
                         currency={currency}
                         usdPerInr={usdPerInr}
                         rateMode={rateMode}
+                        showOrigin={showOrigin}
                         hasLadder={hasLadder}
                         isOpen={isOpen}
                         onToggle={() => toggle(r.sku)}
@@ -382,6 +420,7 @@ export default function PetCupsBrowser({
                   currency={currency}
                   usdPerInr={usdPerInr}
                   rateMode={rateMode}
+                  showOrigin={showOrigin}
                 />
               ))}
             </div>
@@ -393,7 +432,7 @@ export default function PetCupsBrowser({
 }
 
 // One item = a summary row plus an expandable ladder detail row.
-function FragmentRows({ r, off, unit, currency, usdPerInr, rateMode, hasLadder, isOpen, onToggle }) {
+function FragmentRows({ r, off, unit, currency, usdPerInr, rateMode, showOrigin, hasLadder, isOpen, onToggle }) {
   const entry = off.entry; // lowest qty (highest price)
   const best = off.best; // highest qty (lowest price)
   const entryInr = pickInr(entry, rateMode);
@@ -434,7 +473,10 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, rateMode, hasLadder, 
         onClick={hasLadder ? onToggle : undefined}
       >
         <td className="px-3 py-2 font-mono text-xs text-ink-600">{r.sku}</td>
-        <td className="px-3 py-2 text-ink-900">{r.name || "—"}</td>
+        <td className="px-3 py-2 text-ink-900">
+          {r.name || "—"}
+          {showOrigin && r.origin ? <OriginTag origin={r.origin} /> : null}
+        </td>
         <td className="px-3 py-2 text-ink-600">{r.volume ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
         <td className="px-3 py-2 text-right text-ink-600">
@@ -495,7 +537,7 @@ function LadderTable({ r, off, currency, usdPerInr, rateMode }) {
   );
 }
 
-function MobileCard({ r, off, unit, currency, usdPerInr, rateMode }) {
+function MobileCard({ r, off, unit, currency, usdPerInr, rateMode, showOrigin }) {
   const entry = off.entry;
   const best = off.best;
   const hasLadder = off.slabs.length > 1;
@@ -530,6 +572,7 @@ function MobileCard({ r, off, unit, currency, usdPerInr, rateMode }) {
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-600">
         <Spec label="Size">{sizeLabel(r.size, unit) ?? "—"}</Spec>
         <Spec label="Case pack">{r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}</Spec>
+        {showOrigin && r.origin ? <Spec label="Origin">{r.origin}</Spec> : null}
       </dl>
       {hasLadder && (
         <div className="mt-2 border-t border-ink-100 pt-2">
@@ -566,5 +609,15 @@ function Spec({ label, children }) {
       <dt className="text-ink-400">{label}</dt>
       <dd className="text-ink-800">{children}</dd>
     </div>
+  );
+}
+
+// Small muted "made in" tag shown beside an item name once the range spans more
+// than one origin (e.g. India vs China).
+function OriginTag({ origin }) {
+  return (
+    <span className="ml-2 rounded border border-ink-200 px-1.5 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wide text-ink-500">
+      {origin}
+    </span>
   );
 }
