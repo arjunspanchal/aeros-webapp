@@ -540,11 +540,20 @@ function PrintedSection({ section, currency, unit, usdPerInr }) {
                           </span>
                         </td>
                         {r.qtyBreaks.map((q) => {
-                          const rate = fmtUnit(currency, byQty.get(q) ?? null, usdPerInr);
+                          const inr = byQty.get(q) ?? null;
+                          const rate = fmtUnit(currency, inr, usdPerInr);
+                          const caseRate = fmtCase(currency, inr, r.casePack, usdPerInr);
                           return (
-                            <td key={q} className="px-4 py-2 text-right">
+                            <td key={q} className="px-4 py-2 text-right align-top">
                               {rate ? (
-                                <span className="font-medium text-ink-900">{rate}</span>
+                                <>
+                                  <span className="font-medium text-ink-900">{rate}</span>
+                                  {caseRate && (
+                                    <span className="mt-0.5 block text-xs text-ink-400">
+                                      {caseRate}/case
+                                    </span>
+                                  )}
+                                </>
                               ) : (
                                 <span className="text-ink-300">—</span>
                               )}
