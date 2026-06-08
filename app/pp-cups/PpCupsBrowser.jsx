@@ -9,9 +9,17 @@
 // CurrencyProvider — no data fetching here.
 
 import { useMemo, useState } from "react";
-import { useDisplay, OfferingToggle } from "./Currency";
+import { useDisplay, OfferingToggle, BasisToggle } from "./Currency";
 
 // ── Money ──────────────────────────────────────────────────────────────────
+// Pick a slab's price for the active basis: EXW India (export / FCL) is the
+// live priceInr; India DDP is the delivered india_landed_inr (may be null →
+// "on request").
+function priceFor(slab, basis) {
+  if (!slab) return null;
+  return basis === "ddp" ? slab.ddpInr ?? null : slab.priceInr ?? null;
+}
+
 function fmtUnit(currency, inr, usdPerInr) {
   if (inr == null) return null;
   if (currency === "USD") {
@@ -80,7 +88,7 @@ export default function PpCupsBrowser({
   total,
   usdPerInr = 90,
 }) {
-  const { currency, unit, offering } = useDisplay();
+  const { currency, unit, offering, basis } = useDisplay();
   const priced = offering === "printed" ? printedPriced : plainPriced;
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
@@ -176,6 +184,17 @@ export default function PpCupsBrowser({
           {offering === "printed"
             ? "Custom-branded cups · quantity ladder from 5,000 pcs · lids are supplied plain"
             : "Plain, unprinted cups & lids"}
+        </span>
+      </div>
+
+      {/* Pricing basis — flips between export EXW (FCL) and India delivered (DDP). */}
+      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-md border border-ink-200 bg-white px-4 py-3">
+        <span className="text-xs font-medium uppercase tracking-wide text-ink-400">Pricing basis</span>
+        <BasisToggle />
+        <span className="text-xs text-ink-500">
+          {basis === "ddp"
+            ? "India DDP · delivered duty-paid within India, full-container (FCL) loads"
+            : "Export EXW India · ex-works, full-container (FCL) loads · freight & duties on buyer"}
         </span>
       </div>
 
@@ -341,6 +360,7 @@ export default function PpCupsBrowser({
                         unit={unit}
                         currency={currency}
                         usdPerInr={usdPerInr}
+                        basis={basis}
                         hasLadder={hasLadder}
                         isOpen={isOpen}
                         onToggle={() => toggle(r.sku)}
@@ -361,6 +381,7 @@ export default function PpCupsBrowser({
                   unit={unit}
                   currency={currency}
                   usdPerInr={usdPerInr}
+                  basis={basis}
                 />
               ))}
             </div>
@@ -372,16 +393,18 @@ export default function PpCupsBrowser({
 }
 
 // One item = a summary row plus an expandable ladder detail row.
-function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, onToggle }) {
+function FragmentRows({ r, off, unit, currency, usdPerInr, basis, hasLadder, isOpen, onToggle }) {
   const entry = off.entry; // lowest qty (highest price)
   const best = off.best; // highest qty (lowest price)
-  const entryRate = fmtUnit(currency, entry?.priceInr, usdPerInr);
-  const bestRate = fmtUnit(currency, best?.priceInr, usdPerInr);
+  const entryInr = priceFor(entry, basis);
+  const bestInr = priceFor(best, basis);
+  const entryRate = fmtUnit(currency, entryInr, usdPerInr);
+  const bestRate = fmtUnit(currency, bestInr, usdPerInr);
 
   let rateCell;
-  if (!entry) {
+  if (!entry || entryInr == null) {
     rateCell = <span className="text-ink-400">On request</span>;
-  } else if (hasLadder) {
+  } else if (hasLadder && bestInr != null) {
     rateCell = (
       <div className="leading-tight">
         <span className="font-medium text-ink-900">
@@ -438,7 +461,7 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
       {hasLadder && isOpen && (
         <tr className="border-b border-ink-100 bg-ink-50/60">
           <td colSpan={8} className="px-3 py-3">
-            <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} />
+            <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} basis={basis} />
           </td>
         </tr>
       )}
@@ -446,7 +469,7 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
   );
 }
 
-function LadderTable({ r, off, currency, usdPerInr }) {
+function LadderTable({ r, off, currency, usdPerInr, basis }) {
   return (
     <div className="rounded border border-ink-200 bg-white">
       <table className="w-full border-collapse text-xs">
@@ -458,26 +481,31 @@ function LadderTable({ r, off, currency, usdPerInr }) {
           </tr>
         </thead>
         <tbody>
-          {off.slabs.map((s) => (
-            <tr key={s.minQty} className="border-b border-ink-50 last:border-0">
-              <td className="px-3 py-1.5 text-ink-700">{s.minQty.toLocaleString("en-IN")}+</td>
-              <td className="px-3 py-1.5 text-right font-medium text-ink-900">
-                {fmtUnit(currency, s.priceInr, usdPerInr)}
-              </td>
-              <td className="px-3 py-1.5 text-right text-ink-600">
-                {fmtCase(currency, s.priceInr, r.casePack, usdPerInr) ?? "—"}
-              </td>
-            </tr>
-          ))}
+          {off.slabs.map((s) => {
+            const inr = priceFor(s, basis);
+            return (
+              <tr key={s.minQty} className="border-b border-ink-50 last:border-0">
+                <td className="px-3 py-1.5 text-ink-700">{s.minQty.toLocaleString("en-IN")}+</td>
+                <td className="px-3 py-1.5 text-right font-medium text-ink-900">
+                  {fmtUnit(currency, inr, usdPerInr) ?? <span className="font-normal text-ink-400">On request</span>}
+                </td>
+                <td className="px-3 py-1.5 text-right text-ink-600">
+                  {fmtCase(currency, inr, r.casePack, usdPerInr) ?? "—"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-function MobileCard({ r, off, unit, currency, usdPerInr }) {
+function MobileCard({ r, off, unit, currency, usdPerInr, basis }) {
   const entry = off.entry;
   const best = off.best;
+  const entryInr = priceFor(entry, basis);
+  const bestInr = priceFor(best, basis);
   const hasLadder = off.slabs.length > 1;
   return (
     <div className="rounded-md border border-ink-200 bg-white p-3">
@@ -490,12 +518,12 @@ function MobileCard({ r, off, unit, currency, usdPerInr }) {
           {r.forming && <FormingTag>{r.forming}</FormingTag>}
         </div>
         <div className="shrink-0 text-right">
-          {entry ? (
+          {entry && entryInr != null ? (
             <>
               <p className="font-semibold text-ink-900">
-                {hasLadder
-                  ? `${fmtUnit(currency, best.priceInr, usdPerInr)}–${fmtUnit(currency, entry.priceInr, usdPerInr)}`
-                  : fmtUnit(currency, entry.priceInr, usdPerInr)}
+                {hasLadder && bestInr != null
+                  ? `${fmtUnit(currency, bestInr, usdPerInr)}–${fmtUnit(currency, entryInr, usdPerInr)}`
+                  : fmtUnit(currency, entryInr, usdPerInr)}
               </p>
               <p className="text-xs text-ink-400">
                 {hasLadder ? `${fmtQty(best.minQty)}–${fmtQty(entry.minQty)} pcs` : `min ${fmtQty(entry.minQty)} pcs`}
@@ -514,7 +542,7 @@ function MobileCard({ r, off, unit, currency, usdPerInr }) {
       {hasLadder && (
         <div className="mt-2 border-t border-ink-100 pt-2">
           <p className="mb-1 text-[11px] uppercase tracking-wide text-ink-400">Quantity breaks</p>
-          <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} />
+          <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} basis={basis} />
         </div>
       )}
     </div>

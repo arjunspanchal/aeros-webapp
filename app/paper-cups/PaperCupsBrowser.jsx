@@ -28,6 +28,19 @@ function fmtCase(currency, inr, casePack, usdPerInr) {
   return `₹${total.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
+// Carton volume in m³, 3 dp — e.g. 0.0645 → "0.064 m³". "—" when unknown.
+function fmtCbm(cbm) {
+  if (cbm == null) return "—";
+  return `${cbm.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³`;
+}
+
+// Pick the active-mode unit price from a slab: FCL (price_inr) or India DDP.
+// DDP is null when the SKU has no per-piece weight to freight → "On request".
+function pickInr(slab, rateMode) {
+  if (!slab) return null;
+  return rateMode === "ddp" ? slab.ddpInr ?? null : slab.priceInr;
+}
+
 // 25000 → "25K", 100000 → "1L", 500000 → "5L", 1500 → "1.5K"
 function fmtQty(n) {
   if (n == null) return "";
@@ -83,13 +96,17 @@ export default function PaperCupsBrowser({
   total,
   usdPerInr = 90,
 }) {
-  const { currency, unit, offering } = useDisplay();
+  const { currency, unit, offering, rateMode } = useDisplay();
+  // Label for the rate basis the table is showing — synced with the masthead
+  // RateModeToggle so each section states FCL vs DDP explicitly.
+  const basisLabel = rateMode === "ddp" ? "DDP India · incl. freight + GST" : "EXW India · bare";
   const priced = offering === "printed" ? printedPriced : plainPriced;
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [volume, setVolume] = useState("all"); // "all" | oz number
   const [finish, setFinish] = useState("all"); // "all" | "white" | "brown"
   const [lining, setLining] = useState("all"); // "all" | "PE" | "Aqueous" | "PLA"
+  const [wrapped, setWrapped] = useState("all"); // "all" | "yes" | "no"
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
   const [expanded, setExpanded] = useState(() => new Set());
 
@@ -115,6 +132,12 @@ export default function PaperCupsBrowser({
     return [...set].sort((a, b) => a - b);
   }, [sections]);
 
+  // Only surface the wrapped filter when the catalogue actually has wrapped cups.
+  const hasWrapped = useMemo(
+    () => sections.some((s) => s.rows.some((r) => r.wrapped)),
+    [sections],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sections
@@ -127,6 +150,8 @@ export default function PaperCupsBrowser({
           if (finish === "white" && r.finish !== "White") return false;
           if (finish === "brown" && r.finish !== "Brown kraft") return false;
           if (lining !== "all" && r.lining !== lining) return false;
+          if (wrapped === "yes" && !r.wrapped) return false;
+          if (wrapped === "no" && r.wrapped) return false;
           const hasPrice = r[offering]?.entry != null;
           if (availability === "priced" && !hasPrice) return false;
           if (availability === "request" && hasPrice) return false;
@@ -134,7 +159,7 @@ export default function PaperCupsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, volume, finish, lining, availability, offering]);
+  }, [sections, query, type, volume, finish, lining, wrapped, availability, offering]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
@@ -143,6 +168,7 @@ export default function PaperCupsBrowser({
     volume !== "all" ||
     finish !== "all" ||
     lining !== "all" ||
+    wrapped !== "all" ||
     availability !== "all";
 
   const reset = () => {
@@ -151,6 +177,7 @@ export default function PaperCupsBrowser({
     setVolume("all");
     setFinish("all");
     setLining("all");
+    setWrapped("all");
     setAvailability("all");
   };
 
@@ -227,7 +254,7 @@ export default function PaperCupsBrowser({
           </div>
         )}
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Finish */}
           <div>
             <span className="block text-xs uppercase tracking-wide text-ink-400">Finish</span>
@@ -280,6 +307,24 @@ export default function PaperCupsBrowser({
               ))}
             </div>
           </div>
+
+          {/* Wrapped — individually-wrapped cups */}
+          {hasWrapped && (
+            <div>
+              <span className="block text-xs uppercase tracking-wide text-ink-400">Wrapping</span>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {[
+                  { value: "all", label: "All" },
+                  { value: "yes", label: "Wrapped" },
+                  { value: "no", label: "Unwrapped" },
+                ].map((opt) => (
+                  <Chip key={opt.value} active={wrapped === opt.value} onClick={() => setWrapped(opt.value)}>
+                    {opt.label}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 flex items-center justify-between border-t border-ink-100 pt-3">
@@ -319,7 +364,10 @@ export default function PaperCupsBrowser({
           return (
           <div key={section.key} className="mt-8">
             <div className="flex items-baseline justify-between">
-              <h3 className="text-base font-bold text-ink-900">{section.label}</h3>
+              <div>
+                <h3 className="text-base font-bold text-ink-900">{section.label}</h3>
+                <span className="text-xs text-ink-400">Rates shown: {basisLabel}</span>
+              </div>
               <span className="font-mono text-xs text-ink-400">{section.rows.length} sizes</span>
             </div>
 
@@ -337,7 +385,13 @@ export default function PaperCupsBrowser({
                       {twoWall ? "GSM (in/out)" : "GSM"}
                     </th>
                     <th className="px-3 py-2 text-right font-medium">Case</th>
-                    <th className="px-3 py-2 text-right font-medium">Unit rate</th>
+                    <th className="px-3 py-2 text-right font-medium" title="Volume of one shipping carton (m³)">CBM/ctn</th>
+                    <th className="px-3 py-2 text-right font-medium">
+                      Unit rate
+                      <span className="block font-normal normal-case tracking-normal text-ink-300">
+                        {rateMode === "ddp" ? "DDP India" : "EXW India"}
+                      </span>
+                    </th>
                     <th className="px-3 py-2" />
                   </tr>
                 </thead>
@@ -354,6 +408,7 @@ export default function PaperCupsBrowser({
                         unit={unit}
                         currency={currency}
                         usdPerInr={usdPerInr}
+                        rateMode={rateMode}
                         hasLadder={hasLadder}
                         isOpen={isOpen}
                         onToggle={() => toggle(r.sku)}
@@ -374,6 +429,7 @@ export default function PaperCupsBrowser({
                   unit={unit}
                   currency={currency}
                   usdPerInr={usdPerInr}
+                  rateMode={rateMode}
                 />
               ))}
             </div>
@@ -386,14 +442,16 @@ export default function PaperCupsBrowser({
 }
 
 // One product = a summary row plus an expandable ladder detail row.
-function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, onToggle }) {
+function FragmentRows({ r, off, unit, currency, usdPerInr, rateMode, hasLadder, isOpen, onToggle }) {
   const entry = off.entry; // lowest qty (highest price)
   const best = off.best; // highest qty (lowest price)
-  const entryRate = fmtUnit(currency, entry?.priceInr, usdPerInr);
-  const bestRate = fmtUnit(currency, best?.priceInr, usdPerInr);
+  const entryInr = pickInr(entry, rateMode);
+  const bestInr = pickInr(best, rateMode);
+  const entryRate = fmtUnit(currency, entryInr, usdPerInr);
+  const bestRate = fmtUnit(currency, bestInr, usdPerInr);
 
   let rateCell;
-  if (!entry) {
+  if (!entry || entryInr == null) {
     rateCell = <span className="text-ink-400">On request</span>;
   } else if (hasLadder) {
     rateCell = (
@@ -425,7 +483,7 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
         onClick={hasLadder ? onToggle : undefined}
       >
         <td className="px-3 py-2 font-mono text-xs text-ink-600">{r.sku}</td>
-        <td className="px-3 py-2 text-ink-900">{r.name}</td>
+        <td className="px-3 py-2 text-ink-900">{r.name || "—"}</td>
         <td className="px-3 py-2 text-ink-600">{r.volume ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{r.lining}</td>
@@ -434,6 +492,9 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
         </td>
         <td className="px-3 py-2 text-right text-ink-600">
           {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
+        </td>
+        <td className="px-3 py-2 text-right text-ink-600" title={r.cartonDims || undefined}>
+          {fmtCbm(r.cbm)}
         </td>
         <td className="px-3 py-2 text-right">{rateCell}</td>
         <td className="px-3 py-2 text-right">
@@ -449,8 +510,8 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
       </tr>
       {hasLadder && isOpen && (
         <tr className="border-b border-ink-100 bg-ink-50/60">
-          <td colSpan={9} className="px-3 py-3">
-            <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} />
+          <td colSpan={10} className="px-3 py-3">
+            <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} rateMode={rateMode} />
           </td>
         </tr>
       )}
@@ -458,7 +519,7 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, hasLadder, isOpen, on
   );
 }
 
-function LadderTable({ r, off, currency, usdPerInr }) {
+function LadderTable({ r, off, currency, usdPerInr, rateMode }) {
   return (
     <div className="rounded border border-ink-200 bg-white">
       <table className="w-full border-collapse text-xs">
@@ -470,43 +531,48 @@ function LadderTable({ r, off, currency, usdPerInr }) {
           </tr>
         </thead>
         <tbody>
-          {off.slabs.map((s) => (
-            <tr key={s.minQty} className="border-b border-ink-50 last:border-0">
-              <td className="px-3 py-1.5 text-ink-700">{s.minQty.toLocaleString("en-IN")}+</td>
-              <td className="px-3 py-1.5 text-right font-medium text-ink-900">
-                {fmtUnit(currency, s.priceInr, usdPerInr)}
-              </td>
-              <td className="px-3 py-1.5 text-right text-ink-600">
-                {fmtCase(currency, s.priceInr, r.casePack, usdPerInr) ?? "—"}
-              </td>
-            </tr>
-          ))}
+          {off.slabs.map((s) => {
+            const inr = pickInr(s, rateMode);
+            return (
+              <tr key={s.minQty} className="border-b border-ink-50 last:border-0">
+                <td className="px-3 py-1.5 text-ink-700">{s.minQty.toLocaleString("en-IN")}+</td>
+                <td className="px-3 py-1.5 text-right font-medium text-ink-900">
+                  {fmtUnit(currency, inr, usdPerInr) ?? "On request"}
+                </td>
+                <td className="px-3 py-1.5 text-right text-ink-600">
+                  {fmtCase(currency, inr, r.casePack, usdPerInr) ?? "—"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-function MobileCard({ r, off, unit, currency, usdPerInr }) {
+function MobileCard({ r, off, unit, currency, usdPerInr, rateMode }) {
   const entry = off.entry;
   const best = off.best;
   const hasLadder = off.slabs.length > 1;
+  const entryInr = pickInr(entry, rateMode);
+  const bestInr = pickInr(best, rateMode);
   return (
     <div className="rounded-md border border-ink-200 bg-white p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-mono text-xs text-ink-400">{r.sku}</p>
           <p className="mt-0.5 font-medium text-ink-900">
-            {r.volume} {r.name && r.name !== "Standard" ? `· ${r.name}` : ""}
+            {r.volume} {r.name ? `· ${r.name}` : ""}
           </p>
         </div>
         <div className="shrink-0 text-right">
-          {entry ? (
+          {entry && entryInr != null ? (
             <>
               <p className="font-semibold text-ink-900">
                 {hasLadder
-                  ? `${fmtUnit(currency, best.priceInr, usdPerInr)}–${fmtUnit(currency, entry.priceInr, usdPerInr)}`
-                  : fmtUnit(currency, entry.priceInr, usdPerInr)}
+                  ? `${fmtUnit(currency, bestInr, usdPerInr)}–${fmtUnit(currency, entryInr, usdPerInr)}`
+                  : fmtUnit(currency, entryInr, usdPerInr)}
               </p>
               <p className="text-xs text-ink-400">
                 {hasLadder ? `${fmtQty(best.minQty)}–${fmtQty(entry.minQty)} pcs` : `min ${fmtQty(entry.minQty)} pcs`}
@@ -525,11 +591,12 @@ function MobileCard({ r, off, unit, currency, usdPerInr }) {
           <GsmValue r={r} />
         </Spec>
         <Spec label="Case pack">{r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}</Spec>
+        <Spec label="CBM / carton">{fmtCbm(r.cbm)}</Spec>
       </dl>
       {hasLadder && (
         <div className="mt-2 border-t border-ink-100 pt-2">
           <p className="mb-1 text-[11px] uppercase tracking-wide text-ink-400">Quantity breaks</p>
-          <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} />
+          <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} rateMode={rateMode} />
         </div>
       )}
     </div>

@@ -278,8 +278,8 @@ export function ExportReadiness() {
         plastics (cups and lids).
       </TermCard>
       <TermCard label="Country of origin">
-        Listed <strong className="text-ink-900">per item</strong> in the rate sheet (India or
-        China) and filterable. Certificate of Origin issued accordingly with each shipment.
+        Listed <strong className="text-ink-900">per item</strong> in the rate sheet (China or
+        India) and filterable. Certificate of Origin issued accordingly with each shipment.
       </TermCard>
       <TermCard label="Documents provided">
         Commercial invoice, packing list, bill of lading and Certificate of Origin. Fumigation /

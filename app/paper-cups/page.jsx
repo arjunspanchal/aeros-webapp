@@ -3,7 +3,8 @@ import { Brand } from "@/app/components/ui/Brand";
 import { CupGuide } from "./CupGuide";
 import { SupplyTerms, QualityChecks, PackingVisual } from "./TradeTerms";
 import PaperCupsBrowser from "./PaperCupsBrowser";
-import { CurrencyProvider, CurrencyToggle, UnitToggle } from "./Currency";
+import { CurrencyProvider, CurrencyToggle, UnitToggle, RateModeToggle } from "./Currency";
+import { PricingBasisValue, RateBasisFootnote } from "./RateBasisCopy";
 
 // Public, no-login rate sheet shared directly with clients. Not in the
 // middleware matcher, so it renders for anyone with the link.
@@ -38,6 +39,7 @@ export default async function PaperCupsPage() {
           <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex flex-wrap items-center justify-between gap-3">
             <Brand size="md" href="/" />
             <div className="flex items-center gap-2">
+              <RateModeToggle />
               <CurrencyToggle />
               <UnitToggle />
             </div>
@@ -67,10 +69,7 @@ export default async function PaperCupsPage() {
               {/* Pricing terms */}
               <section className="mt-8 grid gap-3 rounded-md border border-ink-200 bg-white p-5 text-sm text-ink-600 sm:grid-cols-2">
                 <Term label="Pricing basis">
-                  Rates are <strong className="text-ink-900">EXW India, per piece</strong>. Toggle
-                  between <strong className="text-ink-900">plain</strong> and{" "}
-                  <strong className="text-ink-900">customised</strong> cups in the masthead. FOB Nhava
-                  Sheva quoted on request.
+                  <PricingBasisValue />
                 </Term>
                 <Term label="Currency">
                   Quoted in <strong className="text-ink-900">INR (₹)</strong>. Switch the toggle for
@@ -111,11 +110,7 @@ export default async function PaperCupsPage() {
                   case pack. USD is indicative only, converted from INR at ₹{USD_PER_INR_DIVISOR}/$ —
                   invoicing is in INR unless otherwise agreed.
                 </p>
-                <p>
-                  Rates are EXW India, exclusive of freight, insurance, duties and GST. FOB Nhava
-                  Sheva and landed quotes available on request. Prices subject to change with board
-                  costs.
-                </p>
+                <RateBasisFootnote />
                 <p>
                   Plain: {data.plainPriced} of {data.total} sizes listed with live rates ·
                   Customised: {data.printedPriced} of {data.total}. The remainder are quoted on

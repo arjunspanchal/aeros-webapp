@@ -14,6 +14,8 @@ const DisplayCtx = createContext({
   setUnit: () => {},
   market: "Exports",
   setMarket: () => {},
+  rateMode: "fcl",
+  setRateMode: () => {},
 });
 
 export function useDisplay() {
@@ -30,12 +32,16 @@ export function CurrencyProvider({
   initialCurrency = "INR",
   initialUnit = "mm",
   initialMarket = "Exports",
+  initialRateMode = "fcl",
 }) {
   const [currency, setCurrency] = useState(initialCurrency);
   const [unit, setUnit] = useState(initialUnit);
   const [market, setMarket] = useState(initialMarket);
+  const [rateMode, setRateMode] = useState(initialRateMode);
   return (
-    <DisplayCtx.Provider value={{ currency, setCurrency, unit, setUnit, market, setMarket }}>
+    <DisplayCtx.Provider
+      value={{ currency, setCurrency, unit, setUnit, market, setMarket, rateMode, setRateMode }}
+    >
       {children}
     </DisplayCtx.Provider>
   );
@@ -93,6 +99,22 @@ export function UnitToggle({ className = "" }) {
       options={[
         { value: "mm", label: "mm" },
         { value: "in", label: "in" },
+      ]}
+    />
+  );
+}
+
+export function RateModeToggle({ className = "" }) {
+  const { rateMode, setRateMode } = useDisplay();
+  return (
+    <Segmented
+      ariaLabel="Rate basis"
+      value={rateMode}
+      onChange={setRateMode}
+      className={className}
+      options={[
+        { value: "fcl", label: "FCL" },
+        { value: "ddp", label: "India DDP" },
       ]}
     />
   );
