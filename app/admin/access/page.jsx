@@ -7,7 +7,7 @@
 
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { listAccessUsers, listAccessClients } from "@/lib/access/users";
+import { listAccessUsers, listAccessClients, listAccessVendors } from "@/lib/access/users";
 import AppHeader from "@/app/components/AppHeader";
 import AccessAdmin from "./AccessAdmin";
 
@@ -30,11 +30,13 @@ export default async function AdminAccessPage() {
 
   let users = [];
   let clients = [];
+  let vendors = [];
   let loadError = null;
   try {
-    [users, clients] = await Promise.all([
+    [users, clients, vendors] = await Promise.all([
       listAccessUsers(),
       listAccessClients(),
+      listAccessVendors(),
     ]);
   } catch (err) {
     loadError = String(err?.message || err);
@@ -55,7 +57,7 @@ export default async function AdminAccessPage() {
             <pre className="mt-2 text-xs whitespace-pre-wrap">{loadError}</pre>
           </div>
         ) : (
-          <AccessAdmin initialUsers={users} clients={clients} />
+          <AccessAdmin initialUsers={users} clients={clients} vendors={vendors} />
         )}
       </main>
     </div>

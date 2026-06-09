@@ -10,5 +10,6 @@ export default function OrdersRoot() {
   if (!session || !role) redirect("/login");
   if (role === ROLES.ADMIN) redirect("/factoryos/admin");
   if (role === ROLES.CUSTOMER) redirect("/factoryos/customer");
+  if (role === ROLES.VENDOR) redirect("/factoryos/vendor");
   redirect("/factoryos/manager");
 }

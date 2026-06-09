@@ -42,6 +42,7 @@ export async function POST(req) {
     modules: ents.modules,
     factoryosUserId: ents.factoryosUserId ?? null,
     factoryosClientIds: ents.factoryosClientIds ?? [],
+    factoryosVendorId: ents.factoryosVendorId ?? null,
   });
   jar.set(hubCookie(hubToken));
 
