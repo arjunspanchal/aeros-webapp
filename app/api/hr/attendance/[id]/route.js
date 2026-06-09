@@ -1,4 +1,4 @@
-import { getSession, requireManager } from "@/lib/auth/session";
+import { getSession, hasModule } from "@/lib/auth/session";
 import { deleteAttendance } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export async function DELETE(_req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
+  if (!hasModule(session, "hr")) return new Response("Forbidden", { status: 403 });
   try {
     await deleteAttendance(params.id);
     return Response.json({ ok: true });

@@ -1,37 +1,20 @@
-import { getSession, requireInternal, requireAdminStrict, requireManager } from "@/lib/auth/session";
+import { getSession, hasModule } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
-import { listAttendance, upsertAttendance, getEmployee, computeOtHours, listEmployees } from "@/lib/factoryos/repo";
+import { listAttendance, upsertAttendance, getEmployee, computeOtHours } from "@/lib/factoryos/repo";
 import { ATTENDANCE_WEIGHT, SHIFT_END } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
+// HR is single-level full access — any `hr` user reads/marks the whole roster.
 export async function GET(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
+  if (!hasModule(session, "hr")) return new Response("Forbidden", { status: 403 });
   try {
     const url = new URL(req.url);
     const employeeId = url.searchParams.get("employeeId") || undefined;
     const from = url.searchParams.get("from") || undefined;
     const to = url.searchParams.get("to") || undefined;
-
-    // Factory Manager is scoped to their own employees. If the caller asks
-    // for a specific employeeId, verify ownership first; otherwise fall back
-    // to the caller's employee set.
-    if (!requireAdminStrict(session)) {
-      const myUserId = await resolveFactoryosUserId(session);
-      if (employeeId) {
-        const emp = await getEmployee(employeeId);
-        if (!emp || emp.managerId !== myUserId) {
-          return Response.json({ error: "Not your employee" }, { status: 403 });
-        }
-      } else {
-        const myEmployees = await listEmployees({ managerUserId: myUserId });
-        const myIds = new Set(myEmployees.map((e) => e.id));
-        const all = await listAttendance({ from, to });
-        return Response.json({ attendance: all.filter((r) => myIds.has(r.employeeId)) });
-      }
-    }
 
     const attendance = await listAttendance({ employeeId, from, to });
     return Response.json({ attendance });
@@ -42,12 +25,11 @@ export async function GET(req) {
   }
 }
 
-// Mark attendance. Managers can only mark for employees assigned to them.
-// Admin + Factory Manager can mark for anyone.
+// Mark attendance for any employee.
 export async function POST(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
+  if (!hasModule(session, "hr")) return new Response("Forbidden", { status: 403 });
   try {
     const body = await req.json();
     if (!body.employeeId) return Response.json({ error: "Employee required" }, { status: 400 });
@@ -59,11 +41,7 @@ export async function POST(req) {
     const employee = await getEmployee(body.employeeId);
     if (!employee) return Response.json({ error: "Employee not found" }, { status: 404 });
 
-    const isPrivileged = requireManager(session);
     const myUserId = await resolveFactoryosUserId(session);
-    if (!isPrivileged && employee.managerId !== myUserId) {
-      return Response.json({ error: "Not your assigned employee" }, { status: 403 });
-    }
 
     // OT only counts on Present days for OT-eligible employees.
     // OT = hours past SHIFT_END (19:00) — the factory's hard cutoff.

@@ -1,22 +1,18 @@
-import { getSession, requireInternal, requireManager, requireAdminStrict, requireRole } from "@/lib/auth/session";
-import { resolveFactoryosUserId } from "@/lib/hub/users";
+import { getSession, hasModule } from "@/lib/auth/session";
 import { listEmployees, createEmployee, isDuplicateCode } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 
-// Admin sees everyone. Factory Manager sees only employees assigned to them.
-// Other internal roles don't have HR visibility at all (blocked by middleware).
+// HR is a single-level module — anyone with `modules.hr` has full access to the
+// whole roster (no per-manager scoping). Gated by middleware too.
 export async function GET(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
+  if (!hasModule(session, "hr")) return new Response("Forbidden", { status: 403 });
   try {
     const url = new URL(req.url);
     const activeOnly = url.searchParams.get("active") === "1";
-    const managerUserId = requireAdminStrict(session)
-      ? url.searchParams.get("managerUserId") || undefined
-      : (await resolveFactoryosUserId(session)); // FM is force-scoped to themselves.
-    const employees = await listEmployees({ activeOnly, managerUserId });
+    const employees = await listEmployees({ activeOnly });
     return Response.json({ employees });
   } catch (e) {
     if (e instanceof Response) return e;
@@ -28,7 +24,7 @@ export async function GET(req) {
 export async function POST(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
+  if (!hasModule(session, "hr")) return new Response("Forbidden", { status: 403 });
   try {
     const body = await req.json();
     if (!body.name || !body.name.trim()) {
@@ -42,12 +38,7 @@ export async function POST(req) {
       return Response.json({ error: "Valid monthly salary required" }, { status: 400 });
     }
 
-    // Factory Manager can only create employees reporting to themselves —
-    // ignore any managerId they send and bind ownership to their userId.
-    // Admin can assign any manager (or none).
-    const managerId = requireRole(session, "factoryos", "factory_manager")
-      ? (await resolveFactoryosUserId(session))
-      : body.managerId || null;
+    const managerId = body.managerId || null;
 
     const employee = await createEmployee({
       name: body.name.trim(),

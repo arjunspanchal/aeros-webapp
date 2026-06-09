@@ -34,8 +34,15 @@ const ALL_OPTIONS = [
     key: "factoryos",
     href: "/factoryos",
     title: "FactoryOS",
-    description: "Track orders, jobs, production, RM inventory, and HR — your factory operations in one place.",
+    description: "Track orders, jobs, production, and RM inventory — your factory operations in one place.",
     accent: "from-fuchsia-600 to-purple-700",
+  },
+  {
+    key: "hr",
+    href: "/hr",
+    title: "HR",
+    description: "Employee roster, attendance, payroll, and the punch clock — all in one place.",
+    accent: "from-green-600 to-emerald-700",
   },
 ];
 

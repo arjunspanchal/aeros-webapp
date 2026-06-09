@@ -32,7 +32,7 @@ export default function AttendanceGapsWidget({ gaps, employeeNameById, monthKey 
           return (
             <li key={g.date} className="flex items-center justify-between gap-2 text-sm">
               <Link
-                href={`/factoryos/admin/hr/attendance?date=${g.date}`}
+                href={`/hr/attendance?date=${g.date}`}
                 className="font-mono text-amber-900 dark:text-amber-200 hover:underline"
               >
                 {g.date}

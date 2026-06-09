@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession, requireManager } from "@/lib/auth/session";
+import { getSession, hasModule } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
 import { listEmployees, listAttendance, listUsers } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
-import { computePayroll, currentMonthKeyIST, monthEnd, monthStart } from "@/lib/factoryos/hr";
-import PayrollView from "./PayrollView";
+import {
+  currentMonthKeyIST,
+  monthEnd,
+  monthStart,
+} from "@/lib/factoryos/hr";
+import CalendarView from "./CalendarView";
 
 export const dynamic = "force-dynamic";
 
-export default async function PayrollPage({ searchParams }) {
+export default async function CalendarPage({ searchParams }) {
   const session = getSession();
   if (!session) redirect("/login");
-  if (!requireManager(session)) redirect("/factoryos");
+  if (!hasModule(session, "hr")) redirect("/hub");
 
   const monthKey = (searchParams?.month && /^\d{4}-\d{2}$/.test(searchParams.month))
     ? searchParams.month
@@ -22,7 +26,8 @@ export default async function PayrollPage({ searchParams }) {
     listEmployees(),
     listUsers(),
   ]);
-  const isAdmin = session.modules?.factoryos === ROLES.ADMIN;
+
+  const isAdmin = true;
   const showAll = isAdmin;
   const myUserId = isAdmin ? null : await resolveFactoryosUserId(session);
   const employees = isAdmin
@@ -31,36 +36,36 @@ export default async function PayrollPage({ searchParams }) {
 
   const from = monthStart(monthKey);
   const to = monthEnd(monthKey);
+
+  // Fetch attendance once for the whole month, then split per employee.
+  // Restricted to visible employees so other managers' rows never ship to the client.
+  const visibleIds = new Set(employees.map((e) => e.id));
   const allAttendance = await listAttendance({ from, to });
   const byEmployee = {};
   for (const r of allAttendance) {
+    if (!visibleIds.has(r.employeeId)) continue;
     if (!byEmployee[r.employeeId]) byEmployee[r.employeeId] = [];
     byEmployee[r.employeeId].push(r);
   }
-
-  const rows = employees.map((e) => ({
-    employee: e,
-    payroll: computePayroll(e, byEmployee[e.id] || []),
-  }));
 
   const managerMap = Object.fromEntries(users.map((u) => [u.id, u]));
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/factoryos/admin/hr" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Link href="/hr" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
           ← HR
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-4 dark:text-white">Payroll</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mt-4 dark:text-white">Attendance calendar</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-          Base pay = monthly salary × present days / 30. OT pay = OT hours × (salary/30/10 × 1.5).
+          P = Present · A = Absent · H = Half-day. Green borders = OT logged.
         </p>
-
-        <PayrollView
+        <CalendarView
           monthKey={monthKey}
-          rows={rows}
+          employees={employees}
+          attendanceByEmployee={byEmployee}
           managerMap={managerMap}
-          canToggleScope={session.modules?.factoryos === ROLES.ADMIN}
+          canToggleScope={true}
           showingAll={showAll}
         />
       </main>

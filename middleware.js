@@ -70,6 +70,26 @@ function legacyOrdersRedirect(req) {
   return null;
 }
 
+// HR moved out of FactoryOS into its own top-level module. Redirect old
+// /factoryos/admin/hr pages + the relocated employee/attendance APIs so
+// bookmarks and any cached clients keep working. 308 preserves method + body.
+function legacyHrRedirect(req) {
+  const { pathname, search } = req.nextUrl;
+  let next = null;
+  if (pathname === "/factoryos/admin/hr" || pathname.startsWith("/factoryos/admin/hr/")) {
+    next = pathname.replace(/^\/factoryos\/admin\/hr/, "/hr");
+  } else if (pathname === "/api/factoryos/employees" || pathname.startsWith("/api/factoryos/employees/")) {
+    next = pathname.replace(/^\/api\/factoryos\/employees/, "/api/hr/employees");
+  } else if (pathname === "/api/factoryos/attendance" || pathname.startsWith("/api/factoryos/attendance/")) {
+    next = pathname.replace(/^\/api\/factoryos\/attendance/, "/api/hr/attendance");
+  }
+  if (!next) return null;
+  const url = req.nextUrl.clone();
+  url.pathname = next;
+  url.search = search;
+  return NextResponse.redirect(url, 308);
+}
+
 export async function middleware(req) {
   const { pathname } = req.nextUrl;
   const secret = process.env.SESSION_SECRET;
@@ -77,6 +97,10 @@ export async function middleware(req) {
   // Legacy URL shim — redirect any old /orders or /api/orders paths to /factoryos.
   const legacy = legacyOrdersRedirect(req);
   if (legacy) return legacy;
+
+  // HR-moved-out-of-FactoryOS shim — old /factoryos/admin/hr + HR API paths.
+  const hrLegacy = legacyHrRedirect(req);
+  if (hrLegacy) return hrLegacy;
 
   // --- Hub: landing, dashboard, catalog, WarehouseOS ---
   // Public read access (no gate):
@@ -132,6 +156,20 @@ export async function middleware(req) {
     if (pathname.startsWith("/calculator/admin") && payload.modules.calculator !== "admin") {
       return NextResponse.redirect(new URL("/calculator/client", req.url));
     }
+    return NextResponse.next();
+  }
+
+  // --- HR module (standalone, gated by the independent `hr` entitlement) ---
+  if (pathname.startsWith("/api/hr/") || pathname.startsWith("/hr")) {
+    const token = req.cookies.get("aeros_hub_session")?.value;
+    const payload = secret ? await verify(token, secret) : null;
+    if (!payload || !payload.modules?.hr) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      return redirectToLogin(req);
+    }
+    if (await isSessionStale(payload)) return redirectStaleSession(req);
     return NextResponse.next();
   }
 
@@ -215,6 +253,8 @@ export const config = {
     "/api/calc/:path*",
     "/factoryos/:path*",
     "/api/factoryos/:path*",
+    "/hr/:path*",
+    "/api/hr/:path*",
     "/orders/:path*",
     "/api/orders/:path*",
     "/admin/:path*",

@@ -144,7 +144,7 @@ export default function CalendarView({
                       return (
                         <td key={d} className="p-0.5 text-center">
                           <Link
-                            href={`/factoryos/admin/hr/attendance?date=${iso}${showingAll ? "&scope=all" : ""}`}
+                            href={`/hr/attendance?date=${iso}${showingAll ? "&scope=all" : ""}`}
                             className={`block w-6 h-6 leading-6 rounded text-[10px] font-bold mx-auto ${cls} ${
                               hasOt ? "ring-2 ring-emerald-300 dark:ring-emerald-600" : ""
                             }`}

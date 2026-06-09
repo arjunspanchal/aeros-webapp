@@ -69,9 +69,6 @@ export default async function AdminDashboard() {
             <Link href="/factoryos/admin/runs" className="px-3 py-1.5 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
               Production runs
             </Link>
-            <Link href="/factoryos/admin/hr" className="px-3 py-1.5 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
-              HR
-            </Link>
           </div>
         </header>
 
