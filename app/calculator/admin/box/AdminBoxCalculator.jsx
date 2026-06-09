@@ -5,6 +5,7 @@ import {
   BOX_TYPES, FLUTE_PROFILES, PLY_OPTIONS, calculate, computeRateCurve, optimizationTips,
   getDefaultWastage, isPasted, isCorrugated, defaultCorrugatedLayers,
 } from "@/lib/calc/box-calculator";
+import { exportBoxQuoteCSV, exportBoxQuotePDF, exportAdminBoxQuotePDF } from "@/app/calculator/_components/box-export";
 
 const QTY_OPTIONS = [5000, 10000, 25000, 50000, 100000];
 
@@ -369,6 +370,47 @@ export default function AdminBoxCalculator({ papers = [] }) {
           </Card>
         )}
 
+        {/* PR-B: export parity with Bag/Cup/PP admin calcs. CSV for finance,
+            Customer PDF for sending out, Admin PDF for internal review (carries
+            mfg breakdown + margin). Forwards the same {form, result, curve}
+            triple to box-export.js — no calculation duplicated. */}
+        <Card title="Export">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => exportBoxQuoteCSV({ form, result, curve })}
+              className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              title="Download CSV with cost breakdown + rate curve"
+            >
+              ⇩ CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => exportBoxQuotePDF({ form, result, curve })}
+              className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              title="Customer-facing PDF (clean — no margin / mfg breakdown)"
+            >
+              📄 Customer PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => exportAdminBoxQuotePDF({ form, result, curve })}
+              className="px-3 py-2 text-sm font-medium rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200 dark:hover:bg-amber-900/40"
+              title="Internal admin PDF with full cost breakdown + margin"
+            >
+              🔒 Admin PDF
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-500 mt-2 dark:text-gray-400">
+            Customer PDF is safe to send out — it shows only the rate curve and specs. Admin PDF includes mfg cost and margin (do not share).
+          </p>
+        </Card>
+
+        {/* Save button colour normalised from emerald → blue to match Bag / Cup /
+            PP admin calcs (audit consistency fix). "Save" stays the primary
+            action; Export sits above it because exports answer "share with
+            customer now" which is more often the next step than "save for
+            later". */}
         <Card title="Save this quote">
           <div className="flex gap-2">
             <input
@@ -379,7 +421,7 @@ export default function AdminBoxCalculator({ papers = [] }) {
             />
             <button
               onClick={saveQuote}
-              className="shrink-0 bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-emerald-700"
+              className="shrink-0 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700"
             >Save</button>
           </div>
           {saveStatus === "success" && <p className="text-xs text-green-600 mt-2">✓ Saved.</p>}
