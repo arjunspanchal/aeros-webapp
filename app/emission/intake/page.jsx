@@ -8,7 +8,7 @@ import { listStaff, createJob, updateJob, findJobsByPhone } from "../_lib/data";
 import { uploadObject } from "../_lib/client";
 import { BUCKETS } from "../_lib/config";
 import { JobIntake } from "../_lib/schemas";
-import { todayISO, fmtDate, statusLabel } from "../_lib/format";
+import { todayISO, fmtDate, statusLabel, warrantyStatus } from "../_lib/format";
 
 function IntakeInner() {
   const { session } = useAuth();
@@ -144,14 +144,20 @@ function IntakeInner() {
                 </button>
               ) : null}
             </div>
+            {priorJobs.some((j) => j.date_delivered && warrantyStatus(j.date_delivered, j.service_warranty_days)?.active) ? (
+              <div style={{ marginTop: 6, fontWeight: 700, fontSize: 13 }}>⛨ A prior repair is still under service warranty — this may be a free re-service.</div>
+            ) : null}
             <div style={{ marginTop: 8 }}>
-              {priorJobs.slice(0, 4).map((j) => (
-                <a key={j.job_no} href={`/emission/jobs/${j.job_no}`} target="_blank" rel="noreferrer"
-                  style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "4px 0", textDecoration: "none", color: "inherit" }}>
-                  <span style={{ fontSize: 13 }}><span className="em-mono">#{j.job_no}</span> · {[j.brand, j.model].filter(Boolean).join(" ") || "—"}</span>
-                  <span className="em-meta-k" style={{ whiteSpace: "nowrap" }}>{statusLabel(j.status)} · {fmtDate(j.date_received)}</span>
-                </a>
-              ))}
+              {priorJobs.slice(0, 4).map((j) => {
+                const w = j.date_delivered ? warrantyStatus(j.date_delivered, j.service_warranty_days) : null;
+                return (
+                  <a key={j.job_no} href={`/emission/jobs/${j.job_no}`} target="_blank" rel="noreferrer"
+                    style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "4px 0", textDecoration: "none", color: "inherit" }}>
+                    <span style={{ fontSize: 13 }}><span className="em-mono">#{j.job_no}</span> · {[j.brand, j.model].filter(Boolean).join(" ") || "—"}{w?.active ? <span style={{ fontWeight: 700 }}> · ⛨{w.daysLeft}d</span> : null}</span>
+                    <span className="em-meta-k" style={{ whiteSpace: "nowrap" }}>{statusLabel(j.status)} · {fmtDate(j.date_received)}</span>
+                  </a>
+                );
+              })}
             </div>
           </div>
         ) : null}

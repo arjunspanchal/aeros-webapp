@@ -38,7 +38,7 @@ export function findJobsByPhone(session, phone) {
   if (d.length < 8) return Promise.resolve([]);
   return api.select(
     "jobs",
-    { select: "job_no,customer_name,brand,model,status,date_received", filter: { phone: `ilike.*${d}*` }, order: "date_received.desc", limit: "8" },
+    { select: "job_no,customer_name,brand,model,status,date_received,date_delivered,service_warranty_days", filter: { phone: `ilike.*${d}*` }, order: "date_received.desc", limit: "8" },
     tok(session),
   );
 }

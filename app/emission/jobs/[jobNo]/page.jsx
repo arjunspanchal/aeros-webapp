@@ -10,7 +10,7 @@ import {
 } from "../../_lib/data";
 import { uploadObject } from "../../_lib/client";
 import { BUCKETS } from "../../_lib/config";
-import { inr, fmtDate, daysSince, todayISO, timeAgo, PAYMENT_LABEL, ITEM_TYPE_LABEL, CLAIM_LABEL, statusLabel } from "../../_lib/format";
+import { inr, fmtDate, daysSince, todayISO, timeAgo, warrantyStatus, PAYMENT_LABEL, ITEM_TYPE_LABEL, CLAIM_LABEL, statusLabel } from "../../_lib/format";
 import { JobStatus, LIFECYCLE, TERMINAL_BRANCHES, TERMINAL_STATUSES, ItemType, ClaimStatus, PaymentMethod } from "../../_lib/schemas";
 
 export default function JobDetailPage({ params }) {
@@ -60,6 +60,7 @@ export default function JobDetailPage({ params }) {
   const phoneDigits = (job.phone || "").replace(/\D/g, "");
   const waText = encodeURIComponent(`Hi ${job.customer_name}, regarding your ${[job.brand, job.model].filter(Boolean).join(" ")} (Job #${job.job_no}) at Emission Electronics — `);
   const overdue = job.promised_date && open && job.status !== "ready" && job.promised_date < todayISO();
+  const warranty = job.date_delivered ? warrantyStatus(job.date_delivered, job.service_warranty_days) : null;
 
   return (
     <div>
@@ -90,6 +91,7 @@ export default function JobDetailPage({ params }) {
         <Meta k="Received" v={fmtDate(job.date_received)} />
         <Meta k={overdue ? "Promised · OVERDUE" : "Promised"} v={job.promised_date ? <span style={overdue ? { fontWeight: 800 } : null}>{fmtDate(job.promised_date)}</span> : "—"} />
         <Meta k="Delivered" v={job.date_delivered ? fmtDate(job.date_delivered) : "—"} />
+        <Meta k="Repair warranty" mono={false} v={warranty ? <span style={warranty.active ? null : { color: "var(--em-muted)" }}>{fmtDate(warranty.until)} {warranty.active ? `· ${warranty.daysLeft}d left` : "· expired"}</span> : "—"} />
         <Meta k="Technician" v={techName || "—"} mono={false} />
         <Meta k="Accessories" v={job.accessories || "—"} mono={false} />
       </div>
@@ -248,6 +250,7 @@ function StatusControls({ session, job, onChange }) {
 function AssignmentEditor({ session, job, staff, onChange }) {
   const [tech, setTech] = useState(job.technician_id || "");
   const [defect, setDefect] = useState(job.defect_found || "");
+  const [warrantyDays, setWarrantyDays] = useState(job.service_warranty_days ?? 90);
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
   const sigRef = useRef(null);
@@ -255,7 +258,7 @@ function AssignmentEditor({ session, job, staff, onChange }) {
   async function save() {
     setBusy(true); setOk(false);
     try {
-      await updateJob(session, job.id, { technician_id: tech || null, defect_found: defect.trim() || null });
+      await updateJob(session, job.id, { technician_id: tech || null, defect_found: defect.trim() || null, service_warranty_days: Number(warrantyDays) || 90 });
       if (sigRef.current?.isDirty()) {
         const blob = await sigRef.current.getBlob();
         if (blob) {
@@ -279,6 +282,9 @@ function AssignmentEditor({ session, job, staff, onChange }) {
       </Field>
       <Field label="Defect found">
         <textarea className="em-textarea" value={defect} onChange={(e) => { setDefect(e.target.value); setOk(false); }} placeholder="Diagnosis…" />
+      </Field>
+      <Field label="Service warranty (days)" hint="On the repair, from delivery. Default 90.">
+        <input className="em-input em-mono" type="number" inputMode="numeric" value={warrantyDays} onChange={(e) => { setWarrantyDays(e.target.value); setOk(false); }} />
       </Field>
       <Field label="Technician signature">
         <SignaturePad ref={sigRef} height={140} />

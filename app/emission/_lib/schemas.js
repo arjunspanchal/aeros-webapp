@@ -25,7 +25,7 @@ export const PinRole = z.enum(["staff", "admin"]);
 export const JOB_STAFF_COLUMNS = [
   "id", "job_no", "date_received", "customer_name", "phone", "address", "email", "brand", "model",
   "serial_no", "complaint", "accessories", "remarks", "status", "technician_id", "defect_found",
-  "date_delivered", "promised_date", "customer_signature_path", "technician_signature_path", "is_historical",
+  "date_delivered", "promised_date", "service_warranty_days", "customer_signature_path", "technician_signature_path", "is_historical",
   "created_at", "updated_at",
 ].join(",");
 

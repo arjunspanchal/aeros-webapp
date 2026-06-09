@@ -146,6 +146,12 @@ export default function StatusPage() {
                 <Meta k="Delivered" v={job.date_delivered ? fmtDate(job.date_delivered) : "—"} />
               </div>
 
+              {job.warranty_until && job.status === "delivered" ? (
+                <div className="em-label" style={{ marginTop: 12, textTransform: "none", letterSpacing: "0.03em" }}>
+                  🛡 Service warranty on this repair until <b>{fmtDate(job.warranty_until)}</b>.
+                </div>
+              ) : null}
+
               {job.status === "delivered" ? <FeedbackBox job={job} jobNo={jobNo} phone={phone} onDone={fetchJob} /> : null}
             </div>
           ) : null}

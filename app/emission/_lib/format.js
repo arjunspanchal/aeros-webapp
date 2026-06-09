@@ -74,6 +74,16 @@ export function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Service-warranty window from a delivery date + warranty days.
+export function warrantyStatus(dateDelivered, days = 90) {
+  if (!dateDelivered) return null;
+  const until = new Date((typeof dateDelivered === "string" && dateDelivered.length === 10 ? dateDelivered + "T00:00:00" : dateDelivered));
+  if (isNaN(until)) return null;
+  until.setDate(until.getDate() + Number(days || 90));
+  const daysLeft = Math.ceil((until.getTime() - Date.now()) / 86400000);
+  return { until, daysLeft, active: daysLeft >= 0 };
+}
+
 // Short relative time, e.g. "just now", "5m ago", "3h ago", "2d ago", "12 Apr".
 export function timeAgo(ts) {
   if (!ts) return "";
