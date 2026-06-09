@@ -41,6 +41,9 @@ export default function MarkAttendance({
           inTime: existing?.inTime || SHIFT_START,
           outTime: existing?.outTime || SHIFT_END,
           notes: existing?.notes || "",
+          // Was this row last recorded by the worker via the punch clock?
+          // (vs. a manager on this page.) Lets managers spot self-marked days.
+          selfMarked: existing?.markedByName === "self",
           saved: !!existing,
           dirty: false,
           saving: false,
@@ -87,7 +90,7 @@ export default function MarkAttendance({
     }
     setRows((prev) =>
       prev.map((r) =>
-        r.employeeId === row.employeeId ? { ...r, saving: false, dirty: false, saved: true } : r,
+        r.employeeId === row.employeeId ? { ...r, saving: false, dirty: false, saved: true, selfMarked: false } : r,
       ),
     );
     router.refresh();
@@ -185,7 +188,7 @@ export default function MarkAttendance({
 }
 
 function AttendanceRow({ row, managerMap, canMark, onChange, onSave }) {
-  const { employee, status, inTime, outTime, dirty, saving, saved, error } = row;
+  const { employee, status, inTime, outTime, dirty, saving, saved, selfMarked, error } = row;
   const otPreview = employee.otEligible && status === "P" ? computeOtPreview(outTime) : 0;
   const otRate = otHourlyRate(employee);
   const otEarn = otPreview * otRate;
@@ -210,6 +213,14 @@ function AttendanceRow({ row, managerMap, canMark, onChange, onSave }) {
             {!canMark && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                 read-only
+              </span>
+            )}
+            {selfMarked && (
+              <span
+                title="Recorded by the employee via the punch clock"
+                className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+              >
+                self
               </span>
             )}
             {employee.otEligible && (
