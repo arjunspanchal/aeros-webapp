@@ -18,9 +18,13 @@ function nextMonth(mk) {
 }
 
 const STATUS_STYLE = {
-  P: "bg-emerald-500 text-white",
-  A: "bg-red-500 text-white",
-  H: "bg-amber-500 text-white",
+  P:  "bg-emerald-500 text-white",
+  A:  "bg-red-500 text-white",
+  H:  "bg-amber-500 text-white",
+  PL: "bg-sky-500 text-white",
+  UL: "bg-orange-500 text-white",
+  WO: "bg-gray-300 text-gray-600 dark:bg-gray-700 dark:text-gray-300",
+  HO: "bg-blue-200 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
 };
 
 export default function CalendarView({
@@ -28,6 +32,7 @@ export default function CalendarView({
   employees,
   attendanceByEmployee,
   managerMap,
+  holidayMap = {},
   canToggleScope,
   showingAll,
 }) {
@@ -139,8 +144,23 @@ export default function CalendarView({
                     {Array.from({ length: days }, (_, i) => i + 1).map((d) => {
                       const iso = `${monthKey}-${pad2(d)}`;
                       const r = byDate[iso];
-                      const cls = r ? STATUS_STYLE[r.status] || "bg-gray-200" : "bg-gray-100 dark:bg-gray-800/60";
+                      const dow = new Date(y, m - 1, d).getDay();
+                      const holidayName = holidayMap[iso];
+                      const isOff = (e.weeklyOffDays || [0]).includes(dow);
                       const hasOt = r && Number(r.otHours) > 0;
+                      // Priority: explicit mark > holiday > weekly-off > plain unmarked.
+                      let cls, label, title;
+                      if (r) {
+                        cls = STATUS_STYLE[r.status] || "bg-gray-200";
+                        label = r.status;
+                        title = `${iso} · ${r.status}${r.inTime ? ` · ${r.inTime}` : ""}${r.outTime ? `–${r.outTime}` : ""}${hasOt ? ` · ${r.otHours}h OT` : ""}`;
+                      } else if (holidayName) {
+                        cls = STATUS_STYLE.HO; label = ""; title = `${iso} · Holiday: ${holidayName}`;
+                      } else if (isOff) {
+                        cls = STATUS_STYLE.WO; label = ""; title = `${iso} · Weekly off`;
+                      } else {
+                        cls = "bg-gray-100 dark:bg-gray-800/60"; label = ""; title = `${iso} · not marked`;
+                      }
                       return (
                         <td key={d} className="p-0.5 text-center">
                           <Link
@@ -148,13 +168,9 @@ export default function CalendarView({
                             className={`block w-6 h-6 leading-6 rounded text-[10px] font-bold mx-auto ${cls} ${
                               hasOt ? "ring-2 ring-emerald-300 dark:ring-emerald-600" : ""
                             }`}
-                            title={
-                              r
-                                ? `${iso} · ${r.status}${r.inTime ? ` · ${r.inTime}` : ""}${r.outTime ? `–${r.outTime}` : ""}${hasOt ? ` · ${r.otHours}h OT` : ""}`
-                                : `${iso} · not marked`
-                            }
+                            title={title}
                           >
-                            {r ? r.status : ""}
+                            {label}
                           </Link>
                         </td>
                       );

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, hasModule } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
-import { listEmployees, listUsers, listAttendance } from "@/lib/factoryos/repo";
+import { listEmployees, listUsers, listAttendance, listHolidays } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import {
   currentMonthKeyIST,
@@ -37,15 +37,18 @@ export default async function HrPage() {
   const monthKey = currentMonthKeyIST();
   const today = todayYmdIST();
   const visibleIds = new Set(employees.map((e) => e.id));
-  const monthAttendance = employees.length
-    ? (await listAttendance({ from: monthStart(monthKey), to: monthEnd(monthKey) }))
-        .filter((r) => visibleIds.has(r.employeeId))
-    : [];
+  const [monthAttendanceAll, monthHolidays] = await Promise.all([
+    employees.length ? listAttendance({ from: monthStart(monthKey), to: monthEnd(monthKey) }) : [],
+    listHolidays({ from: monthStart(monthKey), to: monthEnd(monthKey) }),
+  ]);
+  const monthAttendance = monthAttendanceAll.filter((r) => visibleIds.has(r.employeeId));
+  const holidayDates = monthHolidays.map((h) => h.date);
   const gaps = findAttendanceGaps({
     monthKey,
     upToDate: today,
     employees,
     attendance: monthAttendance,
+    holidays: holidayDates,
   });
   const employeeNameById = Object.fromEntries(employees.map((e) => [e.id, e.name]));
 
@@ -72,6 +75,9 @@ export default async function HrPage() {
             </Link>
             <Link href="/hr/payroll" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
               Payroll
+            </Link>
+            <Link href="/hr/holidays" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
+              Holidays
             </Link>
             <Link
               href="/hr/clock"

@@ -15,6 +15,7 @@ const HR_SECTIONS = [
       { href: "/hr/attendance", label: "Attendance" },
       { href: "/hr/calendar",   label: "Calendar" },
       { href: "/hr/payroll",    label: "Payroll" },
+      { href: "/hr/holidays",   label: "Holidays" },
     ],
   },
 ];
