@@ -1,12 +1,17 @@
-import { getSession, requireManager } from "@/lib/auth/session";
+import { getSession, requireInternal, requireManager } from "@/lib/auth/session";
 import { listVendors, createVendor } from "@/lib/factoryos/repo";
 import { VENDOR_TYPES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
+// Vendor directory is internal-only. Contacts, types, and (eventually rate-
+// bearing) supplier records are not for customers — and external printing
+// vendors must not see each other's entries. Internal = admin / FM / FE / AM.
+// `requireInternal` allows hub-level isAdmin (password admin) too.
 export async function GET(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
+  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || undefined;
