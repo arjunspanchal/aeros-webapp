@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuth } from "../_components/AuthProvider";
 import { Eyebrow, Title, StatusLabel } from "../_components/ui";
 import {
-  dashOpenJobs, dashAgedJobs, dashClaimsPending, dashRevenueByChannel, dashRevenueByType,
+  dashOpenJobs, dashAgedJobs, dashClaimsPending, dashRevenueByChannel, dashRevenueByType, dashService,
 } from "../_lib/data";
 import { inr, fmtDate, PAYMENT_LABEL, REVENUE_CATEGORY_LABEL, CLAIM_LABEL } from "../_lib/format";
 
@@ -37,9 +37,10 @@ export default function DashboardPage() {
       dashClaimsPending(session),
       dashRevenueByChannel(session, from, to),
       dashRevenueByType(session, from, to),
+      dashService(session).catch(() => null),
     ])
-      .then(([open, aged, claims, byChannel, byType]) => {
-        if (live) { setData({ open, aged, claims, byChannel, byType }); setErr(""); }
+      .then(([open, aged, claims, byChannel, byType, service]) => {
+        if (live) { setData({ open, aged, claims, byChannel, byType, service }); setErr(""); }
       })
       .catch((e) => live && setErr(e.message))
       .finally(() => live && setLoading(false));
@@ -122,7 +123,41 @@ export default function DashboardPage() {
                   <span className="em-eyebrow em-eyebrow--ondark">{data.claims.length} unpaid</span>
                 </div>
               </Block>
+
+              {/* Service metrics */}
+              {data.service ? (
+                <Block title="SERVICE">
+                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "baseline" }}>
+                    <div>
+                      <span className="em-mono" style={{ fontSize: 30, fontWeight: 800, color: "var(--em-gold)" }}>{data.service.avg_rating ?? "—"}</span>
+                      <span className="em-eyebrow em-eyebrow--ondark"> ★ ({data.service.rating_count})</span>
+                    </div>
+                    <div><span className="em-mono" style={{ fontSize: 22, fontWeight: 700, color: "#fff" }}>{data.service.ready_count}</span> <span className="em-eyebrow em-eyebrow--ondark">ready</span></div>
+                    <div><span className="em-mono" style={{ fontSize: 22, fontWeight: 700, color: data.service.overdue_count ? "#fff" : "rgba(255,255,255,0.4)" }}>{data.service.overdue_count}</span> <span className="em-eyebrow em-eyebrow--ondark">overdue</span></div>
+                  </div>
+                </Block>
+              ) : null}
             </div>
+
+            {/* Ready for pickup */}
+            {data.service?.ready?.length ? (
+              <Block title="READY FOR PICKUP — CALL THE CUSTOMER" style={{ marginTop: 14 }}>
+                {data.service.ready.map((j) => (
+                  <Link key={j.job_no} href={`/emission/jobs/${j.job_no}`} style={{ textDecoration: "none", color: "inherit" }}>
+                    <DarkRow left={`#${j.job_no} · ${j.customer}`} mid={j.model || ""} right={`${j.days}d`} />
+                  </Link>
+                ))}
+              </Block>
+            ) : null}
+
+            {/* Recent feedback */}
+            {data.service?.recent_feedback?.length ? (
+              <Block title="RECENT CUSTOMER FEEDBACK" style={{ marginTop: 14 }}>
+                {data.service.recent_feedback.map((f, i) => (
+                  <DarkRow key={i} left={`#${f.job_no} · ${f.customer}`} mid={f.comment || ""} right={"★".repeat(f.rating)} />
+                ))}
+              </Block>
+            ) : null}
 
             {/* Claims list */}
             {data.claims.length ? (
