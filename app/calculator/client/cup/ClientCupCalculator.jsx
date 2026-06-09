@@ -245,6 +245,12 @@ export default function ClientCupCalculator() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [quoteRef, setQuoteRef] = useState("");
+  // PR-C: client save parity with bag/box. /calculator/client/quotes already
+  // promises "your cup quotes" but the cup client had no way to produce one.
+  // API at /api/calc/cup-quotes accepts client POSTs (rowToQuote pins
+  // client_email to session.email server-side, so we don't need to send it).
+  const [saveStatus, setSaveStatus] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -313,6 +319,48 @@ export default function ClientCupCalculator() {
     if (!result?.curve) return null;
     return result.curve.find((c) => c.qty === form.orderQty) || result.curve[0];
   }, [result, form.orderQty]);
+
+  // PR-C: save a calculated quote to /api/calc/cup-quotes. Pulls the same
+  // mfg/selling/order-total fields the admin sends; client_email is locked to
+  // the session by the server, so we don't need to include it. Quotes land
+  // in /calculator/client/quotes where the client (and admin) can recall them.
+  async function saveQuote() {
+    if (!result || !selectedTier) return;
+    setSaveStatus(null);
+    setSaving(true);
+    const oneTimeTotal = (result.oneTime?.plateCost || 0) + (result.oneTime?.dieCost || 0);
+    const payload = {
+      quoteRef: quoteRef || `CQ ${new Date().toISOString().split("T")[0]}`,
+      wallType:  form.wallType,
+      size:      form.size,
+      sku:       form.sku,
+      innerGsm:  form.innerGsm,
+      outerGsm:  form.wallType === "Single Wall" ? null : form.outerGsm,
+      innerCoating: form.coating,
+      orderQty:  form.orderQty,
+      printing:  form.print,
+      colours:   form.colours,
+      coverage:  form.coverage,
+      casePack:  result.casePack,
+      cupWeightG: result.cupWeightG,
+      sellingPrice: selectedTier.ratePerCup,
+      orderTotal: selectedTier.orderTotal,
+      costPerCase: selectedTier.costPerCase,
+      oneTimeTotal,
+    };
+    try {
+      const res = await fetch("/api/calc/cup-quotes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      setSaveStatus(res.ok ? "success" : "error");
+    } catch {
+      setSaveStatus("error");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -611,6 +659,34 @@ export default function ClientCupCalculator() {
               </div>
               <p className="text-xs text-gray-400 mt-3 dark:text-gray-500">
                 PDF uses the browser's Print → Save as PDF.
+              </p>
+            </Card>
+
+            {/* PR-C: client save parity. Previously cup-quotes API existed but
+                the cup client had no save UI — meaning /calculator/client/quotes
+                was a page promising cup quotes that the client could never
+                produce. Now they can. */}
+            <Card title="Save this quote">
+              <button
+                type="button"
+                onClick={saveQuote}
+                disabled={saving}
+                className="w-full bg-blue-600 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-60"
+              >
+                {saving ? "Saving…" : "Save to my quotes"}
+              </button>
+              {saveStatus === "success" && (
+                <p className="text-xs text-green-600 mt-2 dark:text-green-400">
+                  ✓ Saved. View it in{" "}
+                  <a href="/calculator/client/quotes" className="underline">My Quotes</a>.
+                </p>
+              )}
+              {saveStatus === "error" && (
+                <p className="text-xs text-red-500 mt-2">Save failed. Try again.</p>
+              )}
+              <p className="text-xs text-gray-400 mt-2 dark:text-gray-500">
+                Reference: <span className="font-mono">{quoteRef || `CQ ${new Date().toISOString().split("T")[0]}`}</span>.
+                Set it above for a clearer label in your history.
               </p>
             </Card>
           </>

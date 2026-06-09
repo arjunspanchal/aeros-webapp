@@ -237,6 +237,10 @@ export default function ClientBoxCalculator({ papers = [] }) {
               </p>
             </Card>
 
+            {/* PR-C: save-button colour normalised emerald → blue to match
+                Bag and Cup client (audit consistency). Success message gains
+                a "View in My Quotes" deep-link so the client can see where
+                their quote landed instead of guessing if save worked. */}
             <Card title="Save this quote">
               <div className="flex gap-2">
                 <input
@@ -247,10 +251,15 @@ export default function ClientBoxCalculator({ papers = [] }) {
                 />
                 <button
                   onClick={saveQuote}
-                  className="shrink-0 bg-emerald-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-emerald-700"
+                  className="shrink-0 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700"
                 >Save</button>
               </div>
-              {saveStatus === "success" && <p className="text-xs text-green-600 mt-2">✓ Saved to your quote history.</p>}
+              {saveStatus === "success" && (
+                <p className="text-xs text-green-600 mt-2 dark:text-green-400">
+                  ✓ Saved. View it in{" "}
+                  <a href="/calculator/client/quotes" className="underline">My Quotes</a>.
+                </p>
+              )}
               {saveStatus === "error" && <p className="text-xs text-red-500 mt-2">Save failed. Try again.</p>}
             </Card>
           </>
