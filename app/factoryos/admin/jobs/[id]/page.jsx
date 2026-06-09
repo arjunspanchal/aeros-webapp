@@ -1,10 +1,10 @@
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { getJob, listJobUpdates, listClients, listVendors } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { fetchCatalog } from "@/lib/catalog";
 import JobEditor from "@/app/factoryos/manager/[id]/JobEditor";
+import BackToListLink from "@/app/factoryos/_components/BackToListLink";
 
 export const dynamic = "force-dynamic";
 
@@ -53,9 +53,7 @@ export default async function AdminJobDetail({ params }) {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/factoryos/admin" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
-          ← Back to admin
-        </Link>
+        <BackToListLink href="/factoryos/admin" label="← Back to admin" />
         <JobEditor
           job={job}
           initialUpdates={updates}

@@ -1,14 +1,64 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { StageBadge, formatDate, inputCls } from "@/app/factoryos/_components/ui";
 import { STAGES } from "@/lib/factoryos/constants";
 
+// URL persistence (PR_F context-preservation pass):
+// - The list view now writes its filter state to the URL on every change,
+//   via router.replace() so we don't pollute history with every keystroke.
+// - When the user opens a job (push to /manager/[id]), the browser back
+//   button returns to whatever filter URL was last written — so they land
+//   back on the same Pending-only / customer-X / urgent-only slice they
+//   were just on, not the unfiltered all-jobs list.
+// - First mount reads the URL params and seeds local state with them
+//   (already in place for stage/urgent/due; client/q added in this pass).
+// Tiny debounce on `q` (200ms) keeps the URL from being rewritten on every
+// keystroke, which also keeps the back stack clean if the user is typing
+// fast — replace() never adds to history but the URL still changes
+// semantically and downstream code (e.g. KPI tile deep-links) reads it.
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
-  const [q, setQ] = useState("");
-  const [stage, setStage] = useState("all");
-  const [clientId, setClientId] = useState("all");
-  const [urgentOnly, setUrgentOnly] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const initialStage  = (() => {
+    const s = searchParams.get("stage");
+    return s && STAGES.includes(s) ? s : "all";
+  })();
+  const initialUrgent = searchParams.get("urgent") === "1";
+  const initialDue    = searchParams.get("due") === "overdue" ? "overdue" : "all";
+  const initialClient = searchParams.get("client") || "all";
+  const initialQ      = searchParams.get("q") || "";
+
+  const [q, setQ] = useState(initialQ);
+  const [stage, setStage] = useState(initialStage);
+  const [clientId, setClientId] = useState(initialClient);
+  const [urgentOnly, setUrgentOnly] = useState(initialUrgent);
+  const [dueFilter, setDueFilter] = useState(initialDue);
+  const today = useMemo(() => todayIso(), []);
+
+  // Mirror filter state into the URL. Debounced for `q` only — other
+  // controls fire one change at a time so they're cheap to mirror live.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (q && q.trim()) params.set("q", q.trim());
+      if (stage !== "all") params.set("stage", stage);
+      if (clientId !== "all") params.set("client", clientId);
+      if (urgentOnly) params.set("urgent", "1");
+      if (dueFilter === "overdue") params.set("due", "overdue");
+      const qs = params.toString();
+      const url = qs ? `${pathname}?${qs}` : pathname;
+      router.replace(url, { scroll: false });
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [q, stage, clientId, urgentOnly, dueFilter, pathname, router]);
 
   const clients = useMemo(() => {
     const seen = new Set();

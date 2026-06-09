@@ -289,6 +289,35 @@ export default function JobEditor({
 
   return (
     <div className="mt-4 space-y-5">
+      {/* Sticky mini-context bar (PR_F). On the JobEditor's 700-line scroll,
+          operators previously lost track of which job they were editing once
+          the header card scrolled out of view. This pinned bar shows J# +
+          item + stage at all times, plus a "Jump to status" anchor for the
+          most-common action (whose own card was promoted to position 2 in
+          PR_B). Top offsets match AppHeader heights: 96px on mobile
+          (top bar 56 + sub-tab row 40) and 56px on md+ where the
+          ModuleShell sidebar replaces the sub-tab row. z-30 sits below the
+          z-40 AppHeader so scrolled content slides cleanly beneath both. */}
+      <div className="sticky top-24 md:top-14 z-30 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 bg-gray-50/95 backdrop-blur-sm border-b border-gray-200 dark:bg-gray-950/95 dark:border-gray-800">
+        <div className="py-2 flex items-center gap-3 min-w-0">
+          <span className="font-mono text-xs text-gray-500 dark:text-gray-400 shrink-0">J# {job.jNumber}</span>
+          <span className="text-sm text-gray-900 dark:text-white truncate min-w-0 flex-1">
+            {job.item}
+            {clientName && <span className="text-gray-500 dark:text-gray-400"> · {clientName}</span>}
+          </span>
+          <span className="shrink-0">
+            <StageBadge stage={job.stage} />
+          </span>
+          <a
+            href="#status"
+            className="hidden sm:inline-block shrink-0 text-xs text-blue-600 hover:underline dark:text-blue-400"
+            title="Jump to the Update status card"
+          >
+            ↓ status
+          </a>
+        </div>
+      </div>
+
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -501,7 +530,11 @@ export default function JobEditor({
 
       <JobThread jobId={job.id} viewerRole="team" title="Messages & files (vendor)" />
 
-      <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
+      {/* `id="status"` is the anchor target for the sticky mini-bar's
+          "↓ status" jump link added in PR_F. Lives on this same card
+          regardless of where it sits in the page order (PR_B promotes it
+          higher; PR_F's anchor still works in both orderings). */}
+      <div id="status" className="scroll-mt-32 bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Update status</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
