@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, hasModule } from "@/lib/auth/session";
-import { resolveFactoryosUserId } from "@/lib/hub/users";
 import { listEmployees, listUsers, listAttendance } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import {
@@ -21,25 +20,19 @@ export default async function HrPage() {
   if (!session) redirect("/login");
   if (!hasModule(session, "hr")) redirect("/hub");
 
-  const [allEmployees, users] = await Promise.all([listEmployees(), listUsers()]);
+  // HR is single-level full access — anyone with modules.hr sees the full
+  // roster. The legacy per-manager scoping branches (and a hardcoded
+  // isAdmin = true that bypassed them) were removed when HR moved out of
+  // FactoryOS; see commit "Move HR out of FactoryOS into its own top-level
+  // module (/hr)" for the design note.
+  const [employees, users] = await Promise.all([listEmployees(), listUsers()]);
   const factoryManagers = users.filter((u) => u.role === ROLES.FACTORY_MANAGER && u.active);
 
-  // Factory Manager sees only their own reports. Admin sees everyone.
-  // Critical: filter server-side so other managers' data never ships to the client.
-  const isAdmin = true;
-  // Cookie-first, DB-fallback. Pre-PR-1.5a cookies have no factoryosUserId
-  // — without this fallback the filter below would null-match and Rahul
-  // would see an empty roster.
-  const myUserId = isAdmin ? null : await resolveFactoryosUserId(session);
-  const employees = isAdmin ? allEmployees : allEmployees.filter((e) => e.managerId === myUserId);
-
-  // Compute current-month attendance gaps for the scoped employees.
+  // Compute current-month attendance gaps for the full roster.
   const monthKey = currentMonthKeyIST();
   const today = todayYmdIST();
-  const visibleIds = new Set(employees.map((e) => e.id));
   const monthAttendance = employees.length
-    ? (await listAttendance({ from: monthStart(monthKey), to: monthEnd(monthKey) }))
-        .filter((r) => visibleIds.has(r.employeeId))
+    ? await listAttendance({ from: monthStart(monthKey), to: monthEnd(monthKey) })
     : [];
   const gaps = findAttendanceGaps({
     monthKey,
@@ -60,7 +53,7 @@ export default async function HrPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">HR</h1>
             <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-              {isAdmin ? "Employee roster, attendance, calendar, payroll." : "Your reports only — managed by you."}
+              Employee roster, attendance, calendar, payroll.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
@@ -91,8 +84,6 @@ export default async function HrPage() {
         <EmployeesAdmin
           initialEmployees={employees}
           factoryManagers={factoryManagers}
-          isAdmin={isAdmin}
-          currentUserId={myUserId}
         />
       </main>
     </div>
