@@ -54,7 +54,10 @@ export default function JobDetailPage({ params }) {
 
   return (
     <div>
-      <Link href="/emission/jobs" className="em-label" style={{ textDecoration: "none" }}>← JOB LIST</Link>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Link href="/emission/jobs" className="em-label" style={{ textDecoration: "none" }}>← JOB LIST</Link>
+        <Link href={`/emission/jobs/${job.job_no}/slip`} className="em-btn em-btn--ghost em-btn--sm" style={{ textDecoration: "none" }}>🖨 CUSTOMER SLIP</Link>
+      </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginTop: 10 }}>
         <div>
