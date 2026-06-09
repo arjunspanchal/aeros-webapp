@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 import { formatINR, otHourlyRate } from "@/lib/factoryos/hr";
 
@@ -51,8 +51,34 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
   const [pinInput, setPinInput] = useState("");
   const [pinBusy, setPinBusy] = useState(false);
   const [pinMsg, setPinMsg] = useState("");
+  // Add/Edit form lives in a right-side slide-over drawer so the roster table
+  // gets the full page width (no more horizontal scrolling to reach Edit).
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const formRef = useRef(null);
   const photoInputRef = useRef(null);
+
+  // Close the drawer on Escape.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") closeDrawer(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerOpen]);
+
+  function openCreate() {
+    setEditingId(null);
+    setForm(EMPTY);
+    setErr(""); setPinInput(""); setPinMsg("");
+    setDrawerOpen(true);
+  }
+
+  function closeDrawer() {
+    setDrawerOpen(false);
+    setEditingId(null);
+    setForm(EMPTY);
+    setErr(""); setPinInput(""); setPinMsg("");
+  }
 
   const managerMap = useMemo(
     () => Object.fromEntries(factoryManagers.map((u) => [u.id, u])),
@@ -99,7 +125,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
     });
     setErr("");
     setPinInput(""); setPinMsg("");
-    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setDrawerOpen(true);
   }
 
   function cancelEdit() {
@@ -107,6 +133,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
     setForm(EMPTY);
     setErr("");
     setPinInput(""); setPinMsg("");
+    setDrawerOpen(false);
   }
 
   async function savePin() {
@@ -253,22 +280,38 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
   }
 
   return (
-    <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
-      <form
-        ref={formRef}
-        onSubmit={submit}
-        className={`lg:col-span-2 bg-white rounded-xl p-4 sm:p-5 space-y-3 dark:bg-gray-900 border-2 lg:sticky lg:top-4 lg:self-start transition-colors ${isEditing ? "border-blue-500 dark:border-blue-400" : "border-gray-200 dark:border-gray-800"}`}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <h2 className={`text-sm sm:text-base font-semibold ${isEditing ? "text-blue-600 dark:text-blue-400" : "text-gray-900 dark:text-white"}`}>
-            {isEditing ? "✏️ Edit employee" : "Register employee (KYC)"}
-          </h2>
-          {isEditing && (
-            <button type="button" onClick={cancelEdit} className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 font-medium">
-              ✕ Cancel
-            </button>
-          )}
-        </div>
+    <div className="mt-6 space-y-4">
+      {/* Roster header — title + count + Add button */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+          Employees <span className="text-sm font-normal text-gray-400">· {filtered.length}</span>
+        </h2>
+        <button
+          type="button"
+          onClick={openCreate}
+          className="text-sm font-medium px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+        >
+          + Add employee
+        </button>
+      </div>
+
+      {/* ===== Add / Edit slide-over drawer ===== */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40" onClick={closeDrawer} aria-hidden />
+          <form
+            ref={formRef}
+            onSubmit={submit}
+            className="absolute inset-y-0 right-0 w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto p-4 sm:p-5 space-y-3 border-l border-gray-200 dark:border-gray-800"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h2 className={`text-base font-semibold ${isEditing ? "text-blue-600 dark:text-blue-400" : "text-gray-900 dark:text-white"}`}>
+                {isEditing ? "✏️ Edit employee" : "Register employee (KYC)"}
+              </h2>
+              <button type="button" onClick={closeDrawer} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl leading-none px-2 py-1" aria-label="Close">
+                ✕
+              </button>
+            </div>
 
         <div>
           <label className={labelCls}>Full name *</label>
@@ -523,14 +566,17 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
             ⚠️ {err}
           </div>
         )}
-      </form>
+          </form>
+        </div>
+      )}
 
-      <div className="lg:col-span-3 space-y-3">
+      {/* ===== Roster (full width) ===== */}
+      <div className="space-y-3">
         <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-between">
           <div className="flex-1 flex gap-2">
             <input
               className={`${inputCls} flex-1`}
-              placeholder="Search name, phone, Aadhar, manager…"
+              placeholder="Search name, phone, code, Aadhar, manager…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
