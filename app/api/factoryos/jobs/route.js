@@ -1,6 +1,6 @@
 import { getSession, requireInternal, requireManager, requireRole } from "@/lib/auth/session";
 import { listJobsForSession, createJob } from "@/lib/factoryos/repo";
-import { STAGES, CATEGORIES } from "@/lib/factoryos/constants";
+import { STAGES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
@@ -48,8 +48,19 @@ export async function POST(req) {
     if (body.stage && !STAGES.includes(body.stage)) {
       return Response.json({ error: "Invalid stage" }, { status: 400 });
     }
-    if (body.category && !CATEGORIES.includes(body.category)) {
-      return Response.json({ error: "Invalid category" }, { status: 400 });
+    // Category used to be CATEGORIES.includes()-gated, but that hardcoded
+    // list (Paper Bag / Paper Cups / Food Box / Tub / Other) didn't match
+    // the actual catalog taxonomy (Cups / Lids / Take Out Containers / …)
+    // — so any non-overlapping catalog value got rejected, forcing the UI
+    // gate to silently fall back to a default. Source of truth is the
+    // catalog. Just require a non-empty trimmed string up to a sane cap.
+    // Audit finding C6.
+    if (body.category !== undefined && body.category !== null) {
+      const c = String(body.category).trim();
+      if (c.length > 80) {
+        return Response.json({ error: "Category too long" }, { status: 400 });
+      }
+      body.category = c || undefined;
     }
     const job = await createJob({
       stage: STAGES[0],
