@@ -98,9 +98,46 @@ const DETAIL_FIELDS_BY_TYPE = {
     { key: "sellingPrice", label: "Selling price / item", highlight: true, format: fmtRupee4 },
     { key: "spPerCase", label: "SP / case", format: fmtRupeeIN },
   ],
+  // Calc-PR-D: history was advertising itself as "all quotes" but silently
+  // excluded Express Ship and Import — the APIs were saving rows that the
+  // UI claimed didn't exist. Added below so the team can recall them too.
+  ExpressShip: [
+    { key: "quoteRef", label: "Quote ref" },
+    { key: "date", label: "Date" },
+    { key: "origin", label: "Origin", skipIfEmpty: true },
+    { key: "destinationZip", label: "Destination zip", skipIfEmpty: true },
+    { key: "dispatchDate", label: "Dispatch date", skipIfEmpty: true },
+    { key: "qtyMode", label: "Qty mode", skipIfEmpty: true },
+    { key: "qtyPcs", label: "Pcs", skipIfEmpty: true, format: fmtNum },
+    { key: "palletsRequested", label: "Pallets", skipIfEmpty: true },
+    { key: "dhlRate", label: "DHL rate", skipIfEmpty: true, format: fmtRupee },
+    { key: "dhlRateCurrency", label: "DHL currency", skipIfEmpty: true },
+    { key: "fxRate", label: "FX rate", skipIfEmpty: true },
+    { key: "fuelPct", label: "Fuel surcharge", skipIfEmpty: true, suffix: "%" },
+    { key: "marginPct", label: "Margin %", skipIfEmpty: true, suffix: "%" },
+    { key: "totalLandedInr", label: "Landed (₹)", skipIfEmpty: true, format: fmtRupeeIN },
+    { key: "totalSellingInr", label: "Selling (₹)", highlight: true, format: fmtRupeeIN },
+  ],
+  Import: [
+    { key: "quoteRef", label: "Quote ref" },
+    { key: "date", label: "Date" },
+    { key: "vendorName", label: "Vendor", skipIfEmpty: true },
+    { key: "shipmentType", label: "Shipment type", skipIfEmpty: true },
+    { key: "fobCurrency", label: "FOB currency", skipIfEmpty: true },
+    { key: "fxRate", label: "FX rate", skipIfEmpty: true },
+    { key: "dutyPct", label: "Duty %", skipIfEmpty: true, suffix: "%" },
+    { key: "outputGstPct", label: "Output GST", skipIfEmpty: true, suffix: "%" },
+    { key: "freightMode", label: "Freight mode", skipIfEmpty: true },
+    { key: "freightAmount", label: "Freight", skipIfEmpty: true },
+    { key: "inlandMode", label: "Inland mode", skipIfEmpty: true },
+    { key: "inlandAmount", label: "Inland", skipIfEmpty: true },
+    { key: "itemsCount", label: "Items in shipment", skipIfEmpty: true, format: fmtNum },
+    { key: "marginPct", label: "Margin %", skipIfEmpty: true, suffix: "%" },
+    { key: "totalLandedINR", label: "Landed (₹)", skipIfEmpty: true, format: fmtRupeeIN },
+  ],
 };
 
-const TYPE_PILLS = ["All", "Bag", "Cup", "Box", "PP"];
+const TYPE_PILLS = ["All", "Bag", "Cup", "Box", "PP", "ExpressShip", "Import"];
 
 function specSummary(quote) {
   if (quote.productType === "Bag") {
@@ -118,6 +155,16 @@ function specSummary(quote) {
     const rate = quote.rmRate ? ` · ₹${quote.rmRate}/kg` : "";
     return `${w}${cav}${rate}`;
   }
+  if (quote.productType === "ExpressShip") {
+    const dest = quote.destinationZip || "?";
+    const qty = quote.qtyPcs ? `${quote.qtyPcs.toLocaleString()} pcs` : (quote.palletsRequested ? `${quote.palletsRequested} pallet${quote.palletsRequested === 1 ? "" : "s"}` : "?");
+    return `${quote.origin || "?"} → ${dest} · ${qty}`;
+  }
+  if (quote.productType === "Import") {
+    const vendor = quote.vendorName || "?";
+    const mode = quote.shipmentType || quote.freightMode || "?";
+    return `${vendor} · ${mode}`;
+  }
   return "—";
 }
 
@@ -126,6 +173,8 @@ function reopenHref(quote) {
   if (quote.productType === "Box") return `/calculator/admin/box?quote=${quote.id}`;
   if (quote.productType === "Cup") return `/calculator/admin/cup?quote=${quote.id}`;
   if (quote.productType === "PP") return `/calculator/admin/pp?quote=${quote.id}`;
+  if (quote.productType === "ExpressShip") return `/calculator/express-ship?quote=${quote.id}`;
+  if (quote.productType === "Import") return `/calculator/import-calculator?quote=${quote.id}`;
   return "#";
 }
 
@@ -134,8 +183,22 @@ function typeColor(type) {
   if (type === "Box") return "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
   if (type === "Cup") return "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
   if (type === "PP") return "bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300";
+  if (type === "ExpressShip") return "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
+  if (type === "Import") return "bg-cyan-50 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300";
   return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300";
 }
+
+// Label override for the pill row — "ExpressShip" reads awkward, so render
+// "Express" but keep the underlying type key intact.
+const TYPE_LABEL = {
+  All: "All",
+  Bag: "Bag",
+  Cup: "Cup",
+  Box: "Box",
+  PP: "PP",
+  ExpressShip: "Express",
+  Import: "Import",
+};
 
 function DetailView({ quote, showClientColumn }) {
   const fieldSet = DETAIL_FIELDS_BY_TYPE[quote.productType] || DETAIL_FIELDS_BY_TYPE.Bag;
@@ -182,14 +245,20 @@ export default function QuoteHistoryTable({ showClientColumn }) {
   const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
+    // Calc-PR-D: ExpressShip + Import fetched alongside the existing four.
+    // Both APIs are internal-only — they 403 for non-internal sessions. We
+    // .catch the rejection to [] so a client viewing this page (filtered
+    // to their own bag/cup/box/pp quotes) doesn't see fetch errors flash.
     Promise.all([
       fetch("/api/calc/quotes").then((r) => r.ok ? r.json() : []).then((arr) => arr.map((x) => ({ ...x, productType: "Bag" }))).catch(() => []),
       fetch("/api/calc/box-quotes").then((r) => r.ok ? r.json() : []).then((arr) => arr.map((x) => ({ ...x, productType: "Box", orderQty: x.qty }))).catch(() => []),
       fetch("/api/calc/cup-quotes").then((r) => r.ok ? r.json() : []).then((arr) => arr.map((x) => ({ ...x, productType: "Cup" }))).catch(() => []),
       fetch("/api/calc/pp-quotes").then((r) => r.ok ? r.json() : []).then((arr) => arr.map((x) => ({ ...x, productType: "PP", orderTotal: x.spPerCase }))).catch(() => []),
-    ]).then(([bags, boxes, cups, pps]) => {
-      const all = [...bags, ...boxes, ...cups, ...pps];
-      // Sort by date desc — Airtable already sorts within type but we just merged.
+      fetch("/api/calc/express-ship-quotes").then((r) => r.ok ? r.json() : []).then((arr) => arr.map((x) => ({ ...x, productType: "ExpressShip", orderTotal: x.totalSellingInr }))).catch(() => []),
+      fetch("/api/calc/import-quotes").then((r) => r.ok ? r.json() : []).then((arr) => arr.map((x) => ({ ...x, productType: "Import", orderTotal: x.totalLandedINR }))).catch(() => []),
+    ]).then(([bags, boxes, cups, pps, express, imports]) => {
+      const all = [...bags, ...boxes, ...cups, ...pps, ...express, ...imports];
+      // Sort by date desc — each API sorts within type but we just merged.
       all.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
       setQuotes(all);
     });
@@ -201,8 +270,16 @@ export default function QuoteHistoryTable({ showClientColumn }) {
     return quotes.filter((x) => {
       if (typeFilter !== "All" && x.productType !== typeFilter) return false;
       if (!needle) return true;
-      return [x.quoteRef, x.brand, x.item, x.bagType, x.boxType, x.wallType, x.size, x.sku, x.plainPrinted, x.clientEmail, x.mill, x.paperName, x.itemName]
-        .filter(Boolean).some((s) => String(s).toLowerCase().includes(needle));
+      // Search haystack — extended for ExpressShip (origin/destinationZip/
+      // dispatchDate) and Import (vendorName/shipmentType/freightMode) so the
+      // global search bar finds those quotes too.
+      return [
+        x.quoteRef, x.brand, x.item, x.bagType, x.boxType,
+        x.wallType, x.size, x.sku, x.plainPrinted, x.clientEmail,
+        x.mill, x.paperName, x.itemName,
+        x.origin, x.destinationZip, x.dispatchDate,
+        x.vendorName, x.shipmentType, x.freightMode,
+      ].filter(Boolean).some((s) => String(s).toLowerCase().includes(needle));
     });
   }, [quotes, q, typeFilter]);
 
@@ -217,9 +294,13 @@ export default function QuoteHistoryTable({ showClientColumn }) {
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {TYPE_PILLS.map((t) => {
           const count = t === "All" ? quotes.length : (counts[t] || 0);
+          // Skip pills for types that have zero rows for this viewer — clients
+          // never see ExpressShip/Import quotes (internal-only API), so a
+          // pill with "0" would just be noise. Show "All" + any pill with rows.
+          if (t !== "All" && count === 0) return null;
           return (
             <PillBtn key={t} active={typeFilter === t} onClick={() => { setTypeFilter(t); setExpandedId(null); }}>
-              {t} <span className="opacity-60 ml-1">{count}</span>
+              {TYPE_LABEL[t] || t} <span className="opacity-60 ml-1">{count}</span>
             </PillBtn>
           );
         })}
@@ -255,7 +336,7 @@ export default function QuoteHistoryTable({ showClientColumn }) {
                     className={`cursor-pointer border-b border-gray-50 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800 ${isOpen ? "bg-blue-50/40 dark:bg-blue-900/20" : ""}`}>
                     <td className="py-2 text-gray-500 text-xs dark:text-gray-400">{quote.date || "—"}</td>
                     <td className="py-2">
-                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${typeColor(quote.productType)}`}>{quote.productType}</span>
+                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${typeColor(quote.productType)}`}>{TYPE_LABEL[quote.productType] || quote.productType}</span>
                     </td>
                     <td className="py-2 font-medium dark:text-gray-200">
                       <span className="text-gray-400 mr-1 dark:text-gray-500">{isOpen ? "▾" : "▸"}</span>

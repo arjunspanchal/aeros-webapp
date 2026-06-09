@@ -49,17 +49,31 @@ function subTabsFor(pathname, session) {
     if (role === "admin") {
       // Client / pricing management moved to /admin/access (hub-level
       // editor that also handles factoryos roles + linked clients).
+      //
+      // Calc-PR-D: surfaces Container Stuffing, Express Ship, and Import
+      // Calculator as first-class sub-tabs. Previously only reachable from
+      // the /calculator landing — once on an admin product page (Bag/Box/
+      // Cup/PP) the user had to full-page-redirect via the landing to
+      // switch to one of these. All three already had pages + saved-quotes
+      // APIs; they were just missing from the nav.
       return [
-        { href: "/calculator/admin",          label: "Bag",      short: "Bag" },
-        { href: "/calculator/admin/box",      label: "Box",      short: "Box" },
-        { href: "/calculator/admin/cup",      label: "Cup",      short: "Cup" },
-        { href: "/calculator/admin/wrap",     label: "Wrap",     short: "Wrap" },
-        { href: "/calculator/admin/pp",       label: "PP",       short: "PP" },
-        { href: "/calculator/admin/history",  label: "History",  short: "History" },
-        { href: "/calculator/admin/rates",    label: "Rates",    short: "Rates" },
+        { href: "/calculator/admin",                label: "Bag",       short: "Bag" },
+        { href: "/calculator/admin/box",            label: "Box",       short: "Box" },
+        { href: "/calculator/admin/cup",            label: "Cup",       short: "Cup" },
+        { href: "/calculator/admin/wrap",           label: "Wrap",      short: "Wrap" },
+        { href: "/calculator/admin/pp",             label: "PP",        short: "PP" },
+        { href: "/calculator/container-stuffing",   label: "Stuffing",  short: "Stuff" },
+        { href: "/calculator/express-ship",         label: "Express",   short: "Exp" },
+        { href: "/calculator/import-calculator",    label: "Import",    short: "Imp" },
+        { href: "/calculator/admin/history",        label: "History",   short: "History" },
+        { href: "/calculator/admin/rates",          label: "Rates",     short: "Rates" },
       ];
     }
     if (role === "client") {
+      // Clients don't see Stuffing / Express / Import — those are internal-
+      // only surfaces (gated server-side via isInternalRole). Container
+      // Stuffing has no role gate but it's a logistics tool for the team,
+      // not customer-facing — kept off the client nav for clarity.
       return [
         { href: "/calculator/client",         label: "Bag",       short: "Bag" },
         { href: "/calculator/client/box",     label: "Box",       short: "Box" },
