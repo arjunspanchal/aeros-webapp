@@ -74,7 +74,7 @@ export default async function HrPage() {
               Payroll
             </Link>
             <Link
-              href="/factoryos/clock"
+              href="/hr/clock"
               target="_blank"
               title="Worker self-service check-in / check-out — share this URL or open on a shared device"
               className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"

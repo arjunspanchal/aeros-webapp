@@ -82,6 +82,10 @@ function legacyHrRedirect(req) {
     next = pathname.replace(/^\/api\/factoryos\/employees/, "/api/hr/employees");
   } else if (pathname === "/api/factoryos/attendance" || pathname.startsWith("/api/factoryos/attendance/")) {
     next = pathname.replace(/^\/api\/factoryos\/attendance/, "/api/hr/attendance");
+  } else if (pathname === "/factoryos/clock" || pathname.startsWith("/factoryos/clock/")) {
+    next = pathname.replace(/^\/factoryos\/clock/, "/hr/clock");
+  } else if (pathname === "/api/factoryos/clock" || pathname.startsWith("/api/factoryos/clock/")) {
+    next = pathname.replace(/^\/api\/factoryos\/clock/, "/api/hr/clock");
   }
   if (!next) return null;
   const url = req.nextUrl.clone();
@@ -159,6 +163,21 @@ export async function middleware(req) {
     return NextResponse.next();
   }
 
+  // --- Punch clock (factory-worker self-service attendance) ---
+  // Workers sign in with phone + a PIN and carry their own employee session
+  // (aeros_emp_session), NOT the hub session — they are employees, not users.
+  // This MUST come BEFORE the HR gate below so workers (who have no hub session
+  // and no `hr` module) aren't bounced to login. The page + every
+  // /api/hr/clock/* route verify the employee session themselves. Old
+  // /factoryos/clock paths 308-redirect here via legacyHrRedirect.
+  if (
+    pathname === "/hr/clock" ||
+    pathname.startsWith("/hr/clock/") ||
+    pathname.startsWith("/api/hr/clock/")
+  ) {
+    return NextResponse.next();
+  }
+
   // --- HR module (standalone, gated by the independent `hr` entitlement) ---
   if (pathname.startsWith("/api/hr/") || pathname.startsWith("/hr")) {
     const token = req.cookies.get("aeros_hub_session")?.value;
@@ -170,19 +189,6 @@ export async function middleware(req) {
       return redirectToLogin(req);
     }
     if (await isSessionStale(payload)) return redirectStaleSession(req);
-    return NextResponse.next();
-  }
-
-  // --- Punch clock (factory-worker self-service attendance) ---
-  // Workers sign in with phone + a PIN and carry their own employee session
-  // (aeros_emp_session), NOT the hub session — they are employees, not users.
-  // Let the clock surface through; the page and every /api/factoryos/clock/*
-  // route verify the employee session themselves.
-  if (
-    pathname === "/factoryos/clock" ||
-    pathname.startsWith("/factoryos/clock/") ||
-    pathname.startsWith("/api/factoryos/clock/")
-  ) {
     return NextResponse.next();
   }
 

@@ -34,7 +34,7 @@ export default function ClockClient({ initialSignedIn }) {
   const [flash, setFlash] = useState("");
 
   const loadStatus = useCallback(async () => {
-    const res = await fetch("/api/factoryos/clock/status", { cache: "no-store" });
+    const res = await fetch("/api/hr/clock/status", { cache: "no-store" });
     if (!res.ok) {
       // Session gone / inactive — fall back to sign-in.
       setStatus(null);
@@ -52,7 +52,7 @@ export default function ClockClient({ initialSignedIn }) {
   async function login(e) {
     e?.preventDefault();
     setErr(""); setBusy(true);
-    const { ok, data } = await postJson("/api/factoryos/clock/login", { identifier, pin });
+    const { ok, data } = await postJson("/api/hr/clock/login", { identifier, pin });
     setBusy(false);
     if (!ok) { setErr(data.error || "Invalid phone or PIN."); return; }
     setPin("");
@@ -61,7 +61,7 @@ export default function ClockClient({ initialSignedIn }) {
 
   async function punch(action) {
     setErr(""); setFlash(""); setBusy(true);
-    const { ok, data } = await postJson("/api/factoryos/clock/punch", { action });
+    const { ok, data } = await postJson("/api/hr/clock/punch", { action });
     setBusy(false);
     if (!ok) {
       // 409 = already in/out — refresh so the UI reflects reality, surface msg.
@@ -74,7 +74,7 @@ export default function ClockClient({ initialSignedIn }) {
   }
 
   async function signOut() {
-    await postJson("/api/factoryos/clock/logout", {});
+    await postJson("/api/hr/clock/logout", {});
     setStatus(null); setIdentifier(""); setPin(""); setErr(""); setFlash("");
     setPhase("login");
   }
