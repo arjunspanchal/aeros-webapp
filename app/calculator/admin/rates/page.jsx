@@ -64,14 +64,19 @@ export default async function AdminRatesPage() {
       <div className="max-w-5xl mx-auto px-4 pb-10">
         <h1 className="text-2xl font-bold text-gray-900 mb-1 dark:text-white">Mill Rates & Calculator Constants</h1>
         <p className="text-sm text-gray-500 mb-3 dark:text-gray-400">
-          Read-only reference. Paper rates are pulled live from the <strong>Paper RM Database</strong> on Airtable.
-          To change a rate, edit the row in the <em>Raw Materials</em> table and the calculator picks it up within ~5 minutes.
-          Other constants (glue, case pack, handle cost, conversion labour, setup, plate, printing) are still in
+          Read-only reference. Paper rates are pulled live from the{" "}
+          <strong>Master RM rates</strong> table in Supabase (the{" "}
+          <code className="text-xs bg-gray-100 px-1 py-0.5 rounded dark:bg-gray-800 dark:text-gray-200">master_papers</code>{" "}
+          table). To change a rate, use the FactoryOS{" "}
+          <a href="/factoryos/admin/master-papers" className="underline text-blue-700 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-200">
+            Master RM rates admin page
+          </a>{" "}— edits there are picked up by the calculator on next page load (no cache).
+          Other constants (glue, case pack, handle cost, conversion labour, setup, plate, printing) are still in{" "}
           <code className="text-xs bg-gray-100 px-1 py-0.5 rounded dark:bg-gray-800 dark:text-gray-200"> lib/calc/calculator.js</code>.
         </p>
         <div className={`mb-6 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${live ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"}`}>
           <span className={`h-2 w-2 rounded-full ${live ? "bg-green-500" : "bg-amber-500"}`} />
-          {live ? "Live from Paper RM Database" : "Using fallback constants — Airtable unreachable or AIRTABLE_PAPER_RM_BASE_ID not set"}
+          {live ? "Live from Supabase" : "Using static fallback constants — Supabase master_papers unreachable"}
         </div>
 
         <div className="space-y-6">
