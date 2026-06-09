@@ -1,6 +1,6 @@
 import { getSession, requireInternal, requireManager, requireRole } from "@/lib/auth/session";
 import { listJobsForSession, createJob } from "@/lib/factoryos/repo";
-import { STAGES } from "@/lib/factoryos/constants";
+import { STAGES, PRINTING_TYPES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
@@ -48,6 +48,13 @@ export async function POST(req) {
     if (body.stage && !STAGES.includes(body.stage)) {
       return Response.json({ error: "Invalid stage" }, { status: 400 });
     }
+    // Audit M4: printing_type was being shoved through as free-form text;
+    // the form's PRINTING_TYPES whitelist now applies server-side too.
+    if (body.printingType !== undefined && body.printingType !== null && !PRINTING_TYPES.includes(body.printingType)) {
+      return Response.json({
+        error: `Invalid printing type. Must be one of: ${PRINTING_TYPES.filter(Boolean).join(", ") || "(empty)"}`,
+      }, { status: 400 });
+    }
     // Category used to be CATEGORIES.includes()-gated, but that hardcoded
     // list (Paper Bag / Paper Cups / Food Box / Tub / Other) didn't match
     // the actual catalog taxonomy (Cups / Lids / Take Out Containers / …)
@@ -69,6 +76,10 @@ export async function POST(req) {
     return Response.json({ job });
   } catch (e) {
     if (e instanceof Response) return e;
+    // Audit M1: unknown master_sku surfaces as a 400, not a 500.
+    if (e && e.code === "unknown_master_sku") {
+      return Response.json({ error: e.message, code: e.code }, { status: 400 });
+    }
     console.error(e);
     return Response.json({ error: e.message || "Failed" }, { status: 500 });
   }

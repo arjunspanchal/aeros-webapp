@@ -9,7 +9,7 @@ import {
 } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { sessionCanSeeJob } from "@/lib/factoryos/jobAccess";
-import { STAGES, ROLES, canUpdateStage } from "@/lib/factoryos/constants";
+import { STAGES, ROLES, PRINTING_TYPES, canUpdateStage } from "@/lib/factoryos/constants";
 
 // Roles allowed to remove a job entirely. Account managers + customers can
 // only update fields, never destroy the row + its timeline.
@@ -111,7 +111,15 @@ export async function PATCH(req, { params }) {
     if (body.rmQtySheets !== undefined) patch.rmQtySheets = body.rmQtySheets;
     if (body.rmQtyKgs !== undefined) patch.rmQtyKgs = body.rmQtyKgs;
     if (body.rmDeliveryDate !== undefined) patch.rmDeliveryDate = body.rmDeliveryDate;
-    if (body.printingType !== undefined) patch.printingType = body.printingType;
+    if (body.printingType !== undefined) {
+      // Audit M4: whitelist server-side, not just at the form layer.
+      if (body.printingType !== null && !PRINTING_TYPES.includes(body.printingType)) {
+        return Response.json({
+          error: `Invalid printing type. Must be one of: ${PRINTING_TYPES.filter(Boolean).join(", ") || "(empty)"}`,
+        }, { status: 400 });
+      }
+      patch.printingType = body.printingType;
+    }
     if (body.printingVendor !== undefined) patch.printingVendor = body.printingVendor;
     if (body.printingDueDate !== undefined) patch.printingDueDate = body.printingDueDate;
     if (body.productionDueDate !== undefined) patch.productionDueDate = body.productionDueDate;
@@ -173,6 +181,10 @@ export async function PATCH(req, { params }) {
     return Response.json({ job: updated });
   } catch (e) {
     if (e instanceof Response) return e;
+    // Audit M1: unknown master_sku surfaces as a 400, not a 500.
+    if (e && e.code === "unknown_master_sku") {
+      return Response.json({ error: e.message, code: e.code }, { status: 400 });
+    }
     console.error(e);
     return Response.json({ error: e.message || "Failed" }, { status: 500 });
   }
