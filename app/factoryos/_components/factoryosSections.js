@@ -57,6 +57,7 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
       items: [
         { href: "/factoryos/admin/clients",  label: "Customers" },
         { href: "/factoryos/admin/vendors",  label: "Vendors" },
+        { href: "/factoryos/admin/payables", label: "Vendor payables" },
         { href: "/factoryos/admin/machines", label: "Machines" },
         // User management moved to /admin/access (hub-level) — covers
         // roles + pricing + client links in one editor.

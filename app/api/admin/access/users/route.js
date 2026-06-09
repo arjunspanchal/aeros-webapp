@@ -2,7 +2,7 @@
 // editor reads this on mount and patches per-user via the [id] route.
 
 import { getSession } from "@/lib/auth/session";
-import { listAccessUsers, listAccessClients } from "@/lib/access/users";
+import { listAccessUsers, listAccessClients, listAccessVendors } from "@/lib/access/users";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,11 +22,12 @@ export async function GET(req) {
   try {
     const url = new URL(req.url);
     const search = url.searchParams.get("q") || "";
-    const [users, clients] = await Promise.all([
+    const [users, clients, vendors] = await Promise.all([
       listAccessUsers({ search }),
       listAccessClients(),
+      listAccessVendors(),
     ]);
-    return Response.json({ users, clients });
+    return Response.json({ users, clients, vendors });
   } catch (e) {
     return Response.json({ error: String(e?.message || e) }, { status: 500 });
   }

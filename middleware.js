@@ -200,15 +200,30 @@ export async function middleware(req) {
 
     const role = payload.modules.factoryos;
 
-    // Role guards for page routes.
-    if (pathname.startsWith("/factoryos/admin") && role !== "admin" && role !== "factory_manager") {
+    // Role guards for page routes. Each portal tree is fenced to its role(s);
+    // mismatches bounce to /factoryos, whose landing page re-routes by role.
+    //
+    // Carve-out (audit H1): /factoryos/admin/jobs/new is reachable by
+    // account managers too — they're allowed to create jobs (mirrors
+    // /api/factoryos/jobs POST policy) and AMs are usually the people
+    // taking a brief from the customer and turning it into a job. The
+    // page itself re-checks roles and the API enforces auth anyway.
+    const isAmCreatingJob =
+      pathname === "/factoryos/admin/jobs/new" &&
+      role === "account_manager";
+    if (pathname.startsWith("/factoryos/vendor")) {
+      if (role !== "vendor") return NextResponse.redirect(new URL("/factoryos", req.url));
+    } else if (
+      pathname.startsWith("/factoryos/admin") &&
+      role !== "admin" &&
+      role !== "factory_manager" &&
+      !isAmCreatingJob
+    ) {
       return NextResponse.redirect(new URL("/factoryos", req.url));
-    }
-    if (pathname.startsWith("/factoryos/manager") && role === "customer") {
-      return NextResponse.redirect(new URL("/factoryos/customer", req.url));
-    }
-    if (pathname.startsWith("/factoryos/customer") && role !== "customer") {
-      return NextResponse.redirect(new URL("/factoryos/manager", req.url));
+    } else if (pathname.startsWith("/factoryos/manager") && (role === "customer" || role === "vendor")) {
+      return NextResponse.redirect(new URL("/factoryos", req.url));
+    } else if (pathname.startsWith("/factoryos/customer") && role !== "customer") {
+      return NextResponse.redirect(new URL("/factoryos", req.url));
     }
   }
 
