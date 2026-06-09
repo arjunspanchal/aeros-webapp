@@ -296,6 +296,12 @@ export default function JobEditor({
             <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
               J# {job.jNumber}{clientName && <> · {clientName}</>}{job.brand && <> · {job.brand}</>}{job.city && <> · {job.city}</>}
             </p>
+            {/* Layout audit follow-up: surface "last activity" so operators
+                know whether they're looking at fresh data or stale state
+                before they start editing. Draws from the existing updates
+                payload (no new fetch). Renders nothing when no timeline
+                exists yet (brand-new job that hasn't been touched). */}
+            <LastActivity updates={updates} />
           </div>
           <div className="flex items-start gap-3 shrink-0">
             <StageBadge stage={job.stage} />
@@ -699,4 +705,58 @@ function Col({ label, value }) {
       <dd className="text-sm text-gray-900 dark:text-white">{value}</dd>
     </div>
   );
+}
+
+// Last-activity indicator on the job header card. Picks the most-recent
+// timeline entry by createdAt, formats the elapsed time as "5m ago" /
+// "2h ago" / "yesterday" / "3 days ago", and shows the actor's name
+// (falls back to email local-part, then "someone" — never to nothing).
+//
+// Stays silent when the updates array is empty: brand-new jobs with no
+// activity shouldn't render a stale "—" placeholder. Server-rendered so
+// the elapsed time matches the page load — no client ticking needed for
+// "minutes" granularity on a hours-and-days-scale workflow.
+function LastActivity({ updates }) {
+  if (!updates || updates.length === 0) return null;
+  // updates are listed newest-first per the timeline section's existing
+  // contract — but be defensive in case the order ever changes.
+  const sorted = updates
+    .filter((u) => u && u.createdAt)
+    .slice()
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const latest = sorted[0];
+  if (!latest) return null;
+
+  const ago = formatAgo(latest.createdAt);
+  const actor =
+    (latest.updatedByName && latest.updatedByName.trim()) ||
+    (latest.updatedByEmail && latest.updatedByEmail.split("@")[0]) ||
+    "someone";
+
+  return (
+    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+      Last activity {ago} · {actor}
+      {latest.stage && <> · marked {latest.stage}</>}
+    </p>
+  );
+}
+
+function formatAgo(iso) {
+  if (!iso) return "—";
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "—";
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1)   return "just now";
+  if (mins < 60)  return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return hrs === 1 ? "1h ago" : `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "yesterday";
+  if (days < 14)  return `${days} days ago`;
+  // Beyond two weeks, show the date — "47 days ago" doesn't help anyone.
+  try {
+    return new Date(iso).toLocaleDateString();
+  } catch {
+    return `${days} days ago`;
+  }
 }
