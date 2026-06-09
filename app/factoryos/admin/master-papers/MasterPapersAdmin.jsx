@@ -4,7 +4,7 @@ import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 
 // Per-row editor. Base Rate and Discount are editable; Effective = Base − Discount
 // is computed client-side so the user sees the impact of their edit immediately,
-// then we PATCH Airtable on save.
+// then we PATCH Supabase master_papers on save.
 function RateRow({ paper, onSaved }) {
   const [base, setBase] = useState(paper.baseRate != null ? String(paper.baseRate) : "");
   const [discount, setDiscount] = useState(paper.discount != null ? String(paper.discount) : "");
@@ -220,7 +220,7 @@ export default function MasterPapersAdmin({ initialPapers }) {
       </div>
 
       <p className="text-xs text-gray-400 dark:text-gray-500">
-        Tip — press Enter to save a row, Esc to revert. Only Base Rate and Discount are editable here; for other fields use Airtable.
+        Tip — press Enter to save a row, Esc to revert. Only Base Rate and Discount are editable here; other fields are edited directly in Supabase.
       </p>
     </div>
   );

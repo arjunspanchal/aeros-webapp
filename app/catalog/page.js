@@ -46,8 +46,9 @@ export default async function CatalogPage() {
             <p className="font-semibold">Could not load catalog.</p>
             <p className="mt-1 text-sm">{error}</p>
             <p className="mt-2 text-xs">
-              Check that AIRTABLE_PAT_PRODUCTS, CATALOG_BASE_ID, and CATALOG_TABLE_ID
-              are set in your environment variables.
+              Check the Supabase env vars (SUPABASE_URL,
+              SUPABASE_SERVICE_ROLE_KEY) and that the master_products view is
+              reachable.
             </p>
           </div>
         ) : (

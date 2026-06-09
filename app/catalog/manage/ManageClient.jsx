@@ -225,7 +225,8 @@ function ProductPhotos({ product, onChange }) {
     setUploading(true);
     setError(null);
     try {
-      // Sequential — Airtable's content API is per-record rate-limited.
+      // Sequential — keep the order deterministic and avoid hammering Storage
+      // with parallel uploads when the user drops a folder.
       let latest = product;
       for (const file of files) {
         if (file.size > MAX_UPLOAD_BYTES) {
