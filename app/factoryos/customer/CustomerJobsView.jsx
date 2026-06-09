@@ -8,6 +8,22 @@ export default function CustomerJobsView({ jobs, clientMap }) {
   const [filter, setFilter] = useState("open");
   const [q, setQ] = useState("");
 
+  // Layout audit W4: customers had to click through every open job to find
+  // the one waiting on them. The most reliable "needs your input" signal in
+  // the current data model is `stage === "Dispatched"` — that's the only
+  // stage the customer is authorised to advance (Dispatched → Delivered, per
+  // the PATCH route's isCustomerDeliver gate). The banner counts those, plus
+  // surfaces any urgent-flagged jobs as a secondary signal.
+  const dispatchedAwaitingDelivery = useMemo(
+    () => jobs.filter((j) => j.stage === "Dispatched").length,
+    [jobs],
+  );
+  const urgentOpen = useMemo(
+    () => jobs.filter((j) => j.urgent && j.stage !== "Delivered").length,
+    [jobs],
+  );
+  const needsInputTotal = dispatchedAwaitingDelivery + urgentOpen;
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     return jobs.filter((j) => {
@@ -56,6 +72,41 @@ export default function CustomerJobsView({ jobs, clientMap }) {
           ))}
         </div>
       </div>
+
+      {/* "Needs your input" banner — replaces the customer-side gap where
+          pending actions only surfaced inside each job's detail page. A
+          dispatched job is awaiting "Mark delivered" confirmation from the
+          buyer; urgent-flagged jobs are surfaced as a secondary signal. */}
+      {needsInputTotal > 0 && (
+        <div className="rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-900/20">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                {needsInputTotal} order{needsInputTotal === 1 ? "" : "s"} need{needsInputTotal === 1 ? "s" : ""} your input
+              </p>
+              <p className="text-xs text-amber-800 mt-0.5 dark:text-amber-300">
+                {dispatchedAwaitingDelivery > 0 && (
+                  <>
+                    {dispatchedAwaitingDelivery} dispatched —
+                    {" "}
+                    <button
+                      type="button"
+                      onClick={() => setFilter("dispatched")}
+                      className="underline hover:no-underline"
+                    >
+                      mark delivered when received
+                    </button>
+                  </>
+                )}
+                {dispatchedAwaitingDelivery > 0 && urgentOpen > 0 && " · "}
+                {urgentOpen > 0 && (
+                  <>{urgentOpen} urgent open order{urgentOpen === 1 ? "" : "s"}</>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <StatusChart jobs={jobs} title="Your order status overview" />
 

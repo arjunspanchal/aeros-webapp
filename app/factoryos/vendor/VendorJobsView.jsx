@@ -100,12 +100,15 @@ export default function VendorJobsView({ jobs, vendorName, linked }) {
             </div>
             <div className="mt-2 flex items-center justify-between text-xs">
               <span className="text-gray-500 dark:text-gray-400">Your delivery date</span>
+              {/* Audit L4: copy used to say "tap to add" but the whole row
+                  is a Link to the detail page — no inline editor. Honest
+                  wording: tap row to set. */}
               <span
                 className={`font-medium ${
                   j.printingDueDate ? "text-gray-900 dark:text-white" : "text-amber-600 dark:text-amber-400"
                 }`}
               >
-                {j.printingDueDate ? formatDate(j.printingDueDate) : "Not set — tap to add"}
+                {j.printingDueDate ? formatDate(j.printingDueDate) : "Not set — open job to set"}
               </span>
             </div>
           </Link>
