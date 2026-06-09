@@ -144,12 +144,20 @@ function subTabsFor(pathname, session) {
     // WarehouseOS sub-tabs. Stock is public; Manage + Inventory are
     // FM/FE/Admin only. Sample Dispatch is open to AMs (Customer
     // Managers) too — they raise dispatches on behalf of customers.
+    //
+    // Whs-PR-A: short labels disambiguated. Previously both
+    // /warehouse/clearance and /warehouse/inventory had short="Stock"
+    // — on mobile the row read "Hub · Stock · Stock · Items · In ·
+    // Out · Hist · Audit", two adjacent tabs identical. Now clearance
+    // short = "Clear" (matches its desktop label "Clearance"), and the
+    // canonical "Stock" stays on /warehouse/inventory where the page
+    // title is "Stock Position".
     const role = session?.modules?.factoryos;
     const adminish    = role === "admin" || role === "factory_manager" || role === "factory_executive";
     const canDispatch = adminish || role === "account_manager" || session?.isAdmin;
     const tabs = [
       { href: "/warehouse",                    label: "Hub",       short: "Hub"   },
-      { href: "/warehouse/clearance",          label: "Clearance", short: "Stock" },
+      { href: "/warehouse/clearance",          label: "Clearance", short: "Clear" },
     ];
     if (adminish || session?.isAdmin) {
       tabs.push({ href: "/warehouse/clearance/manage",    label: "Manage",    short: "Manage" });
