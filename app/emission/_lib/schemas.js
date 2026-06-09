@@ -53,20 +53,57 @@ export const JobIntake = z.object({
   is_historical: z.boolean().optional(),
 });
 
-// Yamaha product price list (owner-only catalogue). purchase_rate is INR EXW
-// (cost to Emission). The selling figure "EXW Aeros" is derived at +10%.
-export const YAMAHA_MARKUP = 0.10;
+// Multi-brand electronics catalogue (owner-only). purchase_rate is INR EXW
+// (cost to Emission) and may be null for not-yet-priced models. The selling
+// figure "EXW Aeros" is derived at +10% (null when there's no cost yet).
+export const YAMAHA_MARKUP = 0.10; // kept name for back-compat
+export const CATALOGUE_MARKUP = YAMAHA_MARKUP;
 export function exwAeros(purchaseRate) {
-  return Math.round(Number(purchaseRate || 0) * (1 + YAMAHA_MARKUP));
+  if (purchaseRate == null || purchaseRate === "" || isNaN(Number(purchaseRate))) return null;
+  return Math.round(Number(purchaseRate) * (1 + CATALOGUE_MARKUP));
 }
 
+// Cross-brand product types offered in the catalogue.
+export const PRODUCT_TYPES = [
+  "Keyboard", "Arranger Keyboard", "Workstation Keyboard", "Synthesizer", "Digital Piano", "Stage Piano",
+  "Acoustic Guitar", "Electric Guitar", "Bass Guitar", "Guitar Amplifier", "Guitar Effects",
+  "Electronic Drums", "Acoustic Drums", "Percussion",
+  "DJ Controller", "DJ System", "Media Player", "DJ Mixer", "Turntable", "DJ Headphones",
+  "PA Speaker", "Portable PA", "Party Speaker", "Portable Speaker", "Column Speaker", "Subwoofer",
+  "Studio Monitor", "Audio Interface", "Analog Mixer", "Digital Mixer", "MIDI Controller",
+  "Dynamic Mic", "Condenser Mic", "Wireless Mic", "USB Mic", "Shotgun Mic", "IEM",
+  "Headphones", "Earbuds", "AV Receiver", "Integrated Amplifier", "Power Amplifier", "Soundbar",
+  "CD Player", "Network Player", "Recorder", "Accessory", "Other",
+];
+
 export const ProductDraft = z.object({
+  brand: z.string().min(1, "Brand required"),
+  vendor: z.string().nullable().optional(),
+  product_type: z.string().nullable().optional(),
   category: z.string().min(1, "Category required"),
   sub_category: z.string().nullable().optional(),
   model_name: z.string().min(1, "Model name required"),
-  purchase_rate: z.coerce.number().nonnegative("Rate must be ≥ 0"),
+  purchase_rate: z.coerce.number().nonnegative("Rate must be ≥ 0").nullable().optional(),
+  mrp: z.coerce.number().nonnegative().nullable().optional(),
+  availability: z.string().nullable().optional(),
   remark: z.string().nullable().optional(),
   sort_order: z.coerce.number().int().optional(),
+  active: z.boolean().optional(),
+});
+
+export const VendorDraft = z.object({
+  name: z.string().min(1, "Vendor name required"),
+  vendor_type: z.string().nullable().optional(),
+  region: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  contact_person: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  website: z.string().nullable().optional(),
+  gst_no: z.string().nullable().optional(),
+  payment_terms: z.string().nullable().optional(),
+  lead_time_days: z.coerce.number().int().nullable().optional(),
+  notes: z.string().nullable().optional(),
   active: z.boolean().optional(),
 });
 

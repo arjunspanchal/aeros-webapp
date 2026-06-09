@@ -75,24 +75,39 @@ export function updateClaim(session, id, patch) {
   return api.update("warranty_claims", "id", id, patch, tok(session));
 }
 
-// ---- Yamaha product price list (admin only) -------------------------------
-// Confidential purchase rates — staff tokens have NO grant, so these calls 403
-// for them. The owner-side page is the only caller.
+// ---- Product catalogue / price list (admin only) --------------------------
+// Multi-brand electronics catalogue. Confidential purchase rates — staff tokens
+// have NO grant, so these calls 403 for them. Owner-side page only.
+// (Table is still named `yamaha_products` for backward-compat; holds all brands.)
 export function listProducts(session) {
   return api.select(
     "yamaha_products",
-    { select: "*", order: "sort_order.asc" },
+    { select: "*", order: "brand.asc,category.asc,sort_order.asc,model_name.asc" },
     tok(session),
   );
 }
 export function createProduct(session, row) {
-  return api.insert("yamaha_products", row, tok(session));
+  return api.insert("yamaha_products", row, tok(session), { select: "*" });
 }
 export function updateProduct(session, id, patch) {
   return api.update("yamaha_products", "id", id, patch, tok(session), { select: "*" });
 }
 export function deleteProduct(session, id) {
   return api.remove("yamaha_products", "id", id, tok(session));
+}
+
+// ---- Vendor / distributor directory (admin only) --------------------------
+export function listVendors(session) {
+  return api.select("vendors", { select: "*", order: "sort_order.asc,name.asc" }, tok(session));
+}
+export function createVendor(session, row) {
+  return api.insert("vendors", row, tok(session), { select: "*" });
+}
+export function updateVendor(session, id, patch) {
+  return api.update("vendors", "id", id, patch, tok(session), { select: "*" });
+}
+export function deleteVendor(session, id) {
+  return api.remove("vendors", "id", id, tok(session));
 }
 
 // ---- dashboard RPCs (admin only) ------------------------------------------
