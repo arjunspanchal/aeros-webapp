@@ -1,14 +1,33 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { StageBadge, formatDate, inputCls } from "@/app/factoryos/_components/ui";
 import { STAGES } from "@/lib/factoryos/constants";
 
+// Deep-link support: KPI tiles on /factoryos/admin land here with a query
+// string that pre-populates the filters. Validated against the canonical
+// STAGES list so a typo in a URL doesn't show "no jobs match" with no clue
+// why. `due=overdue` swaps in a date-comparison filter computed below.
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
+  const searchParams = useSearchParams();
+  const initialStage  = (() => {
+    const s = searchParams.get("stage");
+    return s && STAGES.includes(s) ? s : "all";
+  })();
+  const initialUrgent = searchParams.get("urgent") === "1";
+  const initialDue    = searchParams.get("due") === "overdue" ? "overdue" : "all";
+
   const [q, setQ] = useState("");
-  const [stage, setStage] = useState("all");
+  const [stage, setStage] = useState(initialStage);
   const [clientId, setClientId] = useState("all");
-  const [urgentOnly, setUrgentOnly] = useState(false);
+  const [urgentOnly, setUrgentOnly] = useState(initialUrgent);
+  const [dueFilter, setDueFilter] = useState(initialDue);
+  const today = useMemo(() => todayIso(), []);
 
   const clients = useMemo(() => {
     const seen = new Set();
@@ -25,12 +44,19 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
       if (urgentOnly && !j.urgent) return false;
       if (stage !== "all" && j.stage !== stage) return false;
       if (clientId !== "all" && !j.clientIds.includes(clientId)) return false;
+      // Overdue dispatch: scheduled for before today AND not already in the
+      // post-dispatch stages. Delivered and Dispatched jobs aren't "overdue"
+      // even if their date is in the past.
+      if (dueFilter === "overdue") {
+        if (!j.expectedDispatchDate || j.expectedDispatchDate >= today) return false;
+        if (j.stage === "Dispatched" || j.stage === "Delivered") return false;
+      }
       if (!term) return true;
       const clientName = j.clientIds.map((c) => clientMap[c]?.name || "").join(" ");
       const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.poNumber} ${clientName} ${j.internalStatus}`.toLowerCase();
       return hay.includes(term);
     });
-  }, [jobs, q, stage, clientId, urgentOnly, clientMap]);
+  }, [jobs, q, stage, clientId, urgentOnly, dueFilter, today, clientMap]);
 
   const urgentCount = useMemo(() => jobs.filter((j) => j.urgent).length, [jobs]);
 
@@ -100,6 +126,16 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
         >
           {urgentOnly ? "Urgent only ✓" : `Urgent (${urgentCount})`}
         </button>
+        {dueFilter === "overdue" && (
+          <button
+            type="button"
+            onClick={() => setDueFilter("all")}
+            className="shrink-0 px-3 py-2 text-sm rounded-lg border whitespace-nowrap bg-amber-600 text-white border-amber-600"
+            title="Showing jobs past their expected dispatch date. Click to clear."
+          >
+            Overdue only ✓
+          </button>
+        )}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden dark:bg-gray-900 dark:border-gray-800">
