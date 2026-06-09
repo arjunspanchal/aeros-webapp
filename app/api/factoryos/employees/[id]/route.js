@@ -1,6 +1,6 @@
 import { getSession, requireManager, requireAdminStrict } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
-import { updateEmployee, deleteEmployee, deactivateEmployee, getEmployee } from "@/lib/factoryos/repo";
+import { updateEmployee, deleteEmployee, deactivateEmployee, getEmployee, isDuplicateCode } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
@@ -53,6 +53,9 @@ export async function PATCH(req, { params }) {
     return Response.json({ employee });
   } catch (e) {
     if (e instanceof Response) return e;
+    if (isDuplicateCode(e)) {
+      return Response.json({ error: "That employee code is already in use." }, { status: 409 });
+    }
     console.error(e);
     return Response.json({ error: e.message || "Failed" }, { status: 500 });
   }

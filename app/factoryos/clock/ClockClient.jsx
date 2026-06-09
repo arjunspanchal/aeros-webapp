@@ -25,7 +25,8 @@ function prettyDate(ymd) {
 
 export default function ClockClient({ initialSignedIn }) {
   const [phase, setPhase] = useState(initialSignedIn ? "loading" : "login");
-  const [phone, setPhone] = useState("");
+  // identifier = phone number OR employee code — either signs the worker in.
+  const [identifier, setIdentifier] = useState("");
   const [pin, setPin] = useState("");
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -51,7 +52,7 @@ export default function ClockClient({ initialSignedIn }) {
   async function login(e) {
     e?.preventDefault();
     setErr(""); setBusy(true);
-    const { ok, data } = await postJson("/api/factoryos/clock/login", { phone, pin });
+    const { ok, data } = await postJson("/api/factoryos/clock/login", { identifier, pin });
     setBusy(false);
     if (!ok) { setErr(data.error || "Invalid phone or PIN."); return; }
     setPin("");
@@ -74,7 +75,7 @@ export default function ClockClient({ initialSignedIn }) {
 
   async function signOut() {
     await postJson("/api/factoryos/clock/logout", {});
-    setStatus(null); setPhone(""); setPin(""); setErr(""); setFlash("");
+    setStatus(null); setIdentifier(""); setPin(""); setErr(""); setFlash("");
     setPhase("login");
   }
 
@@ -106,12 +107,13 @@ export default function ClockClient({ initialSignedIn }) {
         {phase === "login" && (
           <form onSubmit={login} className="space-y-4">
             <Input
-              label="Your phone number"
-              type="tel"
-              inputMode="numeric"
-              placeholder="98765 43210"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              label="Phone number or employee code"
+              type="text"
+              autoCapitalize="none"
+              autoComplete="off"
+              placeholder="98765 43210 or your code"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
             />
             <Input

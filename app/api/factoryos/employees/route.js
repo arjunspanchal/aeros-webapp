@@ -1,6 +1,6 @@
 import { getSession, requireInternal, requireManager, requireAdminStrict, requireRole } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
-import { listEmployees, createEmployee } from "@/lib/factoryos/repo";
+import { listEmployees, createEmployee, isDuplicateCode } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 
@@ -53,6 +53,7 @@ export async function POST(req) {
       name: body.name.trim(),
       aadhar: (body.aadhar || "").replace(/\s+/g, ""),
       phone: body.phone || "",
+      employeeCode: (body.employeeCode || "").trim(),
       monthlySalary,
       joiningDate: body.joiningDate || null,
       managerId,
@@ -64,6 +65,9 @@ export async function POST(req) {
     return Response.json({ employee });
   } catch (e) {
     if (e instanceof Response) return e;
+    if (isDuplicateCode(e)) {
+      return Response.json({ error: "That employee code is already in use." }, { status: 409 });
+    }
     console.error(e);
     return Response.json({ error: e.message || "Failed" }, { status: 500 });
   }
