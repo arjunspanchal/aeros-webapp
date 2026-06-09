@@ -49,7 +49,10 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
             {role === "account_manager" ? "Jobs for your customers" : "All jobs"} · {jobs.length} total
           </p>
         </div>
-        {(role === "admin" || role === "factory_manager") && (
+        {/* Mirrors the create-job allow-list: admin / FM / AM. Middleware
+            now lets AM through to /factoryos/admin/jobs/new (audit H1).
+            FE excluded — shop floor doesn't open new jobs. */}
+        {(role === "admin" || role === "factory_manager" || role === "account_manager") && (
           <Link
             href="/factoryos/admin/jobs/new"
             className="shrink-0 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
