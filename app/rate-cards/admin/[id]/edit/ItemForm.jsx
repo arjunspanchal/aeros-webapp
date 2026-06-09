@@ -217,7 +217,7 @@ export default function ItemForm({ initial, submitLabel, onSubmit, onCancel }) {
             </select>
             {products !== null && products.length === 0 && (
               <p className="mt-2 text-xs text-red-500">
-                No master products loaded. Check <code>CATALOG_BASE_ID</code> / <code>CATALOG_TABLE_ID</code> env vars.
+                No master products loaded. Verify the Supabase <code>master_products</code> view is populated.
               </p>
             )}
             {f.productSku && (
