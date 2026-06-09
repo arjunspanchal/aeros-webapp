@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { listRuns, listMachines, listJobsForSession } from "@/lib/factoryos/repo";
 import RunsAdmin from "./RunsAdmin";
+import RunsSummary from "./RunsSummary";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,10 @@ export default async function AdminRunsPage() {
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
           Each run = one shift / batch on a machine. Log RM consumed (kgs) and output produced (pcs). Consumption automatically decrements RM Inventory.
         </p>
+        {/* PR_G: today + running-now + idle-machine summary above the
+            existing form/list grid. Server-rendered snapshot — no client
+            ticking; refresh for fresh elapsed times. */}
+        <RunsSummary runs={runs} machines={machines} jobs={jobs} />
         <RunsAdmin initialRuns={runs} machines={machines} jobs={jobs} currentUser={{ email: session.email, name: session.name }} />
       </main>
     </div>
