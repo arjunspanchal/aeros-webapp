@@ -25,7 +25,7 @@ export const PinRole = z.enum(["staff", "admin"]);
 export const JOB_STAFF_COLUMNS = [
   "id", "job_no", "date_received", "customer_name", "phone", "address", "email", "brand", "model",
   "serial_no", "complaint", "accessories", "remarks", "status", "technician_id", "defect_found",
-  "date_delivered", "customer_signature_path", "technician_signature_path", "is_historical",
+  "date_delivered", "promised_date", "customer_signature_path", "technician_signature_path", "is_historical",
   "created_at", "updated_at",
 ].join(",");
 
@@ -38,6 +38,7 @@ export const CLAIM_STAFF_COLUMNS = [
 // warranty jobs) serial_no — the serial rule is enforced in the intake screen.
 export const JobIntake = z.object({
   date_received: z.string().optional(),
+  promised_date: z.string().nullable().optional(),
   customer_name: z.string().min(1, "Customer name required"),
   phone: z.string().min(7, "Phone required"),
   model: z.string().min(1, "Model required"),

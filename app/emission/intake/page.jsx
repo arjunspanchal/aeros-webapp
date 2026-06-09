@@ -22,7 +22,7 @@ function IntakeInner() {
     date_received: todayISO(),
     customer_name: "", phone: "", model: "", brand: "", serial_no: "",
     address: "", email: "", complaint: "", accessories: "", remarks: "Sub to check",
-    technician_id: "", inspection_charge: "600",
+    technician_id: "", inspection_charge: "600", promised_date: "",
   });
   const [isWarranty, setIsWarranty] = useState(false);
   const [serialNotLegible, setSerialNotLegible] = useState(false);
@@ -71,6 +71,7 @@ function IntakeInner() {
       accessories: form.accessories.trim() || null,
       remarks: form.remarks.trim() || null,
       technician_id: form.technician_id || null,
+      promised_date: form.promised_date || null,
       is_historical: historical,
     };
     const parsed = JobIntake.safeParse(payload);
@@ -204,6 +205,9 @@ function IntakeInner() {
           </Field>
           <Field label="Date received" hint={historical ? "back-datable" : null}>
             <input className="em-input" type="date" value={form.date_received} onChange={set("date_received")} max={todayISO()} />
+          </Field>
+          <Field label="Promised by" hint="Tell the customer a ready date">
+            <input className="em-input" type="date" value={form.promised_date} onChange={set("promised_date")} min={form.date_received} />
           </Field>
         </div>
 

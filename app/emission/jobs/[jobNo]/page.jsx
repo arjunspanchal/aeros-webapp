@@ -59,6 +59,7 @@ export default function JobDetailPage({ params }) {
   const itemsTotal = items.reduce((s, it) => s + Number(it.amount || 0), 0);
   const phoneDigits = (job.phone || "").replace(/\D/g, "");
   const waText = encodeURIComponent(`Hi ${job.customer_name}, regarding your ${[job.brand, job.model].filter(Boolean).join(" ")} (Job #${job.job_no}) at Emission Electronics — `);
+  const overdue = job.promised_date && open && job.status !== "ready" && job.promised_date < todayISO();
 
   return (
     <div>
@@ -87,6 +88,7 @@ export default function JobDetailPage({ params }) {
         <Meta k="Phone" v={job.phone} />
         <Meta k="Serial" v={job.serial_no} />
         <Meta k="Received" v={fmtDate(job.date_received)} />
+        <Meta k={overdue ? "Promised · OVERDUE" : "Promised"} v={job.promised_date ? <span style={overdue ? { fontWeight: 800 } : null}>{fmtDate(job.promised_date)}</span> : "—"} />
         <Meta k="Delivered" v={job.date_delivered ? fmtDate(job.date_delivered) : "—"} />
         <Meta k="Technician" v={techName || "—"} mono={false} />
         <Meta k="Accessories" v={job.accessories || "—"} mono={false} />
@@ -288,7 +290,7 @@ function AssignmentEditor({ session, job, staff, onChange }) {
 }
 
 function DetailsEditor({ session, job, onChange }) {
-  const fields = ["customer_name", "phone", "brand", "model", "serial_no", "complaint", "accessories", "remarks", "email", "address", "date_received"];
+  const fields = ["customer_name", "phone", "brand", "model", "serial_no", "complaint", "accessories", "remarks", "email", "address", "date_received", "promised_date"];
   const [f, setF] = useState(() => Object.fromEntries(fields.map((k) => [k, job[k] ?? ""])));
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
@@ -310,6 +312,7 @@ function DetailsEditor({ session, job, onChange }) {
         <Field label="Model"><input className="em-input" value={f.model} onChange={set("model")} /></Field>
         <Field label="Serial"><input className="em-input" value={f.serial_no} onChange={set("serial_no")} /></Field>
         <Field label="Received"><input className="em-input" type="date" value={f.date_received} onChange={set("date_received")} max={todayISO()} /></Field>
+        <Field label="Promised by"><input className="em-input" type="date" value={f.promised_date} onChange={set("promised_date")} /></Field>
       </div>
       <Field label="Complaint"><textarea className="em-textarea" value={f.complaint} onChange={set("complaint")} /></Field>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
