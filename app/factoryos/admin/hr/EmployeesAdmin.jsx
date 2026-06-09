@@ -21,7 +21,8 @@ function readAsBase64(file) {
 const EMPTY = {
   name: "",
   aadhar: "",
-  phone: "",
+  phone: "", // local 10-digit number; +91 is prefixed on save
+  employeeCode: "",
   monthlySalary: "",
   joiningDate: "",
   managerId: "",
@@ -29,6 +30,11 @@ const EMPTY = {
   designation: "",
   notes: "",
 };
+
+// Strip any country code / formatting to the local 10-digit number for editing.
+function localTen(p) {
+  return String(p || "").replace(/\D/g, "").slice(-10);
+}
 
 export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAdmin = true, currentUserId = null }) {
   const [employees, setEmployees] = useState(initialEmployees);
@@ -67,6 +73,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
       return (
         e.name.toLowerCase().includes(term) ||
         e.phone.toLowerCase().includes(term) ||
+        (e.employeeCode || "").toLowerCase().includes(term) ||
         e.aadhar.includes(term) ||
         (managerMap[e.managerId]?.name || "").toLowerCase().includes(term)
       );
@@ -78,7 +85,8 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
     setForm({
       name: e.name,
       aadhar: e.aadhar,
-      phone: e.phone,
+      phone: localTen(e.phone),
+      employeeCode: e.employeeCode || "",
       monthlySalary: e.monthlySalary ? String(e.monthlySalary) : "",
       joiningDate: e.joiningDate || "",
       managerId: e.managerId || "",
@@ -121,10 +129,14 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
     ev.preventDefault();
     setErr("");
     setBusy(true);
+    // Phone is entered as a local 10-digit number; persist it with the India
+    // country code so every record is consistent (+91 XXXXXXXXXX).
+    const localPhone = localTen(form.phone);
     const payload = {
       name: form.name,
       aadhar: form.aadhar.trim(),
-      phone: form.phone.trim(),
+      phone: localPhone ? `+91 ${localPhone}` : "",
+      employeeCode: form.employeeCode.trim(),
       monthlySalary: Number(form.monthlySalary) || 0,
       joiningDate: form.joiningDate || null,
       managerId: form.managerId || null,
@@ -272,9 +284,34 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
 
         <div>
           <label className={labelCls}>Phone</label>
-          <input className={`${inputCls} text-base`} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 43210" />
+          <div className="flex items-stretch">
+            <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              +91
+            </span>
+            <input
+              className={`${inputCls} text-base rounded-l-none`}
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+              placeholder="98765 43210"
+              inputMode="numeric"
+              maxLength={10}
+            />
+          </div>
           <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-            Used to sign in to the punch clock. Must be unique per employee.
+            India (+91) assumed — enter the 10-digit number. Used to sign in to the punch clock; must be unique.
+          </p>
+        </div>
+
+        <div>
+          <label className={labelCls}>Employee code <span className="font-normal text-gray-400">· optional</span></label>
+          <input
+            className={`${inputCls} text-base`}
+            value={form.employeeCode}
+            onChange={(e) => setForm({ ...form, employeeCode: e.target.value })}
+            placeholder="e.g. E-101"
+          />
+          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+            Optional. Workers can sign in to the punch clock with this code instead of their phone. Must be unique.
           </p>
         </div>
 
