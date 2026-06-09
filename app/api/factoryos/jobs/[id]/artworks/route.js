@@ -1,13 +1,9 @@
-import { getSession, requireInternal, requireRole } from "@/lib/auth/session";
-import {
-  getJob,
-  getVendor,
-  listJobArtworks,
-  attachJobArtwork,
-  deleteJobArtwork,
-} from "@/lib/factoryos/repo";
+import { getSession } from "@/lib/auth/session";
+import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
+import { listJobArtworks, attachJobArtwork, deleteJobArtwork } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const ARTWORK_MAX_BYTES = 25 * 1024 * 1024; // print files (PDF/AI/EPS/ZIP) run large
 const PROOF_MAX_BYTES = 15 * 1024 * 1024;
@@ -20,42 +16,14 @@ const ARTWORK_BLOCKED = new Set([
   "application/x-sh",
 ]);
 
-// Resolve the job and the caller's relationship to it.
-//   access = "internal" → admin / FM / FE / AM (AM scoped to own clients)
-//   access = "vendor"   → the printing vendor this job is assigned to
-//   access = null       → no access
-async function resolveAccess(session, jobId) {
-  const job = await getJob(jobId);
-  if (!job) return { job: null, access: null };
-
-  if (requireInternal(session)) {
-    if (requireRole(session, "factoryos", "account_manager")) {
-      const myClients = new Set(session.factoryosClientIds || []);
-      if (!job.clientIds.some((c) => myClients.has(c))) return { job, access: null };
-    }
-    return { job, access: "internal" };
-  }
-
-  if (requireRole(session, "factoryos", "vendor")) {
-    const vendor = session.factoryosVendorId ? await getVendor(session.factoryosVendorId) : null;
-    const vid = session.factoryosVendorId || null;
-    const vn = (vendor?.name || "").trim().toLowerCase();
-    const owns =
-      (vid && job.printingVendorId === vid) ||
-      (vn && (job.printingVendor || "").trim().toLowerCase() === vn);
-    if (owns) return { job, access: "vendor" };
-  }
-
-  return { job, access: null };
-}
-
 // GET — list artworks + proofs for the job (internal or owning vendor).
+// A single 404 covers both "no such job" and "not yours" so the route can't be
+// used to probe which ids exist (audit M5).
 export async function GET(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  const { job, access } = await resolveAccess(session, params.id);
-  if (!job) return Response.json({ error: "Not found" }, { status: 404 });
-  if (!access) return Response.json({ error: "Forbidden" }, { status: 403 });
+  const { job, access } = await resolveJobAccess(session, params.id);
+  if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
   const artworks = await listJobArtworks(job.id);
   return Response.json({ artworks });
 }
@@ -64,9 +32,8 @@ export async function GET(req, { params }) {
 export async function POST(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  const { job, access } = await resolveAccess(session, params.id);
-  if (!job) return Response.json({ error: "Not found" }, { status: 404 });
-  if (!access) return Response.json({ error: "Forbidden" }, { status: 403 });
+  const { job, access } = await resolveJobAccess(session, params.id);
+  if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
   const { filename, contentType, fileBase64 } = body;
@@ -108,7 +75,7 @@ export async function POST(req, { params }) {
     return Response.json({ artworks });
   } catch (e) {
     console.error("artwork upload failed:", e);
-    return Response.json({ error: e.message || "Upload failed" }, { status: 500 });
+    return Response.json({ error: "Upload failed" }, { status: 500 });
   }
 }
 
@@ -117,9 +84,8 @@ export async function POST(req, { params }) {
 export async function DELETE(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  const { job, access } = await resolveAccess(session, params.id);
-  if (!job) return Response.json({ error: "Not found" }, { status: 404 });
-  if (!access) return Response.json({ error: "Forbidden" }, { status: 403 });
+  const { job, access } = await resolveJobAccess(session, params.id);
+  if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
 
   const artworkId = new URL(req.url).searchParams.get("artworkId");
   if (!artworkId) return Response.json({ error: "artworkId required" }, { status: 400 });
@@ -139,6 +105,6 @@ export async function DELETE(req, { params }) {
     return Response.json({ artworks });
   } catch (e) {
     console.error("artwork delete failed:", e);
-    return Response.json({ error: e.message || "Delete failed" }, { status: 500 });
+    return Response.json({ error: "Delete failed" }, { status: 500 });
   }
 }
