@@ -57,12 +57,18 @@ export default function JobDetailPage({ params }) {
   const age = daysSince(job.date_received);
   const techName = staff.find((s) => s.id === job.technician_id)?.name;
   const itemsTotal = items.reduce((s, it) => s + Number(it.amount || 0), 0);
+  const phoneDigits = (job.phone || "").replace(/\D/g, "");
+  const waText = encodeURIComponent(`Hi ${job.customer_name}, regarding your ${[job.brand, job.model].filter(Boolean).join(" ")} (Job #${job.job_no}) at Emission Electronics — `);
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <Link href="/emission/jobs" className="em-label" style={{ textDecoration: "none" }}>← JOB LIST</Link>
-        <Link href={`/emission/jobs/${job.job_no}/slip`} className="em-btn em-btn--ghost em-btn--sm" style={{ textDecoration: "none" }}>🖨 CUSTOMER SLIP</Link>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {phoneDigits ? <a href={`tel:+${phoneDigits}`} className="em-btn em-btn--ghost em-btn--sm" style={{ textDecoration: "none" }}>📞 CALL</a> : null}
+          {phoneDigits ? <a href={`https://wa.me/${phoneDigits}?text=${waText}`} target="_blank" rel="noreferrer" className="em-btn em-btn--ghost em-btn--sm" style={{ textDecoration: "none" }}>💬 WHATSAPP</a> : null}
+          <Link href={`/emission/jobs/${job.job_no}/slip`} className="em-btn em-btn--ghost em-btn--sm" style={{ textDecoration: "none" }}>🖨 SLIP</Link>
+        </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginTop: 10 }}>

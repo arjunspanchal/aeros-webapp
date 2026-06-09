@@ -1,7 +1,7 @@
 "use client";
 import { useState, useCallback } from "react";
 import { Eyebrow, Title, StatusLabel, Meta, Wordmark, PhoneInput, ServiceCentreInfo, Divider } from "../_components/ui";
-import { publicJob, respondEstimate } from "../_lib/client";
+import { publicJob, respondEstimate, submitFeedback } from "../_lib/client";
 import { fmtDate, inr, statusLabel } from "../_lib/format";
 
 // Customer-facing repair flow (friendly labels). Terminal branches handled below.
@@ -145,6 +145,8 @@ export default function StatusPage() {
                 <Meta k="Received" v={fmtDate(job.date_received)} />
                 <Meta k="Delivered" v={job.date_delivered ? fmtDate(job.date_delivered) : "—"} />
               </div>
+
+              {job.status === "delivered" ? <FeedbackBox job={job} jobNo={jobNo} phone={phone} onDone={fetchJob} /> : null}
             </div>
           ) : null}
 
@@ -152,6 +154,53 @@ export default function StatusPage() {
           <ServiceCentreInfo />
         </div>
       </div>
+    </div>
+  );
+}
+
+function FeedbackBox({ job, jobNo, phone, onDone }) {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  if (job.feedback) {
+    return (
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--em-g200)" }}>
+        <div className="em-eyebrow">YOUR FEEDBACK</div>
+        <div style={{ marginTop: 6, fontSize: 18, letterSpacing: 2 }}>
+          <span style={{ color: "var(--em-ink)" }}>{"★".repeat(job.feedback.rating)}</span>
+          <span style={{ color: "var(--em-g300)" }}>{"★".repeat(5 - job.feedback.rating)}</span>
+        </div>
+        {job.feedback.comment ? <div className="em-label" style={{ textTransform: "none", letterSpacing: "0.03em", marginTop: 4 }}>“{job.feedback.comment}”</div> : null}
+        <div className="em-label" style={{ textTransform: "none", letterSpacing: "0.03em", marginTop: 6 }}>Thank you for your feedback.</div>
+      </div>
+    );
+  }
+
+  async function submit() {
+    if (!rating) { setErr("Tap a star to rate."); return; }
+    setBusy(true); setErr("");
+    try {
+      const r = await submitFeedback(jobNo.trim(), phone.trim(), rating, comment);
+      if (r?.ok) await onDone();
+      else setErr("Could not submit. Please try again.");
+    } catch { setErr("Could not submit. Please try again."); }
+    setBusy(false);
+  }
+
+  return (
+    <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--em-g200)" }}>
+      <div className="em-eyebrow">RATE YOUR EXPERIENCE</div>
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} type="button" onClick={() => setRating(n)} aria-label={`${n} star`}
+            style={{ background: "none", border: 0, cursor: "pointer", fontSize: 28, lineHeight: 1, padding: 0, color: n <= rating ? "var(--em-ink)" : "var(--em-g300)" }}>★</button>
+        ))}
+      </div>
+      <textarea className="em-textarea" placeholder="Anything you’d like to share? (optional)" value={comment} onChange={(e) => setComment(e.target.value)} style={{ marginTop: 10 }} />
+      {err ? <div className="em-label" style={{ marginTop: 6, textTransform: "none", letterSpacing: "0.03em" }}>{err}</div> : null}
+      <button className="em-btn em-btn--primary em-btn--block" style={{ marginTop: 10 }} disabled={busy} onClick={submit}>{busy ? "SENDING…" : "SUBMIT FEEDBACK"}</button>
     </div>
   );
 }
