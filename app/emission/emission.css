@@ -159,3 +159,13 @@
 .em-pin-dot--on { background: var(--em-ink); border-color: var(--em-ink); }
 
 .em-link { color: var(--em-ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+/* ---- print: counter job slip ------------------------------------------- */
+@media print {
+  /* hide app chrome; show only the slip */
+  .em-topbar, .em-no-print { display: none !important; }
+  .emission-root { background: #fff !important; }
+  .emission-root main { padding: 0 !important; max-width: none !important; }
+  .em-slip { border: none !important; box-shadow: none !important; padding: 0 !important; }
+  @page { margin: 14mm; size: A5 portrait; }
+}
