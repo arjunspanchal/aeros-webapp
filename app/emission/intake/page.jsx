@@ -4,11 +4,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../_components/AuthProvider";
 import { Eyebrow, Title, Field, Divider, PhoneInput } from "../_components/ui";
 import SignaturePad from "../_components/SignaturePad";
-import { listStaff, createJob, updateJob } from "../_lib/data";
+import { listStaff, createJob, updateJob, findJobsByPhone } from "../_lib/data";
 import { uploadObject } from "../_lib/client";
 import { BUCKETS } from "../_lib/config";
 import { JobIntake } from "../_lib/schemas";
-import { todayISO } from "../_lib/format";
+import { todayISO, fmtDate, statusLabel } from "../_lib/format";
 
 function IntakeInner() {
   const { session } = useAuth();
@@ -29,11 +29,23 @@ function IntakeInner() {
   const [photos, setPhotos] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [priorJobs, setPriorJobs] = useState([]);
   const sigRef = useRef(null);
 
   useEffect(() => {
     if (session) listStaff(session).then(setStaff).catch(() => {});
   }, [session]);
+
+  // Repeat-customer recognition: debounced lookup of prior jobs by phone.
+  useEffect(() => {
+    const d = (form.phone || "").replace(/\D/g, "").slice(-10);
+    if (!session || historical || d.length < 10) { setPriorJobs([]); return; }
+    let live = true;
+    const t = setTimeout(() => {
+      findJobsByPhone(session, form.phone).then((r) => { if (live) setPriorJobs(r || []); }).catch(() => {});
+    }, 400);
+    return () => { live = false; clearTimeout(t); };
+  }, [form.phone, session, historical]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -119,6 +131,30 @@ function IntakeInner() {
         <Field label="Phone" required>
           <PhoneInput value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} autoFocus />
         </Field>
+
+        {priorJobs.length ? (
+          <div className="em-card" style={{ padding: 12, borderColor: "var(--em-ink)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+              <span className="em-eyebrow">↻ RETURNING CUSTOMER · {priorJobs.length} PRIOR JOB{priorJobs.length > 1 ? "S" : ""}</span>
+              {!form.customer_name && priorJobs[0]?.customer_name ? (
+                <button type="button" className="em-link em-label" style={{ background: "none", border: 0, textTransform: "none", letterSpacing: "0.03em" }}
+                  onClick={() => setForm((f) => ({ ...f, customer_name: priorJobs[0].customer_name }))}>
+                  Use “{priorJobs[0].customer_name}”
+                </button>
+              ) : null}
+            </div>
+            <div style={{ marginTop: 8 }}>
+              {priorJobs.slice(0, 4).map((j) => (
+                <a key={j.job_no} href={`/emission/jobs/${j.job_no}`} target="_blank" rel="noreferrer"
+                  style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "4px 0", textDecoration: "none", color: "inherit" }}>
+                  <span style={{ fontSize: 13 }}><span className="em-mono">#{j.job_no}</span> · {[j.brand, j.model].filter(Boolean).join(" ") || "—"}</span>
+                  <span className="em-meta-k" style={{ whiteSpace: "nowrap" }}>{statusLabel(j.status)} · {fmtDate(j.date_received)}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <Field label="Customer name" required>
           <input className="em-input" value={form.customer_name} onChange={set("customer_name")} placeholder="Full name" />
         </Field>

@@ -31,6 +31,18 @@ export async function listJobs(session, { status } = {}) {
   });
 }
 
+// Prior jobs for a phone (repeat-customer recognition at intake). Digit-tolerant
+// contains-match on the last 10 digits.
+export function findJobsByPhone(session, phone) {
+  const d = String(phone || "").replace(/\D/g, "").slice(-10);
+  if (d.length < 8) return Promise.resolve([]);
+  return api.select(
+    "jobs",
+    { select: "job_no,customer_name,brand,model,status,date_received", filter: { phone: `ilike.*${d}*` }, order: "date_received.desc", limit: "8" },
+    tok(session),
+  );
+}
+
 export async function getJobByNo(session, jobNo) {
   const cols = isAdmin(session) ? "*" : JOB_STAFF_COLUMNS;
   const rows = await api.select("jobs", { select: cols, filter: { job_no: `eq.${Number(jobNo)}` }, limit: "1" }, tok(session));
