@@ -75,6 +75,14 @@ export function updateClaim(session, id, patch) {
   return api.update("warranty_claims", "id", id, patch, tok(session));
 }
 
+// ---- job activity timeline (status changes auto-logged + staff notes) ------
+export function listJobEvents(session, jobId) {
+  return api.select("job_events", { select: "*", filter: { job_id: `eq.${jobId}` }, order: "created_at.desc" }, tok(session));
+}
+export function addJobNote(session, jobId, note) {
+  return api.insert("job_events", { job_id: jobId, event_type: "note", note }, tok(session));
+}
+
 // ---- Product catalogue / price list (admin only) --------------------------
 // Multi-brand electronics catalogue. Confidential purchase rates — staff tokens
 // have NO grant, so these calls 403 for them. Owner-side page only.

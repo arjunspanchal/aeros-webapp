@@ -73,3 +73,16 @@ export function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+
+// Short relative time, e.g. "just now", "5m ago", "3h ago", "2d ago", "12 Apr".
+export function timeAgo(ts) {
+  if (!ts) return "";
+  const dt = new Date(ts);
+  if (isNaN(dt)) return "";
+  const s = Math.floor((Date.now() - dt.getTime()) / 1000);
+  if (s < 45) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 86400 * 7) return `${Math.floor(s / 86400)}d ago`;
+  return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+}

@@ -6,11 +6,11 @@ import { Eyebrow, Title, StatusLabel, Meta, Field, Divider, PhoneInput } from ".
 import SignaturePad from "../../_components/SignaturePad";
 import {
   getJobByNo, updateJob, listLineItems, addLineItem, updateLineItem,
-  getClaim, createClaim, updateClaim, listStaff,
+  getClaim, createClaim, updateClaim, listStaff, listJobEvents, addJobNote,
 } from "../../_lib/data";
 import { uploadObject } from "../../_lib/client";
 import { BUCKETS } from "../../_lib/config";
-import { inr, fmtDate, daysSince, todayISO, PAYMENT_LABEL, ITEM_TYPE_LABEL, CLAIM_LABEL, statusLabel } from "../../_lib/format";
+import { inr, fmtDate, daysSince, todayISO, timeAgo, PAYMENT_LABEL, ITEM_TYPE_LABEL, CLAIM_LABEL, statusLabel } from "../../_lib/format";
 import { JobStatus, LIFECYCLE, TERMINAL_BRANCHES, TERMINAL_STATUSES, ItemType, ClaimStatus, PaymentMethod } from "../../_lib/schemas";
 
 export default function JobDetailPage({ params }) {
@@ -22,6 +22,7 @@ export default function JobDetailPage({ params }) {
   const [items, setItems] = useState([]);
   const [claim, setClaim] = useState(null);
   const [staff, setStaff] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -31,9 +32,14 @@ export default function JobDetailPage({ params }) {
       const j = await getJobByNo(session, jobNo);
       setJob(j);
       if (j) {
-        const [li, cl] = await Promise.all([listLineItems(session, j.id), getClaim(session, j.id)]);
+        const [li, cl, ev] = await Promise.all([
+          listLineItems(session, j.id),
+          getClaim(session, j.id),
+          listJobEvents(session, j.id).catch(() => []),
+        ]);
         setItems(li);
         setClaim(cl);
+        setEvents(ev || []);
       }
       setErr("");
     } catch (e) { setErr(e.message); }
@@ -61,7 +67,7 @@ export default function JobDetailPage({ params }) {
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginTop: 10 }}>
         <div>
-          <Eyebrow>JOB #{job.job_no}{job.is_historical ? " · HISTORICAL" : ""}</Eyebrow>
+          <Eyebrow>{`JOB #${job.job_no}${job.is_historical ? " · HISTORICAL" : ""}`}</Eyebrow>
           <Title lead={job.customer_name} style={{ fontSize: 26, marginTop: 6 }} />
           <div className="em-meta-k" style={{ marginTop: 4 }}>{[job.brand, job.model].filter(Boolean).join(" · ") || "—"}</div>
         </div>
@@ -79,6 +85,8 @@ export default function JobDetailPage({ params }) {
         <Meta k="Technician" v={techName || "—"} mono={false} />
         <Meta k="Accessories" v={job.accessories || "—"} mono={false} />
       </div>
+
+      <JobActivity session={session} job={job} events={events} onChange={reload} />
 
       <Section title="STATUS">
         <StatusControls session={session} job={job} onChange={reload} />
@@ -140,6 +148,57 @@ function Saver({ onClick, busy, ok, label = "SAVE" }) {
     <button className="em-btn em-btn--ghost em-btn--sm" onClick={onClick} disabled={busy}>
       {busy ? "SAVING…" : ok ? "SAVED ✓" : label}
     </button>
+  );
+}
+
+function JobActivity({ session, job, events, onChange }) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  async function add() {
+    const t = note.trim();
+    if (!t) return;
+    setBusy(true);
+    try { await addJobNote(session, job.id, t); setNote(""); await onChange(); } catch (e) { alert(e.message); }
+    setBusy(false);
+  }
+
+  const shown = open ? events : events.slice(0, 5);
+  function label(ev) {
+    if (ev.event_type === "created") return `Job created · ${statusLabel(ev.to_status)}`;
+    if (ev.event_type === "status_change") return `${statusLabel(ev.from_status)} → ${statusLabel(ev.to_status)}`;
+    return ev.note;
+  }
+
+  return (
+    <Section title="ACTIVITY" hint="Auto-logged status changes + staff notes">
+      <div style={{ display: "flex", gap: 8 }}>
+        <input className="em-input" placeholder="Add a note (e.g. customer called, part ordered)…" value={note}
+          onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+        <button className="em-btn em-btn--ghost em-btn--sm" onClick={add} disabled={busy} style={{ whiteSpace: "nowrap" }}>{busy ? "…" : "+ NOTE"}</button>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        {events.length === 0 ? (
+          <div className="em-label" style={{ textTransform: "none", letterSpacing: "0.03em" }}>No activity yet.</div>
+        ) : (
+          shown.map((ev, i) => (
+            <div key={ev.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderTop: i > 0 ? "1px solid var(--em-g200)" : "none" }}>
+              <div style={{ width: 7, height: 7, borderRadius: 99, marginTop: 6, flex: "0 0 auto", background: ev.event_type === "note" ? "var(--em-g300)" : "var(--em-ink)" }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: "var(--em-ink)" }}>{label(ev)}</div>
+                <div className="em-meta-k">{(ev.actor || "system")} · {timeAgo(ev.created_at)}</div>
+              </div>
+            </div>
+          ))
+        )}
+        {events.length > 5 ? (
+          <button onClick={() => setOpen((o) => !o)} className="em-link em-label" style={{ background: "none", border: 0, marginTop: 8, textTransform: "none", letterSpacing: "0.03em" }}>
+            {open ? "Show less" : `Show all ${events.length}`}
+          </button>
+        ) : null}
+      </div>
+    </Section>
   );
 }
 
