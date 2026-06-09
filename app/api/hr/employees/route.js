@@ -45,6 +45,7 @@ export async function POST(req) {
       aadhar: (body.aadhar || "").replace(/\s+/g, ""),
       phone: body.phone || "",
       employeeCode: (body.employeeCode || "").trim(),
+      workMode: body.workMode === "WFH" ? "WFH" : "WFO",
       monthlySalary,
       joiningDate: body.joiningDate || null,
       managerId,

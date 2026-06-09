@@ -23,6 +23,7 @@ const EMPTY = {
   aadhar: "",
   phone: "", // local 10-digit number; +91 is prefixed on save
   employeeCode: "",
+  workMode: "WFO",
   monthlySalary: "",
   joiningDate: "",
   managerId: "",
@@ -74,6 +75,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
         e.name.toLowerCase().includes(term) ||
         e.phone.toLowerCase().includes(term) ||
         (e.employeeCode || "").toLowerCase().includes(term) ||
+        (e.workMode || "").toLowerCase().includes(term) ||
         e.aadhar.includes(term) ||
         (managerMap[e.managerId]?.name || "").toLowerCase().includes(term)
       );
@@ -87,6 +89,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
       aadhar: e.aadhar,
       phone: localTen(e.phone),
       employeeCode: e.employeeCode || "",
+      workMode: e.workMode || "WFO",
       monthlySalary: e.monthlySalary ? String(e.monthlySalary) : "",
       joiningDate: e.joiningDate || "",
       managerId: e.managerId || "",
@@ -137,6 +140,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
       aadhar: form.aadhar.trim(),
       phone: localPhone ? `+91 ${localPhone}` : "",
       employeeCode: form.employeeCode.trim(),
+      workMode: form.workMode === "WFH" ? "WFH" : "WFO",
       monthlySalary: Number(form.monthlySalary) || 0,
       joiningDate: form.joiningDate || null,
       managerId: form.managerId || null,
@@ -312,6 +316,35 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
           />
           <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
             Optional. Workers can sign in to the punch clock with this code instead of their phone. Must be unique.
+          </p>
+        </div>
+
+        <div>
+          <label className={labelCls}>Work mode</label>
+          <div className="flex gap-2">
+            {[
+              { value: "WFO", label: "🏭 Office (WFO)" },
+              { value: "WFH", label: "🏠 Home (WFH)" },
+            ].map((opt) => {
+              const active = form.workMode === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setForm({ ...form, workMode: opt.value })}
+                  className={`flex-1 text-sm font-medium px-3 py-2 rounded-md border transition-colors ${
+                    active
+                      ? "border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-300"
+                      : "border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+            Work-from-office (on-site) or work-from-home. Defaults to Office.
           </p>
         </div>
 
@@ -543,6 +576,16 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
                             no PIN
                           </span>
                         )}
+                        <span
+                          className={`text-[10px] px-1 py-0.5 rounded ${
+                            e.workMode === "WFH"
+                              ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                              : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                          }`}
+                          title={e.workMode === "WFH" ? "Works from home" : "Works from office (on-site)"}
+                        >
+                          {e.workMode === "WFH" ? "WFH" : "WFO"}
+                        </span>
                         {!e.active && <span className="ml-2 text-xs text-gray-400">(inactive)</span>}
                       </div>
                       {e.designation && <div className="text-xs text-gray-500 dark:text-gray-400">{e.designation}</div>}
@@ -623,6 +666,15 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                       {e.name}
+                      <span
+                        className={`ml-2 text-[10px] px-1 py-0.5 rounded ${
+                          e.workMode === "WFH"
+                            ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                            : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                        }`}
+                      >
+                        {e.workMode === "WFH" ? "WFH" : "WFO"}
+                      </span>
                       {!e.active && <span className="ml-2 text-xs text-gray-400">(inactive)</span>}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{e.designation || "—"}</p>
