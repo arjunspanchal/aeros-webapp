@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
-import { CATEGORIES, STAGES } from "@/lib/factoryos/constants";
+import { STAGES, LEGACY_CATEGORIES } from "@/lib/factoryos/constants";
 
 // Fallback if the server didn't pass a precomputed J#. Returns "YYMM001"
 // (just the prefix + first-of-month seq) so the form never starts blank.
@@ -45,7 +45,10 @@ export default function NewJobForm({
     brand: "",
     customerManagerId: "",
     productId: "",
-    category: "Paper Bag",
+    // Category is auto-filled when the operator picks a master product —
+    // the catalog category is the source of truth. Starts empty so a job
+    // with no SKU selected doesn't carry a misleading default into the DB.
+    category: "",
     item: "",
     itemSize: "",
     city: "",
@@ -93,6 +96,17 @@ export default function NewJobForm({
     return Array.from(set).sort();
   }, [products]);
 
+  // Category options for the form field (post-pick). Union of catalog
+  // categories + the legacy hardcoded values so editing an old job whose
+  // category was set under the old taxonomy still displays its value. Plus
+  // the current form value itself (covers freeform / unusual inputs).
+  const formCategoryOptions = useMemo(() => {
+    const set = new Set(productCategories);
+    for (const c of LEGACY_CATEGORIES) set.add(c);
+    if (form.category) set.add(form.category);
+    return Array.from(set).sort();
+  }, [productCategories, form.category]);
+
   // Filter pipeline: category (if set) → text search → cap at 200 options.
   const filteredProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
@@ -110,7 +124,13 @@ export default function NewJobForm({
       productId: id,
       item: p.productName,
       itemSize: p.sizeVolume || f.itemSize,
-      category: CATEGORIES.includes(p.category) ? p.category : f.category,
+      // Use the catalog's category verbatim. The previous gate
+      // (`CATEGORIES.includes(...) ? p.category : f.category`) silently
+      // discarded any catalog value that didn't appear in the hardcoded
+      // legacy list — so picking a Lid / Take Out Container / Deli Wrap
+      // / Straw would leave the field on whatever the form default was.
+      // Source of truth is the catalog. Audit finding C6.
+      category: p.category || f.category,
       gsm: p.gsm != null ? String(p.gsm) : f.gsm,
       paperType: p.material || f.paperType,
     }));
@@ -304,7 +324,8 @@ export default function NewJobForm({
         <div>
           <label className={labelCls}>Category</label>
           <select className={inputCls} value={form.category} onChange={(e) => set("category", e.target.value)}>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            <option value="">— Select category —</option>
+            {formCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <div>
