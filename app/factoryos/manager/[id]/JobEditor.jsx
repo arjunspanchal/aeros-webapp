@@ -411,9 +411,12 @@ export default function JobEditor({
         <p className="text-xs text-gray-400 mt-3 dark:text-gray-500">These save along with the status update below.</p>
       </div>
 
+      {/* Audit C2: ledger writes (FG stock + unit cost) are admin/FM only.
+          FE keeps full production-floor access (RM, stage, runs) but no
+          longer authors financial movements. */}
       <PushToWarehouseCard
         job={job}
-        canPush={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER || role === ROLES.FACTORY_EXECUTIVE}
+        canPush={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER}
       />
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">

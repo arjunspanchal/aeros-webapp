@@ -6,14 +6,16 @@ import { pushJobToWarehouse, getJobPushStatus } from "@/lib/warehouse/jobPush";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Same staff set that runs WarehouseOS — Admin / FM / FE.
+// Push-to-warehouse writes to the FG ledger (inventory_movements) and seals
+// in a unit cost — a financial write. Admin + Factory Manager only. Audit
+// finding C2: FE was previously included to mirror "WarehouseOS staff set",
+// but cost authorisation isn't a shop-floor role. FE still drives production
+// (RM consumption, stage updates) — they just can't book stock + cost.
 function canPush(session) {
   if (!session) return false;
   if (session.isAdmin) return true;
   const role = session.modules?.factoryos;
-  return role === ROLES.ADMIN ||
-         role === ROLES.FACTORY_MANAGER ||
-         role === ROLES.FACTORY_EXECUTIVE;
+  return role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
 }
 
 export async function GET(_req, { params }) {
