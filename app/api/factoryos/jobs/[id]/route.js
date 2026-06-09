@@ -7,6 +7,7 @@ import {
   deleteJob,
   countUpdatesForJob,
 } from "@/lib/factoryos/repo";
+import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { STAGES, ROLES, canUpdateStage } from "@/lib/factoryos/constants";
 
 // Roles allowed to remove a job entirely. Account managers + customers can
@@ -138,6 +139,35 @@ export async function PATCH(req, { params }) {
       if (!requireManager(session)) {
         return Response.json({ error: "Not allowed to change master product mapping" }, { status: 403 });
       }
+      // Detect whether the request would actually CHANGE the mapping vs
+      // submit the existing value back. We only block real changes; no-op
+      // resaves stay legal so a stale-tab "Save" doesn't surprise the user.
+      const newSku  = body.masterSku  !== undefined ? String(body.masterSku  || "") : job.masterSku  || "";
+      const newName = body.masterProductName !== undefined ? String(body.masterProductName || "") : job.masterProductName || "";
+      const mappingChanged =
+        (body.masterSku  !== undefined && newSku  !== (job.masterSku  || "")) ||
+        (body.masterProductName !== undefined && newName !== (job.masterProductName || ""));
+
+      // Once a job has at least one warehouse push, the FG ledger has
+      // already booked stock against the current master SKU (or its
+      // brand-derived variant — push_job_to_warehouse synthesises one
+      // from masterSku + brand). Allowing a remap after that point would
+      // split future pushes onto a different SKU while the past pushes
+      // stay tied to the original, silently fragmenting FG inventory for
+      // one physical job. Audit finding C5.
+      if (mappingChanged) {
+        const status = await getJobPushStatus(job.id).catch(() => null);
+        if (status && status.push_count > 0) {
+          return Response.json({
+            error:
+              `Cannot remap master product after warehouse push (${status.push_count} push${status.push_count === 1 ? "" : "es"} already booked against the current SKU). ` +
+              `Delete the job and create a new one — or contact an admin if a controlled fix is needed.`,
+            code: "master_mapping_locked",
+            pushCount: status.push_count,
+          }, { status: 409 });
+        }
+      }
+
       if (body.masterSku !== undefined) patch.masterSku = body.masterSku;
       if (body.masterProductName !== undefined) patch.masterProductName = body.masterProductName;
     }

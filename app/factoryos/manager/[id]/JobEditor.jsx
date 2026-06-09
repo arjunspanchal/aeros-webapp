@@ -5,7 +5,19 @@ import { StageBadge, StageTimeline, inputCls, labelCls, formatDate, formatDateTi
 import { ROLES, STAGES } from "@/lib/factoryos/constants";
 import PushToWarehouseCard from "./PushToWarehouseCard";
 
-export default function JobEditor({ job: initialJob, initialUpdates, clientMap, role, products = [], catalogError = null }) {
+export default function JobEditor({
+  job: initialJob,
+  initialUpdates,
+  clientMap,
+  role,
+  products = [],
+  catalogError = null,
+  // True once the job has at least one warehouse push — locks the master-
+  // product mapping card. Server PATCH guard re-checks; this prop just
+  // drives the UI affordance so users see the lock before they try.
+  masterMappingLocked = false,
+  pushCount = 0,
+}) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
   const [updates, setUpdates] = useState(initialUpdates);
@@ -279,7 +291,22 @@ export default function JobEditor({ job: initialJob, initialUpdates, clientMap, 
               <span className="text-xs text-amber-600 dark:text-amber-400">Unmapped — pick a master product so FG inventory can track this job.</span>
             )}
           </div>
-          {products.length === 0 ? (
+          {masterMappingLocked ? (
+            // Locked once any warehouse push has booked stock against the
+            // current SKU. Remapping mid-production would split FG inventory
+            // for one physical job across two SKUs silently (audit C5).
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+              <p className="font-medium">🔒 Master mapping locked</p>
+              <p className="mt-1">
+                {pushCount} warehouse push{pushCount === 1 ? "" : "es"} already booked stock against{" "}
+                <span className="font-mono">{job.masterSku || "this SKU"}</span>. Changing the mapping
+                now would split FG inventory across two SKUs.
+              </p>
+              <p className="mt-1 text-amber-700 dark:text-amber-300">
+                If the mapping is wrong, delete the job and create a new one — or contact an admin if a controlled fix is needed.
+              </p>
+            </div>
+          ) : products.length === 0 ? (
             <div className="text-xs text-red-600 dark:text-red-400 space-y-1">
               <p>No master products loaded.</p>
               {catalogError ? (
