@@ -66,9 +66,51 @@ export default function CustomerJobsView({ jobs, clientMap }) {
         onChange={(e) => setQ(e.target.value)}
       />
 
-      {grouped.length === 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-sm text-gray-500 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-400">
-          {q ? "Nothing matches your search." : "No orders to show."}
+      {/* Empty state shape: split "over-filtered" (search returned nothing
+          but jobs exist) from "genuinely empty" (no jobs in scope at all).
+          The genuine-empty version offers reach-out paths so customers know
+          how to start a conversation; the over-filtered version offers a
+          "clear search" reset so they can recover with one click. */}
+      {grouped.length === 0 && jobs.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center dark:bg-gray-900 dark:border-gray-800">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Nothing matches your search.
+          </p>
+          {q && (
+            <button
+              type="button"
+              onClick={() => setQ("")}
+              className="mt-2 text-xs text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Clear search
+            </button>
+          )}
+        </div>
+      )}
+      {grouped.length === 0 && jobs.length === 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center dark:bg-gray-900 dark:border-gray-800">
+          <p className="text-sm text-gray-700 font-medium dark:text-gray-200">
+            You don&apos;t have any orders yet.
+          </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            When Aeros confirms an order, it&apos;ll show up here.
+          </p>
+          <div className="mt-3 flex items-center justify-center gap-4 text-xs">
+            <a
+              href="mailto:hello@aeros-x.com"
+              className="text-blue-600 hover:underline dark:text-blue-400"
+            >
+              ✉ Email Aeros
+            </a>
+            <a
+              href="https://wa.me/917977007497?text=Hi%20Aeros%2C%20I'd%20like%20to%20discuss%20a%20new%20order."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-green-700 hover:underline dark:text-green-400"
+            >
+              💬 WhatsApp
+            </a>
+          </div>
         </div>
       )}
 

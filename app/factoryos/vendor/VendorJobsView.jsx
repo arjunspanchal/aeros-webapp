@@ -66,9 +66,46 @@ export default function VendorJobsView({ jobs, vendorName, linked }) {
         onChange={(e) => setQ(e.target.value)}
       />
 
-      {filtered.length === 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-sm text-gray-500 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-400">
-          {q ? "Nothing matches your search." : "No jobs assigned to you right now."}
+      {/* Empty-state split (PR_H):
+          - over-filtered: jobs exist but the current filter+search hides them
+          - genuinely empty (linked vendor, no assigned jobs): explain when
+            jobs will arrive instead of leaving the vendor confused
+          The not-linked banner above already handles the "no vendor record"
+          case, so we don't repeat it here. */}
+      {filtered.length === 0 && jobs.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center dark:bg-gray-900 dark:border-gray-800">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Nothing matches your search.
+          </p>
+          {q && (
+            <button
+              type="button"
+              onClick={() => setQ("")}
+              className="mt-2 text-xs text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Clear search
+            </button>
+          )}
+          {!q && filter !== "all" && (
+            <button
+              type="button"
+              onClick={() => setFilter("all")}
+              className="mt-2 text-xs text-blue-600 hover:underline dark:text-blue-400"
+            >
+              Show all
+            </button>
+          )}
+        </div>
+      )}
+      {filtered.length === 0 && jobs.length === 0 && linked && (
+        <div className="bg-white border border-gray-200 rounded-xl p-8 text-center dark:bg-gray-900 dark:border-gray-800">
+          <p className="text-sm text-gray-700 font-medium dark:text-gray-200">
+            No jobs assigned to you right now.
+          </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Jobs will appear here as soon as the Aeros team assigns one to{" "}
+            {vendorName ? <span className="font-medium text-gray-700 dark:text-gray-200">{vendorName}</span> : "your account"}.
+          </p>
         </div>
       )}
 

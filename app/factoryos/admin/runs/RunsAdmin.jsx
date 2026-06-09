@@ -189,8 +189,33 @@ export default function RunsAdmin({ initialRuns, machines, jobs, currentUser }) 
         </div>
 
         {filtered.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-xl p-6 text-center text-sm text-gray-500 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-400">
-            No runs yet. Start one on the left.
+          <div className="bg-white border border-gray-200 rounded-xl p-6 text-center dark:bg-gray-900 dark:border-gray-800">
+            {/* Over-filtered: runs exist but the picked machine/status hides
+                them. Genuine empty: no runs at all → existing "start one"
+                copy still makes sense as the next action. */}
+            {runs.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                No runs yet. Start one on the left.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No runs match these filters.
+                </p>
+                <div className="mt-3 flex items-center justify-center gap-3 text-xs">
+                  {filterMachine && (
+                    <button type="button" onClick={() => setFilterMachine("")} className="text-blue-600 hover:underline dark:text-blue-400">
+                      All machines
+                    </button>
+                  )}
+                  {filterStatus && (
+                    <button type="button" onClick={() => setFilterStatus("")} className="text-blue-600 hover:underline dark:text-blue-400">
+                      Any status
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-2">

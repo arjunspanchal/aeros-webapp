@@ -150,7 +150,40 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">No jobs match.</td></tr>
+                <tr>
+                  <td colSpan={8} className="text-center py-8">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No jobs match.</p>
+                    {/* "Clear filters" only renders when at least one filter
+                        is active — without it, an empty all-jobs view (no
+                        scope, no filter) doesn't get a meaningless reset
+                        button. Each click resets the smallest sensible
+                        subset rather than blasting every filter at once. */}
+                    {(stage !== "all" || clientId !== "all" || urgentOnly || q.trim()) && (
+                      <div className="mt-3 flex items-center justify-center gap-3 text-xs">
+                        {stage !== "all" && (
+                          <button type="button" onClick={() => setStage("all")} className="text-blue-600 hover:underline dark:text-blue-400">
+                            Show all stages
+                          </button>
+                        )}
+                        {urgentOnly && (
+                          <button type="button" onClick={() => setUrgentOnly(false)} className="text-blue-600 hover:underline dark:text-blue-400">
+                            Drop urgent filter
+                          </button>
+                        )}
+                        {clientId !== "all" && (
+                          <button type="button" onClick={() => setClientId("all")} className="text-blue-600 hover:underline dark:text-blue-400">
+                            All customers
+                          </button>
+                        )}
+                        {q.trim() && (
+                          <button type="button" onClick={() => setQ("")} className="text-blue-600 hover:underline dark:text-blue-400">
+                            Clear search
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
