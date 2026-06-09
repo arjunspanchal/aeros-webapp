@@ -50,15 +50,8 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
         { href: "/factoryos/admin/coating", label: "PE coating" },
       ],
     });
-    sections.push({
-      label: "HR",
-      items: [
-        { href: "/factoryos/admin/hr",            label: "Overview", exact: true },
-        { href: "/factoryos/admin/hr/attendance", label: "Attendance" },
-        { href: "/factoryos/admin/hr/calendar",   label: "Calendar" },
-        { href: "/factoryos/admin/hr/payroll",    label: "Payroll" },
-      ],
-    });
+    // HR is now its own top-level module (/hr), gated by the independent `hr`
+    // entitlement — no longer part of the FactoryOS sidebar.
     sections.push({
       label: "Resources",
       items: [

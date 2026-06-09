@@ -18,6 +18,7 @@ const MODULES = [
   { key: "calculator",  label: "Calculator",  href: "/calculator"  },
   { key: "rate_cards",  label: "RFQs",        href: "/rfq-manager" },
   { key: "factoryos",   label: "FactoryOS",   href: "/factoryos"   },
+  { key: "hr",          label: "HR",          href: "/hr"          },
   { key: "catalogue",   label: "Catalogue",   href: "/catalog"     },
   { key: "clearance",   label: "WarehouseOS", href: "/warehouse"   },
 ];
@@ -27,6 +28,7 @@ function activeModuleKey(pathname) {
   if (pathname.startsWith("/rate-cards")) return "rate_cards";
   if (pathname.startsWith("/rfq-manager")) return "rate_cards";
   if (pathname.startsWith("/factoryos"))  return "factoryos";
+  if (pathname.startsWith("/hr"))         return "hr";
   if (pathname.startsWith("/catalog"))    return "catalogue";
   if (pathname.startsWith("/warehouse"))  return "clearance";
   if (pathname.startsWith("/clearance"))  return "clearance";
@@ -86,10 +88,18 @@ function subTabsFor(pathname, session) {
       tabs.push({ href: "/factoryos/manager/pos",  label: "Customer POs", short: "POs"  });
     }
     if (adminish) {
-      tabs.push({ href: "/factoryos/admin",                  label: "Admin",      short: "Admin" });
-      tabs.push({ href: "/factoryos/admin/hr/attendance",    label: "Attendance", short: "Attn"  });
+      tabs.push({ href: "/factoryos/admin", label: "Admin", short: "Admin" });
     }
     return tabs;
+  }
+
+  if (active === "hr") {
+    return [
+      { href: "/hr",            label: "Overview",   short: "HR"   },
+      { href: "/hr/attendance", label: "Attendance", short: "Attn" },
+      { href: "/hr/calendar",   label: "Calendar",   short: "Cal"  },
+      { href: "/hr/payroll",    label: "Payroll",    short: "Pay"  },
+    ];
   }
 
   if (active === "rate_cards") {
@@ -188,8 +198,10 @@ export default function AppHeader({ session }) {
   // RFQs module — both /rate-cards and /rfq-manager mount the same sidebar
   // (RFQ Manager + Rate Cards toggle).
   const rateCardsHasSidebar = active === "rate_cards";
+  // HR mounts a ModuleShell sidebar in app/hr/layout.jsx.
+  const hrHasSidebar = active === "hr";
   const sidebarReplacesSubtabsOnDesktop =
-    factoryosHasSidebar || warehouseHasSidebar || rateCardsHasSidebar;
+    factoryosHasSidebar || warehouseHasSidebar || rateCardsHasSidebar || hrHasSidebar;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });

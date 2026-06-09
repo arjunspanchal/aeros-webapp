@@ -74,7 +74,7 @@ export default function MarkAttendance({
       outTime: row.status === "A" ? "" : row.outTime,
       notes: row.notes,
     };
-    const res = await fetch("/api/factoryos/attendance", {
+    const res = await fetch("/api/hr/attendance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

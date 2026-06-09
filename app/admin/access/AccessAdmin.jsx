@@ -35,6 +35,11 @@ const RFQ_ROLES = [
   { value: "admin",  label: "Admin" },
 ];
 
+// HR is a standalone module with a single access level today.
+const HR_ROLES = [
+  { value: "admin", label: "Admin" },
+];
+
 function roleBadge(value) {
   if (!value) return <span className="text-gray-400 dark:text-gray-500">—</span>;
   const lookup = FACTORYOS_ROLES.find((r) => r.value === value)?.label
@@ -57,6 +62,7 @@ function pickFormFromUser(u) {
     factoryosRole: u.factoryosRole || "",
     calculatorRole: u.calculatorRole || "",
     rateCardsRole: u.rateCardsRole || "",
+    hrRole: u.hrRole || "",
     vendorId: u.vendorId || "",
     active: u.active !== false,
     marginPct: u.marginPct ?? "",
@@ -201,7 +207,7 @@ function UserRow({ user, clients, vendors, onSaved }) {
 
                   <ModuleAccessCell
                     label="FactoryOS"
-                    description="Orders, jobs, RM inventory, HR. Customer view shows only their own orders."
+                    description="Orders, jobs, RM inventory. Customer view shows only their own orders."
                     checked={!!form.factoryosRole}
                     onToggle={(on) => set("factoryosRole", on ? "customer" : "")}
                   >
@@ -225,6 +231,19 @@ function UserRow({ user, clients, vendors, onSaved }) {
                           The vendor portal shows only jobs whose Printing Vendor is this record.
                         </p>
                       </div>
+                    )}
+                  </ModuleAccessCell>
+
+                  <ModuleAccessCell
+                    label="HR"
+                    description="Employee roster, attendance, payroll, calendar. Independent of FactoryOS."
+                    checked={!!form.hrRole}
+                    onToggle={(on) => set("hrRole", on ? "admin" : "")}
+                  >
+                    {form.hrRole && (
+                      <select className={inputCls} value={form.hrRole} onChange={(e) => set("hrRole", e.target.value)}>
+                        {HR_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                      </select>
                     )}
                   </ModuleAccessCell>
 

@@ -109,7 +109,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
   async function savePin() {
     if (!editingId) return;
     setPinMsg(""); setPinBusy(true);
-    const res = await fetch(`/api/factoryos/employees/${editingId}/pin`, {
+    const res = await fetch(`/api/hr/employees/${editingId}/pin`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pin: pinInput }),
@@ -144,7 +144,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
       designation: form.designation,
       notes: form.notes,
     };
-    const url = isEditing ? `/api/factoryos/employees/${editingId}` : "/api/factoryos/employees";
+    const url = isEditing ? `/api/hr/employees/${editingId}` : "/api/hr/employees";
     const method = isEditing ? "PATCH" : "POST";
     const res = await fetch(url, {
       method,
@@ -172,7 +172,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
       ? `Permanently delete "${e.name}" and all their attendance history? This cannot be undone.`
       : `Deactivate "${e.name}"? Their attendance history will be preserved. You can also hard-delete.`;
     if (!confirm(msg)) return;
-    const url = hard ? `/api/factoryos/employees/${e.id}?hard=1` : `/api/factoryos/employees/${e.id}`;
+    const url = hard ? `/api/hr/employees/${e.id}?hard=1` : `/api/hr/employees/${e.id}`;
     const res = await fetch(url, { method: "DELETE" });
     if (!res.ok) {
       alert((await res.json()).error || "Failed");
@@ -197,7 +197,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
     setPhotoBusy(true);
     try {
       const fileBase64 = await readAsBase64(file);
-      const res = await fetch(`/api/factoryos/employees/${editingId}/aadhar-photo`, {
+      const res = await fetch(`/api/hr/employees/${editingId}/aadhar-photo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contentType: file.type, filename: file.name, fileBase64 }),
@@ -221,7 +221,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
     setPhotoErr("");
     try {
       const res = await fetch(
-        `/api/factoryos/employees/${editingId}/aadhar-photo?attachmentId=${encodeURIComponent(attachmentId)}`,
+        `/api/hr/employees/${editingId}/aadhar-photo?attachmentId=${encodeURIComponent(attachmentId)}`,
         { method: "DELETE" },
       );
       if (!res.ok) {
@@ -236,7 +236,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
   }
 
   async function reactivate(e) {
-    const res = await fetch(`/api/factoryos/employees/${e.id}`, {
+    const res = await fetch(`/api/hr/employees/${e.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: true }),

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession, requireManager } from "@/lib/auth/session";
+import { getSession, hasModule } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
 import { listEmployees, listUsers, listAttendance } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -19,14 +19,14 @@ export const dynamic = "force-dynamic";
 export default async function HrPage() {
   const session = getSession();
   if (!session) redirect("/login");
-  if (!requireManager(session)) redirect("/factoryos");
+  if (!hasModule(session, "hr")) redirect("/hub");
 
   const [allEmployees, users] = await Promise.all([listEmployees(), listUsers()]);
   const factoryManagers = users.filter((u) => u.role === ROLES.FACTORY_MANAGER && u.active);
 
   // Factory Manager sees only their own reports. Admin sees everyone.
   // Critical: filter server-side so other managers' data never ships to the client.
-  const isAdmin = session.modules?.factoryos === ROLES.ADMIN;
+  const isAdmin = true;
   // Cookie-first, DB-fallback. Pre-PR-1.5a cookies have no factoryosUserId
   // — without this fallback the filter below would null-match and Rahul
   // would see an empty roster.
@@ -52,8 +52,8 @@ export default async function HrPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/factoryos/admin" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
-          ← Admin
+        <Link href="/hub" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
+          ← Hub
         </Link>
 
         <div className="mt-4 flex items-start justify-between gap-3">
@@ -64,13 +64,13 @@ export default async function HrPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-sm">
-            <Link href="/factoryos/admin/hr/attendance" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
+            <Link href="/hr/attendance" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
               Mark attendance
             </Link>
-            <Link href="/factoryos/admin/hr/calendar" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
+            <Link href="/hr/calendar" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
               Calendar
             </Link>
-            <Link href="/factoryos/admin/hr/payroll" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
+            <Link href="/hr/payroll" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
               Payroll
             </Link>
             <Link
