@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
-import { getJob, getVendor, listJobArtworks } from "@/lib/factoryos/repo";
+import { getJob, getVendor, listJobThread } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import VendorJobDetailClient from "./VendorJobDetailClient";
 
@@ -33,7 +33,7 @@ export default async function VendorJobDetail({ params }) {
     redirect("/factoryos/vendor");
   }
 
-  const artworks = await listJobArtworks(job.id);
+  const thread = await listJobThread(job.id);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -44,7 +44,7 @@ export default async function VendorJobDetail({ params }) {
         >
           ← All jobs
         </Link>
-        <VendorJobDetailClient initialJob={job} initialArtworks={artworks} />
+        <VendorJobDetailClient initialJob={job} initialThread={thread} />
       </main>
     </div>
   );

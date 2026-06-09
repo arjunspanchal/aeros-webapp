@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { StageBadge, StageTimeline, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
 import { ROLES, STAGES } from "@/lib/factoryos/constants";
 import PushToWarehouseCard from "./PushToWarehouseCard";
-import JobArtworkCard from "./JobArtworkCard";
+import JobThread from "@/app/factoryos/_components/JobThread";
 
 export default function JobEditor({
   job: initialJob,
@@ -278,6 +278,17 @@ export default function JobEditor({
           <Col label="Printing vendor" value={job.printingVendor || "—"} />
           <Col label="Printing type" value={job.printingType || "—"} />
           <Col label="Printing due" value={formatDate(job.printingDueDate)} />
+          <Col
+            label="Vendor status"
+            value={
+              {
+                accepted: "Job accepted",
+                printing_started: "Printing started",
+                printing_completed: "Printing completed",
+                dispatched: `Dispatched${job.vendorDispatchDate ? ` · ${formatDate(job.vendorDispatchDate)}` : ""}`,
+              }[job.vendorStatus] || "—"
+            }
+          />
           <Col label="Production due" value={formatDate(job.productionDueDate)} />
           <Col label="RM delivery" value={formatDate(job.rmDeliveryDate)} />
         </dl>
@@ -437,7 +448,7 @@ export default function JobEditor({
         canPush={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER}
       />
 
-      <JobArtworkCard jobId={job.id} />
+      <JobThread jobId={job.id} viewerRole="team" title="Messages & files (vendor)" />
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Update status</h2>
