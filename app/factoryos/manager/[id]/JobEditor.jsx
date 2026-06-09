@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { StageBadge, StageTimeline, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
 import { ROLES, STAGES } from "@/lib/factoryos/constants";
 import PushToWarehouseCard from "./PushToWarehouseCard";
+import JobArtworkCard from "./JobArtworkCard";
 
 export default function JobEditor({
   job: initialJob,
@@ -17,6 +18,8 @@ export default function JobEditor({
   // drives the UI affordance so users see the lock before they try.
   masterMappingLocked = false,
   pushCount = 0,
+  // Active printing-vendor names for the editable Printing Vendor dropdown.
+  printingVendors = [],
 }) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
@@ -35,6 +38,7 @@ export default function JobEditor({
   const [rmQtySheets, setRmQtySheets] = useState(initialJob.rmQtySheets ?? "");
   const [rmQtyKgs, setRmQtyKgs] = useState(initialJob.rmQtyKgs ?? "");
   const [rmDeliveryDate, setRmDeliveryDate] = useState(initialJob.rmDeliveryDate || "");
+  const [printingVendor, setPrintingVendor] = useState(initialJob.printingVendor || "");
   const [printingDueDate, setPrintingDueDate] = useState(initialJob.printingDueDate || "");
   const [productionDueDate, setProductionDueDate] = useState(initialJob.productionDueDate || "");
   const [busy, setBusy] = useState(false);
@@ -204,6 +208,7 @@ export default function JobEditor({
         rmQtySheets: rmQtySheets === "" ? null : Number(rmQtySheets),
         rmQtyKgs: rmQtyKgs === "" ? null : Number(rmQtyKgs),
         rmDeliveryDate: rmDeliveryDate || null,
+        printingVendor: printingVendor || null,
         printingDueDate: printingDueDate || null,
         productionDueDate: productionDueDate || null,
       }),
@@ -400,6 +405,19 @@ export default function JobEditor({
             <input type="date" className={inputCls} value={rmDeliveryDate ? rmDeliveryDate.slice(0, 10) : ""} onChange={(e) => setRmDeliveryDate(e.target.value)} />
           </div>
           <div>
+            <label className={labelCls}>Printing vendor</label>
+            <select className={inputCls} value={printingVendor} onChange={(e) => setPrintingVendor(e.target.value)}>
+              <option value="">— None —</option>
+              {/* Keep a legacy/typed value selectable even if it's not in the active list. */}
+              {printingVendor && !printingVendors.includes(printingVendor) && (
+                <option value={printingVendor}>{printingVendor}</option>
+              )}
+              {printingVendors.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className={labelCls}>Printing due date</label>
             <input type="date" className={inputCls} value={printingDueDate ? printingDueDate.slice(0, 10) : ""} onChange={(e) => setPrintingDueDate(e.target.value)} />
           </div>
@@ -418,6 +436,8 @@ export default function JobEditor({
         job={job}
         canPush={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER}
       />
+
+      <JobArtworkCard jobId={job.id} />
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Update status</h2>

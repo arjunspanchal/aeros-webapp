@@ -19,6 +19,7 @@ const FACTORYOS_ROLES = [
   { value: "factory_executive", label: "Factory Executive" },
   { value: "account_manager", label: "Customer Manager" },
   { value: "customer", label: "Customer" },
+  { value: "vendor", label: "Vendor (Printing)" },
 ];
 
 const CALCULATOR_ROLES = [
@@ -56,6 +57,7 @@ function pickFormFromUser(u) {
     factoryosRole: u.factoryosRole || "",
     calculatorRole: u.calculatorRole || "",
     rateCardsRole: u.rateCardsRole || "",
+    vendorId: u.vendorId || "",
     active: u.active !== false,
     marginPct: u.marginPct ?? "",
     marginCupsPct: u.marginCupsPct ?? "",
@@ -67,7 +69,7 @@ function pickFormFromUser(u) {
   };
 }
 
-function UserRow({ user, clients, onSaved }) {
+function UserRow({ user, clients, vendors, onSaved }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(() => pickFormFromUser(user));
   const [busy, setBusy] = useState(false);
@@ -208,6 +210,22 @@ function UserRow({ user, clients, onSaved }) {
                         {FACTORYOS_ROLES.filter((r) => r.value).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                       </select>
                     )}
+                    {form.factoryosRole === "vendor" && (
+                      <div className="mt-2">
+                        <label className={labelCls}>Linked vendor record</label>
+                        <select className={inputCls} value={form.vendorId} onChange={(e) => set("vendorId", e.target.value)}>
+                          <option value="">— Select vendor —</option>
+                          {vendors.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name}{v.type ? ` · ${v.type}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
+                          The vendor portal shows only jobs whose Printing Vendor is this record.
+                        </p>
+                      </div>
+                    )}
                   </ModuleAccessCell>
 
                   <ModuleAccessCell
@@ -309,7 +327,7 @@ function UserRow({ user, clients, onSaved }) {
   );
 }
 
-export default function AccessAdmin({ initialUsers, clients }) {
+export default function AccessAdmin({ initialUsers, clients, vendors = [] }) {
   const [users, setUsers] = useState(initialUsers);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -364,7 +382,7 @@ export default function AccessAdmin({ initialUsers, clients }) {
           </thead>
           <tbody>
             {filtered.map((u) => (
-              <UserRow key={u.id} user={u} clients={clients} onSaved={onSaved} />
+              <UserRow key={u.id} user={u} clients={clients} vendors={vendors} onSaved={onSaved} />
             ))}
           </tbody>
         </table>

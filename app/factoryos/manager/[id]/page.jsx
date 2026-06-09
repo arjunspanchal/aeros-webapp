@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
-import { getJob, listJobUpdates, listClients } from "@/lib/factoryos/repo";
+import { getJob, listJobUpdates, listClients, listVendors } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { ROLES } from "@/lib/factoryos/constants";
 import JobEditor from "./JobEditor";
@@ -30,16 +30,18 @@ export default async function ManagerJobDetail({ params }) {
   // Either way, the lock state needs to reflect whether warehouse pushes
   // have happened. If the fetch fails, fall back to unlocked — server-side
   // PATCH guard re-checks anyway.
-  const [updates, clients, pushStatus] = await Promise.all([
+  const [updates, clients, pushStatus, printingVendors] = await Promise.all([
     listJobUpdates(job.id),
     listClients(),
     getJobPushStatus(job.id).catch((e) => {
       console.error("Push status fetch failed:", e);
       return { push_count: 0 };
     }),
+    listVendors({ type: "Printing", activeOnly: true }).catch(() => []),
   ]);
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));
   const masterMappingLocked = (pushStatus?.push_count || 0) > 0;
+  const printingVendorNames = printingVendors.map((v) => v.name);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -54,6 +56,7 @@ export default async function ManagerJobDetail({ params }) {
           role={role}
           masterMappingLocked={masterMappingLocked}
           pushCount={pushStatus?.push_count || 0}
+          printingVendors={printingVendorNames}
         />
       </main>
     </div>

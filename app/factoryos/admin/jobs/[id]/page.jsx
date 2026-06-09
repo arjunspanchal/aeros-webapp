@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession, requireManager } from "@/lib/auth/session";
-import { getJob, listJobUpdates, listClients } from "@/lib/factoryos/repo";
+import { getJob, listJobUpdates, listClients, listVendors } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { fetchCatalog } from "@/lib/catalog";
 import JobEditor from "@/app/factoryos/manager/[id]/JobEditor";
@@ -14,7 +14,7 @@ export default async function AdminJobDetail({ params }) {
   if (!requireManager(session)) redirect("/factoryos");
   const job = await getJob(params.id);
   if (!job) notFound();
-  const [updates, clients, catalogResult, pushStatus] = await Promise.all([
+  const [updates, clients, catalogResult, pushStatus, printingVendors] = await Promise.all([
     listJobUpdates(job.id),
     listClients(),
     // Catalog is optional on edit — if it fails we still let the page load read-only.
@@ -32,7 +32,9 @@ export default async function AdminJobDetail({ params }) {
       console.error("Push status fetch failed:", e);
       return { push_count: 0 };
     }),
+    listVendors({ type: "Printing", activeOnly: true }).catch(() => []),
   ]);
+  const printingVendorNames = printingVendors.map((v) => v.name);
   const catalog = catalogResult.products;
   const catalogError = catalogResult.error;
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));
@@ -63,6 +65,7 @@ export default async function AdminJobDetail({ params }) {
           catalogError={catalogError}
           masterMappingLocked={masterMappingLocked}
           pushCount={pushStatus?.push_count || 0}
+          printingVendors={printingVendorNames}
         />
       </main>
     </div>
