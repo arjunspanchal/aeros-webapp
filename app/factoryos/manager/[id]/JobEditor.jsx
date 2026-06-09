@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StageBadge, StageTimeline, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
 import { ROLES, STAGES } from "@/lib/factoryos/constants";
@@ -112,6 +112,57 @@ export default function JobEditor({
   const [masterBusy, setMasterBusy] = useState(false);
   const [masterSaved, setMasterSaved] = useState(false);
   const [masterErr, setMasterErr] = useState("");
+
+  // Audit L2: dirty-state guard for the main job-edit form. Compares the
+  // 15 fields that participate in save() against the live `job` state
+  // (which save() updates on success, so a clean save flips this back to
+  // false). When dirty, a beforeunload listener warns the user on
+  // navigation / tab close.
+  //
+  // Other cards (master-mapping, LR upload, tracking) have their own
+  // save buttons next to a small set of inputs — lower loss risk, not
+  // worth tracking separately. Keep this scoped to the main form.
+  //
+  // Coalesce null/undefined → "" on both sides so a never-set field
+  // doesn't read as dirty on first load.
+  const norm = (v) => (v == null ? "" : String(v));
+  const formDirty = useMemo(() => {
+    if (note && note.trim()) return true;
+    if (stage !== job.stage) return true;
+    if (norm(internalStatus) !== norm(job.internalStatus)) return true;
+    if (norm(actionPoints) !== norm(job.actionPoints)) return true;
+    if (norm(expectedDispatchDate) !== norm(job.expectedDispatchDate)) return true;
+    if (norm(estimatedDeliveryDate) !== norm(job.estimatedDeliveryDate)) return true;
+    if (norm(rmSupplier) !== norm(job.rmSupplier)) return true;
+    if (norm(paperType) !== norm(job.paperType)) return true;
+    if (norm(gsm) !== norm(job.gsm)) return true;
+    if (norm(rmSizeMm) !== norm(job.rmSizeMm)) return true;
+    if (norm(rmQtySheets) !== norm(job.rmQtySheets)) return true;
+    if (norm(rmQtyKgs) !== norm(job.rmQtyKgs)) return true;
+    if (norm(rmDeliveryDate) !== norm(job.rmDeliveryDate)) return true;
+    if (norm(printingVendor) !== norm(job.printingVendor)) return true;
+    if (norm(printingDueDate) !== norm(job.printingDueDate)) return true;
+    if (norm(productionDueDate) !== norm(job.productionDueDate)) return true;
+    return false;
+  }, [
+    job, note, stage, internalStatus, actionPoints,
+    expectedDispatchDate, estimatedDeliveryDate,
+    rmSupplier, paperType, gsm, rmSizeMm, rmQtySheets, rmQtyKgs,
+    rmDeliveryDate, printingVendor, printingDueDate, productionDueDate,
+  ]);
+
+  useEffect(() => {
+    if (!formDirty) return undefined;
+    // Modern browsers ignore the returned string and show their own copy,
+    // but both preventDefault() AND setting returnValue is required for
+    // the prompt to actually fire across Chrome / Firefox / Safari.
+    function onBeforeUnload(e) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [formDirty]);
 
   // Unique categories sourced from the loaded catalog itself, so the dropdown
   // never falls out of sync with whatever taxonomy the master products use.
@@ -514,7 +565,12 @@ export default function JobEditor({
           >
             {busy ? "Saving…" : "Save"}
           </button>
-          {savedAt && <span className="text-xs text-green-600 dark:text-green-400">Saved {formatDateTime(savedAt.toISOString())}</span>}
+          {formDirty && !busy && (
+            <span className="text-xs text-amber-600 dark:text-amber-400" title="You'll be warned if you try to leave the page without saving.">
+              ● Unsaved changes
+            </span>
+          )}
+          {savedAt && !formDirty && <span className="text-xs text-green-600 dark:text-green-400">Saved {formatDateTime(savedAt.toISOString())}</span>}
           {err && <span className="text-xs text-red-500">{err}</span>}
         </div>
       </div>
