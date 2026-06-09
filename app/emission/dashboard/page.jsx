@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuth } from "../_components/AuthProvider";
 import { Eyebrow, Title, StatusLabel } from "../_components/ui";
 import {
-  dashOpenJobs, dashAgedJobs, dashClaimsPending, dashRevenueByChannel, dashRevenueByType, dashService,
+  dashOpenJobs, dashAgedJobs, dashClaimsPending, dashRevenueByChannel, dashRevenueByType, dashService, dashTechWorkload,
 } from "../_lib/data";
 import { inr, fmtDate, PAYMENT_LABEL, REVENUE_CATEGORY_LABEL, CLAIM_LABEL } from "../_lib/format";
 
@@ -38,9 +38,10 @@ export default function DashboardPage() {
       dashRevenueByChannel(session, from, to),
       dashRevenueByType(session, from, to),
       dashService(session).catch(() => null),
+      dashTechWorkload(session).catch(() => null),
     ])
-      .then(([open, aged, claims, byChannel, byType, service]) => {
-        if (live) { setData({ open, aged, claims, byChannel, byType, service }); setErr(""); }
+      .then(([open, aged, claims, byChannel, byType, service, techload]) => {
+        if (live) { setData({ open, aged, claims, byChannel, byType, service, techload }); setErr(""); }
       })
       .catch((e) => live && setErr(e.message))
       .finally(() => live && setLoading(false));
@@ -155,6 +156,14 @@ export default function DashboardPage() {
               <Block title="RECENT CUSTOMER FEEDBACK" style={{ marginTop: 14 }}>
                 {data.service.recent_feedback.map((f, i) => (
                   <DarkRow key={i} left={`#${f.job_no} · ${f.customer}`} mid={f.comment || ""} right={"★".repeat(f.rating)} />
+                ))}
+              </Block>
+            ) : null}
+
+            {data.techload?.length ? (
+              <Block title="TECHNICIAN WORKLOAD — OPEN JOBS" style={{ marginTop: 14 }}>
+                {data.techload.map((t, i) => (
+                  <DarkRow key={i} left={t.technician} mid={t.aged ? `${t.aged} aged >15d` : ""} right={`${t.open} open`} />
                 ))}
               </Block>
             ) : null}

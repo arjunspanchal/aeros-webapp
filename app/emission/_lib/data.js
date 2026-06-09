@@ -137,3 +137,4 @@ export const dashClaimsPending = (session) => api.rpc("dash_claims_pending", {},
 export const dashRevenueByChannel = (session, from, to) => api.rpc("dash_revenue_by_channel", { p_from: from, p_to: to }, tok(session));
 export const dashRevenueByType = (session, from, to) => api.rpc("dash_revenue_by_type", { p_from: from, p_to: to }, tok(session));
 export const dashService = (session) => api.rpc("dash_service", {}, tok(session));
+export const dashTechWorkload = (session) => api.rpc("dash_tech_workload", {}, tok(session));
