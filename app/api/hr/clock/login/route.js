@@ -2,7 +2,7 @@
 // (DLT made SMS impractical for internal attendance). On success, mints the
 // employee session cookie.
 //
-// Public route (middleware lets /api/factoryos/clock/* through). Errors are
+// Public route (middleware lets /api/hr/clock/* through). Errors are
 // deliberately generic ("Invalid phone/code or PIN") so the endpoint can't be
 // used to discover which numbers/codes are staff — except the two genuinely
 // actionable cases (no PIN set yet, account locked), which a worker needs to
