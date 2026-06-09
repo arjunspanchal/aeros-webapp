@@ -163,7 +163,21 @@ export async function middleware(req) {
     const role = payload.modules.factoryos;
 
     // Role guards for page routes.
-    if (pathname.startsWith("/factoryos/admin") && role !== "admin" && role !== "factory_manager") {
+    //
+    // Carve-out: /factoryos/admin/jobs/new is reachable by account managers
+    // too — they're allowed to create jobs (mirrors /api/factoryos/jobs POST
+    // policy) and AMs are usually the people taking a brief from the
+    // customer and turning it into a job. The page itself re-checks roles
+    // and the API enforces auth anyway. Audit H1.
+    const isAmCreatingJob =
+      pathname === "/factoryos/admin/jobs/new" &&
+      role === "account_manager";
+    if (
+      pathname.startsWith("/factoryos/admin") &&
+      role !== "admin" &&
+      role !== "factory_manager" &&
+      !isAmCreatingJob
+    ) {
       return NextResponse.redirect(new URL("/factoryos", req.url));
     }
     if (pathname.startsWith("/factoryos/manager") && role === "customer") {

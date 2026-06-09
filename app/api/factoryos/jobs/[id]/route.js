@@ -8,6 +8,7 @@ import {
   countUpdatesForJob,
 } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
+import { sessionCanSeeJob } from "@/lib/factoryos/jobAccess";
 import { STAGES, ROLES, canUpdateStage } from "@/lib/factoryos/constants";
 
 // Roles allowed to remove a job entirely. Account managers + customers can
@@ -19,20 +20,6 @@ const DELETE_ALLOWED_ROLES = new Set([
 ]);
 
 export const runtime = "nodejs";
-
-function sessionCanSeeJob(session, job) {
-  const role = session.modules?.factoryos;
-  if (role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER) return true;
-  const myClients = new Set(session.factoryosClientIds || []);
-  if (role === ROLES.ACCOUNT_MANAGER) {
-    return job.clientIds.some((c) => myClients.has(c)) ||
-      (job.customerManagerId && job.customerManagerId === session.factoryosUserId);
-  }
-  if (role === ROLES.CUSTOMER) {
-    return job.clientIds.some((c) => myClients.has(c));
-  }
-  return false;
-}
 
 export async function GET(_req, { params }) {
   const session = getSession();

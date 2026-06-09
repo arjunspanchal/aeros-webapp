@@ -1,5 +1,6 @@
-import { getSession, requireInternal, requireRole } from "@/lib/auth/session";
+import { getSession, requireInternal } from "@/lib/auth/session";
 import { getJob, attachJobLrFile } from "@/lib/factoryos/repo";
+import { sessionCanSeeJob } from "@/lib/factoryos/jobAccess";
 
 export const runtime = "nodejs";
 
@@ -7,7 +8,11 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
 // POST /api/factoryos/jobs/[id]/lr-files
-// Upload a Lorry Receipt copy (PDF/JPG/PNG). AM scoped to own clients.
+// Upload a Lorry Receipt copy (PDF/JPG/PNG). Internal-only; per-job scope
+// handled by sessionCanSeeJob — same rules as GET/PATCH of the job itself,
+// so an AM who can edit the job because they're its customer manager (not
+// the client's AM) can also upload its LR. Previously this route had a
+// narrower AM-only check that dropped the customerManagerId branch. Audit M3.
 export async function POST(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
@@ -15,12 +20,7 @@ export async function POST(req, { params }) {
   try {
     const job = await getJob(params.id);
     if (!job) return Response.json({ error: "Not found" }, { status: 404 });
-
-    if (requireRole(session, "factoryos", "account_manager")) {
-      const myClients = new Set(session.factoryosClientIds || []);
-      const ok = job.clientIds.some((c) => myClients.has(c));
-      if (!ok) return Response.json({ error: "Forbidden" }, { status: 403 });
-    }
+    if (!sessionCanSeeJob(session, job)) return Response.json({ error: "Forbidden" }, { status: 403 });
 
     const body = await req.json().catch(() => ({}));
     const { filename, contentType, fileBase64 } = body;
