@@ -1,8 +1,42 @@
 import { getSession, requireInternal, requireManager, requireRole } from "@/lib/auth/session";
-import { listJobsForSession, createJob } from "@/lib/factoryos/repo";
+import { listJobsForSession, createJob, getNextJobNumber } from "@/lib/factoryos/repo";
 import { STAGES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
+
+// Audit H3: two operators creating jobs at the same moment both got the
+// same auto-computed J# (e.g. "2605002") — the second submit died with an
+// opaque 500 from a PG 23505 unique-violation. j_number is UNIQUE at the
+// DB so the right fix is to catch the collision, recompute the next
+// sequence, and retry. After MAX_J_NUMBER_RETRIES we surface a 409 with
+// a clear message instead of the 500.
+const MAX_J_NUMBER_RETRIES = 3;
+
+function isJNumberCollision(err) {
+  const msg = String(err?.message || "");
+  return msg.includes("23505") && msg.toLowerCase().includes("j_number");
+}
+
+async function createJobWithCollisionRetry(body) {
+  // Copy body so retry's jNumber mutation doesn't surprise the caller.
+  const attempt = { ...body };
+  for (let i = 0; i < MAX_J_NUMBER_RETRIES; i++) {
+    try {
+      return await createJob({ stage: STAGES[0], ...attempt });
+    } catch (e) {
+      if (!isJNumberCollision(e)) throw e;
+      if (i === MAX_J_NUMBER_RETRIES - 1) {
+        const collision = new Error(
+          "Couldn't assign a J# — another operator may be creating jobs at the same time. Please retry.",
+        );
+        collision.status = 409;
+        collision.code = "j_number_collision";
+        throw collision;
+      }
+      attempt.jNumber = await getNextJobNumber();
+    }
+  }
+}
 
 export async function GET() {
   const session = getSession();
@@ -62,13 +96,14 @@ export async function POST(req) {
       }
       body.category = c || undefined;
     }
-    const job = await createJob({
-      stage: STAGES[0],
-      ...body,
-    });
+    const job = await createJobWithCollisionRetry(body);
     return Response.json({ job });
   } catch (e) {
     if (e instanceof Response) return e;
+    // J# collision after retries → 409. Anything else is unexpected → 500.
+    if (e && e.code === "j_number_collision") {
+      return Response.json({ error: e.message, code: e.code }, { status: e.status || 409 });
+    }
     console.error(e);
     return Response.json({ error: e.message || "Failed" }, { status: 500 });
   }

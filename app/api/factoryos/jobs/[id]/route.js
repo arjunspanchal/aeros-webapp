@@ -9,7 +9,7 @@ import {
 } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { sessionCanSeeJob } from "@/lib/factoryos/jobAccess";
-import { STAGES, ROLES, canUpdateStage } from "@/lib/factoryos/constants";
+import { STAGES, ROLES, canUpdateStage, isAllowedStageTransition } from "@/lib/factoryos/constants";
 
 // Roles allowed to remove a job entirely. Account managers + customers can
 // only update fields, never destroy the row + its timeline.
@@ -60,6 +60,21 @@ export async function PATCH(req, { params }) {
         return Response.json({ error: "Not allowed" }, { status: 403 });
       }
       if (!STAGES.includes(body.stage)) return Response.json({ error: "Invalid stage" }, { status: 400 });
+      // Audit H4: enforce the stage-transition policy server-side, not just
+      // the "can this role write stage at all" gate. Admin/FM can move
+      // freely (incl. backward) for corrections; FE/AM are forward-only;
+      // customer is handled by isCustomerDeliver above.
+      if (!isAllowedStageTransition({
+        from: job.stage,
+        to: body.stage,
+        role: session.modules?.factoryos,
+        isCustomerDeliver,
+      })) {
+        return Response.json({
+          error: `Cannot move stage "${job.stage}" → "${body.stage}". Backward and out-of-sequence moves require admin or factory manager.`,
+          code: "invalid_stage_transition",
+        }, { status: 409 });
+      }
       if (body.stage !== job.stage) {
         patch.stage = body.stage;
         stageChanged = true;
