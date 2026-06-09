@@ -11,7 +11,7 @@
 // All `subTabsFor` role logic is preserved verbatim from the previous
 // version; only the chrome around it changed.
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Brand, IdentityMenu, MobileNav } from "./ui";
 
 const MODULES = [
@@ -78,6 +78,17 @@ function subTabsFor(pathname, session) {
         { href: "/factoryos/customer",          label: "My Orders",      short: "Orders"   },
         { href: "/factoryos/customer/pos",      label: "Purchase Orders", short: "POs"     },
         { href: "/factoryos/customer/profile",  label: "Profile",        short: "Profile"  },
+      ];
+    }
+    if (role === "vendor") {
+      // Layout audit W1: vendor role previously returned [] — no sub-nav at
+      // all. Vendors had a single page and no way to switch between active
+      // and completed work without scrolling. Now mirrors the customer
+      // shape: a "To do" / "Completed" pair that drives the existing
+      // VendorJobsView filter via ?filter=open|done.
+      return [
+        { href: "/factoryos/vendor",              label: "To do",      short: "Open" },
+        { href: "/factoryos/vendor?filter=done",  label: "Completed",  short: "Done" },
       ];
     }
     const internal = role === "admin" || role === "account_manager" || role === "factory_manager" || role === "factory_executive";
@@ -173,6 +184,11 @@ function subTabsFor(pathname, session) {
 export default function AppHeader({ session }) {
   const router = useRouter();
   const pathname = usePathname();
+  // Used by the sub-tab matcher below to support hrefs that carry a query
+  // string (e.g. /factoryos/vendor?filter=done). Without this, tabs that
+  // share a pathname but differ only by `?filter=` couldn't compute an
+  // accurate `isActive`.
+  const currentSearchParams = useSearchParams();
   const active = activeModuleKey(pathname);
   const modules = session?.modules || {};
   const available = MODULES.filter((m) => !!modules[m.key]);
@@ -276,7 +292,38 @@ export default function AppHeader({ session }) {
           <div className="max-w-7xl mx-auto px-4 md:px-6 relative">
             <div className="flex gap-5 overflow-x-auto no-scrollbar h-10 items-stretch">
               {subTabs.map((t) => {
-                const isActive = pathname === t.href;
+                // Active when the pathname matches AND every query-string
+                // pair declared in the tab's href is present in the current
+                // URL. A tab with no query (the "default" / "open" tab)
+                // matches whenever the current URL doesn't have the
+                // discriminating key — so /factoryos/vendor with no
+                // ?filter= stays on "To do" rather than no-tab-active.
+                const [tabPath, tabQs] = (t.href || "").split("?");
+                let isActive = pathname === tabPath;
+                if (isActive && tabQs) {
+                  const want = new URLSearchParams(tabQs);
+                  for (const [k, v] of want.entries()) {
+                    if (currentSearchParams.get(k) !== v) { isActive = false; break; }
+                  }
+                } else if (isActive && !tabQs) {
+                  // No-query tab: stay active unless a sibling tab's
+                  // discriminating key is set on the current URL. Detected
+                  // by looking at the OTHER tabs in this group for any
+                  // ?key= that the current URL has.
+                  for (const other of subTabs) {
+                    if (other.href === t.href) continue;
+                    const [, otherQs] = (other.href || "").split("?");
+                    if (!otherQs) continue;
+                    const otherWant = new URLSearchParams(otherQs);
+                    for (const [k] of otherWant.entries()) {
+                      if (currentSearchParams.get(k) !== null) {
+                        isActive = false;
+                        break;
+                      }
+                    }
+                    if (!isActive) break;
+                  }
+                }
                 return (
                   <Link
                     key={t.href}

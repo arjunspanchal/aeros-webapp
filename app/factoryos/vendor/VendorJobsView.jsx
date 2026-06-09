@@ -1,13 +1,24 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { StageBadge, formatDate, inputCls } from "@/app/factoryos/_components/ui";
 
 // A printing vendor's part is done once the job moves past the print stages.
 const VENDOR_OPEN_STAGES = new Set(["RM Pending", "Under Printing"]);
 
+// Deep-link support: AppHeader's vendor "Completed" sub-tab points at
+// /factoryos/vendor?filter=done so this view opens already scoped. Validate
+// against the canonical set so a URL typo doesn't produce an empty list.
+const ALLOWED_FILTERS = new Set(["open", "done", "all"]);
+
 export default function VendorJobsView({ jobs, vendorName, linked }) {
-  const [filter, setFilter] = useState("open");
+  const searchParams = useSearchParams();
+  const initialFilter = (() => {
+    const f = searchParams?.get("filter");
+    return ALLOWED_FILTERS.has(f) ? f : "open";
+  })();
+  const [filter, setFilter] = useState(initialFilter);
   const [q, setQ] = useState("");
 
   const filtered = useMemo(() => {
