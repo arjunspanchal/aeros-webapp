@@ -345,6 +345,93 @@ export default function JobEditor({
         </dl>
       </div>
 
+      {/* Layout audit D2: "Update status" was the most frequent daily action
+          but was buried four cards deep (below Master mapping, RM details,
+          warehouse push, and the message thread). On mobile that meant ~6
+          screen-heights of scroll just to change a stage. Promoted to the
+          first card after the header so it lands above-fold on every
+          viewport. The other cards stay where they were — they're lower-
+          frequency reads/writes that benefit from being below the action
+          they all flow through. The single Save here writes ALL tracked
+          fields (status + RM + production dates), so operators editing RM
+          below still save by scrolling back up. */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Update status</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Stage</label>
+            <select className={inputCls} value={stage} onChange={(e) => setStage(e.target.value)}>
+              {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Expected dispatch date</label>
+            <input
+              type="date"
+              className={inputCls}
+              value={expectedDispatchDate ? expectedDispatchDate.slice(0, 10) : ""}
+              onChange={(e) => setExpectedDispatchDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Estimated delivery date (shown to customer)</label>
+            <input
+              type="date"
+              className={inputCls}
+              value={estimatedDeliveryDate ? estimatedDeliveryDate.slice(0, 10) : ""}
+              onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Internal status (not shown to customer)</label>
+            <input
+              className={inputCls}
+              placeholder="e.g. Forming plates pending, Colour approval awaited"
+              value={internalStatus}
+              onChange={(e) => setInternalStatus(e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Action points (internal)</label>
+            <textarea
+              rows={3}
+              className={inputCls}
+              placeholder="Open tasks, follow-ups…"
+              value={actionPoints}
+              onChange={(e) => setActionPoints(e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Note to log with this update (visible in customer timeline)</label>
+            <input
+              className={inputCls}
+              placeholder="e.g. Moved to printing, production starts Monday"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={save}
+            disabled={busy}
+            className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60"
+          >
+            {busy ? "Saving…" : "Save"}
+          </button>
+          {formDirty && !busy && (
+            <span className="text-xs text-amber-600 dark:text-amber-400" title="You'll be warned if you try to leave the page without saving.">
+              ● Unsaved changes
+            </span>
+          )}
+          {savedAt && !formDirty && <span className="text-xs text-green-600 dark:text-green-400">Saved {formatDateTime(savedAt.toISOString())}</span>}
+          {err && <span className="text-xs text-red-500">{err}</span>}
+        </div>
+        <p className="text-[11px] text-gray-400 mt-3 dark:text-gray-500">
+          Save here also writes any RM / production fields edited in the cards below.
+        </p>
+      </div>
+
       {canEditMasterProduct && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
           <div className="flex items-baseline justify-between gap-3 mb-3">
@@ -488,7 +575,7 @@ export default function JobEditor({
             <input type="date" className={inputCls} value={productionDueDate ? productionDueDate.slice(0, 10) : ""} onChange={(e) => setProductionDueDate(e.target.value)} />
           </div>
         </div>
-        <p className="text-xs text-gray-400 mt-3 dark:text-gray-500">These save along with the status update below.</p>
+        <p className="text-xs text-gray-400 mt-3 dark:text-gray-500">These save when you press Save in the status card above.</p>
       </div>
 
       {/* Audit C2: ledger writes (FG stock + unit cost) are admin/FM only.
@@ -500,80 +587,6 @@ export default function JobEditor({
       />
 
       <JobThread jobId={job.id} viewerRole="team" title="Messages & files (vendor)" />
-
-      <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Update status</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Stage</label>
-            <select className={inputCls} value={stage} onChange={(e) => setStage(e.target.value)}>
-              {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Expected dispatch date</label>
-            <input
-              type="date"
-              className={inputCls}
-              value={expectedDispatchDate ? expectedDispatchDate.slice(0, 10) : ""}
-              onChange={(e) => setExpectedDispatchDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Estimated delivery date (shown to customer)</label>
-            <input
-              type="date"
-              className={inputCls}
-              value={estimatedDeliveryDate ? estimatedDeliveryDate.slice(0, 10) : ""}
-              onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelCls}>Internal status (not shown to customer)</label>
-            <input
-              className={inputCls}
-              placeholder="e.g. Forming plates pending, Colour approval awaited"
-              value={internalStatus}
-              onChange={(e) => setInternalStatus(e.target.value)}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelCls}>Action points (internal)</label>
-            <textarea
-              rows={3}
-              className={inputCls}
-              placeholder="Open tasks, follow-ups…"
-              value={actionPoints}
-              onChange={(e) => setActionPoints(e.target.value)}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={labelCls}>Note to log with this update (visible in customer timeline)</label>
-            <input
-              className={inputCls}
-              placeholder="e.g. Moved to printing, production starts Monday"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex items-center gap-3">
-          <button
-            onClick={save}
-            disabled={busy}
-            className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60"
-          >
-            {busy ? "Saving…" : "Save"}
-          </button>
-          {formDirty && !busy && (
-            <span className="text-xs text-amber-600 dark:text-amber-400" title="You'll be warned if you try to leave the page without saving.">
-              ● Unsaved changes
-            </span>
-          )}
-          {savedAt && !formDirty && <span className="text-xs text-green-600 dark:text-green-400">Saved {formatDateTime(savedAt.toISOString())}</span>}
-          {err && <span className="text-xs text-red-500">{err}</span>}
-        </div>
-      </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Tracking details</h2>
