@@ -73,6 +73,14 @@ export default async function HrPage() {
             <Link href="/factoryos/admin/hr/payroll" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
               Payroll
             </Link>
+            <Link
+              href="/factoryos/clock"
+              target="_blank"
+              title="Worker self-service check-in / check-out — share this URL or open on a shared device"
+              className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Punch clock ↗
+            </Link>
           </div>
         </div>
 

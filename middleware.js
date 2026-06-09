@@ -135,6 +135,19 @@ export async function middleware(req) {
     return NextResponse.next();
   }
 
+  // --- Punch clock (factory-worker self-service attendance) ---
+  // Workers sign in with phone + a PIN and carry their own employee session
+  // (aeros_emp_session), NOT the hub session — they are employees, not users.
+  // Let the clock surface through; the page and every /api/factoryos/clock/*
+  // route verify the employee session themselves.
+  if (
+    pathname === "/factoryos/clock" ||
+    pathname.startsWith("/factoryos/clock/") ||
+    pathname.startsWith("/api/factoryos/clock/")
+  ) {
+    return NextResponse.next();
+  }
+
   // --- FactoryOS module ---
   if (pathname.startsWith("/api/factoryos/") || pathname.startsWith("/factoryos")) {
     const token = req.cookies.get("aeros_hub_session")?.value;

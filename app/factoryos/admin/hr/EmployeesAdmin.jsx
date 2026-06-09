@@ -40,6 +40,10 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
   const [q, setQ] = useState("");
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoErr, setPhotoErr] = useState("");
+  // Punch-clock PIN set/reset (only available while editing an existing row).
+  const [pinInput, setPinInput] = useState("");
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinMsg, setPinMsg] = useState("");
   const formRef = useRef(null);
   const photoInputRef = useRef(null);
 
@@ -83,6 +87,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
       notes: e.notes,
     });
     setErr("");
+    setPinInput(""); setPinMsg("");
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
@@ -90,6 +95,26 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
     setEditingId(null);
     setForm(EMPTY);
     setErr("");
+    setPinInput(""); setPinMsg("");
+  }
+
+  async function savePin() {
+    if (!editingId) return;
+    setPinMsg(""); setPinBusy(true);
+    const res = await fetch(`/api/factoryos/employees/${editingId}/pin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: pinInput }),
+    });
+    setPinBusy(false);
+    if (!res.ok) {
+      setPinMsg((await res.json().catch(() => ({}))).error || "Could not set PIN");
+      return;
+    }
+    setPinInput("");
+    setPinMsg("PIN set ✓");
+    // Reflect hasPin in the local list so the indicator updates immediately.
+    setEmployees((prev) => prev.map((e) => (e.id === editingId ? { ...e, hasPin: true } : e)));
   }
 
   async function submit(ev) {
@@ -248,7 +273,46 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
         <div>
           <label className={labelCls}>Phone</label>
           <input className={`${inputCls} text-base`} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 43210" />
+          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+            Used to sign in to the punch clock. Must be unique per employee.
+          </p>
         </div>
+
+        {isEditing && (
+          <div>
+            <label className={labelCls}>
+              Punch-clock PIN{" "}
+              <span className="font-normal text-gray-400">
+                {editingEmployee?.hasPin ? "· currently set" : "· not set yet"}
+              </span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                className={`${inputCls} text-base font-mono tracking-widest`}
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={pinInput}
+                onChange={(e) => { setPinInput(e.target.value.replace(/\D/g, "").slice(0, 6)); setPinMsg(""); }}
+                placeholder="4–6 digits"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={savePin}
+                disabled={pinBusy || pinInput.length < 4}
+                className="shrink-0 text-sm font-medium px-3 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
+              >
+                {pinBusy ? "Saving…" : editingEmployee?.hasPin ? "Reset PIN" : "Set PIN"}
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+              {pinMsg
+                ? <span className={pinMsg.includes("✓") ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>{pinMsg}</span>
+                : "The worker enters phone + this PIN at the punch clock. Share it with them privately."}
+            </p>
+          </div>
+        )}
 
         <div>
           <label className={labelCls}>Designation</label>
@@ -432,6 +496,14 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
                             title={`Aadhar on file (${e.aadharPhotos.length} photo${e.aadharPhotos.length > 1 ? "s" : ""})`}
                           >
                             KYC✓
+                          </span>
+                        )}
+                        {e.active && !e.hasPin && (
+                          <span
+                            className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                            title="No punch-clock PIN set — this worker can't sign in to mark attendance yet"
+                          >
+                            no PIN
                           </span>
                         )}
                         {!e.active && <span className="ml-2 text-xs text-gray-400">(inactive)</span>}
