@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { inputCls } from "@/app/factoryos/_components/ui";
 import { MANUAL_ATTENDANCE_STATUSES, SHIFT_END, SHIFT_START } from "@/lib/factoryos/constants";
-import { otHourlyRate, isWorkingDay, pad2 } from "@/lib/factoryos/hr";
+import { otHourlyRate, isWorkingDay, isLate, pad2 } from "@/lib/factoryos/hr";
 
 // Enumerate calendar dates from..to inclusive (both "YYYY-MM-DD").
 function datesBetween(from, to) {
@@ -256,6 +256,11 @@ function AttendanceRow({ row, managerMap, canMark, onChange, onSave }) {
             {employee.otEligible && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
                 OT
+              </span>
+            )}
+            {isWorkStatus(status) && isLate(inTime) && (
+              <span title="Checked in after the grace period" className="text-[10px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                Late
               </span>
             )}
           </div>
