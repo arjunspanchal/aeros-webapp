@@ -88,17 +88,30 @@ export default function JobEditor({ job: initialJob, initialUpdates, clientMap, 
     return hit?.id || "";
   });
   const [productQuery, setProductQuery] = useState("");
+  // Category filter sits above the search box so operators don't have to
+  // scroll past 600+ rows when they know the kind of product they want.
+  // Pre-seed from the job's existing category if it matches a real catalog
+  // category — keeps the picker scoped to the right slice on first open.
+  const [productCategory, setProductCategory] = useState(initialJob.category || "");
   const [masterBusy, setMasterBusy] = useState(false);
   const [masterSaved, setMasterSaved] = useState(false);
   const [masterErr, setMasterErr] = useState("");
 
+  // Unique categories sourced from the loaded catalog itself, so the dropdown
+  // never falls out of sync with whatever taxonomy the master products use.
+  const productCategories = useMemo(() => {
+    const set = new Set();
+    for (const p of products) if (p.category) set.add(p.category);
+    return Array.from(set).sort();
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
-    if (!q) return products.slice(0, 200);
-    return products
-      .filter((p) => `${p.productName} ${p.sku} ${p.category} ${p.sizeVolume}`.toLowerCase().includes(q))
-      .slice(0, 200);
-  }, [products, productQuery]);
+    let list = products;
+    if (productCategory) list = list.filter((p) => p.category === productCategory);
+    if (q) list = list.filter((p) => `${p.productName} ${p.sku} ${p.category} ${p.sizeVolume}`.toLowerCase().includes(q));
+    return list.slice(0, 200);
+  }, [products, productQuery, productCategory]);
 
   function onPickProduct(id) {
     setProductId(id);
@@ -280,12 +293,25 @@ export default function JobEditor({ job: initialJob, initialUpdates, clientMap, 
             </div>
           ) : (
             <>
-              <input
-                className={`${inputCls} mb-2`}
-                placeholder={`Search ${products.length} products by name / SKU / size…`}
-                value={productQuery}
-                onChange={(e) => setProductQuery(e.target.value)}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+                <select
+                  className={inputCls}
+                  value={productCategory}
+                  onChange={(e) => setProductCategory(e.target.value)}
+                  aria-label="Category"
+                >
+                  <option value="">All categories</option>
+                  {productCategories.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <input
+                  className={`${inputCls} sm:col-span-2`}
+                  placeholder={`Search ${filteredProducts.length === products.length ? products.length : `${filteredProducts.length} of ${products.length}`} products by name / SKU / size…`}
+                  value={productQuery}
+                  onChange={(e) => setProductQuery(e.target.value)}
+                />
+              </div>
               <select
                 className={inputCls}
                 value={productId}
