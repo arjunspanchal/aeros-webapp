@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, hasModule } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
-import { listEmployees, listAttendance, listUsers } from "@/lib/factoryos/repo";
+import { listEmployees, listAttendance, listUsers, listHolidays } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import { todayYmdIST } from "@/lib/factoryos/hr";
 import MarkAttendance from "./MarkAttendance";
@@ -18,10 +18,12 @@ export default async function AttendancePage({ searchParams }) {
     ? searchParams.date
     : todayYmdIST();
 
-  const [allEmployees, users] = await Promise.all([
+  const [allEmployees, users, allHolidays] = await Promise.all([
     listEmployees({ activeOnly: true }),
     listUsers(),
+    listHolidays(),
   ]);
+  const holidayDates = allHolidays.map((h) => h.date);
 
   // Admin sees everyone. FM is force-scoped to their own reports — `?scope=all`
   // is ignored unless the caller is Admin (prevents URL-tampering bypass).
@@ -62,6 +64,7 @@ export default async function AttendancePage({ searchParams }) {
           employees={employees}
           attendanceByEmployee={attendanceByEmployee}
           managerMap={managerMap}
+          holidays={holidayDates}
           canViewAll={true}
           showingAll={showAll}
           currentUserId={myUserId}

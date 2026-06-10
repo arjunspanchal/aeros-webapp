@@ -24,6 +24,7 @@ const EMPTY = {
   phone: "", // local 10-digit number; +91 is prefixed on save
   employeeCode: "",
   workMode: "WFO",
+  weeklyOffDays: [0],
   monthlySalary: "",
   joiningDate: "",
   managerId: "",
@@ -116,6 +117,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
       phone: localTen(e.phone),
       employeeCode: e.employeeCode || "",
       workMode: e.workMode || "WFO",
+      weeklyOffDays: Array.isArray(e.weeklyOffDays) ? e.weeklyOffDays : [0],
       monthlySalary: e.monthlySalary ? String(e.monthlySalary) : "",
       joiningDate: e.joiningDate || "",
       managerId: e.managerId || "",
@@ -168,6 +170,7 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
       phone: localPhone ? `+91 ${localPhone}` : "",
       employeeCode: form.employeeCode.trim(),
       workMode: form.workMode === "WFH" ? "WFH" : "WFO",
+      weeklyOffDays: Array.isArray(form.weeklyOffDays) ? form.weeklyOffDays : [0],
       monthlySalary: Number(form.monthlySalary) || 0,
       joiningDate: form.joiningDate || null,
       managerId: form.managerId || null,
@@ -388,6 +391,36 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
           </div>
           <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
             Work-from-office (on-site) or work-from-home. Defaults to Office.
+          </p>
+        </div>
+
+        <div>
+          <label className={labelCls}>Weekly off</label>
+          <div className="flex gap-1">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dn, dow) => {
+              const on = (form.weeklyOffDays || []).includes(dow);
+              return (
+                <button
+                  key={dow}
+                  type="button"
+                  onClick={() => setForm((f) => {
+                    const set = new Set(f.weeklyOffDays || []);
+                    set.has(dow) ? set.delete(dow) : set.add(dow);
+                    return { ...f, weeklyOffDays: [...set].sort((a, b) => a - b) };
+                  })}
+                  className={`flex-1 text-xs font-medium px-1 py-2 rounded-md border transition-colors ${
+                    on
+                      ? "border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-300"
+                      : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400"
+                  }`}
+                >
+                  {dn}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+            Off days (paid, never flagged as missing). Default: Sunday.
           </p>
         </div>
 

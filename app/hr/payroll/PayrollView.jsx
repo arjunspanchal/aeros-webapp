@@ -58,7 +58,7 @@ export default function PayrollView({ monthKey, rows, managerMap, canToggleScope
   }
 
   function exportCsv() {
-    const cols = ["Employee", "Designation", "Manager", "Monthly Salary", "Present Days", "OT Hours", "OT Rate/hr", "Base Pay", "OT Pay", "Total"];
+    const cols = ["Employee", "Designation", "Manager", "Monthly Salary", "Present Days", "LOP Days", "Payable Days", "OT Hours", "OT Rate/hr", "Base Pay", "OT Pay", "Total"];
     const escape = (v) => {
       const s = String(v ?? "");
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -71,6 +71,8 @@ export default function PayrollView({ monthKey, rows, managerMap, canToggleScope
         managerMap[employee.managerId]?.name || "",
         employee.monthlySalary,
         payroll.presentDays,
+        payroll.lopDays,
+        payroll.payableDays,
         payroll.otHours,
         payroll.otRate,
         payroll.basePay,
@@ -132,6 +134,7 @@ export default function PayrollView({ monthKey, rows, managerMap, canToggleScope
                 <th className="text-left px-4 py-2 font-medium whitespace-nowrap">Manager</th>
                 <th className="text-right px-4 py-2 font-medium whitespace-nowrap">Salary</th>
                 <th className="text-right px-4 py-2 font-medium whitespace-nowrap">Days (P)</th>
+                <th className="text-right px-4 py-2 font-medium whitespace-nowrap" title="Loss-of-pay days docked (absent / unpaid leave / half-days)">LOP</th>
                 <th className="text-right px-4 py-2 font-medium whitespace-nowrap">OT hrs</th>
                 <th className="text-right px-4 py-2 font-medium whitespace-nowrap">Base pay</th>
                 <th className="text-right px-4 py-2 font-medium whitespace-nowrap">OT pay</th>
@@ -151,6 +154,11 @@ export default function PayrollView({ monthKey, rows, managerMap, canToggleScope
                   <td className="px-4 py-2 text-right font-mono text-sm whitespace-nowrap">{formatINR(employee.monthlySalary)}</td>
                   <td className="px-4 py-2 text-right font-mono text-sm text-emerald-700 dark:text-emerald-300 whitespace-nowrap">
                     {payroll.presentDays}
+                  </td>
+                  <td className="px-4 py-2 text-right font-mono text-sm whitespace-nowrap">
+                    {payroll.lopDays > 0
+                      ? <span className="text-red-600 dark:text-red-400">−{payroll.lopDays}</span>
+                      : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-2 text-right font-mono text-sm whitespace-nowrap">
                     {payroll.otHours > 0 ? (
@@ -175,7 +183,7 @@ export default function PayrollView({ monthKey, rows, managerMap, canToggleScope
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">
+                  <td colSpan={9} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">
                     No employees for this view.
                   </td>
                 </tr>
@@ -184,7 +192,7 @@ export default function PayrollView({ monthKey, rows, managerMap, canToggleScope
             {filtered.length > 0 && (
               <tfoot className="bg-gray-50 dark:bg-gray-800/50 text-sm font-semibold">
                 <tr>
-                  <td colSpan={5} className="px-4 py-2 text-right text-gray-600 dark:text-gray-300">Totals</td>
+                  <td colSpan={6} className="px-4 py-2 text-right text-gray-600 dark:text-gray-300">Totals</td>
                   <td className="px-4 py-2 text-right font-mono text-gray-900 dark:text-white">{formatINR(totals.basePay)}</td>
                   <td className="px-4 py-2 text-right font-mono text-gray-900 dark:text-white">{formatINR(totals.otPay)}</td>
                   <td className="px-4 py-2 text-right font-mono text-gray-900 dark:text-white">{formatINR(totals.total)}</td>
