@@ -1,10 +1,26 @@
 "use client";
 import { useMemo, useState } from "react";
 
+// Recency chip values map to a max-age in days. "" = no filter.
+const RECENCY_OPTIONS = [
+  { value: "",   label: "All time" },
+  { value: "7",  label: "Last 7 days" },
+  { value: "30", label: "Last 30 days" },
+  { value: "90", label: "Last 90 days" },
+];
+
+function withinDays(iso, days) {
+  if (!iso || !days) return false;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t <= Number(days) * 86400000;
+}
+
 export default function RfqManager({ initialQuotes, clients, canUpload, currentEmail }) {
   const [quotes, setQuotes] = useState(initialQuotes || []);
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState(""); // client id (internal only)
+  const [recency, setRecency] = useState("");
   const [modalMode, setModalMode] = useState(null); // null | "upload" | "edit"
   const [editingQuote, setEditingQuote] = useState(null);
   const [busyDelete, setBusyDelete] = useState(null);
@@ -13,6 +29,19 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
     () => Object.fromEntries((clients || []).map((c) => [c.id, c])),
     [clients],
   );
+
+  // Counts run over the full dataset (not the search-filtered view) so the
+  // KPI strip and recency chips always show total inventory, not "how many
+  // match my current typing." Matches the Sample Dispatch queue pattern.
+  const kpis = useMemo(() => {
+    const k = { total: quotes.length, last7: 0, last30: 0, last90: 0 };
+    for (const q of quotes) {
+      if (withinDays(q.createdAt, 7))  k.last7++;
+      if (withinDays(q.createdAt, 30)) k.last30++;
+      if (withinDays(q.createdAt, 90)) k.last90++;
+    }
+    return k;
+  }, [quotes]);
 
   const filtered = useMemo(() => {
     const sq = search.trim().toLowerCase();
@@ -23,6 +52,7 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
           return false;
         }
       }
+      if (recency && !withinDays(q.createdAt, recency)) return false;
       if (!sq) return true;
       return (
         (q.aerosRfqNumber || "").toLowerCase().includes(sq) ||
@@ -33,7 +63,7 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
         (q.notes || "").toLowerCase().includes(sq)
       );
     });
-  }, [quotes, search, clientFilter, clientById]);
+  }, [quotes, search, clientFilter, recency, clientById]);
 
   async function onDelete(quote) {
     if (!confirm(`Delete RFQ ${quote.aerosRfqNumber} (${quote.filename})? This cannot be undone.`)) return;
@@ -74,6 +104,33 @@ export default function RfqManager({ initialQuotes, clients, canUpload, currentE
 
   return (
     <div className="space-y-4">
+      {/* KPI strip — totals over the full dataset, regardless of filters. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Kpi label="Total" value={kpis.total} />
+        <Kpi label="Last 7 days" value={kpis.last7} accent="emerald" />
+        <Kpi label="Last 30 days" value={kpis.last30} accent="blue" />
+        <Kpi label="Last 90 days" value={kpis.last90} accent="slate" />
+      </div>
+
+      {/* Recency chips — quick filter that composes with search + customer. */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mr-1">Show:</span>
+        {RECENCY_OPTIONS.map((o) => (
+          <button
+            key={o.value || "all"}
+            type="button"
+            onClick={() => setRecency(o.value)}
+            className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium transition ${
+              recency === o.value
+                ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
+                : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -466,4 +523,25 @@ function fileToBase64(file) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+const KPI_ACCENTS = {
+  default: "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900",
+  emerald: "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/40 dark:bg-emerald-900/10",
+  blue:    "border-blue-200 bg-blue-50/60 dark:border-blue-900/40 dark:bg-blue-900/10",
+  slate:   "border-slate-200 bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-900/40",
+};
+
+function Kpi({ label, value, accent = "default" }) {
+  const tone = KPI_ACCENTS[accent] || KPI_ACCENTS.default;
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${tone}`}>
+      <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        {label}
+      </div>
+      <div className="mt-0.5 text-xl font-semibold tabular-nums text-gray-900 dark:text-white">
+        {Number(value || 0).toLocaleString("en-IN")}
+      </div>
+    </div>
+  );
 }
