@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuth } from "../_components/AuthProvider";
 import { Eyebrow, Title, StatusLabel, Divider } from "../_components/ui";
 import { listJobs } from "../_lib/data";
-import { fmtDate, daysSince } from "../_lib/format";
+import { fmtDate, daysSince, todayISO } from "../_lib/format";
 import { TERMINAL_STATUSES, STATUS_LABEL } from "../_lib/schemas";
 
 const FILTERS = [
@@ -76,17 +76,19 @@ export default function JobListPage() {
             const open = !TERMINAL_STATUSES.includes(j.status);
             const age = daysSince(j.date_received);
             const aged = open && age != null && age > 15;
+            const overdue = j.promised_date && open && j.status !== "ready" && j.promised_date < todayISO();
+            const flag = aged || overdue;
             return (
               <div key={j.id}>
                 {i > 0 ? <Divider /> : null}
                 <Link href={`/emission/jobs/${j.job_no}`} style={{ textDecoration: "none", color: "inherit", display: "block" }}>
-                  <div className={aged ? "em-flag" : ""} style={{ display: "flex", alignItems: "center", gap: 12, padding: aged ? "14px 14px 14px 12px" : "14px" }}>
+                  <div className={flag ? "em-flag" : ""} style={{ display: "flex", alignItems: "center", gap: 12, padding: flag ? "14px 14px 14px 12px" : "14px" }}>
                     <div style={{ minWidth: 56 }}>
                       <div className="em-mono" style={{ fontSize: 15, fontWeight: 600 }}>#{j.job_no}</div>
                       <div className="em-meta-k">{fmtDate(j.date_received)}</div>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: aged ? 800 : 600, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div style={{ fontWeight: flag ? 800 : 600, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {j.customer_name}
                       </div>
                       <div className="em-meta-k" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -95,8 +97,8 @@ export default function JobListPage() {
                     </div>
                     <div style={{ textAlign: "right", minWidth: 96 }}>
                       <StatusLabel status={j.status} muted={!open} />
-                      <div className="em-meta-k" style={{ marginTop: 2 }}>
-                        {open ? `${age}d open` : ""}
+                      <div className="em-meta-k" style={{ marginTop: 2, fontWeight: overdue ? 800 : 400, color: overdue ? "var(--em-ink)" : undefined }}>
+                        {overdue ? `OVERDUE · ${age}d` : open ? `${age}d open` : ""}
                       </div>
                     </div>
                   </div>

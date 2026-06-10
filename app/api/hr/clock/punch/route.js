@@ -5,7 +5,7 @@
 // so managers can tell them apart on the admin attendance page.
 import { getEmpSession } from "@/lib/factoryos/empAuth";
 import { getEmployee, findAttendance, upsertAttendance, computeOtHours } from "@/lib/factoryos/repo";
-import { todayYmdIST, nowHmIST } from "@/lib/factoryos/hr";
+import { todayYmdIST, nowHmIST, isLate } from "@/lib/factoryos/hr";
 import { SHIFT_END } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
@@ -37,6 +37,7 @@ export async function POST(req) {
         { status: 409 },
       );
     }
+    const late = isLate(now);
     const record = await upsertAttendance({
       employeeId: session.employeeId,
       date,
@@ -47,7 +48,7 @@ export async function POST(req) {
       markedByName: SELF,
       notes: existing?.notes || "",
     });
-    return Response.json({ ok: true, action, record });
+    return Response.json({ ok: true, action, record, late, inTime: now });
   }
 
   // action === "out"

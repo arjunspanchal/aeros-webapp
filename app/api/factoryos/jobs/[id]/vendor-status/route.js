@@ -3,6 +3,7 @@ import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
 import { setVendorStatus, postJobMessage, VENDOR_STATUSES } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const VALID = new Set(VENDOR_STATUSES.map((s) => s.value));
 const LABEL = Object.fromEntries(VENDOR_STATUSES.map((s) => [s.value, s.label]));
@@ -15,8 +16,7 @@ export async function PATCH(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   const { job, access } = await resolveJobAccess(session, params.id);
-  if (!job) return Response.json({ error: "Not found" }, { status: 404 });
-  if (!access) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
   const status = body.status;
@@ -41,7 +41,10 @@ export async function PATCH(req, { params }) {
     }).catch(() => {});
     return Response.json({ job: updated });
   } catch (e) {
+    if (e?.code === "STATUS_REGRESSION") {
+      return Response.json({ error: "Progress can't move backwards." }, { status: 409 });
+    }
     console.error("vendor-status update failed:", e);
-    return Response.json({ error: e.message || "Failed" }, { status: 500 });
+    return Response.json({ error: "Could not update progress" }, { status: 500 });
   }
 }

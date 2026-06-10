@@ -4,16 +4,34 @@ import Link from "next/link";
 import { StageBadge, StageTimeline, formatDate, inputCls } from "@/app/factoryos/_components/ui";
 import StatusChart from "@/app/factoryos/_components/StatusChart";
 
+// Match the filter predicates exactly — kept in one place so the tab
+// counts and the listing filter can't drift apart.
+const FILTER_PREDICATES = {
+  open:       (j) => j.stage !== "Dispatched" && j.stage !== "Delivered",
+  dispatched: (j) => j.stage === "Dispatched",
+  delivered:  (j) => j.stage === "Delivered",
+  all:        () => true,
+};
+
 export default function CustomerJobsView({ jobs, clientMap }) {
   const [filter, setFilter] = useState("open");
   const [q, setQ] = useState("");
 
+  // Counts run over the full jobs list (not search-filtered) so tab numbers
+  // reflect total workload, not what's left after typing. Matches the
+  // Sample Dispatch and RFQ Manager patterns.
+  const counts = useMemo(() => ({
+    open:       jobs.filter(FILTER_PREDICATES.open).length,
+    dispatched: jobs.filter(FILTER_PREDICATES.dispatched).length,
+    delivered:  jobs.filter(FILTER_PREDICATES.delivered).length,
+    all:        jobs.length,
+  }), [jobs]);
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
+    const predicate = FILTER_PREDICATES[filter] || FILTER_PREDICATES.all;
     return jobs.filter((j) => {
-      if (filter === "open" && (j.stage === "Dispatched" || j.stage === "Delivered")) return false;
-      if (filter === "dispatched" && j.stage !== "Dispatched") return false;
-      if (filter === "delivered" && j.stage !== "Delivered") return false;
+      if (!predicate(j)) return false;
       if (!term) return true;
       const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.poNumber}`.toLowerCase();
       return hay.includes(term);
@@ -52,6 +70,9 @@ export default function CustomerJobsView({ jobs, clientMap }) {
               }`}
             >
               {label}
+              <span className={`ml-1.5 tabular-nums ${filter === k ? "opacity-80" : "opacity-60"}`}>
+                {counts[k]}
+              </span>
             </button>
           ))}
         </div>

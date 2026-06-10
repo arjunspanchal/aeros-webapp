@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, hasModule } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
-import { listEmployees, listAttendance, listUsers } from "@/lib/factoryos/repo";
+import { listEmployees, listAttendance, listUsers, listHolidays } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import {
   currentMonthKeyIST,
@@ -40,7 +40,11 @@ export default async function CalendarPage({ searchParams }) {
   // Fetch attendance once for the whole month, then split per employee.
   // Restricted to visible employees so other managers' rows never ship to the client.
   const visibleIds = new Set(employees.map((e) => e.id));
-  const allAttendance = await listAttendance({ from, to });
+  const [allAttendance, monthHolidays] = await Promise.all([
+    listAttendance({ from, to }),
+    listHolidays({ from, to }),
+  ]);
+  const holidayMap = Object.fromEntries(monthHolidays.map((h) => [h.date, h.name]));
   const byEmployee = {};
   for (const r of allAttendance) {
     if (!visibleIds.has(r.employeeId)) continue;
@@ -58,13 +62,14 @@ export default async function CalendarPage({ searchParams }) {
         </Link>
         <h1 className="text-2xl font-bold text-gray-900 mt-4 dark:text-white">Attendance calendar</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-          P = Present · A = Absent · H = Half-day. Green borders = OT logged.
+          P Present · A Absent · H Half-day · PL Paid leave · UL Unpaid leave. Grey = weekly-off, blue = holiday. Green ring = OT.
         </p>
         <CalendarView
           monthKey={monthKey}
           employees={employees}
           attendanceByEmployee={byEmployee}
           managerMap={managerMap}
+          holidayMap={holidayMap}
           canToggleScope={true}
           showingAll={showAll}
         />

@@ -1,34 +1,23 @@
-import { getSession, requireRole } from "@/lib/auth/session";
-import { getJob, getVendor, updateJob } from "@/lib/factoryos/repo";
+import { getSession } from "@/lib/auth/session";
+import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
+import { updateJob } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
-
-// Confirm the signed-in vendor owns this job. Mirrors repo.listJobsForSession
-// scoping: primary match on printing_vendor_id, name-snapshot fallback.
-async function resolveOwnedJob(session, jobId) {
-  const job = await getJob(jobId);
-  if (!job) return { error: "Not found", status: 404 };
-  const vendor = session.factoryosVendorId ? await getVendor(session.factoryosVendorId) : null;
-  const vid = session.factoryosVendorId || null;
-  const vn = (vendor?.name || "").trim().toLowerCase();
-  const owns =
-    (vid && job.printingVendorId === vid) ||
-    (vn && (job.printingVendor || "").trim().toLowerCase() === vn);
-  if (!owns) return { error: "Forbidden", status: 403 };
-  return { job };
-}
+export const dynamic = "force-dynamic";
 
 // PATCH /api/factoryos/vendor/jobs/[id]
 // Vendor updates their committed delivery date (the job's Printing Due Date).
+// Ownership goes through the shared resolveJobAccess so the scoping rule lives
+// in exactly one place (audit H3). A 404 is returned for both "no such job" and
+// "not your job" so the route can't be used to probe which ids exist (M5).
 export async function PATCH(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!requireRole(session, "factoryos", "vendor")) {
-    return Response.json({ error: "Forbidden" }, { status: 403 });
-  }
 
-  const { job, error, status } = await resolveOwnedJob(session, params.id);
-  if (error) return Response.json({ error }, { status });
+  const { job, access } = await resolveJobAccess(session, params.id);
+  if (!job || access !== "vendor") {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
 
   const body = await req.json().catch(() => ({}));
   if (!("printingDueDate" in body)) {
@@ -50,6 +39,6 @@ export async function PATCH(req, { params }) {
     return Response.json({ job: updated });
   } catch (e) {
     console.error("vendor due-date update failed:", e);
-    return Response.json({ error: e.message || "Failed" }, { status: 500 });
+    return Response.json({ error: "Could not save date" }, { status: 500 });
   }
 }

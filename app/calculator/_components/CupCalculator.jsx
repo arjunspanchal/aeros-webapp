@@ -1420,7 +1420,7 @@ export default function CupCalculator({ scope = "default" }) {
               swGSM && swPaperOpts.length === 0
                 ? `No paper at ${swGSM} GSM in RM Master — enter rate manually`
                 : swPaperId && masterPapers.find((x) => x.id === swPaperId)?.effectiveRate == null
-                ? "Rate not set in RM Master — enter manually or update Airtable"
+                ? "Rate not set in RM Master — enter manually or update on the Master RM Rates admin"
                 : ""
             }
           >
@@ -1474,7 +1474,7 @@ export default function CupCalculator({ scope = "default" }) {
               btPaperOpts.length === 0
                 ? "No 230 GSM paper in RM Master — enter rate manually"
                 : btPaperId && masterPapers.find((x) => x.id === btPaperId)?.effectiveRate == null
-                ? "Rate not set in RM Master — enter manually or update Airtable"
+                ? "Rate not set in RM Master — enter manually or update on the Master RM Rates admin"
                 : ""
             }
           >
@@ -1512,7 +1512,7 @@ export default function CupCalculator({ scope = "default" }) {
                 ofGSM && ofPaperOpts.length === 0
                   ? `No paper at ${ofGSM} GSM in RM Master — enter rate manually`
                   : ofPaperId && masterPapers.find((x) => x.id === ofPaperId)?.effectiveRate == null
-                  ? "Rate not set in RM Master — enter manually or update Airtable"
+                  ? "Rate not set in RM Master — enter manually or update on the Master RM Rates admin"
                   : ""
               }
             >

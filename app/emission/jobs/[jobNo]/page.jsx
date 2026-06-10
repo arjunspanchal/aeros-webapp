@@ -6,11 +6,11 @@ import { Eyebrow, Title, StatusLabel, Meta, Field, Divider, PhoneInput } from ".
 import SignaturePad from "../../_components/SignaturePad";
 import {
   getJobByNo, updateJob, listLineItems, addLineItem, updateLineItem,
-  getClaim, createClaim, updateClaim, listStaff,
+  getClaim, createClaim, updateClaim, listStaff, listJobEvents, addJobNote,
 } from "../../_lib/data";
 import { uploadObject } from "../../_lib/client";
 import { BUCKETS } from "../../_lib/config";
-import { inr, fmtDate, daysSince, todayISO, PAYMENT_LABEL, ITEM_TYPE_LABEL, CLAIM_LABEL, statusLabel } from "../../_lib/format";
+import { inr, fmtDate, daysSince, todayISO, timeAgo, warrantyStatus, PAYMENT_LABEL, ITEM_TYPE_LABEL, CLAIM_LABEL, statusLabel } from "../../_lib/format";
 import { JobStatus, LIFECYCLE, TERMINAL_BRANCHES, TERMINAL_STATUSES, ItemType, ClaimStatus, PaymentMethod } from "../../_lib/schemas";
 
 export default function JobDetailPage({ params }) {
@@ -22,6 +22,7 @@ export default function JobDetailPage({ params }) {
   const [items, setItems] = useState([]);
   const [claim, setClaim] = useState(null);
   const [staff, setStaff] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -31,9 +32,14 @@ export default function JobDetailPage({ params }) {
       const j = await getJobByNo(session, jobNo);
       setJob(j);
       if (j) {
-        const [li, cl] = await Promise.all([listLineItems(session, j.id), getClaim(session, j.id)]);
+        const [li, cl, ev] = await Promise.all([
+          listLineItems(session, j.id),
+          getClaim(session, j.id),
+          listJobEvents(session, j.id).catch(() => []),
+        ]);
         setItems(li);
         setClaim(cl);
+        setEvents(ev || []);
       }
       setErr("");
     } catch (e) { setErr(e.message); }
@@ -51,17 +57,25 @@ export default function JobDetailPage({ params }) {
   const age = daysSince(job.date_received);
   const techName = staff.find((s) => s.id === job.technician_id)?.name;
   const itemsTotal = items.reduce((s, it) => s + Number(it.amount || 0), 0);
+  const phoneDigits = (job.phone || "").replace(/\D/g, "");
+  const waText = encodeURIComponent(`Hi ${job.customer_name}, regarding your ${[job.brand, job.model].filter(Boolean).join(" ")} (Job #${job.job_no}) at Emission Electronics — `);
+  const overdue = job.promised_date && open && job.status !== "ready" && job.promised_date < todayISO();
+  const warranty = job.date_delivered ? warrantyStatus(job.date_delivered, job.service_warranty_days) : null;
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <Link href="/emission/jobs" className="em-label" style={{ textDecoration: "none" }}>← JOB LIST</Link>
-        <Link href={`/emission/jobs/${job.job_no}/slip`} className="em-btn em-btn--ghost em-btn--sm" style={{ textDecoration: "none" }}>🖨 CUSTOMER SLIP</Link>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {phoneDigits ? <a href={`tel:+${phoneDigits}`} className="em-btn em-btn--ghost em-btn--sm" style={{ textDecoration: "none" }}>📞 CALL</a> : null}
+          {phoneDigits ? <a href={`https://wa.me/${phoneDigits}?text=${waText}`} target="_blank" rel="noreferrer" className="em-btn em-btn--ghost em-btn--sm" style={{ textDecoration: "none" }}>💬 WHATSAPP</a> : null}
+          <Link href={`/emission/jobs/${job.job_no}/slip`} className="em-btn em-btn--ghost em-btn--sm" style={{ textDecoration: "none" }}>🖨 SLIP</Link>
+        </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginTop: 10 }}>
         <div>
-          <Eyebrow>JOB #{job.job_no}{job.is_historical ? " · HISTORICAL" : ""}</Eyebrow>
+          <Eyebrow>{`JOB #${job.job_no}${job.is_historical ? " · HISTORICAL" : ""}`}</Eyebrow>
           <Title lead={job.customer_name} style={{ fontSize: 26, marginTop: 6 }} />
           <div className="em-meta-k" style={{ marginTop: 4 }}>{[job.brand, job.model].filter(Boolean).join(" · ") || "—"}</div>
         </div>
@@ -75,10 +89,14 @@ export default function JobDetailPage({ params }) {
         <Meta k="Phone" v={job.phone} />
         <Meta k="Serial" v={job.serial_no} />
         <Meta k="Received" v={fmtDate(job.date_received)} />
+        <Meta k={overdue ? "Promised · OVERDUE" : "Promised"} v={job.promised_date ? <span style={overdue ? { fontWeight: 800 } : null}>{fmtDate(job.promised_date)}</span> : "—"} />
         <Meta k="Delivered" v={job.date_delivered ? fmtDate(job.date_delivered) : "—"} />
+        <Meta k="Repair warranty" mono={false} v={warranty ? <span style={warranty.active ? null : { color: "var(--em-muted)" }}>{fmtDate(warranty.until)} {warranty.active ? `· ${warranty.daysLeft}d left` : "· expired"}</span> : "—"} />
         <Meta k="Technician" v={techName || "—"} mono={false} />
         <Meta k="Accessories" v={job.accessories || "—"} mono={false} />
       </div>
+
+      <JobActivity session={session} job={job} events={events} onChange={reload} />
 
       <Section title="STATUS">
         <StatusControls session={session} job={job} onChange={reload} />
@@ -143,6 +161,57 @@ function Saver({ onClick, busy, ok, label = "SAVE" }) {
   );
 }
 
+function JobActivity({ session, job, events, onChange }) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  async function add() {
+    const t = note.trim();
+    if (!t) return;
+    setBusy(true);
+    try { await addJobNote(session, job.id, t); setNote(""); await onChange(); } catch (e) { alert(e.message); }
+    setBusy(false);
+  }
+
+  const shown = open ? events : events.slice(0, 5);
+  function label(ev) {
+    if (ev.event_type === "created") return `Job created · ${statusLabel(ev.to_status)}`;
+    if (ev.event_type === "status_change") return `${statusLabel(ev.from_status)} → ${statusLabel(ev.to_status)}`;
+    return ev.note;
+  }
+
+  return (
+    <Section title="ACTIVITY" hint="Auto-logged status changes + staff notes">
+      <div style={{ display: "flex", gap: 8 }}>
+        <input className="em-input" placeholder="Add a note (e.g. customer called, part ordered)…" value={note}
+          onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+        <button className="em-btn em-btn--ghost em-btn--sm" onClick={add} disabled={busy} style={{ whiteSpace: "nowrap" }}>{busy ? "…" : "+ NOTE"}</button>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        {events.length === 0 ? (
+          <div className="em-label" style={{ textTransform: "none", letterSpacing: "0.03em" }}>No activity yet.</div>
+        ) : (
+          shown.map((ev, i) => (
+            <div key={ev.id} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "8px 0", borderTop: i > 0 ? "1px solid var(--em-g200)" : "none" }}>
+              <div style={{ width: 7, height: 7, borderRadius: 99, marginTop: 6, flex: "0 0 auto", background: ev.event_type === "note" ? "var(--em-g300)" : "var(--em-ink)" }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: "var(--em-ink)" }}>{label(ev)}</div>
+                <div className="em-meta-k">{(ev.actor || "system")} · {timeAgo(ev.created_at)}</div>
+              </div>
+            </div>
+          ))
+        )}
+        {events.length > 5 ? (
+          <button onClick={() => setOpen((o) => !o)} className="em-link em-label" style={{ background: "none", border: 0, marginTop: 8, textTransform: "none", letterSpacing: "0.03em" }}>
+            {open ? "Show less" : `Show all ${events.length}`}
+          </button>
+        ) : null}
+      </div>
+    </Section>
+  );
+}
+
 function StatusControls({ session, job, onChange }) {
   const [busy, setBusy] = useState(false);
   const idx = LIFECYCLE.indexOf(job.status);
@@ -181,6 +250,7 @@ function StatusControls({ session, job, onChange }) {
 function AssignmentEditor({ session, job, staff, onChange }) {
   const [tech, setTech] = useState(job.technician_id || "");
   const [defect, setDefect] = useState(job.defect_found || "");
+  const [warrantyDays, setWarrantyDays] = useState(job.service_warranty_days ?? 90);
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
   const sigRef = useRef(null);
@@ -188,7 +258,7 @@ function AssignmentEditor({ session, job, staff, onChange }) {
   async function save() {
     setBusy(true); setOk(false);
     try {
-      await updateJob(session, job.id, { technician_id: tech || null, defect_found: defect.trim() || null });
+      await updateJob(session, job.id, { technician_id: tech || null, defect_found: defect.trim() || null, service_warranty_days: Number(warrantyDays) || 90 });
       if (sigRef.current?.isDirty()) {
         const blob = await sigRef.current.getBlob();
         if (blob) {
@@ -213,6 +283,9 @@ function AssignmentEditor({ session, job, staff, onChange }) {
       <Field label="Defect found">
         <textarea className="em-textarea" value={defect} onChange={(e) => { setDefect(e.target.value); setOk(false); }} placeholder="Diagnosis…" />
       </Field>
+      <Field label="Service warranty (days)" hint="On the repair, from delivery. Default 90.">
+        <input className="em-input em-mono" type="number" inputMode="numeric" value={warrantyDays} onChange={(e) => { setWarrantyDays(e.target.value); setOk(false); }} />
+      </Field>
       <Field label="Technician signature">
         <SignaturePad ref={sigRef} height={140} />
         {job.technician_signature_path ? <div className="em-label" style={{ marginTop: 4 }}>signed ✓ (re-sign to replace)</div> : null}
@@ -223,7 +296,7 @@ function AssignmentEditor({ session, job, staff, onChange }) {
 }
 
 function DetailsEditor({ session, job, onChange }) {
-  const fields = ["customer_name", "phone", "brand", "model", "serial_no", "complaint", "accessories", "remarks", "email", "address", "date_received"];
+  const fields = ["customer_name", "phone", "brand", "model", "serial_no", "complaint", "accessories", "remarks", "email", "address", "date_received", "promised_date"];
   const [f, setF] = useState(() => Object.fromEntries(fields.map((k) => [k, job[k] ?? ""])));
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
@@ -245,6 +318,7 @@ function DetailsEditor({ session, job, onChange }) {
         <Field label="Model"><input className="em-input" value={f.model} onChange={set("model")} /></Field>
         <Field label="Serial"><input className="em-input" value={f.serial_no} onChange={set("serial_no")} /></Field>
         <Field label="Received"><input className="em-input" type="date" value={f.date_received} onChange={set("date_received")} max={todayISO()} /></Field>
+        <Field label="Promised by"><input className="em-input" type="date" value={f.promised_date} onChange={set("promised_date")} /></Field>
       </div>
       <Field label="Complaint"><textarea className="em-textarea" value={f.complaint} onChange={set("complaint")} /></Field>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

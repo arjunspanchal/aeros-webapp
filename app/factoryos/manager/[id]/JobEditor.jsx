@@ -382,7 +382,7 @@ export default function JobEditor({
                 <p>The catalog returned 0 records — check that the catalog table actually has rows with a Product Name.</p>
               )}
               <p className="text-gray-500 dark:text-gray-400">
-                Required env vars: <code>AIRTABLE_PAT_PRODUCTS</code>, <code>CATALOG_BASE_ID</code>, <code>CATALOG_TABLE_ID</code>.
+                Catalog reads go through Supabase — verify <code>SUPABASE_URL</code> + <code>SUPABASE_SERVICE_ROLE_KEY</code> are set and the <code>master_products</code> view exists.
               </p>
             </div>
           ) : (

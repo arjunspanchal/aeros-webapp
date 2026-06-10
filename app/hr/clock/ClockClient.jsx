@@ -69,7 +69,11 @@ export default function ClockClient({ initialSignedIn }) {
       await loadStatus();
       return;
     }
-    setFlash(action === "in" ? "Checked in. Have a good shift!" : "Checked out. See you tomorrow!");
+    setFlash(
+      action === "in"
+        ? (data.late ? `Checked in at ${data.inTime} — you're marked late.` : "Checked in. Have a good shift!")
+        : "Checked out. See you tomorrow!",
+    );
     await loadStatus();
   }
 

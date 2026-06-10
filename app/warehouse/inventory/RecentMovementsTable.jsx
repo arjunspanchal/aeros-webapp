@@ -45,9 +45,19 @@ export default function RecentMovementsTable({ rows }) {
             <tr key={m.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
               <Td>{m.movement_date}</Td>
               <Td mono>
-                <Link href={`/warehouse/inventory/movements/${m.id}`} className="text-blue-700 hover:underline dark:text-blue-400">
-                  {m.movement_no}
-                </Link>
+                <div className="flex items-center gap-1.5">
+                  <Link href={`/warehouse/inventory/movements/${m.id}`} className="text-blue-700 hover:underline dark:text-blue-400">
+                    {m.movement_no}
+                  </Link>
+                  {m.posted === false && (
+                    <span
+                      title="Unposted draft — stock position does not include this movement yet."
+                      className="inline-flex items-center rounded bg-amber-100 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:ring-amber-700/40"
+                    >
+                      Draft
+                    </span>
+                  )}
+                </div>
               </Td>
               <Td><span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold ${TYPE_TONE[m.type] || ""}`}>{m.type}</span></Td>
               <Td>{m.reference_type || "—"}</Td>

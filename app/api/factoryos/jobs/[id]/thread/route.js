@@ -1,8 +1,10 @@
 import { getSession } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
+import { bodyTooLarge } from "@/lib/factoryos/requestLimits";
 import { listJobThread, postJobMessage, deleteJobMessage, markThreadRead } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 // Text/HTML and executables are the only hard blocks; print files (PDF/AI/EPS/
@@ -14,8 +16,7 @@ export async function GET(_req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   const { job, access } = await resolveJobAccess(session, params.id);
-  if (!job) return Response.json({ error: "Not found" }, { status: 404 });
-  if (!access) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
 
   const thread = await listJobThread(job.id);
   await markThreadRead(job.id, access === "vendor" ? "vendor" : "team").catch(() => {});
@@ -26,9 +27,12 @@ export async function GET(_req, { params }) {
 export async function POST(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
+  // Reject an oversized body before parsing it into memory (audit M1).
+  if (bodyTooLarge(req, MAX_BYTES)) {
+    return Response.json({ error: "File too large. Max 25 MB." }, { status: 413 });
+  }
   const { job, access } = await resolveJobAccess(session, params.id);
-  if (!job) return Response.json({ error: "Not found" }, { status: 404 });
-  if (!access) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
   const text = typeof body.body === "string" ? body.body.trim() : "";
@@ -75,7 +79,7 @@ export async function POST(req, { params }) {
     return Response.json({ thread });
   } catch (e) {
     console.error("thread post failed:", e);
-    return Response.json({ error: e.message || "Failed" }, { status: 500 });
+    return Response.json({ error: "Could not send message" }, { status: 500 });
   }
 }
 
@@ -85,8 +89,7 @@ export async function DELETE(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   const { job, access } = await resolveJobAccess(session, params.id);
-  if (!job) return Response.json({ error: "Not found" }, { status: 404 });
-  if (!access) return Response.json({ error: "Forbidden" }, { status: 403 });
+  if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
 
   const messageId = new URL(req.url).searchParams.get("messageId");
   if (!messageId) return Response.json({ error: "messageId required" }, { status: 400 });
@@ -104,6 +107,6 @@ export async function DELETE(req, { params }) {
     return Response.json({ thread: refreshed });
   } catch (e) {
     console.error("thread delete failed:", e);
-    return Response.json({ error: e.message || "Failed" }, { status: 500 });
+    return Response.json({ error: "Could not delete message" }, { status: 500 });
   }
 }

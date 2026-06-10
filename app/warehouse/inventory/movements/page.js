@@ -33,7 +33,8 @@ export default async function MovementsHistoryPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Movements</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Every posted inward, outward, transfer, and adjustment. Click a row for full line detail.
+          Every inward, outward, transfer, and adjustment — posted and draft. Click a row for full line detail.
+          Drafts are flagged inline; only posted movements affect stock position.
         </p>
       </div>
       {error ? (

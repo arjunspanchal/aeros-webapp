@@ -45,6 +45,22 @@ export default function JobThread({ jobId, viewerRole = "team", initialThread = 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
+  // Light polling so new messages from the other side appear without a manual
+  // refresh (no websockets needed). Only fires while the tab is visible, and
+  // also refetches when the window regains focus.
+  useEffect(() => {
+    const tick = () => {
+      if (typeof document !== "undefined" && !document.hidden) load();
+    };
+    const id = setInterval(tick, 20000);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", tick);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId]);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "nearest" });
   }, [thread.length]);
