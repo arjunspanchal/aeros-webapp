@@ -104,7 +104,7 @@ export default async function PetCupsPage() {
 
               {/* Educational guide + lid styles gallery */}
               <PetGuide />
-              <LidGallery sections={data.sections} />
+              <LidGallery />
 
               {/* Filterable rate sheet */}
               <PetCupsBrowser
