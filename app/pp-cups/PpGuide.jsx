@@ -8,7 +8,7 @@ const GUIDE = [
     code: "Cup",
     name: "PP Cup",
     blurb:
-      "Tough, flexible polypropylene cold cup — translucent or frosted. Flat-bottom and U-shape profiles, custom-brandable.",
+      "Tough, flexible polypropylene cold cup — translucent or frosted. F-Bottom and U-Bottom profiles, custom-brandable.",
     feel: "Rigid yet flexible",
     bestFor: "Iced coffee, shakes, juice, bubble tea",
     sizing: "12oz – 24oz · Ø90 mm",
@@ -42,7 +42,7 @@ export function PpGuide() {
       <p className="mt-2 max-w-2xl text-sm text-ink-600">
         Polypropylene (PP, resin code 5) is tough, flexible and translucent — clearer when frosted.
         It holds a crisp rim, resists cracking better than rigid PET, and tolerates warmer fills.
-        Cups come flat-bottom or U-shape; lids are injection-molded domes and sippers.
+        Cups come F-Bottom or U-Bottom; lids are injection-molded domes and sippers.
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -69,12 +69,12 @@ export function PpGuide() {
         ))}
       </div>
 
-      {/* Cup profiles — flat vs U-shape, annotated with the TD × BD × H size format. */}
+      {/* Cup profiles — F-Bottom vs U-Bottom, annotated with the TD × BD × H size format. */}
       <div className="mt-8 rounded-md border border-ink-200 bg-white p-5">
         <h3 className="text-sm font-bold text-ink-900">Cup profiles &amp; how we size</h3>
         <p className="mt-1 max-w-2xl text-xs text-ink-600">
-          Cups come with a <strong className="text-ink-900">flat</strong> or{" "}
-          <strong className="text-ink-900">U-shape</strong> bottom. Each size in the rate sheet is
+          Cups come with an <strong className="text-ink-900">F-Bottom</strong> (flat base) or{" "}
+          <strong className="text-ink-900">U-Bottom</strong> (rounded base). Each size in the rate sheet is
           written as <span className="font-mono text-ink-900">TD × BD × H</span> — top diameter ×
           bottom diameter × height, in millimetres.
         </p>
@@ -82,13 +82,13 @@ export function PpGuide() {
           <figure className="rounded border border-ink-100 bg-ink-50 p-3">
             <FlatCup />
             <figcaption className="mt-1 text-center text-xs font-medium text-ink-700">
-              Flat bottom
+              F-Bottom
             </figcaption>
           </figure>
           <figure className="rounded border border-ink-100 bg-ink-50 p-3">
             <UShapeCup />
             <figcaption className="mt-1 text-center text-xs font-medium text-ink-700">
-              U-shape
+              U-Bottom
             </figcaption>
           </figure>
         </div>
@@ -137,7 +137,7 @@ function FlatCup() {
       strokeLinecap="round"
       strokeLinejoin="round"
       role="img"
-      aria-label="Flat-bottom PP cup, marked with top diameter, bottom diameter and height"
+      aria-label="F-Bottom PP cup, marked with top diameter, bottom diameter and height"
     >
       {/* cup body — straight taper, flat base */}
       <path d="M56 50 L72 150 L128 150 L144 50" strokeWidth="1.75" />
@@ -174,7 +174,7 @@ function UShapeCup() {
       strokeLinecap="round"
       strokeLinejoin="round"
       role="img"
-      aria-label="U-shape PP cup, marked with top diameter, bottom diameter and height"
+      aria-label="U-Bottom PP cup, marked with top diameter, bottom diameter and height"
     >
       {/* cup body — straight walls into a rounded U base */}
       <path d="M58 50 L68 120 Q100 164 132 120 L142 50" strokeWidth="1.75" />

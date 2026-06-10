@@ -107,6 +107,7 @@ export default function PpCupsBrowser({
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [volume, setVolume] = useState("all"); // "all" | oz number
+  const [finish, setFinish] = useState("all"); // "all" | "Clear" | "Frosted"
   const [origin, setOrigin] = useState("all"); // "all" | country string
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
   const [expanded, setExpanded] = useState(() => new Set());
@@ -133,6 +134,14 @@ export default function PpCupsBrowser({
     return [...set].sort((a, b) => a - b);
   }, [sections]);
 
+  // Distinct cup finishes present (Clear / Frosted) — drives the finish filter.
+  // Lids carry no finish, so the filter only appears when cups span both.
+  const finishOptions = useMemo(() => {
+    const set = new Set();
+    for (const s of sections) for (const r of s.rows) if (r.finish) set.add(r.finish);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [sections]);
+
   // Distinct countries of origin present, alphabetical — drives the origin filter.
   const originOptions = useMemo(() => {
     const set = new Set();
@@ -153,12 +162,13 @@ export default function PpCupsBrowser({
         rows: s.rows.filter((r) => {
           if (
             q &&
-            !`${r.sku} ${r.name} ${r.forming ?? ""} ${r.volume ?? ""} ${r.size ?? ""} ${r.origin ?? ""}`
+            !`${r.sku} ${r.name} ${r.forming ?? ""} ${r.profile ?? ""} ${r.finish ?? ""} ${r.volume ?? ""} ${r.size ?? ""} ${r.origin ?? ""}`
               .toLowerCase()
               .includes(q)
           )
             return false;
           if (volume !== "all" && r.oz !== volume) return false;
+          if (finish !== "all" && r.finish !== finish) return false;
           if (origin !== "all" && r.origin !== origin) return false;
           const hasPrice = r[offering]?.entry != null;
           if (availability === "priced" && !hasPrice) return false;
@@ -167,13 +177,14 @@ export default function PpCupsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, volume, origin, availability, offering]);
+  }, [sections, query, type, volume, finish, origin, availability, offering]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
     query.trim() !== "" ||
     type !== "all" ||
     volume !== "all" ||
+    finish !== "all" ||
     origin !== "all" ||
     availability !== "all";
 
@@ -181,6 +192,7 @@ export default function PpCupsBrowser({
     setQuery("");
     setType("all");
     setVolume("all");
+    setFinish("all");
     setOrigin("all");
     setAvailability("all");
   };
@@ -229,7 +241,7 @@ export default function PpCupsBrowser({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Code, size or name — e.g. 16oz, frosted, 90mm, sipper, string lock"
+              placeholder="Code, size or name — e.g. 16oz, frosted, u-bottom, 90mm, string lock"
               className="mt-1.5 h-10 w-full rounded border border-ink-200 bg-white px-3 text-sm text-ink-800 placeholder:text-ink-400 focus:border-ink-900 focus:outline-none focus:ring-1 focus:ring-ink-900"
             />
           </div>
@@ -263,6 +275,23 @@ export default function PpCupsBrowser({
               {volumeOptions.map((oz) => (
                 <Chip key={oz} active={volume === oz} onClick={() => setVolume(oz)}>
                   {oz}oz
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Cup finish (Clear / Frosted) — appears once cups span both finishes. */}
+        {finishOptions.length > 1 && (
+          <div className="mt-4">
+            <span className="block text-xs uppercase tracking-wide text-ink-400">Cup finish</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Chip active={finish === "all"} onClick={() => setFinish("all")}>
+                All
+              </Chip>
+              {finishOptions.map((f) => (
+                <Chip key={f} active={finish === f} onClick={() => setFinish(f)}>
+                  {f}
                 </Chip>
               ))}
             </div>
@@ -455,9 +484,13 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, basis, showOrigin, ha
       >
         <td className="px-3 py-2 font-mono text-xs text-ink-600">{r.sku}</td>
         <td className="px-3 py-2 text-ink-900">
-          <span>{r.name || "—"}</span>
-          {r.forming && <FormingTag>{r.forming}</FormingTag>}
-          {showOrigin && r.origin ? <OriginTag origin={r.origin} /> : null}
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            {r.name ? <span>{r.name}</span> : null}
+            {r.profile && <ProfileTag>{r.profile}</ProfileTag>}
+            {r.forming && <FormingTag>{r.forming}</FormingTag>}
+            {showOrigin && r.origin ? <OriginTag origin={r.origin} /> : null}
+            {!r.name && !r.profile && !r.forming ? <span>—</span> : null}
+          </div>
         </td>
         <td className="px-3 py-2 text-ink-600">{r.volume ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
@@ -541,7 +574,12 @@ function MobileCard({ r, off, unit, currency, usdPerInr, basis, showOrigin }) {
           <p className="mt-0.5 font-medium text-ink-900">
             {r.volume ?? sizeLabel(r.size, unit) ?? "—"} {r.name ? `· ${r.name}` : ""}
           </p>
-          {r.forming && <FormingTag>{r.forming}</FormingTag>}
+          {(r.profile || r.forming) && (
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {r.profile && <ProfileTag>{r.profile}</ProfileTag>}
+              {r.forming && <FormingTag>{r.forming}</FormingTag>}
+            </div>
+          )}
         </div>
         <div className="shrink-0 text-right">
           {entry && entryInr != null ? (
@@ -562,6 +600,7 @@ function MobileCard({ r, off, unit, currency, usdPerInr, basis, showOrigin }) {
       </div>
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-600">
         <Spec label="Size">{sizeLabel(r.size, unit) ?? "—"}</Spec>
+        {r.finish ? <Spec label="Finish">{r.finish}</Spec> : null}
         <Spec label="Weight">{r.weightG != null ? `${r.weightG} g` : "—"}</Spec>
         <Spec label="Case pack">{r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}</Spec>
         <Spec label="Carton">{cartonLabel(r.carton, unit) ?? "—"}</Spec>
@@ -577,19 +616,24 @@ function MobileCard({ r, off, unit, currency, usdPerInr, basis, showOrigin }) {
   );
 }
 
-// Country of origin shown as a compact mono badge — monochrome to fit the
-// Aeros palette (no flag emojis). Falls back to a muted dash when unknown.
+// Compact mono badges — monochrome to fit the Aeros palette. Spacing comes
+// from the flex-gap containers they sit in, not the tags themselves.
+const TAG_CLASS =
+  "rounded border border-ink-200 px-1.5 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wide text-ink-500";
+
 function OriginTag({ origin }) {
-  return (
-    <span className="ml-2 rounded border border-ink-200 px-1.5 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wide text-ink-500">
-      {origin}
-    </span>
-  );
+  return <span className={TAG_CLASS}>{origin}</span>;
 }
 
 function FormingTag({ children }) {
+  return <span className={TAG_CLASS}>{children}</span>;
+}
+
+// Cup bottom profile (F-Bottom / U-Bottom) — slightly darker so the profile
+// reads as the item's primary tag.
+function ProfileTag({ children }) {
   return (
-    <span className="ml-2 mt-0.5 inline-block rounded border border-ink-200 px-1.5 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wide text-ink-500">
+    <span className="rounded border border-ink-300 bg-ink-50 px-1.5 py-0.5 align-middle font-mono text-[10px] font-medium uppercase tracking-wide text-ink-700">
       {children}
     </span>
   );

@@ -235,7 +235,7 @@ export function Customisation() {
           under the <strong className="text-ink-900">Customised</strong> toggle below.
         </TermCard>
         <TermCard label="Custom build">
-          <strong className="text-ink-900">Clear or frosted</strong> finish, flat-bottom or U-shape,
+          <strong className="text-ink-900">Clear or frosted</strong> finish, F-Bottom or U-Bottom,
           across the size range. New sizes may carry a one-time mould charge.
         </TermCard>
         <TermCard label="Artwork">
@@ -269,7 +269,7 @@ export function ExportReadiness() {
   const cards = (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
       <TermCard label="Container loading">
-        Cups are <strong className="text-ink-900">nested</strong> for volume — U-shape profiles
+        Cups are <strong className="text-ink-900">nested</strong> for volume — U-Bottom profiles
         nest tightest. Exact pieces per <strong className="text-ink-900">20&prime; / 40&prime;</strong>{" "}
         confirmed per SKU at quote.
       </TermCard>
