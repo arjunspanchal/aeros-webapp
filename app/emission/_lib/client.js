@@ -115,6 +115,40 @@ export async function publicLookup(jobNo, phone) {
   return handle(res, "lookup_job_status");
 }
 
+// PUBLIC richer view (status + estimate) for the customer's own job. Gated by
+// job_no + phone in the RPC.
+export async function publicJob(jobNo, phone) {
+  const res = await fetch(`${REST_URL}/rpc/get_job_public`, {
+    method: "POST",
+    headers: restHeaders(null, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ p_job_no: Number(jobNo), p_phone: String(phone) }),
+    cache: "no-store",
+  });
+  return handle(res, "get_job_public");
+}
+
+// PUBLIC estimate approve/decline (only when the job is in 'quoted').
+export async function respondEstimate(jobNo, phone, decision) {
+  const res = await fetch(`${REST_URL}/rpc/respond_to_estimate`, {
+    method: "POST",
+    headers: restHeaders(null, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ p_job_no: Number(jobNo), p_phone: String(phone), p_decision: decision }),
+    cache: "no-store",
+  });
+  return handle(res, "respond_to_estimate");
+}
+
+// PUBLIC post-delivery feedback (gated; only when delivered).
+export async function submitFeedback(jobNo, phone, rating, comment) {
+  const res = await fetch(`${REST_URL}/rpc/submit_feedback`, {
+    method: "POST",
+    headers: restHeaders(null, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ p_job_no: Number(jobNo), p_phone: String(phone), p_rating: Number(rating), p_comment: comment || null }),
+    cache: "no-store",
+  });
+  return handle(res, "submit_feedback");
+}
+
 // ---- Edge functions --------------------------------------------------------
 export async function callFunction(name, body, token) {
   const res = await fetch(`${FN_URL}/${name}`, {
