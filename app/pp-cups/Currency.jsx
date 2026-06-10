@@ -118,8 +118,8 @@ export function BasisToggle({ className = "" }) {
       onChange={setBasis}
       className={className}
       options={[
-        { value: "exw", label: "Export · EXW" },
-        { value: "ddp", label: "India · DDP" },
+        { value: "exw", label: "FCL" },
+        { value: "ddp", label: "India DDP" },
       ]}
     />
   );

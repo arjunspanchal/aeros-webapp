@@ -208,7 +208,7 @@ export default function PpCupsBrowser({
         <span className="text-xs text-ink-500">
           {basis === "ddp"
             ? "India DDP · delivered duty-paid within India, full-container (FCL) loads"
-            : "Export EXW India · ex-works, full-container (FCL) loads · freight & duties on buyer"}
+            : "FCL · ex-works at origin (China / India), full-container loads · freight & duties on buyer"}
         </span>
       </div>
 
