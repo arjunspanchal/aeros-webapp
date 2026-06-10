@@ -44,4 +44,97 @@ body {
     background-size: 200px 200px;
     background-repeat: repeat;
   }
+
+  /* ─── Aeros Command Center (home page) ──────────────────────────────── */
+
+  /* Hero mesh — three drifting radial gradients in royal / amber / violet.
+     Layered on top of bg-ink-900 + paper grain; opacity is kept under 60%
+     so it reads as atmospheric ink, not gradient soup. */
+  .hero-mesh {
+    background:
+      radial-gradient(60% 50% at 12% 20%, rgba(35, 71, 217, 0.55) 0%, transparent 60%),
+      radial-gradient(50% 50% at 85% 12%, rgba(245, 158, 11, 0.35) 0%, transparent 65%),
+      radial-gradient(70% 60% at 75% 90%, rgba(139, 92, 246, 0.45) 0%, transparent 65%);
+    background-size: 200% 200%, 200% 200%, 200% 200%;
+    animation: hero-mesh-drift 32s ease-in-out infinite alternate;
+  }
+  @keyframes hero-mesh-drift {
+    0%   { background-position:  0%   0%,  100% 0%,  50% 100%; }
+    50%  { background-position:  20% 40%,  60% 30%,  30% 60%;  }
+    100% { background-position:  10% 80%,  40% 90%,  80% 10%;  }
+  }
+
+  /* Live dot — green ring that breathes. Used in the hero "Live" badge
+     and the "Live data" caption above the bento. */
+  .pulse-dot {
+    animation: pulse-dot 1.8s ease-in-out infinite;
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  @keyframes pulse-dot {
+    0%   { opacity: 1;   transform: scale(1);   box-shadow: 0 0 0 0   rgba(16,185,129,0.6); }
+    70%  { opacity: 0.6; transform: scale(1.4); box-shadow: 0 0 0 8px rgba(16,185,129,0);   }
+    100% { opacity: 1;   transform: scale(1);   box-shadow: 0 0 0 0   rgba(16,185,129,0);   }
+  }
+
+  /* Hero copy rise — staggered fade-up so headline, sub-headline, and the
+     actions row arrive in sequence. */
+  .animate-rise          { animation: rise-up 600ms cubic-bezier(0.16,1,0.3,1) both; }
+  .animate-rise-delay    { animation: rise-up 600ms cubic-bezier(0.16,1,0.3,1) 120ms both; }
+  .animate-rise-delay-2  { animation: rise-up 600ms cubic-bezier(0.16,1,0.3,1) 240ms both; }
+  @keyframes rise-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0);   }
+  }
+
+  /* Bento tile entrance — slight upward fade. Stagger comes from inline
+     animation-delay (set per-tile in HomeClient). */
+  .bento-tile { animation: tile-in 600ms cubic-bezier(0.16,1,0.3,1) both; }
+  @keyframes tile-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0);    }
+  }
+
+  /* Cursor-tracked spotlight inside each bento tile. The tile root sets
+     --mx and --my via a pointermove handler; this layer paints a soft
+     radial gradient at that point so the highlight follows the cursor. */
+  .tile-spotlight {
+    background: radial-gradient(circle 220px at var(--mx, 50%) var(--my, 50%),
+      rgba(35, 71, 217, 0.10),
+      transparent 70%);
+  }
+
+  /* Ticker tape — 40s linear loop, paused on hover. Two copies of the
+     content sit inside .ticker-track and we translate -50% so the visible
+     wrap point lands cleanly between them. */
+  .ticker-track {
+    animation: ticker-scroll 40s linear infinite;
+  }
+  .group:hover .ticker-track { animation-play-state: paused; }
+  @keyframes ticker-scroll {
+    from { transform: translateX(0);     }
+    to   { transform: translateX(-50%);  }
+  }
+
+  /* Command palette — backdrop fade + dialog rise. */
+  .cmdk-fade { animation: rise-up 200ms ease-out both; }
+  .cmdk-rise { animation: cmdk-rise 220ms cubic-bezier(0.16,1,0.3,1) both; }
+  @keyframes cmdk-rise {
+    from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)     scale(1);    }
+  }
+
+  /* Respect users who opt out of motion. */
+  @media (prefers-reduced-motion: reduce) {
+    .hero-mesh,
+    .pulse-dot,
+    .animate-rise,
+    .animate-rise-delay,
+    .animate-rise-delay-2,
+    .bento-tile,
+    .ticker-track,
+    .cmdk-fade,
+    .cmdk-rise {
+      animation: none !important;
+    }
+  }
 }
