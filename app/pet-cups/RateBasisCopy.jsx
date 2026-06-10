@@ -26,12 +26,12 @@ export function PricingBasisValue() {
   }
   return (
     <>
-      Rates are <strong className="text-ink-900">EXW India, per piece</strong>, for{" "}
-      <strong className="text-ink-900">full-container-load (FCL)</strong> orders. Toggle between{" "}
-      <strong className="text-ink-900">plain</strong> and{" "}
+      Rates are <strong className="text-ink-900">EXW per piece</strong> at the item&rsquo;s origin
+      (India or China), for <strong className="text-ink-900">full-container-load (FCL)</strong>{" "}
+      orders. Toggle between <strong className="text-ink-900">plain</strong> and{" "}
       <strong className="text-ink-900">customised</strong> cups, or to{" "}
-      <strong className="text-ink-900">India DDP</strong> for delivered domestic rates. FOB Nhava
-      Sheva quoted on request.
+      <strong className="text-ink-900">India DDP</strong> for delivered domestic rates. FOB quoted
+      on request.
     </>
   );
 }
@@ -62,16 +62,17 @@ export function RateBasisFootnote() {
     return (
       <p>
         Rates are DDP India — inclusive of domestic road freight, margin and GST, delivered within
-        India. Export (EXW / FOB Nhava Sheva) quotes available on request. Prices subject to change
+        India. Export (EXW / FOB) quotes available on request. Prices subject to change
         with resin costs.
       </p>
     );
   }
   return (
     <p>
-      Rates are EXW India for full-container-load (FCL) orders, exclusive of freight, insurance,
-      duties and GST. Part loads (LCL) and mixed-SKU containers are priced higher. FOB Nhava Sheva
-      and landed quotes available on request. Prices subject to change with resin costs.
+      Rates are EXW (at the item&rsquo;s origin — India or China) for full-container-load (FCL)
+      orders, exclusive of freight, insurance, duties and GST. Part loads (LCL) and mixed-SKU
+      containers are priced higher. FOB and landed quotes available on request. Prices subject to
+      change with resin costs.
     </p>
   );
 }

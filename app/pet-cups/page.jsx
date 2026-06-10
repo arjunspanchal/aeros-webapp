@@ -56,10 +56,10 @@ export default async function PetCupsPage() {
           <div className="max-w-2xl">
             <h1 className="text-display-md font-bold text-ink-900">PET Cups &amp; Lids</h1>
             <p className="mt-3 text-ink-600">
-              Our complete clear PET cold-drink range, manufactured in Mumbai, India. Crystal-clear,
+              Our complete clear PET cold-drink range, made in India and China. Crystal-clear,
               rigid thermoformed cups in standard and U-shape profiles (Ø78–Ø98 mm), with
               matching dome, flat and sipper lids. Cups plain or custom-branded; lids supplied
-              clear.
+              clear. Filter by origin in the rate sheet.
             </p>
           </div>
 

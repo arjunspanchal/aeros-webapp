@@ -34,11 +34,13 @@ export function SupplyTerms() {
           advance payment.
         </TermCard>
         <TermCard label="Incoterms">
-          <strong className="text-ink-900">EXW India</strong> by default; FOB on request.
+          <strong className="text-ink-900">EXW</strong> by default, at the item&rsquo;s origin
+          (India or China); FOB / DDP India on request.
         </TermCard>
         <TermCard label="Port of loading">
-          <strong className="text-ink-900">Nhava Sheva (JNPT)</strong>, Mumbai — India&rsquo;s primary
-          container gateway.
+          By origin — <strong className="text-ink-900">Nhava Sheva (JNPT)</strong>, Mumbai for India-made
+          items; a <strong className="text-ink-900">China port</strong> for China-made. Each item&rsquo;s
+          origin is shown in the rate sheet.
         </TermCard>
         <TermCard label="Packing">
           Cups are <strong className="text-ink-900">sleeve-packed</strong> and lids{" "}
