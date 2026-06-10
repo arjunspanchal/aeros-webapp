@@ -11,6 +11,7 @@ import {
 } from "./TradeTerms";
 import PpCupsBrowser from "./PpCupsBrowser";
 import { CurrencyProvider, CurrencyToggle, UnitToggle, BasisToggle } from "./Currency";
+import { PricingBasisValue, RateBasisFootnote } from "./RateBasisCopy";
 
 // Public, no-login rate sheet shared directly with clients. Not in the
 // middleware matcher, so it renders for anyone with the link.
@@ -77,10 +78,7 @@ export default async function PpCupsPage() {
               {/* Pricing terms */}
               <section className="mt-8 grid gap-3 rounded-md border border-ink-200 bg-white p-5 text-sm text-ink-600 sm:grid-cols-2">
                 <Term label="Pricing basis">
-                  Per piece, for <strong className="text-ink-900">full-container (FCL)</strong> loads.
-                  Toggle between <strong className="text-ink-900">Export · EXW India</strong> and{" "}
-                  <strong className="text-ink-900">India · DDP</strong> (delivered duty-paid) in the
-                  masthead. Part / LCL loads cost more — quoted on request.
+                  <PricingBasisValue />
                 </Term>
                 <Term label="Currency">
                   Quoted in <strong className="text-ink-900">INR (₹)</strong>. Switch the toggle for
@@ -127,15 +125,7 @@ export default async function PpCupsPage() {
                   case pack. USD is indicative only, converted from INR at ₹{USD_PER_INR_DIVISOR}/$ —
                   invoicing is in INR unless otherwise agreed.
                 </p>
-                <p>
-                  All rates are for <strong className="text-ink-500">full-container (FCL)</strong>{" "}
-                  loads. <strong className="text-ink-500">Export · EXW India</strong> is ex-works,
-                  exclusive of freight, insurance, duties and GST.{" "}
-                  <strong className="text-ink-500">India · DDP</strong> is delivered duty-paid within
-                  India (freight included), exclusive of GST. Part / LCL loads, FOB Nhava Sheva and
-                  overseas landed quotes available on request. Prices subject to change with resin
-                  costs.
-                </p>
+                <RateBasisFootnote />
                 <p>
                   Plain: {data.plainPriced} of {data.total} items listed with live rates ·
                   Customised cups: {data.printedPriced} of {data.total}. The remainder are quoted on
