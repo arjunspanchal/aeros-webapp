@@ -1,8 +1,9 @@
-// Friendly fallback rendered when the rate-cards Airtable read fails. Without
-// this, any missing env var / missing table / PAT scope problem surfaces as a
-// generic 500 ("Application error: digest …") that doesn't tell the operator
-// what to fix. Detects the three most common failure modes and shows a
-// targeted hint; raw error is in a collapsed details block for everything else.
+// Friendly fallback rendered when the rate-cards read fails. Without this,
+// any missing env / table / scope problem surfaces as a generic 500
+// ("Application error: digest …") that doesn't tell the operator what to
+// fix. Rate cards live in Supabase (via the airtableShim layer), so the
+// likely failure modes are: missing Supabase env vars on Vercel, a table
+// or column that hasn't been created yet, or service-role-key auth failing.
 
 import { Card } from "@/app/calculator/_components/ui";
 
@@ -17,9 +18,9 @@ export default function SetupNotice({ error, isAdmin }) {
     );
   }
 
-  const isMissingTable = /could not find table|table not found|NOT_FOUND/i.test(error);
-  const isMissingEnv = /Missing env var/i.test(error);
-  const isAuth = /(401|403|invalid|unauthorized|forbidden|invalid api key|invalid_api_key|not authorized)/i.test(error);
+  const isMissingTable = /could not find table|table not found|NOT_FOUND|relation .* does not exist/i.test(error);
+  const isMissingEnv = /Missing env var|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY/i.test(error);
+  const isAuth = /(401|403|invalid|unauthorized|forbidden|jwt|service[- ]role|not authorized)/i.test(error);
 
   return (
     <Card>
@@ -29,12 +30,10 @@ export default function SetupNotice({ error, isAdmin }) {
 
       {isMissingEnv && (
         <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
-          <p>An Airtable env var is missing. Set these on Vercel (Project Settings → Environment Variables):</p>
+          <p>A Supabase env var is missing. Set these on Vercel (Project Settings → Environment Variables):</p>
           <pre className="text-xs bg-gray-50 dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700 overflow-x-auto">
-{`AIRTABLE_PAT_CALCULATOR=<your calc PAT>
-AIRTABLE_CALC_BASE_ID=<your calc base id>
-AIRTABLE_RATE_CARDS_TABLE=Rate Cards
-AIRTABLE_RATE_CARD_ITEMS_TABLE=Rate Card Items`}
+{`SUPABASE_URL=<your project URL>
+SUPABASE_SERVICE_ROLE_KEY=<service role key>`}
           </pre>
           <p className="text-xs text-gray-500 dark:text-gray-400">After adding, trigger a fresh deploy on Vercel — env vars only apply to new builds.</p>
         </div>
@@ -43,9 +42,9 @@ AIRTABLE_RATE_CARD_ITEMS_TABLE=Rate Card Items`}
       {isMissingTable && (
         <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
           <p>
-            The <code>Rate Cards</code> / <code>Rate Card Items</code> tables don&apos;t exist
-            in the calc Airtable base yet. Create them with the schema in
-            <code className="ml-1">README.md → Rate Cards module</code>.
+            The <code>rate_cards</code> / <code>rate_card_items</code> tables don&apos;t exist
+            in Supabase yet. Run the corresponding migration in
+            <code className="ml-1">scripts/migrations/</code>.
           </p>
         </div>
       )}
@@ -53,16 +52,18 @@ AIRTABLE_RATE_CARD_ITEMS_TABLE=Rate Card Items`}
       {isAuth && !isMissingEnv && !isMissingTable && (
         <div className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
           <p>
-            Airtable rejected the request. Likely the <code>AIRTABLE_PAT_CALCULATOR</code> PAT doesn&apos;t have
-            <strong> data.records:read</strong> + <strong> data.records:write</strong> scope on the
-            calc base, or the calc base isn&apos;t in the PAT&apos;s Access list.
+            Supabase rejected the request. Likely the <code>SUPABASE_SERVICE_ROLE_KEY</code>{" "}
+            on Vercel doesn&apos;t match the project, or RLS on the rate-cards tables
+            is denying the read (the service-role key normally bypasses RLS — verify the key
+            value is correct).
           </p>
         </div>
       )}
 
       {!isMissingEnv && !isMissingTable && !isAuth && (
         <p className="text-sm text-gray-700 dark:text-gray-300">
-          Couldn&apos;t load rate cards from Airtable. Check the calc base PAT scope and table names.
+          Couldn&apos;t load rate cards. Check the Supabase env vars and that the
+          <code className="mx-1">rate_cards</code>/<code>rate_card_items</code> tables exist.
         </p>
       )}
 
