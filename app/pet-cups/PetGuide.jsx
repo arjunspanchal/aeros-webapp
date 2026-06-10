@@ -10,7 +10,7 @@ const GUIDE = [
       "Crystal-clear, rigid thermoformed cold cup with glass-like clarity. Standard tapered and U-shape profiles, custom-brandable.",
     feel: "Rigid, glass-clear",
     bestFor: "Juice, iced coffee, smoothies, soda",
-    sizing: "Ø 78–98 mm · 8oz – 24oz",
+    sizing: "Ø 74–117 mm · 5oz – 32oz",
   },
   {
     code: "Dome",
@@ -19,7 +19,7 @@ const GUIDE = [
       "A raised dome that clears whipped cream, fruit, scoops and tall garnishes. Clear PET, supplied plain.",
     feel: "Tall, domed",
     bestFor: "Frappés, sundaes, topped drinks",
-    sizing: "Ø 89–98 mm",
+    sizing: "Ø 78–117 mm",
   },
   {
     code: "Flat",
@@ -28,7 +28,7 @@ const GUIDE = [
       "A low-profile flat lid with a straw cut, sized to the cup's top diameter. Clear PET, supplied plain.",
     feel: "Low, flat",
     bestFor: "Iced drinks, cold takeaway",
-    sizing: "Ø 78–98 mm",
+    sizing: "Ø 78–117 mm",
   },
   {
     code: "Sipper",
@@ -37,7 +37,7 @@ const GUIDE = [
       "A flat lid with a raised drink spout — sip straight from the lid, no straw needed. Tidy and spill-resistant.",
     feel: "Flat, spouted",
     bestFor: "Takeaway cold drinks, on-the-go",
-    sizing: "Ø 89–98 mm",
+    sizing: "Ø 89–107 mm",
   },
 ];
 
@@ -48,7 +48,7 @@ export function PetGuide() {
         <h2 className="text-lg font-bold text-ink-900">Know your PET range</h2>
       </div>
       <p className="mt-2 max-w-2xl text-sm text-ink-600">
-        Clear cold cups across a range of top diameters (Ø78–Ø98 mm), with matching dome, flat
+        Clear cold cups across a range of top diameters (Ø74–Ø117 mm), with matching dome, flat
         and sipper lids. PET (polyethylene terephthalate, resin code 1) is rigid, recyclable and
         glass-clear — ideal for cold drinks where you want to show off the contents.
       </p>
