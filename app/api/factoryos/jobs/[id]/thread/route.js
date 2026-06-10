@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
+import { bodyTooLarge } from "@/lib/factoryos/requestLimits";
 import { listJobThread, postJobMessage, deleteJobMessage, markThreadRead } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
@@ -26,6 +27,10 @@ export async function GET(_req, { params }) {
 export async function POST(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
+  // Reject an oversized body before parsing it into memory (audit M1).
+  if (bodyTooLarge(req, MAX_BYTES)) {
+    return Response.json({ error: "File too large. Max 25 MB." }, { status: 413 });
+  }
   const { job, access } = await resolveJobAccess(session, params.id);
   if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
 

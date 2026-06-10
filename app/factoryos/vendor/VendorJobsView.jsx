@@ -18,6 +18,18 @@ function isDone(j) {
   return !VENDOR_OPEN_STAGES.has(j.stage);
 }
 
+// Past its delivery date and not yet dispatched. `today` is null until the
+// client mounts (avoids an SSR/hydration mismatch), so this is false on first
+// paint and fills in right after.
+function isOverdue(j, today) {
+  return (
+    !!today &&
+    !!j.printingDueDate &&
+    String(j.printingDueDate).slice(0, 10) < today &&
+    j.vendorStatus !== "dispatched"
+  );
+}
+
 export default function VendorJobsView({ jobs, vendorName, linked, unreadIds = [] }) {
   const [filter, setFilter] = useState("open");
   const [q, setQ] = useState("");
@@ -35,9 +47,19 @@ export default function VendorJobsView({ jobs, vendorName, linked, unreadIds = [
     return { open, done, all: jobs.length };
   }, [jobs]);
 
+  // At-a-glance numbers for the summary strip: how many are overdue and how
+  // many have unseen activity from the Aeros team.
+  const stats = useMemo(() => {
+    let overdueN = 0;
+    for (const j of jobs) if (isOverdue(j, today)) overdueN++;
+    let unreadN = 0;
+    for (const j of jobs) if (unread.has(j.id)) unreadN++;
+    return { overdue: overdueN, unread: unreadN };
+  }, [jobs, today, unread]);
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return jobs.filter((j) => {
+    const list = jobs.filter((j) => {
       const done = isDone(j);
       if (filter === "open" && done) return false;
       if (filter === "done" && !done) return false;
@@ -45,16 +67,24 @@ export default function VendorJobsView({ jobs, vendorName, linked, unreadIds = [
       const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.printingType} ${j.poNumber}`.toLowerCase();
       return hay.includes(term);
     });
-  }, [jobs, filter, q]);
-
-  function overdue(j) {
-    return (
-      today &&
-      j.printingDueDate &&
-      String(j.printingDueDate).slice(0, 10) < today &&
-      j.vendorStatus !== "dispatched"
-    );
-  }
+    // Surface what needs attention first: overdue, then urgent, then by the
+    // soonest delivery date (undated last). Ties keep the server order (J# desc).
+    return list
+      .map((j, i) => ({ j, i }))
+      .sort((a, b) => {
+        const oa = isOverdue(a.j, today) ? 1 : 0;
+        const ob = isOverdue(b.j, today) ? 1 : 0;
+        if (oa !== ob) return ob - oa;
+        const ua = a.j.urgent ? 1 : 0;
+        const ub = b.j.urgent ? 1 : 0;
+        if (ua !== ub) return ub - ua;
+        const da = a.j.printingDueDate ? String(a.j.printingDueDate).slice(0, 10) : "9999-12-31";
+        const db = b.j.printingDueDate ? String(b.j.printingDueDate).slice(0, 10) : "9999-12-31";
+        if (da !== db) return da < db ? -1 : 1;
+        return a.i - b.i;
+      })
+      .map((x) => x.j);
+  }, [jobs, filter, q, today]);
 
   return (
     <div className="space-y-6">
@@ -84,6 +114,21 @@ export default function VendorJobsView({ jobs, vendorName, linked, unreadIds = [
         </div>
       </div>
 
+      {linked && jobs.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "To do", value: counts.open, tone: "text-gray-900 dark:text-white" },
+            { label: "Overdue", value: stats.overdue, tone: stats.overdue ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white" },
+            { label: "New from Aeros", value: stats.unread, tone: stats.unread ? "text-blue-600 dark:text-blue-400" : "text-gray-900 dark:text-white" },
+          ].map((s) => (
+            <div key={s.label} className="bg-white border border-gray-200 rounded-xl px-4 py-3 dark:bg-gray-900 dark:border-gray-800">
+              <div className={`text-2xl font-bold ${s.tone}`}>{s.value}</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {!linked && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-200">
           Your login isn&apos;t linked to a vendor record yet. Ask the Aeros team to
@@ -107,7 +152,7 @@ export default function VendorJobsView({ jobs, vendorName, linked, unreadIds = [
       <div className="space-y-3">
         {filtered.map((j) => {
           const hasUnread = unread.has(j.id);
-          const isLate = overdue(j);
+          const isLate = isOverdue(j, today);
           return (
             <Link
               key={j.id}

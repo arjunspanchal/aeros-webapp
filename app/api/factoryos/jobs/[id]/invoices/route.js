@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
+import { bodyTooLarge } from "@/lib/factoryos/requestLimits";
 import { listJobInvoices, createVendorInvoice } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
@@ -23,6 +24,9 @@ export async function GET(_req, { params }) {
 export async function POST(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
+  if (bodyTooLarge(req, MAX_BYTES)) {
+    return Response.json({ error: "File too large. Max 15 MB." }, { status: 413 });
+  }
   const { job, access, vendor } = await resolveJobAccess(session, params.id);
   if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
 
