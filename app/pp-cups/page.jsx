@@ -1,6 +1,7 @@
 import { fetchPpCupsAndLids, USD_PER_INR_DIVISOR } from "@/lib/pp-cups";
 import { Brand } from "@/app/components/ui/Brand";
 import { PpGuide } from "./PpGuide";
+import { LidGallery } from "./LidGallery";
 import {
   SupplyTerms,
   QualityChecks,
@@ -102,8 +103,9 @@ export default async function PpCupsPage() {
               <ExportReadiness />
               <QualityChecks />
 
-              {/* Educational guide + customisation */}
+              {/* Educational guide + lid styles gallery + customisation */}
               <PpGuide />
+              <LidGallery sections={data.sections} />
               <Customisation />
 
               {/* Filterable rate sheet */}
