@@ -570,21 +570,8 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, rateMode, showOrigin,
       >
         <td className="px-3 py-2 font-mono text-xs text-ink-600">{r.sku}</td>
         <td className="px-3 py-2 text-ink-900">
-          <div className="flex items-center gap-2.5">
-            {r.img ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={r.img}
-                alt=""
-                loading="lazy"
-                className="h-10 w-10 shrink-0 rounded border border-ink-100 bg-ink-50 object-cover"
-              />
-            ) : null}
-            <span>
-              {r.name || "—"}
-              {showOrigin && r.origin ? <OriginTag origin={r.origin} /> : null}
-            </span>
-          </div>
+          {r.name || "—"}
+          {showOrigin && r.origin ? <OriginTag origin={r.origin} /> : null}
         </td>
         <td className="px-3 py-2 text-ink-600">{r.volume ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
@@ -663,16 +650,7 @@ function MobileCard({ r, off, unit, currency, usdPerInr, rateMode, showOrigin })
   return (
     <div className="rounded-md border border-ink-200 bg-white p-3">
       <div className="flex items-start justify-between gap-3">
-        {r.img ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={r.img}
-            alt=""
-            loading="lazy"
-            className="h-12 w-12 shrink-0 rounded border border-ink-100 bg-ink-50 object-cover"
-          />
-        ) : null}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <p className="font-mono text-xs text-ink-400">{r.sku}</p>
           <p className="mt-0.5 font-medium text-ink-900">
             {r.volume ?? sizeLabel(r.size, unit) ?? "—"} {r.name ? `· ${r.name}` : ""}
