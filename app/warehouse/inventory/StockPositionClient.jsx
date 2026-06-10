@@ -19,15 +19,74 @@ function formatQty(n, uom) {
   return `${v} ${uom || ""}`.trim();
 }
 
+// Sortable column keys mapped to row accessors. Numeric keys get numeric
+// compare; strings get locale compare. `last_movement_at` is an ISO string
+// — lexicographic compare on ISO is correct chronological order.
+const SORT_ACCESSORS = {
+  sku:               (r) => (r.sku || "").toLowerCase(),
+  name:              (r) => (r.name || "").toLowerCase(),
+  source:            (r) => (r.source || "").toLowerCase(),
+  customer:          (r) => (r.brand_customer || "").toLowerCase(),
+  total_qty:         (r) => Number(r.total_qty || 0),
+  avg_cost:          (r) => Number(r.avg_cost || 0),
+  total_value:       (r) => Number(r.total_value || 0),
+  last_movement_at:  (r) => r.last_movement_at || "",
+};
+
+function csvEscape(v) {
+  if (v == null) return "";
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function exportStockCSV(rows) {
+  const header = [
+    "SKU", "Name", "Brand", "Source", "Customer",
+    "On-hand", "UoM", "Avg cost (INR)", "Value (INR)",
+    "Locations", "Needs review", "Last movement",
+  ];
+  const lines = [header.map(csvEscape).join(",")];
+  for (const r of rows) {
+    const locs = r.by_location
+      ? Object.entries(r.by_location).map(([c, q]) => `${c}:${q}`).join(" | ")
+      : "";
+    lines.push([
+      r.sku, r.name, r.brand || "", r.source || "", r.brand_customer || "",
+      Number(r.total_qty || 0), r.uom || "",
+      Number(r.avg_cost || 0).toFixed(2), Number(r.total_value || 0).toFixed(2),
+      locs, r.needs_review ? "yes" : "",
+      r.last_movement_at ? new Date(r.last_movement_at).toISOString().slice(0, 10) : "",
+    ].map(csvEscape).join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const today = new Date().toISOString().slice(0, 10);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `stock-position-${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
 export default function StockPositionClient({ initialStock, locations }) {
   const [stock] = useState(initialStock);
   const [search, setSearch] = useState("");
   const [source, setSource] = useState("");
   const [hideZero, setHideZero] = useState(true);
+  // sortKey null → original order. Click cycles: null → asc → desc → null.
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
+
+  function toggleSort(key) {
+    if (sortKey !== key) { setSortKey(key); setSortDir("asc"); return; }
+    if (sortDir === "asc") { setSortDir("desc"); return; }
+    setSortKey(null);
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return stock.filter((row) => {
+    const base = stock.filter((row) => {
       if (source && row.source !== source) return false;
       if (hideZero && Number(row.total_qty) === 0) return false;
       if (!q) return true;
@@ -38,7 +97,17 @@ export default function StockPositionClient({ initialStock, locations }) {
         (row.brand_customer || "").toLowerCase().includes(q)
       );
     });
-  }, [stock, search, source, hideZero]);
+    if (!sortKey) return base;
+    const acc = SORT_ACCESSORS[sortKey];
+    if (!acc) return base;
+    const sign = sortDir === "asc" ? 1 : -1;
+    return base.slice().sort((a, b) => {
+      const av = acc(a), bv = acc(b);
+      if (av === bv) return 0;
+      if (typeof av === "number") return (av - bv) * sign;
+      return String(av).localeCompare(String(bv)) * sign;
+    });
+  }, [stock, search, source, hideZero, sortKey, sortDir]);
 
   const totalSkus = filtered.length;
   const totalValue = filtered.reduce((s, r) => s + Number(r.total_value || 0), 0);
@@ -89,21 +158,30 @@ export default function StockPositionClient({ initialStock, locations }) {
           />
           Hide zero-qty rows
         </label>
+        <button
+          type="button"
+          onClick={() => exportStockCSV(filtered)}
+          disabled={filtered.length === 0}
+          className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          title="Download the current view as CSV"
+        >
+          Export CSV
+        </button>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
           <thead className="bg-gray-50 dark:bg-gray-800/50">
             <tr>
-              <Th>SKU</Th>
-              <Th>Name</Th>
-              <Th>Source</Th>
-              <Th>Customer</Th>
-              <Th right>On-hand</Th>
-              <Th right>Avg cost</Th>
-              <Th right>Value</Th>
+              <Th sortKey="sku"              activeKey={sortKey} dir={sortDir} onSort={toggleSort}>SKU</Th>
+              <Th sortKey="name"             activeKey={sortKey} dir={sortDir} onSort={toggleSort}>Name</Th>
+              <Th sortKey="source"           activeKey={sortKey} dir={sortDir} onSort={toggleSort}>Source</Th>
+              <Th sortKey="customer"         activeKey={sortKey} dir={sortDir} onSort={toggleSort}>Customer</Th>
+              <Th sortKey="total_qty"        activeKey={sortKey} dir={sortDir} onSort={toggleSort} right>On-hand</Th>
+              <Th sortKey="avg_cost"         activeKey={sortKey} dir={sortDir} onSort={toggleSort} right>Avg cost</Th>
+              <Th sortKey="total_value"      activeKey={sortKey} dir={sortDir} onSort={toggleSort} right>Value</Th>
               <Th>Locations</Th>
-              <Th>Last movement</Th>
+              <Th sortKey="last_movement_at" activeKey={sortKey} dir={sortDir} onSort={toggleSort}>Last movement</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800/60">
@@ -168,8 +246,9 @@ export default function StockPositionClient({ initialStock, locations }) {
 
       {stock.length === 0 && (
         <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-          The inventory is empty. Phase 2 adds Inward / Outward and FactoryOS push, which is how stock gets here.
-          For now, define your plain SKUs from the Items master.
+          The inventory is empty. Stock flows in via the Inward (GRN) page or
+          a FactoryOS push from a finished production run; outward dispatches
+          and stock audits live in the sub-tabs above.
         </p>
       )}
     </div>
@@ -191,14 +270,24 @@ function Kpi({ label, value, tone = "default" }) {
   );
 }
 
-function Th({ children, right }) {
+function Th({ children, right, sortKey, activeKey, dir, onSort }) {
+  const align = right ? "text-right" : "text-left";
+  const base  = `px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400 ${align}`;
+  if (!sortKey || !onSort) return <th className={base}>{children}</th>;
+  const isActive = activeKey === sortKey;
+  const indicator = !isActive ? "↕" : dir === "asc" ? "↑" : "↓";
   return (
-    <th
-      className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400 ${
-        right ? "text-right" : "text-left"
-      }`}
-    >
-      {children}
+    <th className={base}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-200 ${
+          isActive ? "text-gray-900 dark:text-gray-100" : ""
+        }`}
+      >
+        {children}
+        <span className={`text-[10px] ${isActive ? "" : "opacity-40"}`}>{indicator}</span>
+      </button>
     </th>
   );
 }
