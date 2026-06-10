@@ -140,6 +140,10 @@ export default function PpCupsBrowser({
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [sections]);
 
+  // Surface each item's origin (filter + inline badge) only when the range
+  // spans more than one country — otherwise it's redundant clutter.
+  const showOrigin = originOptions.length > 1;
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sections
@@ -208,33 +212,12 @@ export default function PpCupsBrowser({
         <span className="text-xs text-ink-500">
           {basis === "ddp"
             ? "India DDP · delivered duty-paid within India, full-container (FCL) loads"
-            : "Export EXW India · ex-works, full-container (FCL) loads · freight & duties on buyer"}
+            : "FCL · ex-works at origin (China / India), full-container loads · freight & duties on buyer"}
         </span>
       </div>
 
       {/* Filter bar */}
       <div className="mt-4 rounded-md border border-ink-200 bg-white p-4">
-        {/* Country of origin — surfaced first as a prominent panel. */}
-        {originOptions.length > 0 && (
-          <div className="mb-4 rounded-md border border-ink-300 bg-ink-50 p-3">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-ink-700">
-                Country of origin
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                <Chip active={origin === "all"} onClick={() => setOrigin("all")}>
-                  All
-                </Chip>
-                {originOptions.map((c) => (
-                  <Chip key={c} active={origin === c} onClick={() => setOrigin(c)}>
-                    {c}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
           {/* Search */}
           <div>
@@ -280,6 +263,23 @@ export default function PpCupsBrowser({
               {volumeOptions.map((oz) => (
                 <Chip key={oz} active={volume === oz} onClick={() => setVolume(oz)}>
                   {oz}oz
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Origin (China / India) — appears once the range spans 2+ countries. */}
+        {originOptions.length > 1 && (
+          <div className="mt-4">
+            <span className="block text-xs uppercase tracking-wide text-ink-400">Origin</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Chip active={origin === "all"} onClick={() => setOrigin("all")}>
+                All
+              </Chip>
+              {originOptions.map((c) => (
+                <Chip key={c} active={origin === c} onClick={() => setOrigin(c)}>
+                  {c}
                 </Chip>
               ))}
             </div>
@@ -359,7 +359,6 @@ export default function PpCupsBrowser({
                     <th className="px-3 py-2 font-medium">Item</th>
                     <th className="px-3 py-2 font-medium">{section.isLid ? "Fits / capacity" : "Capacity"}</th>
                     <th className="px-3 py-2 font-medium">{section.isLid ? "Diameter / size" : "Size (TD×BD×H)"}</th>
-                    <th className="px-3 py-2 font-medium">Origin</th>
                     <th className="px-3 py-2 text-right font-medium">Wt</th>
                     <th className="px-3 py-2 text-right font-medium">Case / carton</th>
                     <th className="px-3 py-2 text-right font-medium">Unit rate</th>
@@ -380,6 +379,7 @@ export default function PpCupsBrowser({
                         currency={currency}
                         usdPerInr={usdPerInr}
                         basis={basis}
+                        showOrigin={showOrigin}
                         hasLadder={hasLadder}
                         isOpen={isOpen}
                         onToggle={() => toggle(r.sku)}
@@ -401,6 +401,7 @@ export default function PpCupsBrowser({
                   currency={currency}
                   usdPerInr={usdPerInr}
                   basis={basis}
+                  showOrigin={showOrigin}
                 />
               ))}
             </div>
@@ -412,7 +413,7 @@ export default function PpCupsBrowser({
 }
 
 // One item = a summary row plus an expandable ladder detail row.
-function FragmentRows({ r, off, unit, currency, usdPerInr, basis, hasLadder, isOpen, onToggle }) {
+function FragmentRows({ r, off, unit, currency, usdPerInr, basis, showOrigin, hasLadder, isOpen, onToggle }) {
   const entry = off.entry; // lowest qty (highest price)
   const best = off.best; // highest qty (lowest price)
   const entryInr = priceFor(entry, basis);
@@ -456,12 +457,10 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, basis, hasLadder, isO
         <td className="px-3 py-2 text-ink-900">
           <span>{r.name || "—"}</span>
           {r.forming && <FormingTag>{r.forming}</FormingTag>}
+          {showOrigin && r.origin ? <OriginTag origin={r.origin} /> : null}
         </td>
         <td className="px-3 py-2 text-ink-600">{r.volume ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
-        <td className="px-3 py-2">
-          <OriginTag origin={r.origin} />
-        </td>
         <td className="px-3 py-2 text-right text-ink-600">
           {r.weightG != null ? `${r.weightG} g` : "—"}
         </td>
@@ -487,7 +486,7 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, basis, hasLadder, isO
       </tr>
       {hasLadder && isOpen && (
         <tr className="border-b border-ink-100 bg-ink-50/60">
-          <td colSpan={9} className="px-3 py-3">
+          <td colSpan={8} className="px-3 py-3">
             <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} basis={basis} />
           </td>
         </tr>
@@ -528,7 +527,7 @@ function LadderTable({ r, off, currency, usdPerInr, basis }) {
   );
 }
 
-function MobileCard({ r, off, unit, currency, usdPerInr, basis }) {
+function MobileCard({ r, off, unit, currency, usdPerInr, basis, showOrigin }) {
   const entry = off.entry;
   const best = off.best;
   const entryInr = priceFor(entry, basis);
@@ -566,7 +565,7 @@ function MobileCard({ r, off, unit, currency, usdPerInr, basis }) {
         <Spec label="Weight">{r.weightG != null ? `${r.weightG} g` : "—"}</Spec>
         <Spec label="Case pack">{r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}</Spec>
         <Spec label="Carton">{cartonLabel(r.carton, unit) ?? "—"}</Spec>
-        <Spec label="Origin">{r.origin ?? "—"}</Spec>
+        {showOrigin && r.origin ? <Spec label="Origin">{r.origin}</Spec> : null}
       </dl>
       {hasLadder && (
         <div className="mt-2 border-t border-ink-100 pt-2">
@@ -581,9 +580,8 @@ function MobileCard({ r, off, unit, currency, usdPerInr, basis }) {
 // Country of origin shown as a compact mono badge — monochrome to fit the
 // Aeros palette (no flag emojis). Falls back to a muted dash when unknown.
 function OriginTag({ origin }) {
-  if (!origin) return <span className="text-ink-400">—</span>;
   return (
-    <span className="inline-block whitespace-nowrap rounded border border-ink-200 bg-ink-50 px-1.5 py-0.5 text-xs font-medium text-ink-700">
+    <span className="ml-2 rounded border border-ink-200 px-1.5 py-0.5 align-middle font-mono text-[10px] uppercase tracking-wide text-ink-500">
       {origin}
     </span>
   );
