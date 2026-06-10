@@ -1,6 +1,7 @@
 import { fetchPetCupsAndLids, USD_PER_INR_DIVISOR } from "@/lib/pet-cups";
 import { Brand } from "@/app/components/ui/Brand";
 import { PetGuide } from "./PetGuide";
+import { LidGallery } from "./LidGallery";
 import { SupplyTerms, QualityChecks, PackingVisual } from "./TradeTerms";
 import PetCupsBrowser from "./PetCupsBrowser";
 import { CurrencyProvider, CurrencyToggle, UnitToggle, RateModeToggle } from "./Currency";
@@ -101,8 +102,9 @@ export default async function PetCupsPage() {
               <PackingVisual />
               <QualityChecks />
 
-              {/* Educational guide */}
+              {/* Educational guide + lid styles gallery */}
               <PetGuide />
+              <LidGallery sections={data.sections} />
 
               {/* Filterable rate sheet */}
               <PetCupsBrowser
