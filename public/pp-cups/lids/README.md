@@ -14,7 +14,6 @@ background to match the monochrome page style.
 | File (any ext)   | Lid |
 |------------------|-----|
 | `LID-040.jpg`    | 90mm PP Dome Lid (IM) |
-| `LID-032.jpg`    | 115mm PP Flat Lid — Injection Molded |
 | `LID-033.jpg`    | 90mm PP Sipper Lid — String Lock |
 | `LID-034.jpg`    | 90mm PP Sipper Lid — Lock Back Tab |
 | `LID-035.jpg`    | 80mm PP Sipper Lid — Lock Back Tab |
@@ -24,6 +23,7 @@ background to match the monochrome page style.
 | `LID-039.jpg`    | 90mm PP Sipper Lid — Knob Push-in |
 | `LID-044.jpg`    | 85mm PP Sipper Lid — String Lock |
 
-Thermoformed (TF) lids are not listed on this sheet, so they don't need photos.
-The list is driven by the database, so any new IM lid SKU added later just needs
-a matching `<SKU>.jpg` here.
+Thermoformed (TF) lids and tub / bowl lids (Ø100mm+, e.g. 115/125/150/180mm)
+are not listed on this cups sheet, so they don't need photos. The list is driven
+by the database, so any new IM cup lid SKU (Ø80–90) added later just needs a
+matching `<SKU>.jpg` here.
