@@ -2,20 +2,11 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
 import { getJob, getVendor, listJobThread } from "@/lib/factoryos/repo";
+import { vendorOwnsJob } from "@/lib/factoryos/vendorScope";
 import { ROLES } from "@/lib/factoryos/constants";
 import VendorJobDetailClient from "./VendorJobDetailClient";
 
 export const dynamic = "force-dynamic";
-
-// True when `job` is assigned to the vendor `vendorId` / `vendorName`. Mirrors
-// the scoping in repo.listJobsForSession so the detail route can't be used to
-// peek at another vendor's job by guessing its id.
-function jobBelongsToVendor(job, vendorId, vendorName) {
-  if (vendorId && job.printingVendorId === vendorId) return true;
-  const vn = (vendorName || "").trim().toLowerCase();
-  if (vn && (job.printingVendor || "").trim().toLowerCase() === vn) return true;
-  return false;
-}
 
 export default async function VendorJobDetail({ params }) {
   const session = getSession();
@@ -29,7 +20,7 @@ export default async function VendorJobDetail({ params }) {
   const vendor = session.factoryosVendorId
     ? await getVendor(session.factoryosVendorId)
     : null;
-  if (!jobBelongsToVendor(job, session.factoryosVendorId, vendor?.name)) {
+  if (!vendorOwnsJob(job, session.factoryosVendorId, vendor?.name)) {
     redirect("/factoryos/vendor");
   }
 
