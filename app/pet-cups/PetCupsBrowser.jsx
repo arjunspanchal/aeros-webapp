@@ -149,6 +149,17 @@ export default function PetCupsBrowser({
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [sections]);
 
+  // Rim diameters (TD) of the cups matching the selected volume — so a volume
+  // pick keeps the COMPATIBLE lids visible (a lid fits when its Ø equals the
+  // cup's TD) instead of hiding every lid. An explicit diameter pick overrides.
+  const compatDias = useMemo(() => {
+    if (volume === "all") return null;
+    const set = new Set();
+    for (const s of sections)
+      for (const r of s.rows) if (!r.isLid && r.oz === volume && r.dia != null) set.add(r.dia);
+    return set;
+  }, [sections, volume]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sections
@@ -163,7 +174,15 @@ export default function PetCupsBrowser({
               .includes(q)
           )
             return false;
-          if (volume !== "all" && r.oz !== volume) return false;
+          if (volume !== "all") {
+            if (!r.isLid) {
+              if (r.oz !== volume) return false;
+            } else if (diameter === "all") {
+              // Keep only the lids that fit the selected cups' rims — until an
+              // explicit diameter pick takes over below.
+              if (r.dia == null || !compatDias?.has(r.dia)) return false;
+            }
+          }
           if (diameter !== "all" && r.dia !== diameter) return false;
           if (origin !== "all" && r.origin !== origin) return false;
           // "Priced" follows the active basis: a row counts as priced only if its
@@ -175,7 +194,7 @@ export default function PetCupsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, volume, diameter, origin, availability, offering, rateMode]);
+  }, [sections, query, type, volume, diameter, origin, availability, offering, rateMode, compatDias]);
 
   // Items with a live rate in the current offering + basis (drives the header
   // "n of N priced" tally so it stays honest when toggling FCL ↔ DDP).
@@ -304,6 +323,13 @@ export default function PetCupsBrowser({
                 </Chip>
               ))}
             </div>
+            {volume !== "all" && diameter === "all" && compatDias && compatDias.size > 0 ? (
+              <p className="mt-1.5 text-[11px] text-ink-400">
+                Also showing the lids that fit {volume}oz cups (
+                {[...compatDias].sort((a, b) => a - b).map((d) => `Ø${d}`).join(", ")}). Pick a
+                diameter to narrow further.
+              </p>
+            ) : null}
           </div>
         )}
 
