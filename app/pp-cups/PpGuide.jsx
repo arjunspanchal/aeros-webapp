@@ -78,11 +78,135 @@ export function PpGuide() {
         ))}
       </div>
 
+      {/* Cup profiles — flat vs U-shape, annotated with the TD × BD × H size format. */}
+      <div className="mt-8 rounded-md border border-ink-200 bg-white p-5">
+        <h3 className="text-sm font-bold text-ink-900">Cup profiles &amp; how we size</h3>
+        <p className="mt-1 max-w-2xl text-xs text-ink-600">
+          Cups come with a <strong className="text-ink-900">flat</strong> or{" "}
+          <strong className="text-ink-900">U-shape</strong> bottom. Each size in the rate sheet is
+          written as <span className="font-mono text-ink-900">TD × BD × H</span> — top diameter ×
+          bottom diameter × height, in millimetres.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <figure className="rounded border border-ink-100 bg-ink-50 p-3">
+            <FlatCup />
+            <figcaption className="mt-1 text-center text-xs font-medium text-ink-700">
+              Flat bottom
+            </figcaption>
+          </figure>
+          <figure className="rounded border border-ink-100 bg-ink-50 p-3">
+            <UShapeCup />
+            <figcaption className="mt-1 text-center text-xs font-medium text-ink-700">
+              U-shape
+            </figcaption>
+          </figure>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-500">
+          <span>
+            <span className="font-mono text-ink-700">TD</span> top diameter
+          </span>
+          <span>
+            <span className="font-mono text-ink-700">BD</span> bottom diameter
+          </span>
+          <span>
+            <span className="font-mono text-ink-700">H</span> height
+          </span>
+        </div>
+      </div>
+
       <p className="mt-6 max-w-2xl text-xs text-ink-500">
         Cups are sold plain or custom-branded (printed). Lids are supplied plain across the range.
         Match a lid by its diameter to the cup&rsquo;s top diameter (TD) shown in the rate sheet.
       </p>
     </section>
+  );
+}
+
+// ── Annotated cup profiles ─────────────────────────────────────────────────
+// Monochrome line art: cup outline in ink-700, dimension lines/labels lighter
+// (via opacity), marking TD (top Ø), BD (bottom Ø) and H (height) — the same
+// order the rate sheet writes sizes in.
+const DIM_LINE = { strokeWidth: 0.9, opacity: 0.55 };
+const DIM_TEXT = {
+  fill: "currentColor",
+  stroke: "none",
+  fontSize: 12,
+  opacity: 0.85,
+  textAnchor: "middle",
+  fontFamily: "var(--font-mono, monospace)",
+};
+
+function FlatCup() {
+  return (
+    <svg
+      viewBox="0 0 200 196"
+      className="mx-auto h-44 w-auto text-ink-700"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      role="img"
+      aria-label="Flat-bottom PP cup, marked with top diameter, bottom diameter and height"
+    >
+      {/* cup body — straight taper, flat base */}
+      <path d="M56 50 L72 150 L128 150 L144 50" strokeWidth="1.75" />
+      <ellipse cx="100" cy="50" rx="44" ry="8" strokeWidth="1.75" />
+      <path d="M84 62 L80 140" strokeWidth="1" opacity="0.35" />
+      {/* dimension lines */}
+      <g {...DIM_LINE}>
+        <path d="M56 36 L144 36" />
+        <path d="M56 31 L56 41" />
+        <path d="M144 31 L144 41" />
+        <path d="M36 50 L36 150" />
+        <path d="M31 50 L41 50" />
+        <path d="M31 150 L41 150" />
+        <path d="M72 168 L128 168" />
+        <path d="M72 163 L72 173" />
+        <path d="M128 163 L128 173" />
+      </g>
+      <g {...DIM_TEXT}>
+        <text x="100" y="28">TD</text>
+        <text x="22" y="104">H</text>
+        <text x="100" y="185">BD</text>
+      </g>
+    </svg>
+  );
+}
+
+function UShapeCup() {
+  return (
+    <svg
+      viewBox="0 0 200 196"
+      className="mx-auto h-44 w-auto text-ink-700"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      role="img"
+      aria-label="U-shape PP cup, marked with top diameter, bottom diameter and height"
+    >
+      {/* cup body — straight walls into a rounded U base */}
+      <path d="M58 50 L68 120 Q100 164 132 120 L142 50" strokeWidth="1.75" />
+      <ellipse cx="100" cy="50" rx="42" ry="8" strokeWidth="1.75" />
+      <path d="M82 64 L79 116" strokeWidth="1" opacity="0.35" />
+      {/* dimension lines */}
+      <g {...DIM_LINE}>
+        <path d="M58 36 L142 36" />
+        <path d="M58 31 L58 41" />
+        <path d="M142 31 L142 41" />
+        <path d="M36 50 L36 146" />
+        <path d="M31 50 L41 50" />
+        <path d="M31 146 L41 146" />
+        <path d="M68 168 L132 168" />
+        <path d="M68 163 L68 173" />
+        <path d="M132 163 L132 173" />
+      </g>
+      <g {...DIM_TEXT}>
+        <text x="100" y="28">TD</text>
+        <text x="22" y="102">H</text>
+        <text x="100" y="185">BD</text>
+      </g>
+    </svg>
   );
 }
 
