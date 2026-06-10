@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, hasModule } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
+import { isHrAdmin } from "@/lib/factoryos/hrScope";
 import { listEmployees, listAttendance, listUsers, listHolidays } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import {
@@ -27,7 +28,7 @@ export default async function CalendarPage({ searchParams }) {
     listUsers(),
   ]);
 
-  const isAdmin = true;
+  const isAdmin = isHrAdmin(session);
   const showAll = isAdmin;
   const myUserId = isAdmin ? null : await resolveFactoryosUserId(session);
   const employees = isAdmin
@@ -70,7 +71,7 @@ export default async function CalendarPage({ searchParams }) {
           attendanceByEmployee={byEmployee}
           managerMap={managerMap}
           holidayMap={holidayMap}
-          canToggleScope={true}
+          canToggleScope={isAdmin}
           showingAll={showAll}
         />
       </main>

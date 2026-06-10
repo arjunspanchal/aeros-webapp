@@ -1,10 +1,10 @@
 import { getSession, hasModule } from "@/lib/auth/session";
 import { listEmployees, createEmployee, isDuplicateCode } from "@/lib/factoryos/repo";
+import { hrScope } from "@/lib/factoryos/hrScope";
 
 export const runtime = "nodejs";
 
-// HR is a single-level module — anyone with `modules.hr` has full access to the
-// whole roster (no per-manager scoping). Gated by middleware too.
+// HR Admin sees the whole roster; HR Manager is scoped to their own reports.
 export async function GET(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
@@ -12,7 +12,11 @@ export async function GET(req) {
   try {
     const url = new URL(req.url);
     const activeOnly = url.searchParams.get("active") === "1";
-    const employees = await listEmployees({ activeOnly });
+    const scope = await hrScope(session);
+    const employees = await listEmployees({
+      activeOnly,
+      managerUserId: scope.isAdmin ? undefined : scope.managerUserId,
+    });
     return Response.json({ employees });
   } catch (e) {
     if (e instanceof Response) return e;
@@ -38,7 +42,10 @@ export async function POST(req) {
       return Response.json({ error: "Valid monthly salary required" }, { status: 400 });
     }
 
-    const managerId = body.managerId || null;
+    // Managers can only create employees that report to themselves; admins
+    // may assign any manager (or none).
+    const scope = await hrScope(session);
+    const managerId = scope.isAdmin ? (body.managerId || null) : scope.managerUserId;
 
     const employee = await createEmployee({
       name: body.name.trim(),

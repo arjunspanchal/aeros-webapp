@@ -35,9 +35,10 @@ const RFQ_ROLES = [
   { value: "admin",  label: "Admin" },
 ];
 
-// HR is a standalone module with a single access level today.
+// HR access levels: Admin sees everyone; Manager sees only their own reports.
 const HR_ROLES = [
-  { value: "admin", label: "Admin" },
+  { value: "admin", label: "Admin — all employees" },
+  { value: "manager", label: "Manager — own reports" },
 ];
 
 function roleBadge(value) {

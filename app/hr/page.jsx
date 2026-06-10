@@ -11,6 +11,7 @@ import {
   monthStart,
   todayYmdIST,
 } from "@/lib/factoryos/hr";
+import { hrScope } from "@/lib/factoryos/hrScope";
 import EmployeesAdmin from "./EmployeesAdmin";
 import AttendanceGapsWidget from "./AttendanceGapsWidget";
 
@@ -21,23 +22,22 @@ export default async function HrPage() {
   if (!session) redirect("/login");
   if (!hasModule(session, "hr")) redirect("/hub");
 
-  // HR is single-level full access — anyone with modules.hr sees the full
-  // roster. The legacy per-manager scoping branches (and a hardcoded
-  // isAdmin = true that bypassed them) were removed when HR moved out of
-  // FactoryOS; see commit "Move HR out of FactoryOS into its own top-level
-  // module (/hr)" for the design note.
-  const [employees, users] = await Promise.all([listEmployees(), listUsers()]);
+  // HR Admin sees everyone; HR Manager sees only their own reports.
+  const [allEmployees, users] = await Promise.all([listEmployees(), listUsers()]);
+  const { isAdmin, managerUserId } = await hrScope(session);
+  const employees = isAdmin ? allEmployees : allEmployees.filter((e) => e.managerId === managerUserId);
   const factoryManagers = users.filter((u) => u.role === ROLES.FACTORY_MANAGER && u.active);
 
-  // Compute current-month attendance gaps for the full roster.
   const monthKey = currentMonthKeyIST();
   const today = todayYmdIST();
-  // HR is full-roster — no per-manager scoping. Parallel fetch attendance +
-  // holidays, then use them directly.
-  const [monthAttendance, monthHolidays] = await Promise.all([
+  const visibleIds = new Set(employees.map((e) => e.id));
+  const [monthAttendanceAll, monthHolidays] = await Promise.all([
     employees.length ? listAttendance({ from: monthStart(monthKey), to: monthEnd(monthKey) }) : [],
     listHolidays({ from: monthStart(monthKey), to: monthEnd(monthKey) }),
   ]);
+  // Scope attendance to visible employees so a manager never receives other
+  // managers' rows over the wire.
+  const monthAttendance = monthAttendanceAll.filter((r) => visibleIds.has(r.employeeId));
   const holidayDates = monthHolidays.map((h) => h.date);
   const gaps = findAttendanceGaps({
     monthKey,

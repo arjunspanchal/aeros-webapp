@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, hasModule } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
+import { isHrAdmin } from "@/lib/factoryos/hrScope";
 import { listEmployees, listAttendance, listUsers, listHolidays } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import { todayYmdIST } from "@/lib/factoryos/hr";
@@ -25,9 +26,8 @@ export default async function AttendancePage({ searchParams }) {
   ]);
   const holidayDates = allHolidays.map((h) => h.date);
 
-  // Admin sees everyone. FM is force-scoped to their own reports — `?scope=all`
-  // is ignored unless the caller is Admin (prevents URL-tampering bypass).
-  const isAdmin = true;
+  // HR Admin sees everyone; HR Manager is scoped to their own reports.
+  const isAdmin = isHrAdmin(session);
   const showAll = isAdmin;
   const myUserId = isAdmin ? null : await resolveFactoryosUserId(session);
   const employees = isAdmin
@@ -65,7 +65,7 @@ export default async function AttendancePage({ searchParams }) {
           attendanceByEmployee={attendanceByEmployee}
           managerMap={managerMap}
           holidays={holidayDates}
-          canViewAll={true}
+          canViewAll={isAdmin}
           showingAll={showAll}
           currentUserId={myUserId}
         />
