@@ -106,6 +106,7 @@ export default function PetCupsBrowser({
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [volume, setVolume] = useState("all"); // "all" | oz number
+  const [bottom, setBottom] = useState("all"); // "all" | "U-Bottom" | "F-Bottom"
   const [diameter, setDiameter] = useState("all"); // "all" | dia (mm)
   const [origin, setOrigin] = useState("all"); // "all" | country (e.g. "India")
   const [availability, setAvailability] = useState("all"); // "all" | "priced" | "request"
@@ -184,6 +185,9 @@ export default function PetCupsBrowser({
             }
           }
           if (diameter !== "all" && r.dia !== diameter) return false;
+          // Bottom profile is a cup attribute — lids fit either profile, so
+          // they stay visible under a U/F-Bottom pick.
+          if (bottom !== "all" && !r.isLid && r.bottom !== bottom) return false;
           if (origin !== "all" && r.origin !== origin) return false;
           // "Priced" follows the active basis: a row counts as priced only if its
           // entry slab has a live rate in the current FCL/DDP mode.
@@ -194,7 +198,7 @@ export default function PetCupsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, volume, diameter, origin, availability, offering, rateMode, compatDias]);
+  }, [sections, query, type, volume, bottom, diameter, origin, availability, offering, rateMode, compatDias]);
 
   // Items with a live rate in the current offering + basis (drives the header
   // "n of N priced" tally so it stays honest when toggling FCL ↔ DDP).
@@ -205,6 +209,13 @@ export default function PetCupsBrowser({
     return n;
   }, [sections, offering, rateMode]);
 
+  // Bottom profiles present in the cup data — drives the U/F-Bottom filter.
+  const bottomOptions = useMemo(() => {
+    const set = new Set();
+    for (const s of sections) for (const r of s.rows) if (r.bottom) set.add(r.bottom);
+    return [...set].sort();
+  }, [sections]);
+
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   // Surface each item's origin only when the range spans more than one country —
   // no point tagging every row "India" when that's the whole catalogue.
@@ -213,6 +224,7 @@ export default function PetCupsBrowser({
     query.trim() !== "" ||
     type !== "all" ||
     volume !== "all" ||
+    bottom !== "all" ||
     diameter !== "all" ||
     origin !== "all" ||
     availability !== "all";
@@ -221,6 +233,7 @@ export default function PetCupsBrowser({
     setQuery("");
     setType("all");
     setVolume("all");
+    setBottom("all");
     setDiameter("all");
     setOrigin("all");
     setAvailability("all");
@@ -330,6 +343,25 @@ export default function PetCupsBrowser({
                 diameter to narrow further.
               </p>
             ) : null}
+          </div>
+        )}
+
+        {/* Bottom profile (cups only) */}
+        {bottomOptions.length > 1 && (
+          <div className="mt-4">
+            <span className="block text-xs uppercase tracking-wide text-ink-400">
+              Bottom <span className="normal-case text-ink-300">(cups)</span>
+            </span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Chip active={bottom === "all"} onClick={() => setBottom("all")}>
+                All
+              </Chip>
+              {bottomOptions.map((b) => (
+                <Chip key={b} active={bottom === b} onClick={() => setBottom(b)}>
+                  {b}
+                </Chip>
+              ))}
+            </div>
           </div>
         )}
 
