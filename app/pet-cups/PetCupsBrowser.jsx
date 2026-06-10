@@ -81,6 +81,20 @@ function sizeLabel(size, unit) {
   return `${nums.join(" × ")} mm`;
 }
 
+// Carton dimensions are stored in mm ("L × W × H"). Cartons read naturally in
+// cm (metric) or inches, so convert off the mm/in toggle: mm → cm (÷10), in →
+// inches (÷25.4). Returns null when not costed/measured yet.
+function cartonLabel(carton, unit) {
+  if (!carton) return null;
+  const nums = (String(carton).match(/\d+(?:\.\d+)?/g) || []).slice(0, 3).map(Number);
+  if (nums.length === 0) return null;
+  const trim = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+  if (unit === "in") {
+    return `${nums.map((n) => trim(n / 25.4)).join(" × ")} in`;
+  }
+  return `${nums.map((n) => trim(n / 10)).join(" × ")} cm`;
+}
+
 export default function PetCupsBrowser({
   sections,
   plainPriced,
@@ -379,7 +393,8 @@ export default function PetCupsBrowser({
                     <th className="px-3 py-2 font-medium">Item</th>
                     <th className="px-3 py-2 font-medium">{section.isLid ? "Fits / capacity" : "Capacity"}</th>
                     <th className="px-3 py-2 font-medium">{section.isLid ? "Diameter / size" : "Size (TD×BD×H)"}</th>
-                    <th className="px-3 py-2 text-right font-medium">Case</th>
+                    <th className="px-3 py-2 text-right font-medium">Wt</th>
+                    <th className="px-3 py-2 text-right font-medium">Case / carton</th>
                     <th className="px-3 py-2 text-right font-medium">Unit rate</th>
                     <th className="px-3 py-2" />
                   </tr>
@@ -480,7 +495,15 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, rateMode, showOrigin,
         <td className="px-3 py-2 text-ink-600">{r.volume ?? "—"}</td>
         <td className="px-3 py-2 text-ink-600">{sizeLabel(r.size, unit) ?? "—"}</td>
         <td className="px-3 py-2 text-right text-ink-600">
-          {r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}
+          {r.weightG != null ? `${r.weightG} g` : "—"}
+        </td>
+        <td className="px-3 py-2 text-right text-ink-600">
+          <div className="leading-tight">
+            <span>{r.casePack ? r.casePack.toLocaleString("en-IN") : "—"}</span>
+            {cartonLabel(r.carton, unit) ? (
+              <span className="block text-[11px] text-ink-400">{cartonLabel(r.carton, unit)}</span>
+            ) : null}
+          </div>
         </td>
         <td className="px-3 py-2 text-right">{rateCell}</td>
         <td className="px-3 py-2 text-right">
@@ -496,7 +519,7 @@ function FragmentRows({ r, off, unit, currency, usdPerInr, rateMode, showOrigin,
       </tr>
       {hasLadder && isOpen && (
         <tr className="border-b border-ink-100 bg-ink-50/60">
-          <td colSpan={7} className="px-3 py-3">
+          <td colSpan={8} className="px-3 py-3">
             <LadderTable r={r} off={off} currency={currency} usdPerInr={usdPerInr} rateMode={rateMode} />
           </td>
         </tr>
@@ -571,7 +594,9 @@ function MobileCard({ r, off, unit, currency, usdPerInr, rateMode, showOrigin })
       </div>
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-600">
         <Spec label="Size">{sizeLabel(r.size, unit) ?? "—"}</Spec>
+        <Spec label="Weight">{r.weightG != null ? `${r.weightG} g` : "—"}</Spec>
         <Spec label="Case pack">{r.casePack ? `${r.casePack.toLocaleString("en-IN")} pcs` : "—"}</Spec>
+        <Spec label="Carton">{cartonLabel(r.carton, unit) ?? "—"}</Spec>
         {showOrigin && r.origin ? <Spec label="Origin">{r.origin}</Spec> : null}
       </dl>
       {hasLadder && (
