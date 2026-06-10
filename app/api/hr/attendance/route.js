@@ -1,11 +1,12 @@
 import { getSession, hasModule } from "@/lib/auth/session";
 import { resolveFactoryosUserId } from "@/lib/hub/users";
-import { listAttendance, upsertAttendance, getEmployee, computeOtHours } from "@/lib/factoryos/repo";
+import { listAttendance, upsertAttendance, getEmployee, computeOtHours, listEmployees } from "@/lib/factoryos/repo";
+import { hrScope, canAccessEmployee } from "@/lib/factoryos/hrScope";
 import { ATTENDANCE_WEIGHT, SHIFT_END } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
-// HR is single-level full access — any `hr` user reads/marks the whole roster.
+// HR Admin reads/marks the whole roster; HR Manager only their own reports.
 export async function GET(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
@@ -16,7 +17,13 @@ export async function GET(req) {
     const from = url.searchParams.get("from") || undefined;
     const to = url.searchParams.get("to") || undefined;
 
-    const attendance = await listAttendance({ employeeId, from, to });
+    let attendance = await listAttendance({ employeeId, from, to });
+    const scope = await hrScope(session);
+    if (!scope.isAdmin) {
+      const mine = await listEmployees({ managerUserId: scope.managerUserId });
+      const ids = new Set(mine.map((e) => e.id));
+      attendance = attendance.filter((r) => ids.has(r.employeeId));
+    }
     return Response.json({ attendance });
   } catch (e) {
     if (e instanceof Response) return e;
@@ -41,6 +48,10 @@ export async function POST(req) {
     const employee = await getEmployee(body.employeeId);
     if (!employee) return Response.json({ error: "Employee not found" }, { status: 404 });
 
+    const scope = await hrScope(session);
+    if (!canAccessEmployee(scope, employee)) {
+      return Response.json({ error: "Not your employee" }, { status: 403 });
+    }
     const myUserId = await resolveFactoryosUserId(session);
 
     // OT only counts on Present days for OT-eligible employees.

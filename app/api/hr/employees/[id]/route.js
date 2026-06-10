@@ -1,7 +1,21 @@
 import { getSession, hasModule } from "@/lib/auth/session";
-import { updateEmployee, deleteEmployee, deactivateEmployee, isDuplicateCode } from "@/lib/factoryos/repo";
+import { updateEmployee, deleteEmployee, deactivateEmployee, getEmployee, isDuplicateCode } from "@/lib/factoryos/repo";
+import { hrScope, canAccessEmployee } from "@/lib/factoryos/hrScope";
 
 export const runtime = "nodejs";
+
+// Managers may only touch their own reports; admins anyone. Returns a Response
+// to bail with, or null when allowed (and strips manager reassignment for FMs).
+async function guardAndScope(session, employeeId, patch) {
+  const scope = await hrScope(session);
+  if (scope.isAdmin) return null;
+  const emp = await getEmployee(employeeId);
+  if (!canAccessEmployee(scope, emp)) {
+    return Response.json({ error: "Not your employee" }, { status: 403 });
+  }
+  if (patch) delete patch.managerId; // managers can't reassign ownership
+  return null;
+}
 
 export async function PATCH(req, { params }) {
   const session = getSession();
@@ -10,6 +24,8 @@ export async function PATCH(req, { params }) {
   try {
     const body = await req.json();
     const patch = { ...body };
+    const denied = await guardAndScope(session, params.id, patch);
+    if (denied) return denied;
     if (patch.name !== undefined) {
       if (!String(patch.name).trim()) {
         return Response.json({ error: "Name cannot be empty" }, { status: 400 });
@@ -51,6 +67,8 @@ export async function DELETE(req, { params }) {
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!hasModule(session, "hr")) return new Response("Forbidden", { status: 403 });
   try {
+    const denied = await guardAndScope(session, params.id, null);
+    if (denied) return denied;
     const url = new URL(req.url);
     if (url.searchParams.get("hard") === "1") {
       const result = await deleteEmployee(params.id);
