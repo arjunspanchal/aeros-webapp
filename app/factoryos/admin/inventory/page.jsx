@@ -21,9 +21,9 @@ export default async function AdminInventoryPage() {
         <Link href="/factoryos/admin" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">← Admin</Link>
         <h1 className="text-2xl font-bold text-gray-900 mt-4 dark:text-white">RM Inventory</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-          On-hand paper stock. Link each line to an entry in the{" "}
-          <a href="https://airtable.com/appSllndIZszJSCma" target="_blank" rel="noreferrer" className="underline hover:text-blue-700 dark:hover:text-blue-400">Paper RM Database</a>{" "}
-          master using the picker below.
+          On-hand paper stock. Link each line to an entry in the
+          Supabase <code className="font-mono text-xs">master_papers</code> table
+          using the picker below — base rates and supplier discounts come from there.
         </p>
         <InventoryAdmin initialInventory={inventory} masterPapers={masterPapers} />
       </main>
