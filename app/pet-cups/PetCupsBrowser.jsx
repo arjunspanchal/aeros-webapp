@@ -9,7 +9,7 @@
 // fetching here.
 
 import { useMemo, useState } from "react";
-import { useDisplay, OfferingToggle } from "./Currency";
+import { useDisplay, OfferingToggle, RateModeToggle } from "./Currency";
 
 // ── Money ──────────────────────────────────────────────────────────────────
 function fmtUnit(currency, inr, usdPerInr) {
@@ -103,7 +103,6 @@ export default function PetCupsBrowser({
   usdPerInr = 90,
 }) {
   const { currency, unit, offering, rateMode } = useDisplay();
-  const basisLabel = rateMode === "ddp" ? "DDP India · incl. freight + GST" : "EXW India · FCL";
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all"); // "all" | section.key
   const [volume, setVolume] = useState("all"); // "all" | oz number
@@ -217,6 +216,33 @@ export default function PetCupsBrowser({
         </span>
       </div>
 
+      {/* Rate-basis explainer — spells out exactly which price the buyer is seeing,
+          with the active basis highlighted and the toggle right alongside. */}
+      <div className="mt-4 rounded-md border border-ink-200 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-ink-900">
+            You&rsquo;re viewing{" "}
+            {rateMode === "ddp" ? "India DDP (delivered) " : "FCL (export, ex-works) "}
+            rates
+          </p>
+          <RateModeToggle />
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <BasisCard
+            active={rateMode !== "ddp"}
+            tag="FCL"
+            title="Full Container Load · export"
+            body="The bare ex-works (EXW) price per piece at the factory — in India or China. You buy a full container and arrange shipping yourself; ocean freight, import duties and GST are not included."
+          />
+          <BasisCard
+            active={rateMode === "ddp"}
+            tag="DDP"
+            title="India · Delivered Duty Paid"
+            body="The all-in price per piece delivered to your door anywhere in India — domestic freight, our margin and GST already included. Nothing more to pay on arrival."
+          />
+        </div>
+      </div>
+
       {/* Offering switch — flips the whole sheet between plain and customised rates. */}
       <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-ink-200 bg-white px-4 py-3">
         <span className="text-xs font-medium uppercase tracking-wide text-ink-400">Showing rates for</span>
@@ -225,9 +251,6 @@ export default function PetCupsBrowser({
           {offering === "printed"
             ? "Custom-branded cups · quantity ladder from 1,000 pcs · lids are supplied plain"
             : "Plain, unprinted cups & lids"}
-        </span>
-        <span className="ml-auto rounded-full bg-ink-100 px-2.5 py-1 font-mono text-[11px] text-ink-600">
-          {basisLabel}
         </span>
       </div>
 
@@ -633,6 +656,34 @@ function Spec({ label, children }) {
     <div>
       <dt className="text-ink-400">{label}</dt>
       <dd className="text-ink-800">{children}</dd>
+    </div>
+  );
+}
+
+// One side of the FCL-vs-DDP explainer. The active basis is highlighted (dark
+// border, "Showing" badge); the other is muted so the contrast is obvious.
+function BasisCard({ active, tag, title, body }) {
+  return (
+    <div className={"rounded-md border p-3 " + (active ? "border-ink-900 bg-ink-50" : "border-ink-200 bg-white")}>
+      <div className="flex items-center gap-2">
+        <span
+          className={
+            "rounded px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider " +
+            (active ? "bg-ink-900 text-white" : "bg-ink-100 text-ink-500")
+          }
+        >
+          {tag}
+        </span>
+        <p className={"text-xs font-bold " + (active ? "text-ink-900" : "text-ink-500")}>{title}</p>
+        {active ? (
+          <span className="ml-auto text-[10px] font-medium uppercase tracking-wide text-ink-400">
+            Showing
+          </span>
+        ) : null}
+      </div>
+      <p className={"mt-1.5 text-xs leading-relaxed " + (active ? "text-ink-600" : "text-ink-400")}>
+        {body}
+      </p>
     </div>
   );
 }
