@@ -23,15 +23,6 @@ const GUIDE = [
     sizing: "Ø 90 mm",
   },
   {
-    code: "Flat",
-    name: "Flat Lid",
-    blurb:
-      "A low-profile flat lid sized to the cup's top diameter, thermoformed or injection-molded. Supplied plain.",
-    feel: "Low, flat",
-    bestFor: "Iced drinks, cold takeaway",
-    sizing: "Ø 98 – 180 mm",
-  },
-  {
     code: "Sipper",
     name: "Sipper Lid",
     blurb:
@@ -51,10 +42,10 @@ export function PpGuide() {
       <p className="mt-2 max-w-2xl text-sm text-ink-600">
         Polypropylene (PP, resin code 5) is tough, flexible and translucent — clearer when frosted.
         It holds a crisp rim, resists cracking better than rigid PET, and tolerates warmer fills.
-        Cups come flat-bottom or U-shape; lids are dome, flat or sipper, mostly injection-molded.
+        Cups come flat-bottom or U-shape; lids are injection-molded domes and sippers.
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {GUIDE.map((g) => (
           <article key={g.code} className="rounded-md border border-ink-200 bg-white p-4">
             <div className="flex h-28 w-full items-center justify-center rounded border border-ink-100 bg-ink-50">
@@ -251,13 +242,6 @@ const ART = {
       <path d="M20 60 L60 60" />
       <path d="M24 60 a16 22 0 0 1 32 0" />
       <path d="M40 38 L40 33 M37 35 L43 35" strokeWidth="1" opacity="0.6" />
-    </svg>
-  ),
-  // Flat lid: rim with a low flat top and a straw cross.
-  Flat: () => (
-    <svg {...SVG_PROPS} aria-hidden="true">
-      <path d="M20 54 L60 54 L57 62 L23 62 Z" />
-      <path d="M36 54 L44 54 L43 50 L37 50 Z" strokeWidth="1" opacity="0.7" />
     </svg>
   ),
   // Sipper lid: rim with a flat top and a raised spout.

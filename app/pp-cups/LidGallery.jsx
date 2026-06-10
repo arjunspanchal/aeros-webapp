@@ -38,7 +38,7 @@ export function LidGallery({ sections }) {
         <h2 className="text-lg font-bold text-ink-900">Lid styles</h2>
       </div>
       <p className="mt-2 max-w-2xl text-sm text-ink-600">
-        Every injection-molded lid in the range — dome, flat and the full set of sipper mechanisms.
+        Every injection-molded lid in the range — the dome and the full set of sipper mechanisms.
         All supplied plain; match a lid to your cup by its top diameter.
       </p>
 

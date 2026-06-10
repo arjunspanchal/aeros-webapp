@@ -21,7 +21,7 @@ export const revalidate = 300;
 export const metadata = {
   title: "Aeros PP Cups & IM Lids — Rate Sheet",
   description:
-    "Aeros polypropylene cold cup range — flat-bottom and U-shape, plain or frosted — with matching injection-molded dome, flat and sipper lids. Quantity-break rates, EXW India. Food-safe, recyclable.",
+    "Aeros polypropylene cold cup range — flat-bottom and U-shape, plain or frosted — with matching injection-molded dome and sipper lids. Quantity-break rates, EXW India. Food-safe, recyclable.",
 };
 
 export default async function PpCupsPage() {
@@ -61,7 +61,7 @@ export default async function PpCupsPage() {
             <p className="mt-3 text-ink-600">
               Our complete polypropylene cold-drink range, supplied from China / India. Tough,
               flexible cups in flat-bottom and U-shape profiles (Ø90 mm), translucent or frosted,
-              with matching injection-molded dome, flat and sipper lids. Cups plain or
+              with matching injection-molded dome and sipper lids. Cups plain or
               custom-branded; lids supplied plain. Country of origin is listed and filterable
               per item.
             </p>
