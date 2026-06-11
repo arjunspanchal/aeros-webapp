@@ -2,15 +2,15 @@
 
 // Basis-aware pricing copy for the PP cup & IM lid rate sheet. The rate ladder
 // shows either FCL (bare ex-works at origin, full-container export) or
-// India DDP (delivered within India, incl. domestic road freight) depending
+// India DDP (the rulebook App-Sell rate: delivered within India) depending
 // on the masthead BasisToggle. The "Pricing basis" note and the footnote must
 // follow that toggle — otherwise a client viewing DDP rates would read a note
 // saying the price is ex-works and excludes freight. These tiny client
 // components read `basis` and switch wording to match.
 //
-// Note on GST: per the Aeros pricing waterfall, GST (18%) is a separate line —
-// neither EXW nor the India-landed (DDP) figure bakes it in. So both modes say
-// GST is extra; we never claim a rate is GST-inclusive.
+// GST per the rate-structure rulebook: DDP India = (base + freight) × margin ×
+// (1 + GST) — i.e. DDP IS GST-inclusive. FCL bare rates carry no margin,
+// freight or GST, so only FCL says "GST extra".
 
 import { useDisplay } from "./Currency";
 
@@ -20,9 +20,9 @@ export function PricingBasisValue() {
     return (
       <>
         Rates are <strong className="text-ink-900">DDP India, per piece</strong> — delivered
-        within India, inclusive of domestic road freight, for{" "}
-        <strong className="text-ink-900">full-container (FCL)</strong> loads. GST extra as
-        applicable. Toggle between <strong className="text-ink-900">plain</strong> and{" "}
+        within India, <strong className="text-ink-900">inclusive of freight and GST</strong>, for{" "}
+        <strong className="text-ink-900">full-container (FCL)</strong> loads. Toggle between{" "}
+        <strong className="text-ink-900">plain</strong> and{" "}
         <strong className="text-ink-900">customised</strong> cups, or to{" "}
         <strong className="text-ink-900">FCL</strong> for the bare ex-works rate.
       </>
@@ -35,8 +35,8 @@ export function PricingBasisValue() {
       exclusive of freight, duties and GST. Toggle between{" "}
       <strong className="text-ink-900">plain</strong> and{" "}
       <strong className="text-ink-900">customised</strong> cups, or to{" "}
-      <strong className="text-ink-900">India DDP</strong> for delivered domestic rates. Part /
-      LCL loads cost more — quoted on request.
+      <strong className="text-ink-900">India DDP</strong> for delivered, all-inclusive domestic
+      rates. Part / LCL loads cost more — quoted on request.
     </>
   );
 }
@@ -46,9 +46,9 @@ export function RateBasisFootnote() {
   if (basis === "ddp") {
     return (
       <p>
-        India DDP rates are delivered duty-paid within India — inclusive of domestic road
-        freight, for full-container (FCL) loads; GST extra as applicable. Part / LCL loads and
-        export (EXW / FOB) terms quoted on request. Prices subject to change with resin costs.
+        India DDP rates are delivered duty-paid within India — inclusive of domestic freight and
+        GST, for full-container (FCL) loads. Part / LCL loads and export (EXW / FOB) terms quoted
+        on request. Prices subject to change with resin costs.
       </p>
     );
   }

@@ -223,8 +223,8 @@ export default function PpCupsBrowser({
         <BasisToggle />
         <span className="text-xs text-ink-500">
           {basis === "ddp"
-            ? "India DDP · delivered duty-paid within India, full-container (FCL) loads"
-            : "FCL · ex-works at origin (China / India), full-container loads · freight & duties on buyer"}
+            ? "India DDP · delivered within India, incl. freight & GST · full-container (FCL) loads"
+            : "FCL · ex-works at origin (China / India), full-container loads · freight, duties & GST on buyer"}
         </span>
       </div>
 
