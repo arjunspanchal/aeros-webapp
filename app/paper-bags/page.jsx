@@ -1,5 +1,6 @@
 import { fetchPaperBags, USD_PER_INR_DIVISOR } from "@/lib/paper-bags";
 import { Brand } from "@/app/components/ui/Brand";
+import { AllRatesLink } from "@/app/components/ui/AllRatesLink";
 import { BagGuide } from "./BagGuide";
 import {
   SupplyTerms,
@@ -44,7 +45,10 @@ export default async function PaperBagsPage() {
         {/* Masthead — sticky so the currency / unit toggles stay reachable. */}
         <header className="sticky top-0 z-20 border-b border-ink-200 bg-white">
           <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex flex-wrap items-center justify-between gap-3">
-            <Brand size="md" href="/" />
+            <div className="flex items-center gap-3">
+              <Brand size="md" href="/" />
+              <AllRatesLink />
+            </div>
             <div className="flex items-center gap-2">
               <RateModeToggle />
               <MarketToggle />
