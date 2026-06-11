@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import {
+  customerArtworkPendingJobIds,
   customerUnreadJobIds,
   listClients,
   listJobsForSession,
@@ -32,11 +33,13 @@ export default async function CustomerPage() {
     listClients(),
   ]);
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));
-  // Narrow the unread lookup to the jobs this customer can actually see — we
+  // Narrow both lookups to the jobs this customer can actually see — we
   // never want to ask Supabase about jobs they wouldn't be allowed to read.
-  const unreadIds = Array.from(
-    await customerUnreadJobIds(jobs.map((j) => j.id)),
-  );
+  const jobIds = jobs.map((j) => j.id);
+  const [unreadSet, artworkPendingSet] = await Promise.all([
+    customerUnreadJobIds(jobIds),
+    customerArtworkPendingJobIds(jobIds),
+  ]);
 
   const activeClient = clientMap[activeClientId] || null;
 
@@ -45,7 +48,8 @@ export default async function CustomerPage() {
       <CustomerJobsView
         jobs={jobs}
         clientMap={clientMap}
-        unreadIds={unreadIds}
+        unreadIds={Array.from(unreadSet)}
+        artworkPendingIds={Array.from(artworkPendingSet)}
         activeClient={activeClient}
       />
     </main>

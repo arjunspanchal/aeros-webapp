@@ -7,11 +7,9 @@ import {
   listJobUpdates,
 } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
-import {
-  getActiveClientId,
-  setActiveClientId,
-} from "@/lib/factoryos/customerScope";
+import { getActiveClientId } from "@/lib/factoryos/customerScope";
 import CustomerJobDetailClient from "./CustomerJobDetailClient";
+import ScopeSync from "./ScopeSync";
 
 export const dynamic = "force-dynamic";
 
@@ -30,13 +28,14 @@ export default async function CustomerJobDetail({ params }) {
   // Forgiving multi-client UX — if the user opens a job that belongs to a
   // different linked client than the one they're scoped to right now (e.g.
   // arriving from an email link to a Wellbeing order while pinned to
-  // Brewbay), silently switch their pinned client so the back-nav lands on
-  // the matching dashboard.
+  // Brewbay), re-pin their active client so back-nav lands on the matching
+  // dashboard. The actual cookie write happens client-side via ScopeSync →
+  // the active-client Route Handler; writing it here during render throws
+  // in Next 14 ("Cookies can only be modified in a Server Action or Route
+  // Handler") and 500'd this page.
   const activeNow = getActiveClientId(linkedIds);
   const jobClient = job.clientIds.find((c) => myClients.has(c));
-  if (jobClient && jobClient !== activeNow) {
-    setActiveClientId(jobClient);
-  }
+  const needsScopeSync = !!jobClient && jobClient !== activeNow;
 
   // Seed everything server-side so the page paints in one round trip — the
   // thread component still refetches on mount to stamp it read, but the user
@@ -49,6 +48,7 @@ export default async function CustomerJobDetail({ params }) {
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {needsScopeSync && <ScopeSync clientId={jobClient} />}
       <CustomerJobDetailClient
         initialJob={{ ...job, ...extras }}
         initialUpdates={updates}

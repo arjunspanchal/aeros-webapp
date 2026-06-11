@@ -164,7 +164,6 @@ export default function CustomerJobDetailClient({ initialJob, initialUpdates, in
   const delivered = job.stage === "Delivered";
   const artworkApproved = !!job.customerArtworkApprovedAt;
   const eta = derivedEta(job);
-  const ns = nextStep(job);
 
   // Documents pulled from the thread + Airtable LR field. Anything the
   // customer themselves uploaded stays in the thread (no need to re-list it).
@@ -184,6 +183,12 @@ export default function CustomerJobDetailClient({ initialJob, initialUpdates, in
   }, [thread, job.lrFiles]);
 
   const docCount = docs.artwork.length + docs.proof.length + docs.challan.length + docs.lr.length;
+  // Next-step chip only claims "awaiting your approval" when artwork is
+  // actually on the thread and unapproved — same gate the sign-off card uses.
+  const ns = nextStep({
+    ...job,
+    artworkAwaitingApproval: !artworkApproved && docs.artwork.length > 0,
+  });
   const visibleUpdates = useMemo(
     () => updates.filter(activityIsCustomerVisible),
     [updates],
