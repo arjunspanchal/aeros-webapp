@@ -2,7 +2,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import { fetchInventory } from '@/lib/airtable';
-import { fetchCatalog } from '@/lib/catalog';
+import { fetchCatalogChat } from '@/lib/catalog';
 
 export const maxDuration = 30;
 
@@ -20,7 +20,9 @@ async function getInventory() {
 }
 
 async function getCatalog() {
-  if (!_catalog) _catalog = await fetchCatalog();
+  // fetchCatalogChat = 2 Supabase queries; fetchCatalog went through the
+  // airtable shim (~600 photo round trips) and stalled every cold start.
+  if (!_catalog) _catalog = await fetchCatalogChat();
   return _catalog;
 }
 
