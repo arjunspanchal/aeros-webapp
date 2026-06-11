@@ -149,8 +149,100 @@ const QUICK_ACTIONS = [
   { label: "View past quotes",  href: "/rate-cards/quotes",           module: "rate_cards" },
 ];
 
+// ─── Customer-only command center ────────────────────────────────────────
+//
+// A customer session also lands on /hub, but the internal modules / KPIs /
+// activity feed are not for them. We swap in a customer-shaped tile set +
+// quick actions so the page keeps its hero feel while only exposing their
+// own portal surfaces.
+const CUSTOMER_TILES = [
+  {
+    key: "my_orders",
+    href: "/factoryos/customer",
+    title: "Your orders",
+    blurb: "Live status, ETAs, and a chat thread per order",
+    size: "lg",
+    accent: "from-royal-600 via-indigo-600 to-purple-700",
+    sparkColor: "#6366F1",
+    customerOnly: true,
+    cta: "Open dashboard",
+  },
+  {
+    key: "documents",
+    href: "/factoryos/customer/documents",
+    title: "Documents",
+    blurb: "Every artwork, proof, challan and LR copy across your orders",
+    size: "lg",
+    accent: "from-fuchsia-600 to-purple-700",
+    sparkColor: "#A855F7",
+    customerOnly: true,
+    cta: "Browse files",
+  },
+  {
+    key: "pos",
+    href: "/factoryos/customer/pos",
+    title: "Purchase orders",
+    blurb: "Upload POs so they stay tied to your jobs",
+    size: "md",
+    accent: "from-sky-600 to-cyan-700",
+    sparkColor: "#0891B2",
+    customerOnly: true,
+    cta: "Manage POs",
+  },
+  {
+    key: "catalogue_c",
+    href: "/catalog",
+    title: "Catalogue",
+    blurb: "Browse Aeros' full SKU range — cups, bags, boxes, tubs",
+    size: "md",
+    accent: "from-amber-500 via-orange-500 to-rose-600",
+    sparkColor: "#F97316",
+    customerOnly: true,
+    cta: "Browse SKUs",
+  },
+  {
+    key: "design_c",
+    href: "/design",
+    title: "Design",
+    blurb: "Keylines, KLDs and mockups for our product range",
+    size: "md",
+    accent: "from-violet-600 to-indigo-700",
+    sparkColor: "#8B5CF6",
+    customerOnly: true,
+    cta: "Open library",
+  },
+  {
+    key: "profile_c",
+    href: "/factoryos/customer/profile",
+    title: "Your profile",
+    blurb: "Name, phone, photo. Sign in details.",
+    size: "md",
+    accent: "from-emerald-500 to-teal-700",
+    sparkColor: "#10B981",
+    customerOnly: true,
+    cta: "Edit profile",
+  },
+];
+
+const CUSTOMER_QUICK_ACTIONS = [
+  { label: "Open your orders",   href: "/factoryos/customer" },
+  { label: "Browse documents",   href: "/factoryos/customer/documents" },
+  { label: "Upload a PO",        href: "/factoryos/customer/pos" },
+  { label: "Browse catalogue",   href: "/catalog" },
+];
+
+// True when this session is a "pure customer" — has the factoryos customer
+// role and is not also an admin. Admins always see the full internal home
+// even if their record is also linked as a customer.
+function isCustomerOnly(session) {
+  if (!session) return false;
+  if (session.isAdmin) return false;
+  return session?.modules?.factoryos === "customer";
+}
+
 function quickActionsFor(session) {
   if (!session) return [];
+  if (isCustomerOnly(session)) return CUSTOMER_QUICK_ACTIONS;
   const modules = session.modules || {};
   return QUICK_ACTIONS.filter((a) => a.always || !!modules[a.module] || session.isAdmin);
 }
@@ -159,6 +251,7 @@ function tilesFor(session) {
   if (!session) {
     return TILES.filter((t) => t.key === "clearance" || t.key === "catalogue");
   }
+  if (isCustomerOnly(session)) return CUSTOMER_TILES;
   const modules = session.modules || {};
   const isAdmin = !!session.isAdmin;
   return TILES.filter((t) => t.always || isAdmin || !!modules[t.moduleKey]);
@@ -275,8 +368,19 @@ export default function HomeClient({ session, footer }) {
 
   const tiles  = useMemo(() => tilesFor(session), [session]);
   const quicks = useMemo(() => quickActionsFor(session), [session]);
+  const customerMode = isCustomerOnly(session);
 
   const tickerItems = useMemo(() => {
+    // Customer-only ticker — neutral / brand-flavour items. Avoids leaking
+    // internal aggregates like "57 clients" or "open jobs" to a customer.
+    if (customerMode) {
+      return [
+        { value: "Mumbai", label: "India · manufacturing" },
+        { value: "INR ₹",  label: "all rates in INR" },
+        { value: "FCL",    label: "full-container quotes" },
+        { value: "Live",   label: "order status updates" },
+      ];
+    }
     if (!stats) return [];
     const xs = [];
     if (stats.factoryos)  xs.push({ value: (stats.factoryos.open ?? 0).toLocaleString("en-IN"),     label: "open jobs" });
@@ -291,7 +395,7 @@ export default function HomeClient({ session, footer }) {
     xs.push({ value: "INR ₹",  label: "all rates in INR" });
     xs.push({ value: "FCL",    label: "full-container quotes" });
     return xs;
-  }, [stats]);
+  }, [stats, customerMode]);
 
   return (
     <div className="min-h-screen flex flex-col bg-ink-50">
@@ -424,30 +528,59 @@ export default function HomeClient({ session, footer }) {
 
         {isAuthed && (
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 rounded-md border border-ink-200 bg-white overflow-hidden">
-              <div className="px-5 py-3 border-b border-ink-200 flex items-center justify-between">
+            {customerMode ? (
+              // Customers don't see the cross-floor activity feed (it surfaces
+              // other customers' jobs). Instead we point them at their order
+              // dashboard with a one-line nudge.
+              <div className="lg:col-span-2 rounded-md border border-ink-200 bg-white overflow-hidden p-6 flex flex-col justify-between gap-4">
                 <div>
-                  <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-ink-400">Activity</div>
-                  <div className="text-sm font-semibold text-ink-900">Recent across the floor</div>
+                  <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-ink-400">Your portal</div>
+                  <h3 className="mt-1 text-xl font-bold tracking-tight text-ink-900">Everything about your orders, in one place.</h3>
+                  <p className="mt-1.5 text-sm text-ink-600">
+                    Live stage updates, ETAs, artwork sign-off, and a chat thread with the Aeros team — per order.
+                  </p>
                 </div>
-                <Link href="/factoryos/manager" className="text-xs font-medium text-royal-600 hover:text-royal-700">All jobs →</Link>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href="/factoryos/customer"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-ink-900 text-white hover:bg-black px-3 py-1.5 text-xs font-medium transition-colors"
+                  >
+                    Open your dashboard <span aria-hidden>→</span>
+                  </Link>
+                  <Link
+                    href="/factoryos/customer/documents"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-ink-200 hover:border-ink-400 px-3 py-1.5 text-xs font-medium text-ink-900 transition-colors"
+                  >
+                    Browse documents
+                  </Link>
+                </div>
               </div>
-              <ul className="divide-y divide-ink-200">
-                {activity.length === 0 && (
-                  <li className="px-5 py-8 text-center text-sm text-ink-400">No recent activity yet.</li>
-                )}
-                {activity.map((a, i) => (
-                  <li key={i} className="px-5 py-3 flex items-center gap-3">
-                    <span className={`shrink-0 h-1.5 w-1.5 rounded-full ${a.kind === "job" ? "bg-royal-600" : "bg-amber-500"}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-ink-900 truncate">{a.title}</div>
-                      <div className="text-xs text-ink-500 truncate">{a.sub}</div>
-                    </div>
-                    <span className="shrink-0 text-[11px] font-mono text-ink-400">{timeSince(a.when)}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            ) : (
+              <div className="lg:col-span-2 rounded-md border border-ink-200 bg-white overflow-hidden">
+                <div className="px-5 py-3 border-b border-ink-200 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-ink-400">Activity</div>
+                    <div className="text-sm font-semibold text-ink-900">Recent across the floor</div>
+                  </div>
+                  <Link href="/factoryos/manager" className="text-xs font-medium text-royal-600 hover:text-royal-700">All jobs →</Link>
+                </div>
+                <ul className="divide-y divide-ink-200">
+                  {activity.length === 0 && (
+                    <li className="px-5 py-8 text-center text-sm text-ink-400">No recent activity yet.</li>
+                  )}
+                  {activity.map((a, i) => (
+                    <li key={i} className="px-5 py-3 flex items-center gap-3">
+                      <span className={`shrink-0 h-1.5 w-1.5 rounded-full ${a.kind === "job" ? "bg-royal-600" : "bg-amber-500"}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-ink-900 truncate">{a.title}</div>
+                        <div className="text-xs text-ink-500 truncate">{a.sub}</div>
+                      </div>
+                      <span className="shrink-0 text-[11px] font-mono text-ink-400">{timeSince(a.when)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="space-y-4">
               {session?.isAdmin && (
@@ -601,6 +734,17 @@ function BentoTile({ tile, stats, index }) {
                 <div className="mt-0.5 text-right text-[9px] font-mono uppercase tracking-wider text-ink-400">7 day</div>
               </div>
             )}
+          </div>
+        )}
+
+        {!m && tile.cta && (
+          // Customer tiles don't fetch live counts (the API never sends those
+          // for them — see /api/hub/stats). The CTA chip keeps the tile from
+          // looking truncated.
+          <div className="mt-auto pt-5">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-ink-200 group-hover:border-ink-400 px-3 py-1.5 text-xs font-medium text-ink-700 transition-colors">
+              {tile.cta} <span aria-hidden>→</span>
+            </span>
           </div>
         )}
       </div>

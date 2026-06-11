@@ -25,6 +25,7 @@
 //   }
 import { getSession } from "@/lib/hub/session";
 import { dbCount, dbSelect } from "@/lib/db/supabase";
+import { isInternalRole } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,7 +82,34 @@ const DEMO_STATS = {
   clients:    { count: 57 },
 };
 
+// Empty / public-only stats payload — used to gracefully respond to
+// customer-only sessions without ever computing or leaking internal
+// aggregates (jobs, clients, payroll). Customers get their per-order data
+// from /factoryos/customer; the command-center tiles for them are
+// descriptive, not numeric.
+const CUSTOMER_STATS_RESPONSE = {
+  ok: true,
+  alerts: [],
+  stats: {
+    clearance:  { items: 0, label: "SKUs in clearance", spark: [] },
+    catalogue:  { products: 0, label: "active SKUs" },
+    design:     { files: 0, label: "design files" },
+  },
+  activity: [],
+};
+
 export async function GET() {
+  const session = getSession();
+  const modules = session?.modules || {};
+  const isAdmin = !!session?.isAdmin;
+  // Customer / vendor sessions never see internal counters here — neither
+  // real nor demo. Sealed before any aggregation runs.
+  const customerOnly = !!session && !isAdmin && modules.factoryos === "customer";
+  const vendorOnly   = !!session && !isAdmin && modules.factoryos === "vendor";
+  if (customerOnly || vendorOnly) {
+    return Response.json({ ...CUSTOMER_STATS_RESPONSE, ts: new Date().toISOString() });
+  }
+
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return Response.json({
       ok: true,
@@ -96,10 +124,16 @@ export async function GET() {
       ],
     });
   }
-
-  const session = getSession();
-  const modules = session?.modules || {};
-  const isAdmin = !!session?.isAdmin;
+  // Internal factoryos roles only — customer/vendor sessions also carry a
+  // truthy `modules.factoryos`, but they must NOT see global job counts,
+  // total clients, or other internal aggregates.
+  const internalFactoryos = isAdmin || isInternalRole(modules.factoryos);
+  const internalRateCards = isAdmin || modules.rate_cards === "admin";
+  // Same idea for HR / Calculator — only the admin levels are "internal" for
+  // the purposes of company-wide counters. A calculator "client" or HR
+  // employee shouldn't see global tallies.
+  const internalCalculator = isAdmin || modules.calculator === "admin";
+  const internalHR = isAdmin || modules.hr === "admin";
 
   // Public counts — clearance + catalogue are always available
   const tasks = {
@@ -107,23 +141,23 @@ export async function GET() {
     catalogue: safe(() => dbCount("master_products"), 0),
   };
 
-  if (isAdmin || modules.factoryos) {
+  if (internalFactoryos) {
     tasks.jobsTotal = safe(() => dbCount("jobs"), 0);
     tasks.jobsOpen = safe(() => dbCount("jobs", { stage: "neq.Delivered" }), 0);
     tasks.pos = safe(() => dbCount("customer_pos"), 0);
     tasks.factoryosSpark = dailySpark("job_status_updates", "created_at");
   }
-  if (isAdmin || modules.rate_cards) {
+  if (internalRateCards) {
     tasks.quotes = safe(() => dbCount("quotes_v2"), 0);
     tasks.cards = safe(() => dbCount("rate_cards"), 0);
     tasks.rfqs = safe(() => dbCount("rfq_quotes"), 0);
     tasks.rfqSpark = dailySpark("quotes_v2", "created_at");
   }
-  if (isAdmin || modules.calculator) {
+  if (internalCalculator) {
     tasks.calcQuotes = safe(() => dbCount("quotes_v2"), 0);
     tasks.calcSpark = dailySpark("quotes_v2", "created_at");
   }
-  if (isAdmin || modules.hr) {
+  if (internalHR) {
     tasks.employees = safe(() => dbCount("employees", { active: "eq.true" }), 0);
     tasks.presentToday = safe(
       () => dbCount("attendance", { date: `eq.${todayISO()}`, punch_in: "not.is.null" }),
@@ -135,14 +169,20 @@ export async function GET() {
     tasks.clearanceSpark = dailySpark("inventory_movements", "created_at");
   }
   if (session) {
+    // Design files are open to every authed user (designers / vendors /
+    // customers all open /design). Total client count is not — admin only,
+    // since a customer seeing "57 clients" leaks the size of Aeros' book.
     tasks.designFiles = safe(() => dbCount("product_design_files"), 0);
+  }
+  if (isAdmin) {
     tasks.clients = safe(() => dbCount("clients"), 0);
   }
 
-  // Activity feed — last 6 job status updates if FactoryOS, else recent
-  // inventory movements.
+  // Activity feed — last 6 job status updates if internal FactoryOS, else
+  // recent inventory movements. Customer/vendor sessions see neither, since
+  // both feeds pull rows across ALL customers.
   let activityTask;
-  if (isAdmin || modules.factoryos) {
+  if (internalFactoryos) {
     activityTask = safe(
       () => dbSelect("job_status_updates", {
         select: "id,stage,note,created_at,j_number:jobs(j_number)",
@@ -151,7 +191,7 @@ export async function GET() {
       }),
       [],
     );
-  } else {
+  } else if (isAdmin || modules.clearance === "admin") {
     activityTask = safe(
       () => dbSelect("inventory_movements", {
         select: "id,kind,note,created_at",
@@ -160,12 +200,15 @@ export async function GET() {
       }),
       [],
     );
+  } else {
+    activityTask = Promise.resolve([]);
   }
 
   // Alerts band — urgent items worth surfacing above the bento. Only ones
-  // that turn up actually render.
+  // that turn up actually render. Gated to internal staff: customer/vendor
+  // sessions must not see global counts of "overdue jobs" or open RFQs.
   const alertTasks = [];
-  if (isAdmin || modules.factoryos) {
+  if (internalFactoryos) {
     alertTasks.push(
       safe(() => dbCount("jobs", {
         stage: "neq.Delivered",
@@ -173,13 +216,13 @@ export async function GET() {
       }), 0).then((n) => n > 0 ? { kind: "danger", label: `${n} overdue job${n>1?"s":""}`, href: "/factoryos/manager?filter=overdue" } : null),
     );
   }
-  if (isAdmin || modules.rate_cards) {
+  if (internalRateCards) {
     alertTasks.push(
       safe(() => dbCount("rfq_quotes", { status: "eq.open" }), 0)
         .then((n) => n > 0 ? { kind: "info", label: `${n} RFQ${n>1?"s":""} awaiting reply`, href: "/rfq-manager?filter=open" } : null),
     );
   }
-  if (isAdmin || modules.hr) {
+  if (internalHR) {
     alertTasks.push((async () => {
       const todayCount = await safe(
         () => dbCount("attendance", { date: `eq.${todayISO()}`, punch_in: "not.is.null" }),
