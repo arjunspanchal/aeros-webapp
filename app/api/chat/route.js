@@ -88,7 +88,7 @@ export async function POST(req) {
   }
 
   const result = await streamText({
-    model: anthropic('claude-3-5-haiku-20241022'),
+    model: anthropic('claude-haiku-4-5'),
     system: SYSTEM_PROMPT,
     messages,
     maxSteps: 5,
