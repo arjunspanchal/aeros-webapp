@@ -103,7 +103,84 @@ export function CupGuide() {
           </div>
         ))}
       </div>
+
+      {/* How we size — the TD × BD × H convention the rate sheet uses. */}
+      <div className="mt-8 rounded-md border border-ink-200 bg-white p-5">
+        <h3 className="text-sm font-bold text-ink-900">How we size</h3>
+        <p className="mt-1 max-w-2xl text-xs text-ink-600">
+          Every size in the rate sheet is written as{" "}
+          <span className="font-mono text-ink-900">TD × BD × H</span> — top diameter × bottom
+          diameter × height, in millimetres. Lids are matched to the cup&rsquo;s top diameter (TD).
+        </p>
+        <div className="mt-4 grid items-center gap-4 sm:grid-cols-[auto_1fr]">
+          <figure className="mx-auto rounded border border-ink-100 bg-ink-50 p-3">
+            <SizedCup />
+          </figure>
+          <div className="space-y-1 text-xs text-ink-600">
+            <p>
+              <span className="font-mono font-semibold text-ink-900">TD</span> — top (rim)
+              diameter, measured across the open mouth
+            </p>
+            <p>
+              <span className="font-mono font-semibold text-ink-900">BD</span> — bottom (base)
+              diameter, across the foot of the cup
+            </p>
+            <p>
+              <span className="font-mono font-semibold text-ink-900">H</span> — overall height,
+              rim to base
+            </p>
+          </div>
+        </div>
+      </div>
     </section>
+  );
+}
+
+// Annotated side profile: cup outline in ink-700, dimension lines lighter via
+// opacity — TD across the rim, BD across the base, H down the side. Matches the
+// PET/PP guide drawings so the size convention reads the same across sheets.
+function SizedCup() {
+  return (
+    <svg
+      viewBox="0 0 200 196"
+      className="mx-auto h-44 w-auto text-ink-700"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      role="img"
+      aria-label="Paper cup profile marked with top diameter, bottom diameter and height"
+    >
+      {/* cup body — straight taper, flat base */}
+      <path d="M56 50 L72 150 L128 150 L144 50" strokeWidth="1.75" />
+      <ellipse cx="100" cy="50" rx="44" ry="8" strokeWidth="1.75" />
+      <path d="M84 62 L80 140" strokeWidth="1" opacity="0.35" />
+      {/* dimension lines */}
+      <g strokeWidth="0.9" opacity="0.55">
+        <path d="M56 36 L144 36" />
+        <path d="M56 31 L56 41" />
+        <path d="M144 31 L144 41" />
+        <path d="M36 50 L36 150" />
+        <path d="M31 50 L41 50" />
+        <path d="M31 150 L41 150" />
+        <path d="M72 168 L128 168" />
+        <path d="M72 163 L72 173" />
+        <path d="M128 163 L128 173" />
+      </g>
+      {/* labels */}
+      <g
+        fill="currentColor"
+        stroke="none"
+        fontSize="12"
+        opacity="0.85"
+        textAnchor="middle"
+        fontFamily="var(--font-mono, monospace)"
+      >
+        <text x="100" y="26">TD</text>
+        <text x="22" y="104">H</text>
+        <text x="100" y="186">BD</text>
+      </g>
+    </svg>
   );
 }
 

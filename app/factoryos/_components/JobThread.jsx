@@ -15,10 +15,16 @@ const MAX_BYTES = 25 * 1024 * 1024;
 const KIND_LABEL = { artwork: "Artwork", proof: "Proof", challan: "Challan" };
 
 // Unified per-job conversation: text + file attachments interleaved, shared by
-// the Aeros team and the assigned vendor. `viewerRole` is 'team' | 'vendor'
-// and only affects bubble alignment + the "You" label. `initialThread` lets a
-// server component seed the first render; the component refetches on mount to
-// also stamp the thread read.
+// the Aeros team, the assigned vendor, and the customer. `viewerRole` is
+// 'team' | 'vendor' | 'customer' and only affects bubble alignment + the "You"
+// label. `initialThread` lets a server component seed the first render; the
+// component refetches on mount to also stamp the thread read.
+
+const OTHER_LABEL = {
+  team: "Aeros team",
+  vendor: "Vendor",
+  customer: "Customer",
+};
 export default function JobThread({ jobId, viewerRole = "team", initialThread = null, title = "Messages" }) {
   const [thread, setThread] = useState(initialThread || []);
   const [loading, setLoading] = useState(!initialThread);
@@ -140,7 +146,7 @@ export default function JobThread({ jobId, viewerRole = "team", initialThread = 
                 }`}
               >
                 <div className={`text-[10px] mb-0.5 ${mine ? "text-blue-100" : "text-gray-500 dark:text-gray-400"}`}>
-                  {mine ? "You" : m.authorRole === "vendor" ? "Vendor" : "Aeros team"}
+                  {mine ? "You" : OTHER_LABEL[m.authorRole] || "Aeros team"}
                   {m.file && KIND_LABEL[m.kind] ? ` · ${KIND_LABEL[m.kind]}` : ""}
                 </div>
                 {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}

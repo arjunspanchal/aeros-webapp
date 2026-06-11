@@ -19,7 +19,7 @@ export async function GET(_req, { params }) {
   if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
 
   const thread = await listJobThread(job.id);
-  await markThreadRead(job.id, access === "vendor" ? "vendor" : "team").catch(() => {});
+  await markThreadRead(job.id, access).catch(() => {});
   return Response.json({ thread });
 }
 
@@ -41,15 +41,25 @@ export async function POST(req, { params }) {
     return Response.json({ error: "Message or file required" }, { status: 400 });
   }
 
-  const authorRole = access === "vendor" ? "vendor" : "team";
-  // Default the file kind by who's posting: team artwork, vendor proof. A
-  // caller can override (e.g. 'challan') but only to an allowed value.
+  // access values: 'internal' | 'vendor' | 'customer'. Internal users post as
+  // the Aeros team (single bubble identity on the thread).
+  const authorRole =
+    access === "vendor" ? "vendor" : access === "customer" ? "customer" : "team";
+  // Default the file kind by who's posting: team artwork, vendor proof, customer
+  // anything-they-attach as a plain message file. A caller can override (e.g.
+  // 'challan') but only to an allowed value AND only the team can mark a file
+  // as 'artwork' (the customer-approval workflow keys off team artwork posts).
   let kind = "message";
   if (fileBase64) {
     const requested = body.kind;
-    const allowed = new Set(["artwork", "proof", "challan"]);
-    kind = allowed.has(requested) ? requested : authorRole === "vendor" ? "proof" : "artwork";
-    if (kind === "artwork" && authorRole !== "team") kind = "proof";
+    const allowed = new Set(["artwork", "proof", "challan", "message"]);
+    if (allowed.has(requested)) {
+      kind = requested;
+    } else {
+      kind = authorRole === "vendor" ? "proof" : authorRole === "team" ? "artwork" : "message";
+    }
+    if (kind === "artwork" && authorRole !== "team") kind = "message";
+    if (kind === "proof" && authorRole === "customer") kind = "message";
   }
 
   if (fileBase64) {
@@ -84,7 +94,7 @@ export async function POST(req, { params }) {
 }
 
 // DELETE ?messageId=… — remove one message. Team can delete any on its jobs;
-// a vendor can only delete its own messages.
+// a vendor or customer can only delete their own messages.
 export async function DELETE(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
@@ -98,6 +108,9 @@ export async function DELETE(req, { params }) {
   const target = thread.find((m) => m.id === messageId);
   if (!target) return Response.json({ error: "Message not on this job" }, { status: 404 });
   if (access === "vendor" && target.authorRole !== "vendor") {
+    return Response.json({ error: "You can only delete your own messages" }, { status: 403 });
+  }
+  if (access === "customer" && target.authorRole !== "customer") {
     return Response.json({ error: "You can only delete your own messages" }, { status: 403 });
   }
 
