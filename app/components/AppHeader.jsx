@@ -184,7 +184,22 @@ export default function AppHeader({ session }) {
   const pathname = usePathname();
   const active = activeModuleKey(pathname);
   const modules = session?.modules || {};
-  const available = MODULES.filter((m) => !!modules[m.key]);
+  // Customer-only sessions: keep the customer-friendly modules (Catalogue,
+  // WarehouseOS browser, Design) and surface their order portal as "My
+  // Orders" instead of the generic "FactoryOS" label that pointed at the
+  // internal landing. Hide internal-only tools (Calculator, RFQs) that
+  // they'd land on an internal page from.
+  const isCustomerOnly =
+    !!session && !session.isAdmin && modules.factoryos === "customer";
+  let available;
+  if (isCustomerOnly) {
+    available = [
+      { key: "factoryos",  label: "My Orders",   href: "/factoryos/customer" },
+      ...MODULES.filter((m) => m.key === "catalogue" || m.key === "clearance"),
+    ];
+  } else {
+    available = MODULES.filter((m) => !!modules[m.key]);
+  }
   // Design module is open to every authenticated user — append it to
   // the nav unconditionally if the user is signed in.
   if (session) {
