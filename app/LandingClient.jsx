@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import ChatWidget from './components/ChatWidget';
 
 const C = {
   ink50: '#F5F5F5',
@@ -1549,6 +1550,7 @@ export default function LandingClient() {
       <Select />
       <CTA />
       <Footer />
+      <ChatWidget />
     </div>
   );
 }
