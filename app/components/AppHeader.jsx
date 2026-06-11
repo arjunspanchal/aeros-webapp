@@ -238,7 +238,10 @@ export default function AppHeader({ session }) {
   // nested <a> tags (invalid HTML); browsers fall through to Brand's inner
   // default href="/", which sends authed users to the marketing page and
   // looks like a logout.
-  const brandHref = session ? "/hub" : "/";
+  // Customer-only sessions return to their order portal, not the internal
+  // command center — clicking the wordmark should take them home, and home
+  // for them is /factoryos/customer.
+  const brandHref = !session ? "/" : isCustomerOnly ? "/factoryos/customer" : "/hub";
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-ink-200">

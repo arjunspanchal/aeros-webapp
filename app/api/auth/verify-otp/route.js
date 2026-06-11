@@ -46,5 +46,11 @@ export async function POST(req) {
   });
   jar.set(hubCookie(hubToken));
 
-  return Response.json({ ok: true, modules: ents.modules });
+  // Tell the client where to land. Customers go straight to their portal
+  // instead of the internal /hub command center — the previous default
+  // forced a no-op click ("Your orders" tile) on every login.
+  const isCustomer = !ents.isAdmin && ents.modules?.factoryos === "customer";
+  const redirect = isCustomer ? "/factoryos/customer" : "/hub";
+
+  return Response.json({ ok: true, modules: ents.modules, redirect });
 }

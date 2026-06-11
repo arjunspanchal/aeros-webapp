@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { listCustomerDocuments, listJobsForSession } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
+import { getActiveClientId } from "@/lib/factoryos/customerScope";
 import CustomerDocumentsClient from "./CustomerDocumentsClient";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +16,13 @@ export default async function CustomerDocumentsPage() {
   if (!session || !role) redirect("/login");
   if (role !== ROLES.CUSTOMER) redirect("/factoryos");
 
+  const linkedIds = session.factoryosClientIds || [];
+  const activeClientId = getActiveClientId(linkedIds);
+
   const jobs = await listJobsForSession({
     role,
     userId: session.factoryosUserId,
-    clientIds: session.factoryosClientIds,
+    clientIds: activeClientId ? [activeClientId] : linkedIds,
   });
   const jobIds = jobs.map((j) => j.id);
   const threadDocs = await listCustomerDocuments(jobIds);

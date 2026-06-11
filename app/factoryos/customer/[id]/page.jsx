@@ -1,5 +1,4 @@
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
 import {
   getJob,
@@ -8,6 +7,10 @@ import {
   listJobUpdates,
 } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
+import {
+  getActiveClientId,
+  setActiveClientId,
+} from "@/lib/factoryos/customerScope";
 import CustomerJobDetailClient from "./CustomerJobDetailClient";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +23,20 @@ export default async function CustomerJobDetail({ params }) {
 
   const job = await getJob(params.id);
   if (!job) notFound();
-  const myClients = new Set(session.factoryosClientIds || []);
+  const linkedIds = session.factoryosClientIds || [];
+  const myClients = new Set(linkedIds);
   if (!job.clientIds.some((c) => myClients.has(c))) redirect("/factoryos/customer");
+
+  // Forgiving multi-client UX — if the user opens a job that belongs to a
+  // different linked client than the one they're scoped to right now (e.g.
+  // arriving from an email link to a Wellbeing order while pinned to
+  // Brewbay), silently switch their pinned client so the back-nav lands on
+  // the matching dashboard.
+  const activeNow = getActiveClientId(linkedIds);
+  const jobClient = job.clientIds.find((c) => myClients.has(c));
+  if (jobClient && jobClient !== activeNow) {
+    setActiveClientId(jobClient);
+  }
 
   // Seed everything server-side so the page paints in one round trip — the
   // thread component still refetches on mount to stamp it read, but the user
@@ -34,9 +49,6 @@ export default async function CustomerJobDetail({ params }) {
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <Link href="/factoryos/customer" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
-        ← Back to orders
-      </Link>
       <CustomerJobDetailClient
         initialJob={{ ...job, ...extras }}
         initialUpdates={updates}

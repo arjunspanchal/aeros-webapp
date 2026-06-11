@@ -6,6 +6,7 @@ import {
   listJobsForSession,
 } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
+import { getActiveClientId } from "@/lib/factoryos/customerScope";
 import CustomerJobsView from "./CustomerJobsView";
 
 export const dynamic = "force-dynamic";
@@ -16,11 +17,17 @@ export default async function CustomerPage() {
   if (!session || !role) redirect("/login");
   if (role !== ROLES.CUSTOMER) redirect("/factoryos");
 
+  // Scope every list view to the customer's *active* client. A user linked
+  // to Brewbay + Wellbeing Exports sees one company at a time — no mixed
+  // listing — and switches via the nav bar picker.
+  const linkedIds = session.factoryosClientIds || [];
+  const activeClientId = getActiveClientId(linkedIds);
+
   const [jobs, clients] = await Promise.all([
     listJobsForSession({
       role,
       userId: session.factoryosUserId,
-      clientIds: session.factoryosClientIds,
+      clientIds: activeClientId ? [activeClientId] : linkedIds,
     }),
     listClients(),
   ]);
@@ -31,9 +38,16 @@ export default async function CustomerPage() {
     await customerUnreadJobIds(jobs.map((j) => j.id)),
   );
 
+  const activeClient = clientMap[activeClientId] || null;
+
   return (
     <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      <CustomerJobsView jobs={jobs} clientMap={clientMap} unreadIds={unreadIds} />
+      <CustomerJobsView
+        jobs={jobs}
+        clientMap={clientMap}
+        unreadIds={unreadIds}
+        activeClient={activeClient}
+      />
     </main>
   );
 }

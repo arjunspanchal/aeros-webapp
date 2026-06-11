@@ -52,12 +52,17 @@ function NextStepChip({ job }) {
 
 function EtaLine({ job }) {
   const eta = derivedEta(job);
-  if (!eta?.date) return null;
-  return (
-    <span className="text-xs text-gray-500 dark:text-gray-400">
-      {eta.isExplicit ? "ETA " : "Expected by "}{formatDate(eta.date)}
-    </span>
-  );
+  if (eta?.date) {
+    return (
+      <span className="text-xs text-gray-500 dark:text-gray-400">
+        {eta.isExplicit ? "ETA " : "Expected by "}{formatDate(eta.date)}
+      </span>
+    );
+  }
+  if (eta?.isPending) {
+    return <span className="text-xs text-gray-400 dark:text-gray-500">ETA confirmed soon</span>;
+  }
+  return null;
 }
 
 function isOverdueLocal(job, today) {
@@ -70,7 +75,7 @@ function isOverdueLocal(job, today) {
 
 const ACTIVE = (j) => j.stage !== "Dispatched" && j.stage !== "Delivered";
 
-export default function CustomerJobsView({ jobs, clientMap, unreadIds = [] }) {
+export default function CustomerJobsView({ jobs, clientMap, unreadIds = [], activeClient = null }) {
   const [q, setQ] = useState("");
   const [showPast, setShowPast] = useState(false);
   const [today, setToday] = useState(null);
@@ -181,8 +186,26 @@ export default function CustomerJobsView({ jobs, clientMap, unreadIds = [] }) {
         </div>
 
         {active.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-xl p-8 text-center text-sm text-gray-500 dark:bg-gray-900 dark:border-gray-800 dark:text-gray-400">
-            {q ? "No active orders match." : "Nothing in production right now."}
+          <div className="bg-white border border-gray-200 rounded-xl p-8 text-center dark:bg-gray-900 dark:border-gray-800">
+            {q ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No active orders match.</p>
+            ) : (
+              <>
+                <div className="text-3xl">🍵</div>
+                <p className="mt-2 text-sm text-gray-700 dark:text-gray-200">
+                  Nothing in production right now.
+                </p>
+                <p className="text-xs text-gray-500 mt-1 dark:text-gray-400">
+                  Want to start an order? Reach out to the Aeros team and they'll share a quote.
+                </p>
+                <a
+                  href="mailto:hello@aeros.in?subject=New%20order%20request"
+                  className="inline-flex items-center mt-3 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                >
+                  Email Aeros
+                </a>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3">

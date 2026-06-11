@@ -224,11 +224,13 @@ export default function CustomerJobDetailClient({ initialJob, initialUpdates, in
           <MilestoneStrip stage={job.stage} />
           <div className="mt-3 flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
             <span className="font-medium">{friendlyStage(job.stage)}</span>
-            {eta?.date && (
+            {eta?.date ? (
               <span className="text-gray-500 dark:text-gray-400">
                 {eta.isExplicit ? "ETA " : "Expected by "}{formatDate(eta.date)}
               </span>
-            )}
+            ) : eta?.isPending ? (
+              <span className="text-gray-400 dark:text-gray-500">ETA confirmed soon</span>
+            ) : null}
           </div>
         </div>
       </div>
