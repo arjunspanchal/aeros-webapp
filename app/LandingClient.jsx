@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import ChatWidget from './components/ChatWidget';
 
 const C = {
   ink50: '#F5F5F5',
@@ -1093,6 +1092,177 @@ const Select = () => {
   );
 };
 
+const PackAI = () => {
+  const { ref, visible } = useReveal();
+  const ask = (question) =>
+    window.dispatchEvent(new CustomEvent('aeros:open-chat', { detail: { question } }));
+  const steps = [
+    {
+      n: '01',
+      title: 'Ask in plain language',
+      desc: 'Type what you serve or what you need — English, Hindi or Hinglish. "12oz double wall cups?" works. So does "burger box chahiye".',
+    },
+    {
+      n: '02',
+      title: 'It reads the live catalog',
+      desc: 'PackAI searches 700+ SKUs and current clearance stock in real time — sizes, materials, GSM, case packs, stock status.',
+    },
+    {
+      n: '03',
+      title: 'Get specs, prices & links',
+      desc: 'Straight answers with product links you can open, share and order from. FCL pricing in ₹. No login, no forms.',
+    },
+  ];
+  const samples = [
+    'Do you have 12oz double wall paper cups?',
+    'Leak-proof containers for biryani delivery?',
+    'What is in clearance stock right now?',
+  ];
+  return (
+    <section
+      ref={ref}
+      id="packai"
+      style={{ background: C.ink900, color: C.white, borderTop: '1px solid #1a1a1a' }}
+    >
+      <div className="max-w-[1280px] mx-auto px-6 lg:px-10 py-20 md:py-28">
+        <div className="mb-12">
+          <Eyebrow dark>Aeros PackAI</Eyebrow>
+          <h2
+            className={`mt-4 max-w-3xl transition-all duration-700 ${
+              visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+            }`}
+            style={{
+              fontFamily: FONT_SANS,
+              fontWeight: 700,
+              fontSize: 'clamp(32px, 4.5vw, 48px)',
+              letterSpacing: '-0.02em',
+              lineHeight: 1.05,
+              color: C.white,
+            }}
+          >
+            Ask the catalog anything.
+            <br />
+            <span style={{ color: C.ink400 }}>It answers like an operator.</span>
+          </h2>
+          <p
+            className="mt-6 max-w-2xl"
+            style={{
+              fontFamily: FONT_SANS,
+              fontSize: '17px',
+              lineHeight: 1.65,
+              color: C.ink200,
+            }}
+          >
+            PackAI is our free AI packaging assistant for cafés, restaurants, cloud
+            kitchens and hotels. It knows every paper cup, lid, bag and take-out
+            container we make — and answers with real specifications, full-container
+            pricing and direct product links from the live Aeros catalog.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+          {steps.map((st, i) => (
+            <div
+              key={st.n}
+              className={`transition-all duration-700 ${
+                visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+              style={{
+                background: '#111110',
+                border: '1px solid #262624',
+                borderRadius: '24px',
+                padding: '28px',
+                transitionDelay: `${i * 100}ms`,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: FONT_MONO,
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  color: C.ink400,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {st.n}
+              </span>
+              <h3
+                className="mt-5"
+                style={{
+                  fontFamily: FONT_SANS,
+                  fontWeight: 700,
+                  fontSize: '19px',
+                  letterSpacing: '-0.01em',
+                  color: C.white,
+                }}
+              >
+                {st.title}
+              </h3>
+              <p
+                className="mt-2"
+                style={{
+                  fontFamily: FONT_SANS,
+                  fontSize: '14.5px',
+                  lineHeight: 1.6,
+                  color: C.ink400,
+                }}
+              >
+                {st.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <span
+            style={{
+              fontFamily: FONT_MONO,
+              fontSize: '12px',
+              color: C.ink400,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Try it
+          </span>
+          {samples.map((q) => (
+            <button
+              key={q}
+              onClick={() => ask(q)}
+              className="transition hover:bg-white hover:text-black"
+              style={{
+                fontFamily: FONT_SANS,
+                fontSize: '13.5px',
+                color: C.ink100,
+                background: 'transparent',
+                border: '1px solid #3a3a38',
+                borderRadius: '999px',
+                padding: '8px 16px',
+                cursor: 'pointer',
+              }}
+            >
+              {q}
+            </button>
+          ))}
+        </div>
+
+        <p
+          className="mt-10"
+          style={{
+            fontFamily: FONT_MONO,
+            fontSize: '12.5px',
+            color: C.ink600,
+            letterSpacing: '0.02em',
+          }}
+        >
+          Coming soon — full consultations: share your menu, get a complete packaging
+          blueprint for your café, priced and ready to order.
+        </p>
+      </div>
+    </section>
+  );
+};
+
 const CTA = () => {
   const { ref, visible } = useReveal();
   return (
@@ -1375,10 +1545,10 @@ export default function LandingClient() {
       <SocialProof />
       <Surfaces />
       <Knowledge />
+      <PackAI />
       <Select />
       <CTA />
       <Footer />
-      <ChatWidget />
     </div>
   );
 }
