@@ -75,17 +75,35 @@ function isOverdueLocal(job, today) {
 
 const ACTIVE = (j) => j.stage !== "Dispatched" && j.stage !== "Delivered";
 
-export default function CustomerJobsView({ jobs, clientMap, unreadIds = [], activeClient = null }) {
+export default function CustomerJobsView({
+  jobs,
+  clientMap,
+  unreadIds = [],
+  artworkPendingIds = [],
+  activeClient = null,
+}) {
   const [q, setQ] = useState("");
   const [showPast, setShowPast] = useState(false);
   const [today, setToday] = useState(null);
   useEffect(() => setToday(new Date().toISOString().slice(0, 10)), []);
 
   const unread = useMemo(() => new Set(unreadIds), [unreadIds]);
-  const kpi = useMemo(() => classifyForKpi(jobs), [jobs]);
+
+  // Stamp the thread-derived artwork flag onto each job before anything
+  // downstream (nextStep, needsCustomerAttention, KPIs) reads it — the
+  // server computed which jobs actually have unapproved team artwork.
+  const scopedJobs = useMemo(() => {
+    const pending = new Set(artworkPendingIds);
+    if (pending.size === 0) return jobs;
+    return jobs.map((j) =>
+      pending.has(j.id) ? { ...j, artworkAwaitingApproval: true } : j,
+    );
+  }, [jobs, artworkPendingIds]);
+
+  const kpi = useMemo(() => classifyForKpi(scopedJobs), [scopedJobs]);
   const overdueCount = useMemo(
-    () => jobs.filter((j) => isOverdueLocal(j, today)).length,
-    [jobs, today],
+    () => scopedJobs.filter((j) => isOverdueLocal(j, today)).length,
+    [scopedJobs, today],
   );
 
   // Bucket once — active / past — and apply search across both. Sorting:
@@ -98,8 +116,8 @@ export default function CustomerJobsView({ jobs, clientMap, unreadIds = [], acti
       const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.poNumber || ""}`.toLowerCase();
       return hay.includes(term);
     };
-    const a = jobs.filter((j) => ACTIVE(j) && match(j));
-    const p = jobs.filter((j) => !ACTIVE(j) && match(j));
+    const a = scopedJobs.filter((j) => ACTIVE(j) && match(j));
+    const p = scopedJobs.filter((j) => !ACTIVE(j) && match(j));
     const rank = (j) => {
       if (needsCustomerAttention(j)) return 4;
       if (unread.has(j.id)) return 3;
@@ -117,11 +135,11 @@ export default function CustomerJobsView({ jobs, clientMap, unreadIds = [], acti
     });
     p.sort((x, y) => (y.orderDate || "").localeCompare(x.orderDate || ""));
     return { active: a, past: p };
-  }, [jobs, q, unread, today]);
+  }, [scopedJobs, q, unread, today]);
 
   const attention = useMemo(
-    () => jobs.filter((j) => ACTIVE(j) && (needsCustomerAttention(j) || unread.has(j.id) || isOverdueLocal(j, today))),
-    [jobs, unread, today],
+    () => scopedJobs.filter((j) => ACTIVE(j) && (needsCustomerAttention(j) || unread.has(j.id) || isOverdueLocal(j, today))),
+    [scopedJobs, unread, today],
   );
 
   return (

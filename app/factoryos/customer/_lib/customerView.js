@@ -79,13 +79,13 @@ export function whatHappeningNow(job) {
 // hunt for it.
 export function nextStep(job) {
   if (!job) return null;
-  // Customer action needed — outranks everything else.
-  if (!job.customerArtworkApprovedAt && job.stage === "RM Pending") {
+  // Customer action needed — outranks everything else. Keyed off
+  // `artworkAwaitingApproval`, which callers compute from the thread
+  // (team-posted artwork present + no approval stamp). Guessing from the
+  // stage alone made every fresh RM Pending job nag the customer to
+  // approve artwork that didn't exist yet.
+  if (job.artworkAwaitingApproval === true && job.stage === "RM Pending") {
     return { tone: "action", text: "Awaiting artwork approval from you" };
-  }
-  if (!job.customerArtworkApprovedAt && job.stage === "Under Printing") {
-    // Edge case — printing started without explicit sign-off (legacy data).
-    return { tone: "info", text: "Printing in progress" };
   }
   switch (job.stage) {
     case "RM Pending":         return { tone: "info", text: "Raw material being arranged" };
@@ -127,12 +127,13 @@ function shiftDateString(isoLike, days) {
 }
 
 // Health flag: does this job need the customer's attention right now? Used by
-// the dashboard's "Needs your attention" strip. Cheap to compute on the client.
+// the dashboard's "Needs your attention" strip. Relies on the same
+// thread-derived `artworkAwaitingApproval` flag as nextStep — stage alone
+// is not a signal that the customer owes us anything.
 export function needsCustomerAttention(job) {
   if (!job) return false;
   if (job.stage === "Delivered" || job.stage === "Dispatched") return false;
-  if (!job.customerArtworkApprovedAt && job.stage === "RM Pending") return true;
-  return false;
+  return job.artworkAwaitingApproval === true;
 }
 
 // Strip internal-only signals out of a `job_status_updates` note before we

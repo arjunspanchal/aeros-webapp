@@ -74,11 +74,11 @@ function subTabsFor(pathname, session) {
   if (active === "factoryos") {
     const role = session?.modules?.factoryos;
     if (role === "customer") {
-      return [
-        { href: "/factoryos/customer",          label: "My Orders",      short: "Orders"   },
-        { href: "/factoryos/customer/pos",      label: "Purchase Orders", short: "POs"     },
-        { href: "/factoryos/customer/profile",  label: "Profile",        short: "Profile"  },
-      ];
+      // Customer nav lives in the portal's own sticky CustomerNavBar
+      // (client picker + Orders/Inbox/Documents/POs/Profile). Emitting a
+      // second, staler tab row here doubled the chrome and the header's
+      // extra h-10 row overlapped the navbar's top-14 sticky offset.
+      return [];
     }
     const internal = role === "admin" || role === "account_manager" || role === "factory_manager" || role === "factory_executive";
     const adminish = role === "admin" || role === "factory_manager";
