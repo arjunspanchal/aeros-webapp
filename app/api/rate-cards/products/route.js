@@ -2,7 +2,7 @@
 // Reads the same catalog base the public /catalog page uses.
 
 import { getSession, requireRole, requireAdminStrict } from "@/lib/auth/session";
-import { fetchCatalog } from "@/lib/catalog";
+import { fetchCatalogLite } from "@/lib/catalog";
 
 export const runtime = "nodejs";
 // Reads cookies via getSession() — opt out of static prerendering so Vercel
@@ -19,24 +19,12 @@ export async function GET() {
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!isRateCardAdmin(session)) return new Response("Forbidden", { status: 403 });
   try {
-    const products = await fetchCatalog();
-    // Slim the payload — we only need identity + spec fields to pre-fill.
-    const slim = products.map((p) => ({
-      id: p.id,
-      sku: p.sku,
-      productName: p.productName,
-      category: p.category,
-      subCategory: p.subCategory,
-      sizeVolume: p.sizeVolume,
-      material: p.material,
-      gsm: p.gsm,
-      wallType: p.wallType,
-      coating: p.coating,
-      unitsPerCase: p.unitsPerCase,
-      cartonDimensions: p.cartonDimensions,
-      colour: p.colour,
-    }));
-    return Response.json(slim);
+    // Lite fetch: the picker needs identity + spec fields to pre-fill, not
+    // photos/pricing — fetchCatalog() fires a photos query per product
+    // (~600 round trips). specFields adds the 6 spec columns to the one
+    // query, matching the 13-field shape this endpoint has always returned.
+    const products = await fetchCatalogLite({ specFields: true });
+    return Response.json(products);
   } catch (err) {
     return Response.json({ error: String(err?.message || err) }, { status: 500 });
   }
