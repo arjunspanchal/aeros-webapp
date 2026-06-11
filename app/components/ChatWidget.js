@@ -23,6 +23,18 @@ export default function ChatWidget() {
     if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, open]);
 
+  // Page sections (e.g. the PackAI homepage block) can open the chat —
+  // optionally pre-asking a question — via a window event.
+  useEffect(() => {
+    const onOpen = (e) => {
+      setOpen(true);
+      const q = e?.detail?.question;
+      if (q) append({ role: 'user', content: q });
+    };
+    window.addEventListener('aeros:open-chat', onOpen);
+    return () => window.removeEventListener('aeros:open-chat', onOpen);
+  }, [append]);
+
   return (
     <>
       {/* Floating button */}
