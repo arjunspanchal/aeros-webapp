@@ -1,5 +1,6 @@
 import { fetchPpCupsAndLids, USD_PER_INR_DIVISOR } from "@/lib/pp-cups";
 import { Brand } from "@/app/components/ui/Brand";
+import { AllRatesLink } from "@/app/components/ui/AllRatesLink";
 import { PpGuide } from "./PpGuide";
 import { LidGallery } from "./LidGallery";
 import {
@@ -45,7 +46,10 @@ export default async function PpCupsPage() {
         {/* Masthead — sticky so the currency / unit toggles stay reachable. */}
         <header className="sticky top-0 z-20 border-b border-ink-200 bg-white">
           <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex flex-wrap items-center justify-between gap-3">
-            <Brand size="md" href="/" />
+            <div className="flex items-center gap-3">
+              <Brand size="md" href="/" />
+              <AllRatesLink />
+            </div>
             <div className="flex items-center gap-2">
               <BasisToggle />
               <CurrencyToggle />

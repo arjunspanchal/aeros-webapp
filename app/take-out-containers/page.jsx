@@ -1,5 +1,6 @@
 import { fetchTakeOutContainers, USD_PER_INR_DIVISOR } from "@/lib/take-out-containers";
 import { Brand } from "@/app/components/ui/Brand";
+import { AllRatesLink } from "@/app/components/ui/AllRatesLink";
 import TakeOutBrowser from "./TakeOutBrowser";
 import { CurrencyProvider, CurrencyToggle, UnitToggle, OfferingToggle } from "./Currency";
 
@@ -34,7 +35,10 @@ export default async function TakeOutContainersPage() {
         {/* Masthead — sticky so the toggles stay reachable. */}
         <header className="sticky top-0 z-20 border-b border-ink-200 bg-white">
           <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 flex flex-wrap items-center justify-between gap-3">
-            <Brand size="md" href="/" />
+            <div className="flex items-center gap-3">
+              <Brand size="md" href="/" />
+              <AllRatesLink />
+            </div>
             <div className="flex items-center gap-2">
               <OfferingToggle />
               <CurrencyToggle />
