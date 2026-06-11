@@ -113,7 +113,11 @@ export default function LoginForm() {
     });
     setBusy(false);
     if (!res.ok) { setErr((await res.json()).error || "Failed"); return; }
-    router.push(next);
+    const data = await res.json().catch(() => ({}));
+    // An explicit ?next= overrides the server's suggestion (so deep links
+    // still work — e.g. clicking an email link to a specific order).
+    const dest = search.get("next") || data.redirect || next;
+    router.push(dest);
   }
 
   async function adminLogin(e) {

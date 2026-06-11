@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { listCustomerPOs } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
+import { getActiveClientId } from "@/lib/factoryos/customerScope";
 import CustomerPOsClient from "./CustomerPOsClient";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,11 @@ export default async function CustomerPOsPage() {
   if (!session || !role) redirect("/login");
   if (role !== ROLES.CUSTOMER) redirect("/factoryos");
 
-  const pos = await listCustomerPOs({ clientIds: session.factoryosClientIds || [] });
+  const linkedIds = session.factoryosClientIds || [];
+  const activeClientId = getActiveClientId(linkedIds);
+  const pos = await listCustomerPOs({
+    clientIds: activeClientId ? [activeClientId] : linkedIds,
+  });
 
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

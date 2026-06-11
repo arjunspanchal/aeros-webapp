@@ -99,23 +99,20 @@ export function nextStep(job) {
   }
 }
 
-// Derive a sensible ETA when none is set. Falls back to `order_date + typical
-// production window`. Returns null only if we truly have nothing (no order
-// date at all). The UI labels derived dates as "Expected" so the customer
-// knows it's an estimate, not a commitment.
+// Surface the ETA only when Aeros has actually committed one. Previously
+// this fell back to `order_date + 28d`, which generated dates the team had
+// never agreed to; a café customer could plan a launch around that and get
+// burned. Now: if there's an explicit `estimated_delivery_date`, show it;
+// otherwise hand back a soft "we'll confirm shortly" hint via isPending.
 //
-// Window picked from Aeros' typical lead times (paper bags ~25d, cups ~30d).
-// Conservative — better to overshoot than under-promise.
-const PRODUCTION_WINDOW_DAYS = 28;
+// Returning `expectedDispatchDate` (Aeros-internal) is still allowed because
+// it IS a team-set field — just treat it as less firm than the customer ETA.
 export function derivedEta(job) {
   if (job?.estimatedDeliveryDate) return { date: job.estimatedDeliveryDate, isExplicit: true };
   if (job?.expectedDispatchDate) {
     return { date: shiftDateString(job.expectedDispatchDate, 3), isExplicit: false };
   }
-  if (job?.orderDate) {
-    return { date: shiftDateString(job.orderDate, PRODUCTION_WINDOW_DAYS), isExplicit: false };
-  }
-  return null;
+  return { date: null, isPending: true };
 }
 
 function shiftDateString(isoLike, days) {
