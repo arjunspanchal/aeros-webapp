@@ -13,7 +13,7 @@ export default function ChatWidget() {
       {
         id: 'welcome',
         role: 'assistant',
-        content: "Hi! I'm **PackAI** 👋 — the Aeros packaging assistant.\n\nAsk me about anything in our **Fresh Catalog** or **Clearance Stock** — cups, lids, bags, containers. What are you looking for?",
+        content: "Hi, I'm **PackAI** 👋\n\nTell me what you're building — a café, restaurant, cloud kitchen or hotel — and I'll help you work out the packaging it needs. Or ask me about any product in the Aeros range.",
       },
     ],
   });
@@ -108,10 +108,10 @@ export default function ChatWidget() {
           {messages.length === 1 && (
             <div className="border-t border-gray-100 px-4 py-2 flex flex-wrap gap-1.5">
               {[
-                'What cups do you have?',
-                'Show me clearance stock',
-                'Paper bags available?',
-                'What lids fit 98mm tubs?',
+                'I\'m opening a café — what packaging will I need?',
+                'How do I deliver a hot beverage safely?',
+                'Do you have 12oz double wall cups?',
+                'Show me clearance deals',
               ].map((q) => (
                 <button
                   key={q}
