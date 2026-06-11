@@ -245,3 +245,171 @@ function CheckMark() {
     </svg>
   );
 }
+
+// ── Printing & customisation ────────────────────────────────────────────────
+// Mirrors the paper-bag sheet's explainer: the two print methods we run, then
+// what "ink coverage" means and why it moves the rate. The cup fan is printed
+// flat (before forming), so both methods describe printing the blank.
+
+const PRINT_METHODS = [
+  {
+    name: "Flexographic",
+    tag: "Flexo",
+    how: "Flexible relief plates print the cup board on the reel, before the fan is cut and formed. One plate per colour, made once for your artwork.",
+    look: "Bold logos, line work and solid Pantone-matched colours — crisp, consistent, fast.",
+    pick: "The workhorse for branded cups: up to 4 spot colours, best value on volume runs.",
+  },
+  {
+    name: "Offset",
+    tag: "Offset",
+    how: "Sheet-fed litho printing on the flat cup blank, which is then die-cut and formed. Plates carry much finer detail than flexo.",
+    look: "Halftones, gradients and photographic artwork — magazine-grade detail on the cup.",
+    pick: "Pick for premium, art-heavy designs where fine detail matters more than run speed.",
+  },
+];
+
+// Coverage tiers — the share of the cup's printable fan carrying ink. Drawn as
+// a cup with that much ink filled, same convention as the paper-bag sheet.
+const CUP_COVERAGE = [
+  {
+    pct: "10%",
+    word: "Light",
+    variant: "light",
+    body: "A single small logo or mark on the bare board — minimal ink, the most economical print. Typical café-branded cups.",
+  },
+  {
+    pct: "30%",
+    word: "Medium",
+    variant: "medium",
+    body: "Logo plus text, a band or part-background. A fuller branded look at a moderate ink cost.",
+  },
+  {
+    pct: "100%",
+    word: "Full",
+    variant: "full",
+    body: "Edge-to-edge flood colour or full-wrap artwork. The richest look and the most ink — the highest print rate.",
+  },
+];
+
+function CoverageCup({ variant }) {
+  const clipId = `cup-ink-${variant}`;
+  return (
+    <svg viewBox="0 0 80 100" className="h-16 w-auto" fill="none" aria-hidden="true">
+      <defs>
+        {/* keep ink inside the tapered body */}
+        <clipPath id={clipId}>
+          <path d="M22 24 L30 88 L50 88 L58 24 Z" />
+        </clipPath>
+      </defs>
+
+      {/* ink coverage */}
+      {variant === "light" && (
+        <circle cx="40" cy="52" r="9" className="text-ink-900" fill="currentColor" />
+      )}
+      {variant === "medium" && (
+        <g className="text-ink-900" fill="currentColor" clipPath={`url(#${clipId})`}>
+          <rect x="20" y="58" width="40" height="22" />
+          <rect x="31" y="36" width="18" height="4" rx="1" />
+        </g>
+      )}
+      {variant === "full" && (
+        <g clipPath={`url(#${clipId})`}>
+          <rect x="20" y="24" width="40" height="64" className="text-ink-900" fill="currentColor" />
+          <circle cx="40" cy="50" r="8" className="text-ink-50" fill="currentColor" />
+        </g>
+      )}
+
+      {/* cup outline on top — taper, rim, base */}
+      <g className="text-ink-300" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <path d="M22 24 L30 88" />
+        <path d="M58 24 L50 88" />
+        <ellipse cx="40" cy="24" rx="18" ry="4" />
+        <path d="M30 88 L50 88" />
+      </g>
+    </svg>
+  );
+}
+
+export function PrintingAndCoverage() {
+  return (
+    <section id="printing" className="mt-12">
+      <div className="border-b border-ink-300 pb-2">
+        <h2 className="text-lg font-bold text-ink-900">Printing &amp; customisation</h2>
+      </div>
+      <p className="mt-2 max-w-2xl text-sm text-ink-600">
+        Every cup on this sheet is also made to order in your branding. The cup is printed flat —
+        as a fan, before it&rsquo;s formed — by one of two methods, and priced by how much of it
+        carries ink.
+      </p>
+
+      {/* The two print methods */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {PRINT_METHODS.map((m) => (
+          <div key={m.tag} className="rounded-md border border-ink-200 bg-white p-5">
+            <div className="flex items-center gap-2">
+              <span className="rounded bg-ink-900 px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-wider text-white">
+                {m.tag}
+              </span>
+              <p className="text-sm font-bold text-ink-900">{m.name}</p>
+            </div>
+            <dl className="mt-3 space-y-2 text-xs leading-relaxed text-ink-600">
+              <div>
+                <dt className="font-semibold uppercase tracking-wide text-ink-400">How it works</dt>
+                <dd className="mt-0.5">{m.how}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold uppercase tracking-wide text-ink-400">The look</dt>
+                <dd className="mt-0.5">{m.look}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold uppercase tracking-wide text-ink-400">When to pick it</dt>
+                <dd className="mt-0.5">{m.pick}</dd>
+              </div>
+            </dl>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 max-w-2xl text-xs text-ink-500">
+        Both methods carry a <strong className="text-ink-700">one-time plate (flexo) or die
+        (offset) charge per colour</strong>, made once for your artwork and amortised over the
+        run — quoted with your design, separate from the per-cup rate.
+      </p>
+
+      {/* Ink-coverage explainer — what 10% / 30% / 100% means and why it drives cost. */}
+      <div className="mt-6 rounded-md border border-ink-200 bg-white p-5">
+        <p className="text-xs uppercase tracking-wide text-ink-400">Print coverage &amp; cost</p>
+        <p className="mt-2 max-w-2xl text-sm text-ink-600">
+          &ldquo;Coverage&rdquo; is the share of the cup&rsquo;s printable surface that carries
+          ink. More coverage means more ink and a richer look — and a higher print rate:
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {CUP_COVERAGE.map((c) => (
+            <div key={c.variant} className="rounded-md border border-ink-200 bg-ink-50 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-20 w-16 shrink-0 items-center justify-center rounded border border-ink-200 bg-white">
+                  <CoverageCup variant={c.variant} />
+                </div>
+                <div>
+                  <p className="font-mono text-2xl font-bold leading-none text-ink-900">{c.pct}</p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-ink-500">
+                    {c.word}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-ink-600">{c.body}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="mt-4 text-xs leading-relaxed text-ink-500">
+          The <strong className="text-ink-700">Customised</strong> rates in the sheet below are an{" "}
+          <strong className="text-ink-700">approximate indication</strong> — they cover custom
+          print up to 4 colours on a quantity ladder from 5,000 pcs, and the final price varies
+          with your artwork (coverage, colour count and finish). We confirm the exact rate when we
+          quote your design.
+        </p>
+      </div>
+    </section>
+  );
+}

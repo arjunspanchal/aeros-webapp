@@ -1,7 +1,7 @@
 import { fetchPaperCups, USD_PER_INR_DIVISOR } from "@/lib/paper-cups";
 import { Brand } from "@/app/components/ui/Brand";
 import { CupGuide } from "./CupGuide";
-import { SupplyTerms, QualityChecks, PackingVisual } from "./TradeTerms";
+import { SupplyTerms, QualityChecks, PackingVisual, PrintingAndCoverage } from "./TradeTerms";
 import PaperCupsBrowser from "./PaperCupsBrowser";
 import { CurrencyProvider, CurrencyToggle, UnitToggle, RateModeToggle } from "./Currency";
 import { PricingBasisValue, RateBasisFootnote } from "./RateBasisCopy";
@@ -81,8 +81,9 @@ export default async function PaperCupsPage() {
                 </Term>
                 <Term label="Customisation">
                   Custom print up to 4 colours across the range. Switch to{" "}
-                  <strong className="text-ink-900">Customised</strong> for live rates — customised
-                  cups carry their own quantity ladder from 5,000 pcs.
+                  <strong className="text-ink-900">Customised</strong> for{" "}
+                  <strong className="text-ink-900">indicative</strong> rates on a quantity ladder
+                  from 5,000 pcs — the final price is confirmed with your artwork.
                 </Term>
               </section>
 
@@ -90,6 +91,9 @@ export default async function PaperCupsPage() {
               <SupplyTerms />
               <PackingVisual />
               <QualityChecks />
+
+              {/* Print methods + ink-coverage explainer */}
+              <PrintingAndCoverage />
 
               {/* Educational guide */}
               <CupGuide />
@@ -111,6 +115,11 @@ export default async function PaperCupsPage() {
                   invoicing is in INR unless otherwise agreed.
                 </p>
                 <RateBasisFootnote />
+                <p>
+                  Customised (printed) rates are an approximate indication only — the final price
+                  depends on your artwork (ink coverage, colour count and finish) and is confirmed
+                  when we quote your design.
+                </p>
                 <p>
                   Plain: {data.plainPriced} of {data.total} sizes listed with live rates ·
                   Customised: {data.printedPriced} of {data.total}. The remainder are quoted on

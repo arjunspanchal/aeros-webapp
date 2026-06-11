@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { listJobsForSession, listClients } from "@/lib/factoryos/repo";
+import {
+  customerUnreadJobIds,
+  listClients,
+  listJobsForSession,
+} from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import CustomerJobsView from "./CustomerJobsView";
 
@@ -21,12 +25,15 @@ export default async function CustomerPage() {
     listClients(),
   ]);
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));
+  // Narrow the unread lookup to the jobs this customer can actually see — we
+  // never want to ask Supabase about jobs they wouldn't be allowed to read.
+  const unreadIds = Array.from(
+    await customerUnreadJobIds(jobs.map((j) => j.id)),
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <CustomerJobsView jobs={jobs} clientMap={clientMap} />
-      </main>
-    </div>
+    <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <CustomerJobsView jobs={jobs} clientMap={clientMap} unreadIds={unreadIds} />
+    </main>
   );
 }

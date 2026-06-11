@@ -196,7 +196,7 @@ export default function PaperCupsBrowser({
         <OfferingToggle />
         <span className="text-xs text-ink-500">
           {offering === "printed"
-            ? "Custom print up to 4 colours · quantity ladder from 5,000 pcs"
+            ? "Custom print up to 4 colours · from 5,000 pcs · indicative rates — final price confirmed with your artwork"
             : "Plain, unprinted cups"}
         </span>
       </div>
