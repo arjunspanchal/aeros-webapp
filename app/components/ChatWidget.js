@@ -13,7 +13,7 @@ export default function ChatWidget() {
       {
         id: 'welcome',
         role: 'assistant',
-        content: "Hi! I'm the Aeros product assistant 👋\n\nI can help you find packaging products from our **Clearance Stock** or **Fresh Catalog**. What are you looking for?",
+        content: "Hi! I'm **PackAI** 👋 — the Aeros packaging assistant.\n\nAsk me about anything in our **Fresh Catalog** or **Clearance Stock** — cups, lids, bags, containers. What are you looking for?",
       },
     ],
   });
@@ -40,7 +40,7 @@ export default function ChatWidget() {
       {/* Floating button */}
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label={open ? 'Close chat' : 'Open product assistant'}
+        aria-label={open ? 'Close PackAI' : 'Open PackAI'}
         className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-ink-900 text-white shadow-lg transition hover:bg-ink-800 focus:outline-none focus:ring-4 focus:ring-ink-200"
       >
         {open ? (
@@ -65,8 +65,8 @@ export default function ChatWidget() {
               </svg>
             </div>
             <div>
-              <p className="text-sm font-semibold">Aeros Assistant</p>
-              <p className="text-xs text-white/70">Product finder · Always online</p>
+              <p className="text-sm font-semibold">Aeros PackAI</p>
+              <p className="text-xs text-white/70">Packaging assistant · Always online</p>
             </div>
           </div>
 
