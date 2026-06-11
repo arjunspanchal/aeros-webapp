@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { listClients, listUsers, listVendors, getNextJobNumber } from "@/lib/factoryos/repo";
 import { listMasterPapers } from "@/lib/paper-rm";
 import { ROLES } from "@/lib/factoryos/constants";
-import { fetchCatalog } from "@/lib/catalog";
+import { fetchCatalogLite } from "@/lib/catalog";
 import NewJobForm from "./NewJobForm";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +26,9 @@ export default async function NewJobPage() {
   const [clients, users, catalogResult, masterPapers, printingVendors, nextJNumber] = await Promise.all([
     listClients(),
     listUsers(),
-    fetchCatalog()
+    // Lite fetch: the picker needs 7 text fields, not photos/pricing —
+    // fetchCatalog() fires a photos query per product (~600 round trips).
+    fetchCatalogLite()
       .then((products) => ({ products, error: null }))
       .catch((e) => {
         console.error("Catalog fetch failed:", e);
@@ -36,19 +38,10 @@ export default async function NewJobPage() {
     listVendors({ type: "Printing", activeOnly: true }).catch((e) => { console.error("Vendor fetch failed:", e); return []; }),
     getNextJobNumber(),
   ]);
-  const catalog = catalogResult.products;
+  // fetchCatalogLite already returns the slim picker shape the form uses.
+  const products = catalogResult.products;
   const catalogError = catalogResult.error;
   const accountManagers = users.filter((u) => u.role === ROLES.ACCOUNT_MANAGER && u.active);
-  // Slim down the product payload for the client bundle — we only need what the form uses.
-  const products = catalog.map((p) => ({
-    id: p.id,
-    productName: p.productName,
-    sku: p.sku,
-    category: p.category,
-    sizeVolume: p.sizeVolume,
-    gsm: p.gsm,
-    material: p.material,
-  }));
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">

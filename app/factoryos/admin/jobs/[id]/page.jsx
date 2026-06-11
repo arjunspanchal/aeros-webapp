@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { getJob, listJobUpdates, listClients, listVendors } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
-import { fetchCatalog } from "@/lib/catalog";
+import { fetchCatalogLite } from "@/lib/catalog";
 import JobEditor from "@/app/factoryos/manager/[id]/JobEditor";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,9 @@ export default async function AdminJobDetail({ params }) {
     listJobUpdates(job.id),
     listClients(),
     // Catalog is optional on edit — if it fails we still let the page load read-only.
-    fetchCatalog()
+    // Lite fetch: the picker needs 7 text fields, not photos/pricing —
+    // fetchCatalog() fires a photos query per product (~600 round trips).
+    fetchCatalogLite()
       .then((products) => ({ products, error: null }))
       .catch((e) => {
         console.error("Catalog fetch failed:", e);
@@ -35,19 +37,10 @@ export default async function AdminJobDetail({ params }) {
     listVendors({ type: "Printing", activeOnly: true }).catch(() => []),
   ]);
   const printingVendorNames = printingVendors.map((v) => v.name);
-  const catalog = catalogResult.products;
+  // fetchCatalogLite already returns the slim picker shape NewJobForm uses.
+  const products = catalogResult.products;
   const catalogError = catalogResult.error;
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));
-  // Slim the catalog payload — same shape NewJobForm uses.
-  const products = catalog.map((p) => ({
-    id: p.id,
-    productName: p.productName,
-    sku: p.sku,
-    category: p.category,
-    sizeVolume: p.sizeVolume,
-    gsm: p.gsm,
-    material: p.material,
-  }));
   const masterMappingLocked = (pushStatus?.push_count || 0) > 0;
 
   return (
