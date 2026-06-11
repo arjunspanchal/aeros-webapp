@@ -36,6 +36,16 @@ async function getCatalog() {
   return _catalog;
 }
 
+// Token-AND matching: every query word must appear in the haystack.
+// Trailing "s" is trimmed from tokens so "cups" matches "Cup".
+function matchesQuery(haystack, query) {
+  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+  return tokens.every((t) => {
+    const stem = t.length > 3 && t.endsWith('s') ? t.slice(0, -1) : t;
+    return haystack.includes(stem);
+  });
+}
+
 const SYSTEM_PROMPT = `You are a helpful product assistant for Aeros, a packaging products company based in Mumbai, India.
 
 You help customers find the right packaging products from two ranges:
@@ -101,12 +111,10 @@ export async function POST(req) {
         }),
         execute: async ({ query, category }) => {
           const items = await getClearance();
-          const q = query.toLowerCase();
           const results = items.filter((item) => {
             const haystack = `${item.item_name} ${item.category || ''} ${item.brand || ''} ${item.material || ''} ${item.description || ''}`.toLowerCase();
-            const matchesQuery = haystack.includes(q);
             const matchesCategory = !category || (item.category || '').toLowerCase().includes(category.toLowerCase());
-            return matchesQuery && matchesCategory;
+            return matchesQuery(haystack, query) && matchesCategory;
           }).slice(0, 8);
 
           if (results.length === 0) return { found: 0, results: [] };
@@ -132,12 +140,10 @@ export async function POST(req) {
         }),
         execute: async ({ query, category }) => {
           const products = await getCatalog();
-          const q = query.toLowerCase();
           const results = products.filter((p) => {
             const haystack = `${p.product_name} ${p.sku || ''} ${p.category || ''} ${p.sub_category || ''} ${p.material || ''} ${p.size_volume || ''} ${p.colour || ''}`.toLowerCase();
-            const matchesQuery = haystack.includes(q);
             const matchesCategory = !category || (p.category || '').toLowerCase().includes(category.toLowerCase());
-            return matchesQuery && matchesCategory;
+            return matchesQuery(haystack, query) && matchesCategory;
           }).slice(0, 8);
 
           if (results.length === 0) return { found: 0, results: [] };
