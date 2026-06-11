@@ -153,6 +153,17 @@ export default function PpCupsBrowser({
   // spans more than one country — otherwise it's redundant clutter.
   const showOrigin = originOptions.length > 1;
 
+  // Rim diameters (TD) of the cups matching the selected volume — so a volume
+  // pick keeps the COMPATIBLE lids visible (a lid fits when its Ø equals the
+  // cup's TD) instead of hiding every lid.
+  const compatDias = useMemo(() => {
+    if (volume === "all") return null;
+    const set = new Set();
+    for (const s of sections)
+      for (const r of s.rows) if (!r.isLid && r.oz === volume && r.dia != null) set.add(r.dia);
+    return set;
+  }, [sections, volume]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sections
@@ -167,7 +178,14 @@ export default function PpCupsBrowser({
               .includes(q)
           )
             return false;
-          if (volume !== "all" && r.oz !== volume) return false;
+          if (volume !== "all") {
+            if (!r.isLid) {
+              if (r.oz !== volume) return false;
+            } else if (r.dia == null || !compatDias?.has(r.dia)) {
+              // Keep only the lids that fit the selected cups' rims.
+              return false;
+            }
+          }
           if (finish !== "all" && r.finish !== finish) return false;
           if (origin !== "all" && r.origin !== origin) return false;
           const hasPrice = r[offering]?.entry != null;
@@ -177,7 +195,7 @@ export default function PpCupsBrowser({
         }),
       }))
       .filter((s) => s.rows.length > 0);
-  }, [sections, query, type, volume, finish, origin, availability, offering]);
+  }, [sections, query, type, volume, finish, origin, availability, offering, compatDias]);
 
   const shown = filtered.reduce((n, s) => n + s.rows.length, 0);
   const isFiltered =
@@ -278,6 +296,12 @@ export default function PpCupsBrowser({
                 </Chip>
               ))}
             </div>
+            {volume !== "all" && compatDias && compatDias.size > 0 ? (
+              <p className="mt-1.5 text-[11px] text-ink-400">
+                Also showing the lids that fit {volume}oz cups (
+                {[...compatDias].sort((a, b) => a - b).map((d) => `Ø${d}`).join(", ")}).
+              </p>
+            ) : null}
           </div>
         )}
 
