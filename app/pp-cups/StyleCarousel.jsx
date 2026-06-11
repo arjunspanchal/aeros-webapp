@@ -1,14 +1,15 @@
 "use client";
 
-// Horizontal carousel for the lid-styles gallery. Native scroll with snap
-// points (so it swipes naturally on touch), plus arrow buttons on desktop.
-// Receives a plain array of lids from the LidGallery server component —
-// { sku, title, typeLabel, size, src } — and renders one card each. No data
+// Shared horizontal carousel for the cup- and lid-styles galleries. Native
+// scroll with snap points (so it swipes naturally on touch), plus arrow
+// buttons on desktop. Receives a plain array of items from a server gallery
+// component — { sku, title, typeLabel, size, src } — and renders one card
+// each. `kind` only picks the placeholder line-art (cup vs lid). No data
 // fetching, no external carousel lib.
 
 import { useEffect, useRef, useState } from "react";
 
-export function LidCarousel({ lids }) {
+export function StyleCarousel({ items, kind = "lid", label }) {
   const trackRef = useRef(null);
   const [canPrev, setCanPrev] = useState(false);
   const [canNext, setCanNext] = useState(true);
@@ -33,7 +34,6 @@ export function LidCarousel({ lids }) {
     };
   }, []);
 
-  // Scroll by one viewport (rounded to whole cards via snap points).
   const nudge = (dir) => {
     const el = trackRef.current;
     if (!el) return;
@@ -41,8 +41,7 @@ export function LidCarousel({ lids }) {
   };
 
   return (
-    <div className="relative mt-6" role="region" aria-label="Lid styles carousel">
-      {/* Arrows — hidden on touch-first small screens where swiping is natural. */}
+    <div className="relative mt-6" role="region" aria-label={label}>
       <CarouselArrow side="left" disabled={!canPrev} onClick={() => nudge(-1)} />
       <CarouselArrow side="right" disabled={!canNext} onClick={() => nudge(1)} />
 
@@ -50,30 +49,30 @@ export function LidCarousel({ lids }) {
         ref={trackRef}
         className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        {lids.map((lid) => (
+        {items.map((item) => (
           <li
-            key={lid.sku}
+            key={item.sku}
             className="w-[200px] shrink-0 snap-start overflow-hidden rounded-md border border-ink-200 bg-white sm:w-[220px]"
           >
             <div className="aspect-square w-full bg-ink-50">
-              {lid.src ? (
+              {item.src ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={lid.src}
-                  alt={`${lid.typeLabel} — ${lid.title} — Aeros PP lid (${lid.sku})`}
+                  src={item.src}
+                  alt={`${item.typeLabel} — ${item.title} — Aeros (${item.sku})`}
                   loading="lazy"
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <LidPlaceholder />
+                <StylePlaceholder kind={kind} />
               )}
             </div>
             <div className="p-3">
-              <p className="font-mono text-[11px] text-ink-400">{lid.sku}</p>
-              <h3 className="mt-0.5 text-sm font-bold leading-tight text-ink-900">{lid.title}</h3>
+              <p className="font-mono text-[11px] text-ink-400">{item.sku}</p>
+              <h3 className="mt-0.5 text-sm font-bold leading-tight text-ink-900">{item.title}</h3>
               <p className="mt-0.5 text-xs text-ink-500">
-                {lid.typeLabel}
-                {lid.size ? ` · ${lid.size}` : ""}
+                {item.typeLabel}
+                {item.size ? ` · ${item.size}` : ""}
               </p>
             </div>
           </li>
@@ -89,7 +88,7 @@ function CarouselArrow({ side, disabled, onClick }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      aria-label={side === "left" ? "Previous lids" : "More lids"}
+      aria-label={side === "left" ? "Previous" : "More"}
       className={
         "absolute top-[100px] z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border bg-white shadow-sm transition-opacity sm:flex " +
         (side === "left" ? "-left-3 " : "-right-3 ") +
@@ -114,23 +113,40 @@ function CarouselArrow({ side, disabled, onClick }) {
   );
 }
 
-function LidPlaceholder() {
+function StylePlaceholder({ kind }) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-ink-300">
-      <svg
-        viewBox="0 0 80 56"
-        className="h-12 w-auto"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M14 30 L66 30 L60 42 L20 42 Z" />
-        <ellipse cx="40" cy="30" rx="26" ry="6" />
-        <path d="M50 28 q7 -2 8 -12 q-7 1 -10 5" strokeWidth="1.6" />
-      </svg>
+      {kind === "cup" ? (
+        <svg
+          viewBox="0 0 80 96"
+          className="h-16 w-auto"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M24 22 L56 22 L51 80 L29 80 Z" />
+          <path d="M22 22 L58 22" />
+          <path d="M34 30 L32 72" strokeWidth="1" opacity="0.5" />
+        </svg>
+      ) : (
+        <svg
+          viewBox="0 0 80 56"
+          className="h-12 w-auto"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M14 30 L66 30 L60 42 L20 42 Z" />
+          <ellipse cx="40" cy="30" rx="26" ry="6" />
+          <path d="M50 28 q7 -2 8 -12 q-7 1 -10 5" strokeWidth="1.6" />
+        </svg>
+      )}
       <span className="px-3 text-center font-mono text-[10px] uppercase tracking-wider">
         Photo coming soon
       </span>

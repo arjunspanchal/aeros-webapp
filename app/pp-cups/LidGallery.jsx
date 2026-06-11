@@ -8,7 +8,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { LidCarousel } from "./LidCarousel";
+import { StyleCarousel } from "./StyleCarousel";
 
 const LID_IMG_DIR = path.join(process.cwd(), "public", "pp-cups", "lids");
 
@@ -54,7 +54,7 @@ export function LidGallery({ sections }) {
         diameter.
       </p>
 
-      <LidCarousel lids={lids} />
+      <StyleCarousel items={lids} kind="lid" label="Lid styles carousel" />
 
       <p className="mt-3 text-xs text-ink-400">
         Product photos are added per lid — styles without a photo yet show a placeholder.

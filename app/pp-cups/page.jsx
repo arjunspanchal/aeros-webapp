@@ -3,6 +3,7 @@ import { Brand } from "@/app/components/ui/Brand";
 import { AllRatesLink } from "@/app/components/ui/AllRatesLink";
 import { PpGuide } from "./PpGuide";
 import { LidGallery } from "./LidGallery";
+import { CupGallery } from "./CupGallery";
 import {
   SupplyTerms,
   QualityChecks,
@@ -109,6 +110,7 @@ export default async function PpCupsPage() {
 
               {/* Educational guide + lid styles gallery + customisation */}
               <PpGuide />
+              <CupGallery sections={data.sections} />
               <LidGallery sections={data.sections} />
               <Customisation />
 
