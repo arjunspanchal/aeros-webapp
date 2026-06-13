@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import ProductCard from './ProductCard';
 
 // Secondary facets, in display order. Only the rows with ≥2 distinct values
@@ -112,6 +112,15 @@ export default function ProductGrid({ products, categories }) {
 
   const selectedList = useMemo(() => Array.from(selected), [selected]);
 
+  // Render a window of cards rather than all ~600 at once — rendering the full
+  // set was the page's dominant cost. Filters/search still run over the whole
+  // catalog (above); we just cap how many cards mount. Reset the window
+  // whenever the filter result changes so a new search starts from the top.
+  const PAGE_SIZE = 48;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [query, selected, facets]);
+  const visible = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+
   return (
     <div>
       {/* Search + filters */}
@@ -189,11 +198,26 @@ export default function ProductGrid({ products, categories }) {
           <p className="text-gray-500 dark:text-gray-400">No products match your search. Try a different term or category.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {visible.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+          {filtered.length > visibleCount && (
+            <div className="mt-8 flex flex-col items-center gap-2">
+              <button
+                onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                className="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:border-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Load more
+              </button>
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                Showing {visible.length} of {filtered.length}
+              </span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
