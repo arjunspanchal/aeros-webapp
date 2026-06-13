@@ -1,4 +1,4 @@
-import { fetchCatalog, getCatalogCategories, canManageCatalogue } from '@/lib/catalog';
+import { fetchCatalog, getCatalogCategories } from '@/lib/catalog';
 import { getSession } from '@/lib/hub/session';
 import ProductGrid from './components/ProductGrid';
 import AppHeader from '../components/AppHeader';
@@ -12,6 +12,27 @@ export const metadata = {
   description: 'Browse our full range of packaging products — paper cups, tubs, lids, food boxes, bags, straws, and salad bowls.',
 };
 
+// ProductGrid is a client component, so every field we pass gets serialised
+// into the page payload AND server-rendered for ~600 cards. fetchCatalog
+// returns the full product (pricing-tier arrays, every spec column, internal
+// notes) — most of which the grid + card never read, bloating the payload to
+// several MB and slowing TTFB. Project to exactly the fields the grid/facets
+// and the card use. This also drops `notes` for everyone, so no session-based
+// masking is needed.
+const GRID_FIELDS = [
+  "id", "productName", "sku", "category", "subCategory",
+  "sizeVolume", "sizeLabel", "material", "gsm", "colour",
+  "wallType", "coating", "lidProcess", "wrapping",
+  "unitsPerCase", "casesPerPallet", "cartonDimensions",
+  "images", "landed", "compatibleWith", "whatsappUrl", "emailUrl",
+];
+
+function slimForGrid(p) {
+  const out = {};
+  for (const k of GRID_FIELDS) if (p[k] !== undefined) out[k] = p[k];
+  return out;
+}
+
 export default async function CatalogPage() {
   let products = [];
   let error = null;
@@ -24,12 +45,9 @@ export default async function CatalogPage() {
 
   const categories = getCatalogCategories(products);
   const session = getSession();
-  // Mask the internal-notes field for non-staff viewers so it doesn't ship
-  // in the RSC payload to ProductGrid (a client component). The list cards
-  // never render notes, but RSC serialises every prop the client gets.
-  if (!canManageCatalogue(session)) {
-    products = products.map((p) => ({ ...p, notes: "" }));
-  }
+  // Slim the payload to grid-only fields (drops pricing tiers, unused specs,
+  // and internal notes) before handing it to the client component.
+  const slimProducts = products.map(slimForGrid);
 
   return (
     <>
@@ -52,7 +70,7 @@ export default async function CatalogPage() {
             </p>
           </div>
         ) : (
-          <ProductGrid products={products} categories={categories} />
+          <ProductGrid products={slimProducts} categories={categories} />
         )}
       </main>
       <Footer />
