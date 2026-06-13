@@ -3,8 +3,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { inputCls } from "@/app/factoryos/_components/ui";
-import { ATTENDANCE_WEIGHT } from "@/lib/factoryos/constants";
+import { ATTENDANCE_WEIGHT, ATTENDANCE_LOP } from "@/lib/factoryos/constants";
 import { daysInMonth, pad2 } from "@/lib/factoryos/hr";
+
+const csvEscape = (v) => {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
 
 function prevMonth(mk) {
   const [y, m] = mk.split("-").map(Number);
@@ -68,6 +73,58 @@ export default function CalendarView({
     router.push(url.pathname + "?" + url.searchParams.toString());
   }
 
+  // Download the monthly attendance register (muster) — per-employee day-by-day
+  // status plus totals — as a CSV that opens in Excel. Reflects the current
+  // search/scope (the employees shown above).
+  function exportRegister() {
+    const dayCols = Array.from({ length: days }, (_, i) => String(i + 1));
+    const header = [
+      "Code", "Name", "Designation",
+      ...dayCols,
+      "Present", "Half-day", "Absent", "Paid Leave", "Unpaid Leave",
+      "Week-off", "Holiday", "OT hrs", "LOP days", "Payable days",
+    ];
+    const lines = [header.map(csvEscape).join(",")];
+    for (const e of filtered) {
+      const rows = attendanceByEmployee[e.id] || [];
+      const byDate = Object.fromEntries(rows.map((r) => [r.date, r]));
+      const cells = [];
+      const cnt = { P: 0, H: 0, A: 0, PL: 0, UL: 0, WO: 0, HO: 0 };
+      let ot = 0;
+      let lop = 0;
+      for (let d = 1; d <= days; d++) {
+        const iso = `${monthKey}-${pad2(d)}`;
+        const r = byDate[iso];
+        let st = "";
+        if (r) {
+          st = r.status;
+          ot += Number(r.otHours) || 0;
+          lop += ATTENDANCE_LOP[r.status] ?? 0;
+        } else if (holidayMap[iso]) {
+          st = "HO";
+        } else if ((e.weeklyOffDays || [0]).includes(new Date(y, m - 1, d).getDay())) {
+          st = "WO";
+        }
+        if (st && cnt[st] !== undefined) cnt[st] += 1;
+        cells.push(st);
+      }
+      const payable = Math.max(0, days - lop);
+      lines.push([
+        e.employeeCode || "", e.name, e.designation || "",
+        ...cells,
+        cnt.P, cnt.H, cnt.A, cnt.PL, cnt.UL, cnt.WO, cnt.HO,
+        Number(ot.toFixed(2)), Number(lop.toFixed(2)), Number(payable.toFixed(2)),
+      ].map(csvEscape).join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `attendance-register-${monthKey}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="mt-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white border border-gray-200 rounded-xl p-3 dark:bg-gray-900 dark:border-gray-800">
@@ -82,15 +139,25 @@ export default function CalendarView({
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        {canToggleScope && (
+        <div className="flex items-center gap-2">
+          {canToggleScope && (
+            <button
+              type="button"
+              onClick={toggleScope}
+              className="text-xs px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            >
+              {showingAll ? "View: all employees" : "View: my reports only"}
+            </button>
+          )}
           <button
             type="button"
-            onClick={toggleScope}
-            className="text-xs px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+            onClick={exportRegister}
+            title="Download this month's attendance register (day-by-day + totals) as CSV"
+            className="text-xs px-3 py-1.5 rounded-md bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600"
           >
-            {showingAll ? "View: all employees" : "View: my reports only"}
+            ⬇ Export report
           </button>
-        )}
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden dark:bg-gray-900 dark:border-gray-800">
