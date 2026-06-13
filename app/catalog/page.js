@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { fetchCatalog, getCatalogCategories } from '@/lib/catalog';
 import { getSession } from '@/lib/hub/session';
 import ProductGrid from './components/ProductGrid';
@@ -6,6 +7,19 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 
 export const revalidate = 300; // refresh every 5 minutes
+
+// The page itself is dynamic (it reads the session cookie to render the
+// header), so the page-level `revalidate` never caches anything — fetchCatalog
+// re-ran its full DB read + enrichment on every request, which was the bulk of
+// the /catalog TTFB. Memoise just the catalog DATA (cookie-independent) in the
+// Next data cache for 5 min, so only the first request per window pays the
+// fetch; the rest get it instantly. Tagged 'catalog' so a future revalidateTag
+// on product edits can bust it.
+const getCachedCatalog = unstable_cache(
+  async () => fetchCatalog(),
+  ['catalog-products-v1'],
+  { revalidate: 300, tags: ['catalog'] },
+);
 
 export const metadata = {
   title: 'Aeros Product Catalog',
@@ -38,7 +52,7 @@ export default async function CatalogPage() {
   let error = null;
 
   try {
-    products = await fetchCatalog();
+    products = await getCachedCatalog();
   } catch (e) {
     error = e.message;
   }
