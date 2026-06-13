@@ -109,6 +109,24 @@ const TILES = [
     }),
   },
   {
+    key: "payouts",
+    href: "/payouts",
+    title: "Payouts",
+    blurb: "Vendor payments — due dates, calendar, done vs pending",
+    size: "md",
+    accent: "from-rose-500 via-pink-600 to-fuchsia-700",
+    sparkColor: "#E11D48",
+    moduleKey: "payouts",
+    metric: (s) => ({
+      number: s?.payouts?.pendingCount ?? 0,
+      label: "pending",
+      sub: s?.payouts
+        ? `₹${(s.payouts.pending ?? 0).toLocaleString("en-IN")} to pay${s.payouts.overdueCount ? ` · ${s.payouts.overdueCount} overdue` : ""}`
+        : "",
+      spark: s?.payouts?.spark || [],
+    }),
+  },
+  {
     key: "catalogue",
     href: "/catalog",
     title: "Catalogue",
@@ -146,6 +164,7 @@ const QUICK_ACTIONS = [
   { label: "Mark inward",       href: "/warehouse/inventory/inward",  module: "clearance" },
   { label: "Sample dispatch",   href: "/warehouse/sample-dispatch",   module: "clearance" },
   { label: "Punch clock",       href: "/hr/clock",                    always: true },
+  { label: "Add payout",        href: "/payouts",                     module: "payouts" },
   { label: "View past quotes",  href: "/rate-cards/quotes",           module: "rate_cards" },
 ];
 
@@ -334,6 +353,7 @@ export default function HomeClient({ session, footer }) {
       r: "/rfq-manager",
       c: "/catalog",
       d: "/design",
+      p: "/payouts",
     };
     function onKey(e) {
       const tag = (e.target?.tagName || "").toLowerCase();

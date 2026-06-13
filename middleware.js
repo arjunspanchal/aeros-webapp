@@ -192,6 +192,21 @@ export async function middleware(req) {
     return NextResponse.next();
   }
 
+  // --- Payouts module (standalone, gated by the `payouts` entitlement) ---
+  // Accountants (Aarti, Kadambari) plus admins / factory managers (derived).
+  if (pathname.startsWith("/api/payouts/") || pathname.startsWith("/payouts")) {
+    const token = req.cookies.get("aeros_hub_session")?.value;
+    const payload = secret ? await verify(token, secret) : null;
+    if (!payload || !payload.modules?.payouts) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      return redirectToLogin(req);
+    }
+    if (await isSessionStale(payload)) return redirectStaleSession(req);
+    return NextResponse.next();
+  }
+
   // --- FactoryOS module ---
   if (pathname.startsWith("/api/factoryos/") || pathname.startsWith("/factoryos")) {
     const token = req.cookies.get("aeros_hub_session")?.value;
@@ -276,6 +291,8 @@ export const config = {
     "/api/factoryos/:path*",
     "/hr/:path*",
     "/api/hr/:path*",
+    "/payouts/:path*",
+    "/api/payouts/:path*",
     "/orders/:path*",
     "/api/orders/:path*",
     "/admin/:path*",

@@ -78,6 +78,7 @@ const DEMO_STATS = {
   rate_cards: { quotes: 32, cards: 4, rfqs: 9,            label: "quotes drafted", spark: [1, 0, 2, 1, 3, 2, 4] },
   calculator: { quotes: 18, label: "quotes generated",    spark: [0, 1, 1, 2, 1, 3, 2] },
   hr:         { employees: 43, presentToday: 31,          label: "on payroll",  spark: [29,30,32,31,28,33,31] },
+  payouts:    { pending: 184000, pendingCount: 6, overdue: 42000, overdueCount: 2, label: "pending", spark: [1,0,2,1,0,1,1] },
   design:     { files: 10, label: "design files" },
   clients:    { count: 57 },
 };
@@ -134,6 +135,7 @@ export async function GET() {
   // employee shouldn't see global tallies.
   const internalCalculator = isAdmin || modules.calculator === "admin";
   const internalHR = isAdmin || modules.hr === "admin";
+  const internalPayouts = isAdmin || !!modules.payouts;
 
   // Public counts — clearance + catalogue are always available
   const tasks = {
@@ -164,6 +166,25 @@ export async function GET() {
       0,
     );
     tasks.hrSpark = dailySpark("attendance", "date");
+  }
+  if (internalPayouts) {
+    // One round-trip for all pending payouts → pending total + overdue split.
+    tasks.payoutsAgg = safe(async () => {
+      const rows = await dbSelect("payouts", {
+        select: "amount,due_date",
+        filter: { status: "eq.pending" },
+        limit: 5000,
+      });
+      const today = todayISO();
+      let pending = 0, pendingCount = 0, overdue = 0, overdueCount = 0;
+      for (const r of rows) {
+        const amt = Number(r.amount) || 0;
+        pending += amt; pendingCount += 1;
+        if (r.due_date && r.due_date < today) { overdue += amt; overdueCount += 1; }
+      }
+      return { pending, pendingCount, overdue, overdueCount };
+    }, { pending: 0, pendingCount: 0, overdue: 0, overdueCount: 0 });
+    tasks.payoutsSpark = dailySpark("payouts", "created_at");
   }
   if (isAdmin || modules.clearance) {
     tasks.clearanceSpark = dailySpark("inventory_movements", "created_at");
@@ -235,6 +256,18 @@ export async function GET() {
       return null;
     })());
   }
+  if (internalPayouts) {
+    alertTasks.push(
+      safe(async () => {
+        const rows = await dbSelect("payouts", {
+          select: "amount",
+          filter: { status: "eq.pending", due_date: `lt.${todayISO()}` },
+          limit: 5000,
+        });
+        return rows.length;
+      }, 0).then((n) => n > 0 ? { kind: "danger", label: `${n} overdue payout${n>1?"s":""}`, href: "/payouts" } : null),
+    );
+  }
 
   const [results, activityRaw, alertsResults] = await Promise.all([
     Promise.all(Object.values(tasks)),
@@ -290,6 +323,14 @@ export async function GET() {
         presentToday: v.presentToday ?? 0,
         spark: v.hrSpark || [],
         label: "on payroll",
+      },
+      payouts: {
+        pending: v.payoutsAgg?.pending ?? 0,
+        pendingCount: v.payoutsAgg?.pendingCount ?? 0,
+        overdue: v.payoutsAgg?.overdue ?? 0,
+        overdueCount: v.payoutsAgg?.overdueCount ?? 0,
+        spark: v.payoutsSpark || [],
+        label: "pending",
       },
       design: { files: v.designFiles ?? 0, label: "design files" },
       clients: { count: v.clients ?? 0 },

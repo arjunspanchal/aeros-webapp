@@ -41,6 +41,14 @@ const HR_ROLES = [
   { value: "manager", label: "Manager — own reports" },
 ];
 
+// Payouts access levels. Both can add payouts + mark paid today; the label
+// distinguishes the day-to-day accountant from a payouts admin. (Hub admins
+// and factory managers also get payouts access by derivation, without a grant.)
+const PAYOUTS_ROLES = [
+  { value: "accountant", label: "Accountant" },
+  { value: "admin", label: "Admin" },
+];
+
 function roleBadge(value) {
   if (!value) return <span className="text-gray-400 dark:text-gray-500">—</span>;
   const lookup = FACTORYOS_ROLES.find((r) => r.value === value)?.label
@@ -64,6 +72,7 @@ function pickFormFromUser(u) {
     calculatorRole: u.calculatorRole || "",
     rateCardsRole: u.rateCardsRole || "",
     hrRole: u.hrRole || "",
+    payoutsRole: u.payoutsRole || "",
     vendorId: u.vendorId || "",
     active: u.active !== false,
     marginPct: u.marginPct ?? "",
@@ -120,11 +129,28 @@ function UserRow({ user, clients, vendors, onSaved }) {
     setOpen(false);
   }
 
+  // Pin selected customers to the top so they're visible without scrolling
+  // through the full list. Uses current form.clientIds so newly checked
+  // items move up immediately — matches the "show what's selected" intent.
   const filteredClients = useMemo(() => {
     const q = clientQuery.trim().toLowerCase();
-    if (!q) return clients;
-    return clients.filter((c) => `${c.name} ${c.code}`.toLowerCase().includes(q));
-  }, [clients, clientQuery]);
+    const matching = q
+      ? clients.filter((c) => `${c.name} ${c.code}`.toLowerCase().includes(q))
+      : clients;
+    const selectedSet = new Set(form.clientIds);
+    return [...matching].sort((a, b) => {
+      const aSel = selectedSet.has(a.id) ? 0 : 1;
+      const bSel = selectedSet.has(b.id) ? 0 : 1;
+      if (aSel !== bSel) return aSel - bSel;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [clients, clientQuery, form.clientIds]);
+
+  const selectedCount = form.clientIds.length;
+  const firstUnselectedId = useMemo(() => {
+    const selectedSet = new Set(form.clientIds);
+    return filteredClients.find((c) => !selectedSet.has(c.id))?.id ?? null;
+  }, [filteredClients, form.clientIds]);
 
   return (
     <>
@@ -249,6 +275,19 @@ function UserRow({ user, clients, vendors, onSaved }) {
                   </ModuleAccessCell>
 
                   <ModuleAccessCell
+                    label="Payouts"
+                    description="Vendor payment tracker — due dates, calendar, weekly summary. Admins + factory managers get it automatically."
+                    checked={!!form.payoutsRole}
+                    onToggle={(on) => set("payoutsRole", on ? "accountant" : "")}
+                  >
+                    {form.payoutsRole && (
+                      <select className={inputCls} value={form.payoutsRole} onChange={(e) => set("payoutsRole", e.target.value)}>
+                        {PAYOUTS_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                      </select>
+                    )}
+                  </ModuleAccessCell>
+
+                  <ModuleAccessCell
                     label="WarehouseOS staff"
                     description="Manage clearance stock + master inventory. Granted automatically when FactoryOS role is admin / FM / FE."
                     checked={["admin", "factory_manager", "factory_executive"].includes(form.factoryosRole)}
@@ -309,18 +348,31 @@ function UserRow({ user, clients, vendors, onSaved }) {
                   value={clientQuery}
                   onChange={(e) => setClientQuery(e.target.value)}
                 />
-                <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-800">
+                <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-800">
                   {filteredClients.length === 0 && (
                     <div className="p-3 text-xs text-gray-400 dark:text-gray-500">No customers match.</div>
                   )}
+                  {selectedCount > 0 && !clientQuery && (
+                    <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/40 sticky top-0">
+                      Selected · {selectedCount}
+                    </div>
+                  )}
                   {filteredClients.map((c) => {
                     const checked = form.clientIds.includes(c.id);
+                    const showAllHeader = !clientQuery && selectedCount > 0 && c.id === firstUnselectedId;
                     return (
-                      <label key={c.id} className="flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 text-sm">
-                        <input type="checkbox" checked={checked} onChange={() => toggleClient(c.id)} />
-                        <span className="text-gray-900 dark:text-gray-100">{c.name}</span>
-                        {c.code && <span className="text-[11px] text-gray-400 dark:text-gray-500">{c.code}</span>}
-                      </label>
+                      <div key={c.id}>
+                        {showAllHeader && (
+                          <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-900/40">
+                            All customers
+                          </div>
+                        )}
+                        <label className={`flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 text-sm ${checked ? "bg-blue-50/40 dark:bg-blue-900/10" : ""}`}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleClient(c.id)} />
+                          <span className="text-gray-900 dark:text-gray-100">{c.name}</span>
+                          {c.code && <span className="text-[11px] text-gray-400 dark:text-gray-500">{c.code}</span>}
+                        </label>
+                      </div>
                     );
                   })}
                 </div>

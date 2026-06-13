@@ -11,6 +11,7 @@ const STATIC_ITEMS = [
   { kind: "module", label: "WarehouseOS",  hint: "Clearance stock, inward/outward, audits", href: "/warehouse",     module: "clearance" },
   { kind: "module", label: "FactoryOS",    hint: "Jobs, POs, production",                    href: "/factoryos",    module: "factoryos" },
   { kind: "module", label: "HR",           hint: "Employees, attendance, payroll",           href: "/hr",           module: "hr" },
+  { kind: "module", label: "Payouts",      hint: "Vendor payments, due dates, calendar",     href: "/payouts",      module: "payouts" },
   { kind: "module", label: "Calculator",   hint: "Rate quoting — bag, box, cup, wrap, PP",   href: "/calculator",   module: "calculator" },
   { kind: "module", label: "RFQs",         hint: "Rate cards, past quotes, RFQ manager",     href: "/rfq-manager",  module: "rate_cards" },
   { kind: "module", label: "Catalogue",    hint: "Full SKU master",                          href: "/catalog",      module: "catalogue" },
@@ -25,6 +26,7 @@ const STATIC_ITEMS = [
   { kind: "action", label: "Mark outward stock", hint: "Record a dispatch",          href: "/warehouse/inventory/outward",module: "clearance" },
   { kind: "action", label: "Sample dispatch",    hint: "Send a sample to a prospect",href: "/warehouse/sample-dispatch", module: "clearance" },
   { kind: "action", label: "New rate card",      hint: "Build a fresh rate card",    href: "/rate-cards/admin/new",      module: "rate_cards" },
+  { kind: "action", label: "Add a payout",       hint: "Log a vendor payment due",   href: "/payouts",                   module: "payouts" },
 
   { kind: "public", label: "Paper cups",         hint: "Public rate sheet",          href: "/paper-cups" },
   { kind: "public", label: "Paper bags",         hint: "Public rate sheet",          href: "/paper-bags" },
