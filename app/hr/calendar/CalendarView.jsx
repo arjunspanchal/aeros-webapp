@@ -11,6 +11,9 @@ const csvEscape = (v) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
+const htmlEscape = (v) =>
+  String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
 function prevMonth(mk) {
   const [y, m] = mk.split("-").map(Number);
   const d = new Date(y, m - 2, 1);
@@ -76,18 +79,12 @@ export default function CalendarView({
   // Download the monthly attendance register (muster) — per-employee day-by-day
   // status plus totals — as a CSV that opens in Excel. Reflects the current
   // search/scope (the employees shown above).
-  function exportRegister() {
-    const dayCols = Array.from({ length: days }, (_, i) => String(i + 1));
-    const header = [
-      "Code", "Name", "Designation",
-      ...dayCols,
-      "Present", "Half-day", "Absent", "Paid Leave", "Unpaid Leave",
-      "Week-off", "Holiday", "OT hrs", "LOP days", "Payable days",
-    ];
-    const lines = [header.map(csvEscape).join(",")];
-    for (const e of filtered) {
-      const rows = attendanceByEmployee[e.id] || [];
-      const byDate = Object.fromEntries(rows.map((r) => [r.date, r]));
+  // Shared per-employee register computation (used by both CSV + PDF export).
+  // For each day: a marked status takes priority; otherwise the day is filled
+  // as HO (holiday) or WO (weekly-off), else blank (unmarked working day).
+  function registerRows() {
+    return filtered.map((e) => {
+      const byDate = Object.fromEntries((attendanceByEmployee[e.id] || []).map((r) => [r.date, r]));
       const cells = [];
       const cnt = { P: 0, H: 0, A: 0, PL: 0, UL: 0, WO: 0, HO: 0 };
       let ot = 0;
@@ -108,12 +105,23 @@ export default function CalendarView({
         if (st && cnt[st] !== undefined) cnt[st] += 1;
         cells.push(st);
       }
-      const payable = Math.max(0, days - lop);
+      return { e, cells, cnt, ot: Number(ot.toFixed(2)), lop: Number(lop.toFixed(2)), payable: Math.max(0, days - lop) };
+    });
+  }
+
+  function exportRegister() {
+    const dayCols = Array.from({ length: days }, (_, i) => String(i + 1));
+    const header = [
+      "Code", "Name", "Designation", ...dayCols,
+      "Present", "Half-day", "Absent", "Paid Leave", "Unpaid Leave",
+      "Week-off", "Holiday", "OT hrs", "LOP days", "Payable days",
+    ];
+    const lines = [header.map(csvEscape).join(",")];
+    for (const { e, cells, cnt, ot, lop, payable } of registerRows()) {
       lines.push([
         e.employeeCode || "", e.name, e.designation || "",
         ...cells,
-        cnt.P, cnt.H, cnt.A, cnt.PL, cnt.UL, cnt.WO, cnt.HO,
-        Number(ot.toFixed(2)), Number(lop.toFixed(2)), Number(payable.toFixed(2)),
+        cnt.P, cnt.H, cnt.A, cnt.PL, cnt.UL, cnt.WO, cnt.HO, ot, lop, payable,
       ].map(csvEscape).join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -123,6 +131,49 @@ export default function CalendarView({
     a.download = `attendance-register-${monthKey}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // Print-to-PDF: open a clean landscape register in a new window and trigger
+  // the browser's print dialog (the user chooses "Save as PDF"). No library.
+  function exportPdf() {
+    const data = registerRows();
+    const dayHead = Array.from({ length: days }, (_, i) => `<th>${i + 1}</th>`).join("");
+    const body = data.map(({ e, cells, cnt, ot, lop, payable }) => {
+      const dayCells = cells.map((c) => `<td class="${c}">${c}</td>`).join("");
+      return `<tr><td class="l">${htmlEscape(e.employeeCode || "")}</td><td class="l">${htmlEscape(e.name)}</td>${dayCells}`
+        + `<td class="t">${cnt.P}</td><td class="t">${cnt.H}</td><td class="t">${cnt.A}</td><td class="t">${cnt.PL}</td><td class="t">${cnt.UL}</td>`
+        + `<td>${cnt.WO}</td><td>${cnt.HO}</td><td class="t">${ot}</td><td class="t">${lop}</td><td class="t">${payable}</td></tr>`;
+    }).join("");
+    const w = window.open("", "_blank");
+    if (!w) { alert("Allow pop-ups for this site to export the PDF."); return; }
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Attendance Register — ${htmlEscape(monthLabel)}</title>
+<style>
+  @page { size: A4 landscape; margin: 8mm; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
+  body { font-family: -apple-system, Arial, sans-serif; color:#111; margin:0; }
+  h1 { font-size:13px; margin:0 0 1px; }
+  .meta { font-size:8px; color:#666; margin-bottom:5px; }
+  table { border-collapse:collapse; width:100%; font-size:6px; table-layout:fixed; }
+  th, td { border:0.4px solid #ccc; padding:1px; text-align:center; overflow:hidden; }
+  th { background:#eee; font-weight:600; }
+  td.l, th.l { text-align:left; white-space:nowrap; width:auto; }
+  th.l:nth-child(2), td.l:nth-child(2) { min-width:70px; }
+  td.t { font-weight:bold; }
+  thead { display:table-header-group; }
+  .P{background:#d1fae5} .A{background:#fee2e2} .H{background:#fef3c7} .PL{background:#e0f2fe}
+  .UL{background:#ffedd5} .WO{background:#f3f4f6;color:#999} .HO{background:#dbeafe}
+  .legend{font-size:7px;color:#444;margin-top:5px}
+</style></head><body>
+  <h1>Attendance Register — ${htmlEscape(monthLabel)}</h1>
+  <div class="meta">Aeros · ${data.length} employees · generated ${htmlEscape(new Date().toLocaleString("en-IN"))}</div>
+  <table>
+    <thead><tr><th class="l">Code</th><th class="l">Name</th>${dayHead}<th>P</th><th>H</th><th>A</th><th>PL</th><th>UL</th><th>WO</th><th>HO</th><th>OT</th><th>LOP</th><th>Pay</th></tr></thead>
+    <tbody>${body}</tbody>
+  </table>
+  <div class="legend">P Present · H Half-day · A Absent · PL Paid Leave · UL Unpaid Leave · WO Weekly-off · HO Holiday · LOP loss-of-pay days · Pay payable days</div>
+  <script>window.onload=function(){window.print();}<\/script>
+</body></html>`);
+    w.document.close();
   }
 
   return (
@@ -149,13 +200,22 @@ export default function CalendarView({
               {showingAll ? "View: all employees" : "View: my reports only"}
             </button>
           )}
+          <span className="text-xs text-gray-400 hidden sm:inline">Export:</span>
           <button
             type="button"
             onClick={exportRegister}
-            title="Download this month's attendance register (day-by-day + totals) as CSV"
+            title="Download this month's attendance register as a CSV (opens in Excel)"
             className="text-xs px-3 py-1.5 rounded-md bg-gray-900 text-white hover:bg-gray-800 dark:bg-gray-700 dark:hover:bg-gray-600"
           >
-            ⬇ Export report
+            ⬇ CSV
+          </button>
+          <button
+            type="button"
+            onClick={exportPdf}
+            title="Open a print-ready register and save as PDF"
+            className="text-xs px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700"
+          >
+            ⬇ PDF
           </button>
         </div>
       </div>
