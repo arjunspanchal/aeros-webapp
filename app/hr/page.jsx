@@ -95,6 +95,9 @@ export default async function HrPage() {
             <Link href="/hr/payroll" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
               Payroll
             </Link>
+            <Link href="/hr/leaves" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
+              Leave requests
+            </Link>
             <Link href="/hr/holidays" className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800">
               Holidays
             </Link>
