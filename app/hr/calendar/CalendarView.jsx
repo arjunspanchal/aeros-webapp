@@ -140,7 +140,7 @@ export default function CalendarView({
     const dayHead = Array.from({ length: days }, (_, i) => `<th>${i + 1}</th>`).join("");
     const body = data.map(({ e, cells, cnt, ot, lop, payable }) => {
       const dayCells = cells.map((c) => `<td class="${c}">${c}</td>`).join("");
-      return `<tr><td class="l">${htmlEscape(e.employeeCode || "")}</td><td class="l">${htmlEscape(e.name)}</td>${dayCells}`
+      return `<tr><td class="code">${htmlEscape(e.employeeCode || "")}</td><td class="name">${htmlEscape(e.name)}</td>${dayCells}`
         + `<td class="t">${cnt.P}</td><td class="t">${cnt.H}</td><td class="t">${cnt.A}</td><td class="t">${cnt.PL}</td><td class="t">${cnt.UL}</td>`
         + `<td>${cnt.WO}</td><td>${cnt.HO}</td><td class="t">${ot}</td><td class="t">${lop}</td><td class="t">${payable}</td></tr>`;
     }).join("");
@@ -154,10 +154,11 @@ export default function CalendarView({
   h1 { font-size:13px; margin:0 0 1px; }
   .meta { font-size:8px; color:#666; margin-bottom:5px; }
   table { border-collapse:collapse; width:100%; font-size:6px; table-layout:fixed; }
-  th, td { border:0.4px solid #ccc; padding:1px; text-align:center; overflow:hidden; }
+  th, td { border:0.4px solid #ccc; padding:1px; text-align:center; }
   th { background:#eee; font-weight:600; }
-  td.l, th.l { text-align:left; white-space:nowrap; width:auto; }
-  th.l:nth-child(2), td.l:nth-child(2) { min-width:70px; }
+  th.l { text-align:left; }
+  td.code { text-align:left; white-space:nowrap; }
+  td.name { text-align:left; white-space:normal; word-break:break-word; line-height:1.15; vertical-align:middle; }
   td.t { font-weight:bold; }
   thead { display:table-header-group; }
   .P{background:#d1fae5} .A{background:#fee2e2} .H{background:#fef3c7} .PL{background:#e0f2fe}
@@ -167,6 +168,7 @@ export default function CalendarView({
   <h1>Attendance Register — ${htmlEscape(monthLabel)}</h1>
   <div class="meta">Aeros · ${data.length} employees · generated ${htmlEscape(new Date().toLocaleString("en-IN"))}</div>
   <table>
+    <colgroup><col style="width:32px"><col style="width:120px">${Array.from({ length: days }, () => '<col style="width:15px">').join("")}${Array.from({ length: 11 }, () => '<col style="width:20px">').join("")}</colgroup>
     <thead><tr><th class="l">Code</th><th class="l">Name</th>${dayHead}<th>P</th><th>H</th><th>A</th><th>PL</th><th>UL</th><th>WO</th><th>HO</th><th>OT</th><th>LOP</th><th>Pay</th></tr></thead>
     <tbody>${body}</tbody>
   </table>
