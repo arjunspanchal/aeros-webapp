@@ -99,6 +99,7 @@ function subTabsFor(pathname, session) {
       { href: "/hr/attendance", label: "Attendance", short: "Attn" },
       { href: "/hr/calendar",   label: "Calendar",   short: "Cal"  },
       { href: "/hr/payroll",    label: "Payroll",    short: "Pay"  },
+      { href: "/hr/leaves",     label: "Leave",      short: "Leave"},
       { href: "/hr/holidays",   label: "Holidays",   short: "Hols" },
     ];
   }

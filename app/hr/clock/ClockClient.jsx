@@ -209,9 +209,129 @@ function ClockFace({ status, busy, onPunch, onSignOut }) {
         </div>
       )}
 
+      <LeaveSection />
+
       <Button type="button" variant="tertiary" size="sm" onClick={onSignOut} className="w-full">
         Not you? Sign out
       </Button>
+    </div>
+  );
+}
+
+const LEAVE_STATUS_STYLE = {
+  pending: "bg-amber-100 text-amber-700",
+  approved: "bg-emerald-100 text-emerald-700",
+  rejected: "bg-red-100 text-red-700",
+};
+
+// Worker self-service leave: request Paid/Unpaid leave and see their requests'
+// status. HR approves in /hr/leaves; on approval it lands on attendance.
+function LeaveSection() {
+  const [open, setOpen] = useState(false);
+  const [requests, setRequests] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [type, setType] = useState("PL");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(async () => {
+    const res = await fetch("/api/hr/clock/leave", { cache: "no-store" });
+    if (res.ok) setRequests((await res.json()).requests || []);
+  }, []);
+
+  useEffect(() => {
+    if (open && requests === null) load();
+  }, [open, requests, load]);
+
+  async function submit(e) {
+    e.preventDefault();
+    setMsg(""); setBusy(true);
+    const { ok, data } = await postJson("/api/hr/clock/leave", { type, fromDate: from, toDate: to, reason });
+    setBusy(false);
+    if (!ok) { setMsg(data.error || "Could not submit."); return; }
+    setMsg("Request submitted — pending approval.");
+    setFrom(""); setTo(""); setReason(""); setShowForm(false);
+    load();
+  }
+
+  const pending = (requests || []).filter((r) => r.status === "pending").length;
+
+  return (
+    <div className="rounded-xl border border-ink-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-ink-800"
+      >
+        <span>🏖️ Leave{pending ? ` · ${pending} pending` : ""}</span>
+        <span className="text-ink-400">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3">
+          {!showForm && (
+            <button
+              type="button"
+              onClick={() => { setShowForm(true); setMsg(""); }}
+              className="w-full text-sm font-medium px-3 py-2 rounded-md bg-sky-600 text-white hover:bg-sky-700"
+            >
+              + Request leave
+            </button>
+          )}
+
+          {showForm && (
+            <form onSubmit={submit} className="space-y-2">
+              <div className="flex gap-2">
+                {[{ v: "PL", l: "Paid" }, { v: "UL", l: "Unpaid" }].map((o) => (
+                  <button
+                    key={o.v}
+                    type="button"
+                    onClick={() => setType(o.v)}
+                    className={`flex-1 text-sm font-medium px-2 py-2 rounded-md border ${type === o.v ? "border-sky-600 bg-sky-50 text-sky-700" : "border-ink-200 text-ink-500"}`}
+                  >
+                    {o.l} leave
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <label className="flex-1 text-xs text-ink-500">From
+                  <input type="date" required value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 w-full h-10 px-2 rounded border border-ink-200 text-sm" />
+                </label>
+                <label className="flex-1 text-xs text-ink-500">To
+                  <input type="date" required value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 w-full h-10 px-2 rounded border border-ink-200 text-sm" />
+                </label>
+              </div>
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Reason (optional)"
+                className="w-full h-10 px-2 rounded border border-ink-200 text-sm"
+              />
+              <div className="flex gap-2">
+                <button type="submit" disabled={busy} className="flex-1 text-sm font-medium px-3 py-2 rounded-md bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-40">
+                  {busy ? "Submitting…" : "Submit"}
+                </button>
+                <button type="button" onClick={() => { setShowForm(false); setMsg(""); }} className="px-3 py-2 text-sm text-ink-500">Cancel</button>
+              </div>
+            </form>
+          )}
+
+          {msg && <p className="text-xs text-ink-600">{msg}</p>}
+
+          {requests && requests.length > 0 && (
+            <ul className="space-y-1.5 pt-1">
+              {requests.slice(0, 5).map((r) => (
+                <li key={r.id} className="flex items-center justify-between text-xs text-ink-600">
+                  <span>{r.type === "PL" ? "Paid" : "Unpaid"} · {r.fromDate}{r.toDate !== r.fromDate ? `→${r.toDate}` : ""} · {r.days}d</span>
+                  <span className={`px-1.5 py-0.5 rounded capitalize ${LEAVE_STATUS_STYLE[r.status] || ""}`}>{r.status}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
