@@ -5,12 +5,51 @@
 // so managers can tell them apart on the admin attendance page.
 import { getEmpSession } from "@/lib/factoryos/empAuth";
 import { getEmployee, findAttendance, upsertAttendance, computeOtHours } from "@/lib/factoryos/repo";
-import { todayYmdIST, nowHmIST, isLate } from "@/lib/factoryos/hr";
-import { SHIFT_END } from "@/lib/factoryos/constants";
+import { todayYmdIST, nowHmIST, isLate, distanceMeters } from "@/lib/factoryos/hr";
+import { SHIFT_END, OFFICE_GEOFENCE } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
 const SELF = "self";
+
+// Cap how much we trust a poor GPS fix when checking the geofence: a worker is
+// "at the office" if they're within radius OR the office falls inside their
+// accuracy circle (up to this buffer). Stops indoor GPS jitter from wrongly
+// locking out on-site staff, without turning a wild fix into a free pass.
+const ACCURACY_BUFFER_CAP_M = 200;
+
+// Geofence gate for WFO workers: they may only punch at the Bhiwandi office.
+// Returns an error Response to block, or null to allow. WFH workers are exempt.
+function geofenceBlock(employee, geo) {
+  const isWfo = String(employee.workMode || "WFO").toUpperCase() !== "WFH";
+  if (!isWfo) return null; // WFH: no geofence.
+
+  if (geo.lat == null) {
+    return Response.json(
+      {
+        error:
+          "Location required. Turn on GPS/location for this site and allow it, then try again — office staff must punch at the Bhiwandi office.",
+        needLocation: true,
+      },
+      { status: 422 },
+    );
+  }
+
+  const dist = distanceMeters(geo.lat, geo.lng, OFFICE_GEOFENCE.lat, OFFICE_GEOFENCE.lng);
+  const buffer = Math.min(geo.accuracy || 0, ACCURACY_BUFFER_CAP_M);
+  if (Math.max(0, dist - buffer) > OFFICE_GEOFENCE.radiusM) {
+    const away = dist >= 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)} m`;
+    return Response.json(
+      {
+        error: `You appear to be about ${away} from the office. Office staff must check in/out at the Bhiwandi factory.`,
+        outsideGeofence: true,
+        distanceM: Math.round(dist),
+      },
+      { status: 422 },
+    );
+  }
+  return null;
+}
 
 export async function POST(req) {
   const session = getEmpSession();
@@ -27,10 +66,13 @@ export async function POST(req) {
     return Response.json({ error: "action must be 'in' or 'out'" }, { status: 400 });
   }
 
-  // Optional GPS the device shared with the punch clock. Best-effort: if the
-  // worker denied location or it's unavailable, these are missing and we record
-  // the punch without coordinates. Sanity-bound lat/lng so junk never persists.
+  // GPS the device shared with the punch clock. Sanity-bound lat/lng so junk
+  // never persists. For WFH workers this is best-effort (recorded, never
+  // required); for WFO workers it gates the punch via the office geofence.
   const geo = parseGeo(body);
+
+  const blocked = geofenceBlock(employee, geo);
+  if (blocked) return blocked;
 
   const date = todayYmdIST();
   const now = nowHmIST();

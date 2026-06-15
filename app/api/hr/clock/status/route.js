@@ -19,7 +19,12 @@ export async function GET() {
   const row = await findAttendance(session.employeeId, date);
 
   return Response.json({
-    employee: { name: employee.name, designation: employee.designation, otEligible: employee.otEligible },
+    employee: {
+      name: employee.name,
+      designation: employee.designation,
+      otEligible: employee.otEligible,
+      workMode: String(employee.workMode || "WFO").toUpperCase() === "WFH" ? "WFH" : "WFO",
+    },
     date,
     checkedIn: !!row?.inTime,
     checkedOut: !!row?.outTime,
