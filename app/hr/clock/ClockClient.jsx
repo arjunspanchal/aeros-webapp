@@ -181,6 +181,7 @@ export default function ClockClient({ initialSignedIn }) {
 function ClockFace({ status, busy, locating, onPunch, onSignOut }) {
   const { employee, date, checkedIn, checkedOut, inTime, outTime, otHours } = status;
   const done = checkedIn && checkedOut;
+  const wfo = String(employee?.workMode || "WFO").toUpperCase() !== "WFH";
   const btnLabel = (label) => (locating ? "📍 Locating…" : busy ? "…" : label);
 
   return (
@@ -234,7 +235,9 @@ function ClockFace({ status, busy, locating, onPunch, onSignOut }) {
       )}
       {!done && (
         <p className="text-[11px] text-center text-ink-400">
-          📍 Your location is recorded when you check in and out.
+          {wfo
+            ? "📍 You must be at the Bhiwandi office to check in or out. Allow location when asked."
+            : "📍 Your location is recorded when you check in and out."}
         </p>
       )}
       {done && (
