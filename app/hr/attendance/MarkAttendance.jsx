@@ -23,6 +23,9 @@ function datesBetween(from, to) {
 // Only P / Half-day involve working hours; A / Paid-Leave / Unpaid-Leave don't.
 const isWorkStatus = (s) => s === "P" || s === "H";
 
+// Google Maps link for a captured punch coordinate.
+const mapsUrl = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`;
+
 const STATUS_BTN = {
   P:  "bg-emerald-600 text-white",
   H:  "bg-amber-500 text-white",
@@ -68,6 +71,13 @@ export default function MarkAttendance({
           inTime: existing?.inTime || SHIFT_START,
           outTime: existing?.outTime || SHIFT_END,
           notes: existing?.notes || "",
+          // GPS captured at the punch clock (null when marked manually / not shared).
+          inLat: existing?.inLat ?? null,
+          inLng: existing?.inLng ?? null,
+          inAccuracy: existing?.inAccuracy ?? null,
+          outLat: existing?.outLat ?? null,
+          outLng: existing?.outLng ?? null,
+          outAccuracy: existing?.outAccuracy ?? null,
           // Was this row last recorded by the worker via the punch clock?
           // (vs. a manager on this page.) Lets managers spot self-marked days.
           selfMarked: existing?.markedByName === "self",
@@ -267,6 +277,32 @@ function AttendanceRow({ row, managerMap, canMark, onChange, onSave }) {
           <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
             {employee.designation || "—"} · Mgr: {manager?.name || manager?.email || "—"}
           </div>
+          {(row.inLat != null || row.outLat != null) && (
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+              {row.inLat != null && (
+                <a
+                  href={mapsUrl(row.inLat, row.inLng)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`Check-in location${row.inAccuracy ? ` · ±${row.inAccuracy}m accuracy` : ""}`}
+                  className="text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  📍 In{row.inAccuracy ? ` ±${row.inAccuracy}m` : ""}
+                </a>
+              )}
+              {row.outLat != null && (
+                <a
+                  href={mapsUrl(row.outLat, row.outLng)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`Check-out location${row.outAccuracy ? ` · ±${row.outAccuracy}m accuracy` : ""}`}
+                  className="text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  📍 Out{row.outAccuracy ? ` ±${row.outAccuracy}m` : ""}
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-1">
