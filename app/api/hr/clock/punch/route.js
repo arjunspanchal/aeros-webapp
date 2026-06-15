@@ -21,10 +21,16 @@ export async function POST(req) {
     return Response.json({ error: "Account inactive" }, { status: 403 });
   }
 
-  const { action } = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => ({}));
+  const { action } = body;
   if (action !== "in" && action !== "out") {
     return Response.json({ error: "action must be 'in' or 'out'" }, { status: 400 });
   }
+
+  // Optional GPS the device shared with the punch clock. Best-effort: if the
+  // worker denied location or it's unavailable, these are missing and we record
+  // the punch without coordinates. Sanity-bound lat/lng so junk never persists.
+  const geo = parseGeo(body);
 
   const date = todayYmdIST();
   const now = nowHmIST();
@@ -47,8 +53,11 @@ export async function POST(req) {
       otHours: 0,
       markedByName: SELF,
       notes: existing?.notes || "",
+      inLat: geo.lat,
+      inLng: geo.lng,
+      inAccuracy: geo.accuracy,
     });
-    return Response.json({ ok: true, action, record, late, inTime: now });
+    return Response.json({ ok: true, action, record, late, inTime: now, located: geo.lat != null });
   }
 
   // action === "out"
@@ -72,6 +81,27 @@ export async function POST(req) {
     otHours,
     markedByName: SELF,
     notes: existing?.notes || "",
+    outLat: geo.lat,
+    outLng: geo.lng,
+    outAccuracy: geo.accuracy,
   });
-  return Response.json({ ok: true, action, record });
+  return Response.json({ ok: true, action, record, located: geo.lat != null });
+}
+
+// Pull lat/lng/accuracy off the request body, validating ranges. Returns nulls
+// when absent or out of bounds so a bad client payload can't poison the record.
+function parseGeo(body) {
+  const lat = Number(body?.lat);
+  const lng = Number(body?.lng);
+  const acc = Number(body?.accuracy);
+  const valid =
+    Number.isFinite(lat) && lat >= -90 && lat <= 90 &&
+    Number.isFinite(lng) && lng >= -180 && lng <= 180 &&
+    !(lat === 0 && lng === 0);
+  if (!valid) return { lat: null, lng: null, accuracy: null };
+  return {
+    lat,
+    lng,
+    accuracy: Number.isFinite(acc) && acc >= 0 ? Math.round(acc) : null,
+  };
 }

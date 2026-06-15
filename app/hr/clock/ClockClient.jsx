@@ -15,6 +15,28 @@ async function postJson(url, body) {
   return { ok: res.ok, status: res.status, data };
 }
 
+// Best-effort device location for a punch. Resolves null (never rejects) if the
+// browser has no geolocation, the worker denies it, or it doesn't fix within
+// the timeout — the punch then goes through without coordinates.
+function getPosition() {
+  return new Promise((resolve) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        resolve({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+    );
+  });
+}
+
 function prettyDate(ymd) {
   if (!ymd) return "";
   const [y, m, d] = ymd.split("-").map(Number);
@@ -30,6 +52,7 @@ export default function ClockClient({ initialSignedIn }) {
   const [pin, setPin] = useState("");
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [err, setErr] = useState("");
   const [flash, setFlash] = useState("");
 
@@ -61,7 +84,11 @@ export default function ClockClient({ initialSignedIn }) {
 
   async function punch(action) {
     setErr(""); setFlash(""); setBusy(true);
-    const { ok, data } = await postJson("/api/hr/clock/punch", { action });
+    // Grab location first (best-effort). The punch still records if it's null.
+    setLocating(true);
+    const pos = await getPosition();
+    setLocating(false);
+    const { ok, data } = await postJson("/api/hr/clock/punch", { action, ...(pos || {}) });
     setBusy(false);
     if (!ok) {
       // 409 = already in/out — refresh so the UI reflects reality, surface msg.
@@ -69,10 +96,11 @@ export default function ClockClient({ initialSignedIn }) {
       await loadStatus();
       return;
     }
+    const locNote = data.located ? " 📍 Location recorded." : " (Location not shared.)";
     setFlash(
-      action === "in"
+      (action === "in"
         ? (data.late ? `Checked in at ${data.inTime} — you're marked late.` : "Checked in. Have a good shift!")
-        : "Checked out. See you tomorrow!",
+        : "Checked out. See you tomorrow!") + locNote,
     );
     await loadStatus();
   }
@@ -143,16 +171,17 @@ export default function ClockClient({ initialSignedIn }) {
         )}
 
         {phase === "clock" && status && (
-          <ClockFace status={status} busy={busy} onPunch={punch} onSignOut={signOut} />
+          <ClockFace status={status} busy={busy} locating={locating} onPunch={punch} onSignOut={signOut} />
         )}
       </div>
     </main>
   );
 }
 
-function ClockFace({ status, busy, onPunch, onSignOut }) {
+function ClockFace({ status, busy, locating, onPunch, onSignOut }) {
   const { employee, date, checkedIn, checkedOut, inTime, outTime, otHours } = status;
   const done = checkedIn && checkedOut;
+  const btnLabel = (label) => (locating ? "📍 Locating…" : busy ? "…" : label);
 
   return (
     <div className="space-y-5">
@@ -190,7 +219,7 @@ function ClockFace({ status, busy, onPunch, onSignOut }) {
           onClick={() => onPunch("in")}
           className="w-full h-20 rounded-2xl bg-emerald-600 text-white text-xl font-semibold hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 transition-colors"
         >
-          {busy ? "…" : "Check In"}
+          {btnLabel("Check In")}
         </button>
       )}
       {checkedIn && !checkedOut && (
@@ -200,8 +229,13 @@ function ClockFace({ status, busy, onPunch, onSignOut }) {
           onClick={() => onPunch("out")}
           className="w-full h-20 rounded-2xl bg-royal-600 text-white text-xl font-semibold hover:bg-royal-700 active:bg-royal-800 disabled:opacity-50 transition-colors"
         >
-          {busy ? "…" : "Check Out"}
+          {btnLabel("Check Out")}
         </button>
+      )}
+      {!done && (
+        <p className="text-[11px] text-center text-ink-400">
+          📍 Your location is recorded when you check in and out.
+        </p>
       )}
       {done && (
         <div className="w-full h-20 rounded-2xl bg-ink-100 text-ink-500 text-lg font-medium flex items-center justify-center">
