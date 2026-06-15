@@ -10,6 +10,7 @@
 import { getSession } from "@/lib/hub/session";
 import { canManageInventory } from "@/lib/warehouse/inventory";
 import { canManageSampleDispatch } from "@/lib/warehouse/sampleDispatches";
+import { canManageVehicleDispatch } from "@/lib/warehouse/vehicleDispatches";
 import AppHeader from "@/app/components/AppHeader";
 import Footer from "@/app/components/Footer";
 import ModuleShell from "@/app/_components/ModuleShell";
@@ -21,7 +22,10 @@ export default function WarehouseLayout({ children }) {
   // Show the staff shell to anyone who can access *something* internal —
   // FE/FM/Admin (inventory) plus AMs (sample dispatch). Everyone else
   // (anonymous, customer) gets the flush page for /warehouse/clearance.
-  const showShell = canManageInventory(session) || canManageSampleDispatch(session);
+  const showShell =
+    canManageInventory(session) ||
+    canManageSampleDispatch(session) ||
+    canManageVehicleDispatch(session);
 
   return (
     <div className="flex min-h-screen flex-col bg-white dark:bg-gray-950">
