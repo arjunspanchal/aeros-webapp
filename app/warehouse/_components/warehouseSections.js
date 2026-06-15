@@ -7,11 +7,13 @@
 import { canManageInventory } from "@/lib/warehouse/inventory";
 import { canManageClearance } from "@/lib/clearance/admin";
 import { canManageSampleDispatch } from "@/lib/warehouse/sampleDispatches";
+import { canManageVehicleDispatch } from "@/lib/warehouse/vehicleDispatches";
 
 export function warehouseSections(session) {
   const canInventory = canManageInventory(session);
   const canClearance = canManageClearance(session);
   const canDispatch  = canManageSampleDispatch(session);
+  const canVehicle   = canManageVehicleDispatch(session);
 
   const sections = [
     {
@@ -48,6 +50,16 @@ export function warehouseSections(session) {
         { href: "/warehouse/sample-dispatch",     label: "Queue", exact: true },
         { href: "/warehouse/sample-dispatch/new", label: "New dispatch" },
         { href: "/warehouse/sample-kits",         label: "Kit Manager" },
+      ],
+    });
+  }
+
+  if (canVehicle) {
+    sections.push({
+      label: "Vehicle Dispatch",
+      items: [
+        { href: "/warehouse/vehicle-dispatch",     label: "Log", exact: true },
+        { href: "/warehouse/vehicle-dispatch/new", label: "New dispatch" },
       ],
     });
   }
