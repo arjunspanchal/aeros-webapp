@@ -47,6 +47,24 @@ function transitLabel(d) {
   return remH ? `${days}d ${remH}h` : `${days}d`;
 }
 
+// Render a city as a Google Maps link when it's pinned to a place/coords,
+// else just the text. Lets the team open the exact location in one tap.
+function cityLink(city, placeId, lat, lng) {
+  if (!city) return null;
+  let href = null;
+  if (placeId) {
+    href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(city)}&query_place_id=${encodeURIComponent(placeId)}`;
+  } else if (lat != null && lng != null) {
+    href = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  }
+  if (!href) return city;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-800 dark:text-blue-400">
+      {city}
+    </a>
+  );
+}
+
 function Field({ label, children }) {
   return (
     <div>
@@ -230,8 +248,8 @@ export default function VehicleDetailClient({ dispatch: initial, isAdmin }) {
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <h2 className="mb-4 text-sm font-semibold text-gray-700 dark:text-gray-200">Lane &amp; load</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Field label="From city">{d.from_city}</Field>
-            <Field label="To city">{d.to_city}</Field>
+            <Field label="From city">{cityLink(d.from_city, d.from_place_id, d.from_lat, d.from_lng)}</Field>
+            <Field label="To city">{cityLink(d.to_city, d.to_place_id, d.to_lat, d.to_lng)}</Field>
             <Field label="Approx kms">{fmtNum(d.approx_kms)}</Field>
             <Field label="No. of boxes">{fmtNum(d.box_count)}</Field>
             <Field label="Total weight (kg)">{fmtNum(d.total_weight_kg)}</Field>
