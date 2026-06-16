@@ -15,6 +15,7 @@ function fmtINR(n) {
 export default function VehicleDispatchForm({
   clients = [],
   transporters = [],
+  recentLocations = [],
   vehicleSizes = [],
   mode = "create",
   initial = null,
@@ -325,6 +326,7 @@ export default function VehicleDispatchForm({
             <PlaceInput
               value={form.from_city}
               hasResolved={!!form.from_place_id}
+              recents={recentLocations}
               onTextChange={(t) => setLocationText("from", t)}
               onSelect={(p) => setLocationPlace("from", p)}
               placeholder="Start typing a city / place…"
@@ -336,6 +338,7 @@ export default function VehicleDispatchForm({
             <PlaceInput
               value={form.to_city}
               hasResolved={!!form.to_place_id}
+              recents={recentLocations}
               onTextChange={(t) => setLocationText("to", t)}
               onSelect={(p) => setLocationPlace("to", p)}
               placeholder="Start typing a city / place…"

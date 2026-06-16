@@ -2,21 +2,25 @@
 
 // Server-backed Google Places picker for the From/To fields. Typing hits our
 // /api/warehouse/geo/autocomplete route (debounced); picking a suggestion
-// resolves it to a label + coordinates via onSelect. Always degrades to a
-// plain text box — if the geo key isn't configured, or the user just types
-// and tabs away, the typed text is kept and place_id/coords are cleared.
+// resolves it to a label + coordinates via onSelect. Focusing an empty field
+// surfaces recently-used locations (from past dispatches) for one-tap reuse.
+// Always degrades to a plain text box — if the geo key isn't configured, or
+// the user just types and tabs away, the typed text is kept and
+// place_id/coords are cleared.
 
 import { useEffect, useRef, useState } from "react";
 
 export default function PlaceInput({
   value,
   hasResolved,        // true when a place_id/coords are currently stored
+  recents = [],       // [{ place_id, label, lat, lng }] — recently-used locations
   onTextChange,       // (text) => void  — free typing, clears the resolved place
   onSelect,           // ({ label, place_id, lat, lng }) => void
   placeholder,
   inputClassName,
 }) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState("recents"); // "recents" | "preds"
   const [preds, setPreds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(-1);
@@ -24,8 +28,10 @@ export default function PlaceInput({
   const boxRef = useRef(null);
   const debounceRef = useRef(null);
 
-  // One session token per picking session — Google bills autocomplete +
-  // details as a single session when they share a token.
+  // The list currently shown in the dropdown — recents (pre-typing) or live
+  // predictions (3+ chars typed).
+  const items = mode === "recents" ? recents : preds;
+
   function sessionToken() {
     if (!sessionRef.current) {
       sessionRef.current =
@@ -36,7 +42,6 @@ export default function PlaceInput({
     return sessionRef.current;
   }
 
-  // Close the dropdown on outside click.
   useEffect(() => {
     function onDoc(e) {
       if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
@@ -48,10 +53,14 @@ export default function PlaceInput({
   function queryPredictions(q) {
     clearTimeout(debounceRef.current);
     if (!q || q.trim().length < 3) {
+      // Below the autocomplete threshold — fall back to the recents list.
       setPreds([]);
-      setOpen(false);
+      setMode("recents");
+      setActive(-1);
+      setOpen(recents.length > 0);
       return;
     }
+    setMode("preds");
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
@@ -78,11 +87,29 @@ export default function PlaceInput({
     queryPredictions(text);
   }
 
-  async function choose(pred) {
+  function onFocus() {
+    // Show recents immediately when the field is empty/short.
+    if ((!value || value.trim().length < 3) && recents.length > 0) {
+      setMode("recents");
+      setActive(-1);
+      setOpen(true);
+    } else if (preds.length) {
+      setOpen(true);
+    }
+  }
+
+  // A recent already carries place_id + coords, so select it directly — no
+  // Places-details round-trip needed.
+  function chooseRecent(r) {
+    setOpen(false);
+    onSelect({ label: r.label, place_id: r.place_id, lat: r.lat, lng: r.lng });
+    sessionRef.current = null;
+  }
+
+  async function choosePrediction(pred) {
     setOpen(false);
     setPreds([]);
-    // Optimistically show the label; resolve coords in the background.
-    onTextChange(pred.main || pred.label);
+    onTextChange(pred.main || pred.label);   // optimistic label
     try {
       const res = await fetch(
         `/api/warehouse/geo/autocomplete?place_id=${encodeURIComponent(pred.place_id)}&session=${sessionToken()}`
@@ -102,15 +129,21 @@ export default function PlaceInput({
     } catch {
       onSelect({ label: pred.main || pred.label, place_id: pred.place_id, lat: null, lng: null });
     }
-    // Fresh token for the next independent pick.
     sessionRef.current = null;
   }
 
+  function chooseAt(i) {
+    const item = items[i];
+    if (!item) return;
+    if (mode === "recents") chooseRecent(item);
+    else choosePrediction(item);
+  }
+
   function onKeyDown(e) {
-    if (!open || preds.length === 0) return;
-    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, preds.length - 1)); }
+    if (!open || items.length === 0) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, items.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
-    else if (e.key === "Enter" && active >= 0) { e.preventDefault(); choose(preds[active]); }
+    else if (e.key === "Enter" && active >= 0) { e.preventDefault(); chooseAt(active); }
     else if (e.key === "Escape") { setOpen(false); }
   }
 
@@ -120,7 +153,7 @@ export default function PlaceInput({
         value={value || ""}
         onChange={onChange}
         onKeyDown={onKeyDown}
-        onFocus={() => { if (preds.length) setOpen(true); }}
+        onFocus={onFocus}
         placeholder={placeholder}
         autoComplete="off"
         className={inputClassName}
@@ -135,25 +168,35 @@ export default function PlaceInput({
       )}
       {open && (
         <ul className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900">
-          {loading && preds.length === 0 ? (
+          {mode === "recents" && items.length > 0 && (
+            <li className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+              Recent locations
+            </li>
+          )}
+          {mode === "preds" && loading && items.length === 0 ? (
             <li className="px-3 py-2 text-gray-400">Searching…</li>
           ) : (
-            preds.map((p, i) => (
-              <li key={p.place_id}>
+            items.map((p, i) => (
+              <li key={`${mode}-${p.place_id}`}>
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => choose(p)}
-                  className={`block w-full px-3 py-2 text-left ${
+                  onClick={() => chooseAt(i)}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left ${
                     i === active
                       ? "bg-gray-100 dark:bg-gray-800"
                       : "hover:bg-gray-50 dark:hover:bg-gray-800/60"
                   }`}
                 >
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{p.main}</span>
-                  {p.secondary && (
-                    <span className="ml-1 text-gray-500 dark:text-gray-400">{p.secondary}</span>
-                  )}
+                  {mode === "recents" && <span className="text-gray-400">🕘</span>}
+                  <span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {mode === "recents" ? p.label : p.main}
+                    </span>
+                    {mode === "preds" && p.secondary && (
+                      <span className="ml-1 text-gray-500 dark:text-gray-400">{p.secondary}</span>
+                    )}
+                  </span>
                 </button>
               </li>
             ))
