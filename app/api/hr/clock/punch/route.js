@@ -1,16 +1,45 @@
 // Punch-clock: the worker checks in or out. Auto-derives the attendance row
-// (one per employee/day) — Check In marks Present + stamps in-time; Check Out
+// (one per employee/shift) — Check In marks Present + stamps in-time; Check Out
 // stamps out-time and recomputes OT for OT-eligible workers (hours past 19:00,
 // same rule as the manual form). Self-marked rows carry marked_by_name="self"
 // so managers can tell them apart on the admin attendance page.
+//
+// Overnight shifts: an OT shift can run past midnight (e.g. 09:00 → 04:00). The
+// row stays keyed to the CHECK-IN date, so a check-out after midnight closes
+// yesterday's open row, and OT is measured across midnight. A shift's hard end
+// is OT_CUTOFF_HM (04:00) on the day after check-in: punching out later, or
+// forgetting to punch out, auto-closes the shift at the cutoff and caps OT.
 import { getEmpSession } from "@/lib/factoryos/empAuth";
 import { getEmployee, findAttendance, upsertAttendance, computeOtHours } from "@/lib/factoryos/repo";
-import { todayYmdIST, nowHmIST, isLate, distanceMeters } from "@/lib/factoryos/hr";
-import { SHIFT_END, OFFICE_GEOFENCE } from "@/lib/factoryos/constants";
+import { todayYmdIST, nowHmIST, isLate, distanceMeters, addDaysYmd, overnightShiftActive } from "@/lib/factoryos/hr";
+import { SHIFT_END, OFFICE_GEOFENCE, OT_CUTOFF_HM } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
 
 const SELF = "self";
+
+// Append a system note to whatever the row already had, " · "-separated.
+function appendNote(existing, addition) {
+  const base = String(existing || "").trim();
+  return base ? `${base} · ${addition}` : addition;
+}
+
+// Close a forgotten overnight shift at the OT ceiling so it still credits OT
+// (up to 04:00) and the new day can start clean. No out-location — they're long
+// gone by the time this runs.
+async function autoCloseShift(employeeId, date, row, otEligible) {
+  const otHours = otEligible ? computeOtHours(row.inTime, OT_CUTOFF_HM, SHIFT_END) : 0;
+  await upsertAttendance({
+    employeeId,
+    date,
+    status: row.status || "P",
+    inTime: row.inTime,
+    outTime: OT_CUTOFF_HM,
+    otHours,
+    markedByName: row.markedByName || SELF,
+    notes: appendNote(row.notes, `Auto check-out ${OT_CUTOFF_HM} (no punch-out)`),
+  });
+}
 
 // Cap how much we trust a poor GPS fix when checking the geofence: a worker is
 // "at the office" if they're within radius OR the office falls inside their
@@ -74,27 +103,45 @@ export async function POST(req) {
   const blocked = geofenceBlock(employee, geo);
   if (blocked) return blocked;
 
-  const date = todayYmdIST();
+  const today = todayYmdIST();
   const now = nowHmIST();
-  const existing = await findAttendance(session.employeeId, date);
+  const yesterday = addDaysYmd(today, -1);
+  const todayRow = await findAttendance(session.employeeId, today);
 
   if (action === "in") {
-    if (existing?.inTime) {
+    if (todayRow?.inTime) {
       return Response.json(
-        { error: `Already checked in at ${existing.inTime}.`, inTime: existing.inTime },
+        { error: `Already checked in at ${todayRow.inTime}.`, inTime: todayRow.inTime },
         { status: 409 },
       );
+    }
+    // Is yesterday's shift still open (mid-overnight, or a forgotten punch-out)?
+    const yRow = await findAttendance(session.employeeId, yesterday);
+    if (yRow?.inTime && !yRow.outTime) {
+      if (overnightShiftActive(yesterday, today, now)) {
+        // Still inside the overnight window — they should be checking OUT, not IN.
+        return Response.json(
+          {
+            error: `You're still checked in from yesterday (since ${yRow.inTime}). Check out first.`,
+            openSince: yRow.inTime,
+          },
+          { status: 409 },
+        );
+      }
+      // Past the cutoff and never closed — auto-close it so OT (to 04:00) is
+      // credited and today starts clean.
+      await autoCloseShift(session.employeeId, yesterday, yRow, employee.otEligible);
     }
     const late = isLate(now);
     const record = await upsertAttendance({
       employeeId: session.employeeId,
-      date,
+      date: today,
       status: "P",
       inTime: now,
-      outTime: existing?.outTime || "",
+      outTime: "",
       otHours: 0,
       markedByName: SELF,
-      notes: existing?.notes || "",
+      notes: "",
       inLat: geo.lat,
       inLng: geo.lng,
       inAccuracy: geo.accuracy,
@@ -102,32 +149,60 @@ export async function POST(req) {
     return Response.json({ ok: true, action, record, late, inTime: now, located: geo.lat != null });
   }
 
-  // action === "out"
-  if (!existing?.inTime) {
-    return Response.json({ error: "Check in first." }, { status: 400 });
-  }
-  if (existing?.outTime) {
-    return Response.json(
-      { error: `Already checked out at ${existing.outTime}.`, outTime: existing.outTime },
-      { status: 409 },
-    );
+  // action === "out" — close the open shift: today's if there is one, else
+  // yesterday's overnight one (check-in before midnight, out-time after).
+  let shiftDate = null;
+  let shiftRow = null;
+  if (todayRow?.inTime && !todayRow.outTime) {
+    shiftDate = today;
+    shiftRow = todayRow;
+  } else if (!todayRow) {
+    const yRow = await findAttendance(session.employeeId, yesterday);
+    if (yRow?.inTime && !yRow.outTime) {
+      shiftDate = yesterday;
+      shiftRow = yRow;
+    }
   }
 
-  const otHours = employee.otEligible ? computeOtHours(existing.inTime, now, SHIFT_END) : 0;
+  if (!shiftRow) {
+    if (todayRow?.outTime) {
+      return Response.json(
+        { error: `Already checked out at ${todayRow.outTime}.`, outTime: todayRow.outTime },
+        { status: 409 },
+      );
+    }
+    return Response.json({ error: "Check in first." }, { status: 400 });
+  }
+
+  // Honour the 04:00 OT ceiling: punching out after the cutoff caps the out-time
+  // (and OT) at the cutoff; otherwise the real punch time stands.
+  const capped = !overnightShiftActive(shiftDate, today, now);
+  const outTime = capped ? OT_CUTOFF_HM : now;
+  const otHours = employee.otEligible ? computeOtHours(shiftRow.inTime, outTime, SHIFT_END) : 0;
   const record = await upsertAttendance({
     employeeId: session.employeeId,
-    date,
+    date: shiftDate,
     status: "P",
-    inTime: existing.inTime,
-    outTime: now,
+    inTime: shiftRow.inTime,
+    outTime,
     otHours,
     markedByName: SELF,
-    notes: existing?.notes || "",
+    notes: capped
+      ? appendNote(shiftRow.notes, `Out capped to ${OT_CUTOFF_HM} (punched ${now})`)
+      : shiftRow.notes || "",
     outLat: geo.lat,
     outLng: geo.lng,
     outAccuracy: geo.accuracy,
   });
-  return Response.json({ ok: true, action, record, located: geo.lat != null });
+  return Response.json({
+    ok: true,
+    action,
+    record,
+    located: geo.lat != null,
+    overnight: shiftDate !== today,
+    capped,
+    otHours,
+  });
 }
 
 // Pull lat/lng/accuracy off the request body, validating ranges. Returns nulls

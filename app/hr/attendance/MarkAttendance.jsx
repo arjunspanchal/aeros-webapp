@@ -34,16 +34,18 @@ const STATUS_BTN = {
   UL: "bg-orange-600 text-white",
 };
 
-function computeOtPreview(outTime, shiftEnd = SHIFT_END) {
+function computeOtPreview(inTime, outTime, shiftEnd = SHIFT_END) {
   const parse = (t) => {
     const m = /^(\d{1,2}):(\d{2})$/.exec(String(t || "").trim());
     if (!m) return null;
     return Number(m[1]) + Number(m[2]) / 60;
   };
-  const a = parse(shiftEnd);
-  const b = parse(outTime);
-  if (a == null || b == null) return 0;
-  return Math.max(0, Number((b - a).toFixed(2)));
+  const end = parse(shiftEnd);
+  let out = parse(outTime);
+  const inn = parse(inTime);
+  if (end == null || out == null) return 0;
+  if (inn != null && out < inn) out += 24; // overnight shift crossed midnight
+  return Math.max(0, Number((out - end).toFixed(2)));
 }
 
 export default function MarkAttendance({
@@ -229,7 +231,7 @@ export default function MarkAttendance({
 
 function AttendanceRow({ row, managerMap, canMark, onChange, onSave }) {
   const { employee, status, inTime, outTime, dirty, saving, saved, selfMarked, error } = row;
-  const otPreview = employee.otEligible && status === "P" ? computeOtPreview(outTime) : 0;
+  const otPreview = employee.otEligible && status === "P" ? computeOtPreview(inTime, outTime) : 0;
   const otRate = otHourlyRate(employee);
   const otEarn = otPreview * otRate;
   const manager = managerMap[employee.managerId];
