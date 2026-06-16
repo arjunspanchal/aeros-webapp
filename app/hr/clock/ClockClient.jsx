@@ -97,11 +97,18 @@ export default function ClockClient({ initialSignedIn }) {
       return;
     }
     const locNote = data.located ? " 📍 Location recorded." : " (Location not shared.)";
-    setFlash(
-      (action === "in"
-        ? (data.late ? `Checked in at ${data.inTime} — you're marked late.` : "Checked in. Have a good shift!")
-        : "Checked out. See you tomorrow!") + locNote,
-    );
+    let msg;
+    if (action === "in") {
+      msg = data.late ? `Checked in at ${data.inTime} — you're marked late.` : "Checked in. Have a good shift!";
+    } else {
+      msg = "Checked out. See you tomorrow!";
+      if (data.otHours > 0) {
+        msg = `Checked out — ${data.otHours}h overtime recorded${data.capped ? " (capped at the OT cutoff)." : "."}`;
+      } else if (data.capped) {
+        msg = "Checked out — shift was auto-capped at the OT cutoff.";
+      }
+    }
+    setFlash(msg + locNote);
     await loadStatus();
   }
 
@@ -179,7 +186,7 @@ export default function ClockClient({ initialSignedIn }) {
 }
 
 function ClockFace({ status, busy, locating, onPunch, onSignOut }) {
-  const { employee, date, checkedIn, checkedOut, inTime, outTime, otHours } = status;
+  const { employee, date, checkedIn, checkedOut, inTime, outTime, otHours, inYesterday } = status;
   const done = checkedIn && checkedOut;
   const wfo = String(employee?.workMode || "WFO").toUpperCase() !== "WFH";
   const btnLabel = (label) => (locating ? "📍 Locating…" : busy ? "…" : label);
@@ -198,9 +205,15 @@ function ClockFace({ status, busy, locating, onPunch, onSignOut }) {
       <div className="rounded-xl border border-ink-200 bg-white p-4 text-center">
         {!checkedIn && <p className="text-sm text-ink-600">You haven&apos;t checked in yet today.</p>}
         {checkedIn && !checkedOut && (
-          <p className="text-sm text-ink-700">
-            Checked in at <span className="font-mono font-semibold">{inTime}</span>
-          </p>
+          <div className="text-sm text-ink-700 space-y-0.5">
+            <p>
+              Checked in {inYesterday ? "yesterday " : ""}at{" "}
+              <span className="font-mono font-semibold">{inTime}</span>
+            </p>
+            {inYesterday && employee?.otEligible && (
+              <p className="text-emerald-700 font-medium">Overtime in progress — check out when you finish.</p>
+            )}
+          </div>
         )}
         {done && (
           <div className="text-sm text-ink-700 space-y-0.5">
