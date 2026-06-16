@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import PlaceInput from "./PlaceInput";
 
 const OTHER = "__other__";
 const ADD_NEW = "__add__";
@@ -47,7 +48,13 @@ export default function VehicleDispatchForm({
     box_count:       initial?.box_count ?? "",
     total_weight_kg: initial?.total_weight_kg ?? "",
     from_city:       initial?.from_city || "",
+    from_place_id:   initial?.from_place_id || "",
+    from_lat:        initial?.from_lat ?? "",
+    from_lng:        initial?.from_lng ?? "",
     to_city:         initial?.to_city || "",
+    to_place_id:     initial?.to_place_id || "",
+    to_lat:          initial?.to_lat ?? "",
+    to_lng:          initial?.to_lng ?? "",
     approx_kms:      initial?.approx_kms ?? "",
     freight_lumpsum_inr: initial?.freight_lumpsum_inr ?? "",
     notes:           initial?.notes || "",
@@ -69,6 +76,76 @@ export default function VehicleDispatchForm({
   const [error, setError] = useState("");
 
   function setField(k, v) { setForm((f) => ({ ...f, [k]: v })); }
+
+  // --- Location pickers (From / To) + driving-distance auto-fill ---------
+  // Tracks whether the user has hand-edited kms; once they do we stop
+  // auto-overwriting it (until they change an endpoint, which re-enables).
+  const [kmsManual, setKmsManual] = useState(!!initial?.approx_kms);
+  const [distBusy, setDistBusy] = useState(false);
+  const [distNote, setDistNote] = useState("");
+
+  // Free typing in a location box: keep the text, drop the pinned place so a
+  // stale place_id/coords can't linger behind edited text.
+  function setLocationText(prefix, text) {
+    setForm((f) => ({ ...f, [`${prefix}_city`]: text, [`${prefix}_place_id`]: "", [`${prefix}_lat`]: "", [`${prefix}_lng`]: "" }));
+    setKmsManual(false);
+    setDistNote("");
+  }
+  function setLocationPlace(prefix, place) {
+    setForm((f) => ({
+      ...f,
+      [`${prefix}_city`]: place.label || "",
+      [`${prefix}_place_id`]: place.place_id || "",
+      [`${prefix}_lat`]: place.lat ?? "",
+      [`${prefix}_lng`]: place.lng ?? "",
+    }));
+    setKmsManual(false);  // a new endpoint → allow a fresh auto-distance
+    setDistNote("");
+  }
+
+  // When both endpoints resolve to real places, fetch the driving distance
+  // and pre-fill kms (unless the user has manually overridden it).
+  const lastLaneRef = useRef("");
+  useEffect(() => {
+    const fromOk = form.from_place_id || (form.from_lat !== "" && form.from_lng !== "");
+    const toOk   = form.to_place_id   || (form.to_lat !== ""   && form.to_lng !== "");
+    if (!fromOk || !toOk || kmsManual) return;
+
+    const lane = `${form.from_place_id || form.from_lat + "," + form.from_lng}|${form.to_place_id || form.to_lat + "," + form.to_lng}`;
+    if (lane === lastLaneRef.current) return;   // already computed this lane
+    lastLaneRef.current = lane;
+
+    let cancelled = false;
+    (async () => {
+      setDistBusy(true);
+      setDistNote("");
+      try {
+        const mk = (p) => form[`${p}_place_id`]
+          ? { place_id: form[`${p}_place_id`] }
+          : { lat: form[`${p}_lat`], lng: form[`${p}_lng`] };
+        const res = await fetch("/api/warehouse/geo/distance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ from: mk("from"), to: mk("to") }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.km != null) {
+          setForm((f) => ({ ...f, approx_kms: data.km }));
+          setDistNote(`Auto-filled from Google Maps (${data.km} km driving).`);
+        } else if (data.configured === false) {
+          setDistNote("Set GOOGLE_MAPS_API_KEY to enable auto-distance.");
+        } else {
+          setDistNote("No driving route found — enter kms manually.");
+        }
+      } catch {
+        if (!cancelled) setDistNote("Couldn't fetch distance — enter kms manually.");
+      } finally {
+        if (!cancelled) setDistBusy(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [form.from_place_id, form.from_lat, form.from_lng, form.to_place_id, form.to_lat, form.to_lng, kmsManual]);
 
   function onCustomerChange(val) {
     setCustomerMode(val);
@@ -245,15 +322,39 @@ export default function VehicleDispatchForm({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label className={labelCls}>From city</label>
-            <input value={form.from_city} onChange={(e) => setField("from_city", e.target.value)} className={inputCls} />
+            <PlaceInput
+              value={form.from_city}
+              hasResolved={!!form.from_place_id}
+              onTextChange={(t) => setLocationText("from", t)}
+              onSelect={(p) => setLocationPlace("from", p)}
+              placeholder="Start typing a city / place…"
+              inputClassName={inputCls}
+            />
           </div>
           <div>
             <label className={labelCls}>To city</label>
-            <input value={form.to_city} onChange={(e) => setField("to_city", e.target.value)} className={inputCls} />
+            <PlaceInput
+              value={form.to_city}
+              hasResolved={!!form.to_place_id}
+              onTextChange={(t) => setLocationText("to", t)}
+              onSelect={(p) => setLocationPlace("to", p)}
+              placeholder="Start typing a city / place…"
+              inputClassName={inputCls}
+            />
           </div>
           <div>
             <label className={labelCls}>Approx kms</label>
-            <input type="number" min="0" step="1" value={form.approx_kms} onChange={(e) => setField("approx_kms", e.target.value)} className={`${inputCls} text-right tabular-nums`} />
+            <input
+              type="number" min="0" step="1"
+              value={form.approx_kms}
+              onChange={(e) => { setField("approx_kms", e.target.value); setKmsManual(true); }}
+              className={`${inputCls} text-right tabular-nums`}
+            />
+            {(distBusy || distNote) && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {distBusy ? "Calculating driving distance…" : distNote}
+              </p>
+            )}
           </div>
           <div>
             <label className={labelCls}>No. of boxes</label>
