@@ -35,6 +35,7 @@ export function warehouseSections(session) {
       items: [
         { href: "/warehouse/inventory",           label: "Stock position", exact: true },
         { href: "/warehouse/inventory/items",     label: "Items master" },
+        { href: "/warehouse/inventory/import",    label: "Import opening stock" },
         { href: "/warehouse/inventory/inward",    label: "Inward" },
         { href: "/warehouse/inventory/outward",   label: "Outward" },
         { href: "/warehouse/inventory/movements", label: "Movement history" },

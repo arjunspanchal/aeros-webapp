@@ -63,6 +63,12 @@ export default async function InventoryStockPage() {
           >
             Audits →
           </Link>
+          <Link
+            href="/warehouse/inventory/import"
+            className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Import opening stock
+          </Link>
         </div>
       </div>
       <TodayActivity />
