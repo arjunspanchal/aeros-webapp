@@ -145,6 +145,12 @@ export default async function AdminDashboard() {
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
             {jobs.length} jobs · {clients.length} customers · {users.length} users
           </p>
+          <div className="mt-3 flex flex-wrap gap-2 text-sm">
+            <Link href="/factoryos/admin/inventory" className="rounded-md border border-gray-200 px-3 py-1.5 hover:border-gray-300 dark:border-gray-800">RM inventory</Link>
+            <Link href="/factoryos/admin/rm-rolls" className="rounded-md border border-gray-200 px-3 py-1.5 hover:border-gray-300 dark:border-gray-800">RM rolls</Link>
+            <Link href="/factoryos/admin/runs" className="rounded-md border border-gray-200 px-3 py-1.5 hover:border-gray-300 dark:border-gray-800">Production runs</Link>
+            <Link href="/factoryos/admin/floor-qr" className="rounded-md border border-gray-200 px-3 py-1.5 hover:border-gray-300 dark:border-gray-800">Floor QR ↗</Link>
+          </div>
         </header>
 
         {/* KPI tiles — replaces the old nav-pill row. Each tile deep-links
