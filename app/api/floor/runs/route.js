@@ -1,16 +1,19 @@
-// Public — start a production run from the operator page. Resolves the picked
-// SKU's public id (recXXX or uuid) to its master_products PG uuid for the FK,
-// then delegates to startRun (which also flips the roll to in_use).
+// Public — start a production run from the operator page. Requires an employee
+// session; the operator name is taken from the SESSION (never client input) so
+// runs are reliably attributed. Resolves the picked SKU's public id to the
+// master_products PG uuid for the FK.
 import { startRun } from "@/lib/factoryos/floor";
 import { findOne } from "@/lib/db/supabase";
+import { currentEmployee } from "@/lib/factoryos/floorAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req) {
+  const emp = currentEmployee();
+  if (!emp) return Response.json({ error: "Not signed in" }, { status: 401 });
   try {
     const b = await req.json().catch(() => ({}));
-    // SKU comes in as a public id from the picker; resolve to PG uuid.
     let skuPgId = null;
     if (b.skuId) {
       const row = await findOne("master_products", b.skuId, "id");
@@ -20,7 +23,7 @@ export async function POST(req) {
 
     const run = await startRun({
       machineCategory: b.machineCategory,
-      operatorName: b.operatorName,
+      operatorName: emp.name || "",
       rmRollId: b.rmRollId,
       skuId: skuPgId,
       skuSnapshot: b.skuSnapshot || "",

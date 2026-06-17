@@ -1,11 +1,13 @@
 // Public — pause / resume / finish a running job from the operator page.
 // PATCH body: { action: "pause" | "resume" | "finish", ...finish fields }.
 import { pauseRun, resumeRun, finishRun, getRunById } from "@/lib/factoryos/floor";
+import { currentEmployee } from "@/lib/factoryos/floorAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_req, { params }) {
+  if (!currentEmployee()) return Response.json({ error: "Not signed in" }, { status: 401 });
   try {
     const run = await getRunById(params.id);
     if (!run) return Response.json({ error: "Run not found" }, { status: 404 });
@@ -16,6 +18,7 @@ export async function GET(_req, { params }) {
 }
 
 export async function PATCH(req, { params }) {
+  if (!currentEmployee()) return Response.json({ error: "Not signed in" }, { status: 401 });
   try {
     const b = await req.json().catch(() => ({}));
     const action = b.action;
