@@ -23,6 +23,7 @@ export async function POST(req) {
     if (!skuPgId) return Response.json({ error: "Pick a valid SKU" }, { status: 400 });
 
     // Resolve any sku-kind feed (DW single-wall cups) public id → PG uuid.
+    // roll + stockkg feeds already carry PG uuids (rmRollId / rawMaterialId).
     const feeds = Array.isArray(b.feeds) ? b.feeds : [];
     const resolvedFeeds = [];
     for (const f of feeds) {

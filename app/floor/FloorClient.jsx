@@ -32,7 +32,7 @@ function elapsed(fromIso) {
 
 export default function FloorClient() {
   const [step, setStep] = useState("loading"); // loading|login|line|machine|feeds|photo|sku|speed|review|running|finish|done|error
-  const [boot, setBoot] = useState({ categories: [], machines: [], rolls: [] });
+  const [boot, setBoot] = useState({ categories: [], machines: [], rolls: [], stockLines: [] });
   const [bootErr, setBootErr] = useState("");
 
   // Auth
@@ -78,7 +78,7 @@ export default function FloorClient() {
       .then(({ status, ok, d }) => {
         if (status === 401) { setStep("login"); return; }
         if (!ok || d.error) { setBootErr(d.error || "Failed to load"); setStep("error"); return; }
-        setBoot({ categories: d.categories || [], machines: d.machines || [], rolls: d.rolls || [] });
+        setBoot({ categories: d.categories || [], machines: d.machines || [], rolls: d.rolls || [], stockLines: d.stockLines || [] });
         setMe(d.operator?.name || "");
         setStep("line");
       })
@@ -170,6 +170,15 @@ export default function FloorClient() {
       : f));
     advanceFeed();
   }
+  function pickStockForFeed(line) {
+    if (feedQty === "" || !(Number(feedQty) > 0)) { setErr("Enter kg loaded first"); return; }
+    setErr("");
+    const label = [line.supplier, line.paperType, line.gsm ? `${line.gsm} GSM` : null].filter(Boolean).join(" · ") || line.name;
+    setFeedSel((arr) => arr.map((f, i) => i === feedIdx
+      ? { ...f, rawMaterialId: line.id, skuSnapshot: label, loadedKg: Number(feedQty) }
+      : f));
+    advanceFeed();
+  }
 
   async function onPhoto(e) {
     const f = e.target.files?.[0];
@@ -194,8 +203,10 @@ export default function FloorClient() {
       const feeds = feedSel.map((f) => ({
         role: f.role, roleLabel: f.label, kind: f.kind,
         rmRollId: f.kind === "roll" ? f.rmRollId : undefined,
+        rawMaterialId: f.kind === "stockkg" ? f.rawMaterialId : undefined,
+        loadedKg: f.kind === "stockkg" ? f.loadedKg : undefined,
         skuId: f.kind === "sku" ? f.skuId : undefined,
-        skuSnapshot: f.kind === "sku" ? f.skuSnapshot : undefined,
+        skuSnapshot: (f.kind === "sku" || f.kind === "stockkg") ? f.skuSnapshot : undefined,
         qtyPcs: f.kind === "sku" ? f.qtyPcs : undefined,
       }));
       const res = await fetch("/api/floor/runs", {
@@ -244,6 +255,9 @@ export default function FloorClient() {
           if (f.rmRollId) {
             const sel = feedSel.find((s) => s.role === f.role);
             init[f.id] = sel?.roll?.remainingKg != null ? String(sel.roll.remainingKg) : "";
+          } else if (f.rawMaterialId) {
+            // Clam fan: pre-fill with the kg captured at load.
+            init[f.id] = f.consumedKg != null ? String(f.consumedKg) : "";
           }
         }
         setFeedKg(init);
@@ -364,6 +378,27 @@ export default function FloorClient() {
     if (f.kind === "roll") {
       return <Shell title={title} back={backFn}><RollList onPick={pickRollForFeed} /></Shell>;
     }
+    if (f.kind === "stockkg") {
+      // Clam die-cut fan: enter kg loaded, then pick the fan paper stock line.
+      return (
+        <Shell title={title} back={backFn}>
+          <label className="block text-sm text-gray-600 dark:text-gray-300">Kg loaded on machine</label>
+          <input value={feedQty} onChange={(e) => setFeedQty(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal"
+            placeholder="e.g. 50"
+            className="w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-xl text-center font-bold dark:bg-gray-900 dark:text-white" />
+          <div className="text-xs uppercase tracking-wide text-gray-500 pt-1">Pick the fan paper</div>
+          {boot.stockLines.length === 0 && <p className="text-gray-500 text-center py-6">No RM stock found. Ask admin to add fan paper in RM Inventory.</p>}
+          {boot.stockLines.map((l) => (
+            <button key={l.id} className={`${CARD} border-gray-200 bg-white dark:bg-gray-900`} onClick={() => pickStockForFeed(l)}>
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {[l.supplier, l.paperType, l.gsm ? `${l.gsm} GSM` : null].filter(Boolean).join(" · ") || l.name}
+              </div>
+              <div className="text-sm text-gray-500">{l.qtyKgs} kg in stock</div>
+            </button>
+          ))}
+        </Shell>
+      );
+    }
     // sku-kind feed (DW single-wall cups): pick SKU + qty
     return (
       <Shell title={title} back={backFn}>
@@ -420,9 +455,13 @@ export default function FloorClient() {
         <div className="rounded-2xl bg-white dark:bg-gray-900 border-2 border-gray-200 px-4 py-2">
           <Row k="Machine" v={machine?.name || category?.label} />
           <Row k="Operator" v={me} />
-          {feedSel.map((f) => (
-            <Row key={f.role} k={f.label} v={f.kind === "roll" ? (f.roll?.serial || "—") : `${f.skuSnapshot || "—"}${f.qtyPcs ? ` ×${f.qtyPcs}` : ""}`} />
-          ))}
+          {feedSel.map((f) => {
+            let v = "—";
+            if (f.kind === "roll") v = f.roll?.serial || "—";
+            else if (f.kind === "stockkg") v = `${f.skuSnapshot || "—"}${f.loadedKg ? ` · ${f.loadedKg} kg` : ""}`;
+            else v = `${f.skuSnapshot || "—"}${f.qtyPcs ? ` ×${f.qtyPcs}` : ""}`;
+            return <Row key={f.role} k={f.label} v={v} />;
+          })}
           <Row k="Making" v={sku?.productName} />
           <Row k="Speed" v={speed ? `${speed} pcs/min` : "—"} />
           <Row k="Photo" v={photoPath ? "✓" : "—"} />
@@ -464,7 +503,7 @@ export default function FloorClient() {
         <label className="block text-sm text-gray-600 dark:text-gray-300">Waste pieces</label>
         <input value={waste} onChange={(e) => setWaste(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal"
           className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-2xl text-center font-bold dark:bg-gray-900 dark:text-white" />
-        {runFeeds.filter((f) => f.rmRollId).map((f) => (
+        {runFeeds.filter((f) => f.rmRollId || f.rawMaterialId).map((f) => (
           <div key={f.id}>
             <label className="block text-sm text-gray-600 dark:text-gray-300">{f.roleLabel} — paper used (kg)</label>
             <input value={feedKg[f.id] ?? ""} onChange={(e) => setFeedKg((m) => ({ ...m, [f.id]: e.target.value.replace(/[^0-9.]/g, "") }))}
@@ -476,7 +515,7 @@ export default function FloorClient() {
           onClick={async () => {
             const feedConsumption = {};
             for (const f of runFeeds) {
-              if (f.rmRollId) feedConsumption[f.id] = { consumedKg: feedKg[f.id] === "" || feedKg[f.id] == null ? 0 : Number(feedKg[f.id]) };
+              if (f.rmRollId || f.rawMaterialId) feedConsumption[f.id] = { consumedKg: feedKg[f.id] === "" || feedKg[f.id] == null ? 0 : Number(feedKg[f.id]) };
             }
             try {
               await patchRun("finish", { goodPcs: good === "" ? 0 : Number(good), wastePcs: waste === "" ? 0 : Number(waste), feedConsumption });
