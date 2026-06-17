@@ -35,6 +35,14 @@ function money(n) {
   const v = Number(n) || 0;
   return Number.isInteger(v) ? inr0.format(v) : inr2.format(v);
 }
+// Amount already paid against a payout (running total of installments).
+function outstandingPaid(p) { return Math.max(0, Number(p.amountPaid) || 0); }
+// Amount still owed = total − paid (never below zero).
+function outstandingOf(p) {
+  if (p.outstanding != null) return Math.max(0, Number(p.outstanding) || 0);
+  return Math.max(0, (Number(p.amount) || 0) - outstandingPaid(p));
+}
+
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -68,10 +76,12 @@ export default function PayoutsClient({ initialPayouts = [], initialVendors = []
   const summary = useMemo(() => {
     let pending = 0, paid = 0, overdue = 0, overdueCount = 0, pendingCount = 0, paidCount = 0;
     for (const p of payouts) {
-      if (p.status === "paid") { paid += p.amount; paidCount++; }
-      else {
-        pending += p.amount; pendingCount++;
-        if (p.dueDate && p.dueDate < today) { overdue += p.amount; overdueCount++; }
+      paid += outstandingPaid(p);                 // money actually paid so far
+      const out = outstandingOf(p);               // money still owed
+      if (p.status === "paid") { paidCount++; }
+      else if (out > 0) {
+        pending += out; pendingCount++;
+        if (p.dueDate && p.dueDate < today) { overdue += out; overdueCount++; }
       }
     }
     return { pending, paid, overdue, overdueCount, pendingCount, paidCount, total: payouts.length };
@@ -89,8 +99,10 @@ export default function PayoutsClient({ initialPayouts = [], initialVendors = []
       }
       const w = map.get(key);
       w.total += p.amount;
-      if (p.status === "paid") { w.paid += p.amount; w.paidCount++; }
-      else { w.pending += p.amount; w.pendingCount++; }
+      w.paid += outstandingPaid(p);
+      const out = outstandingOf(p);
+      if (out > 0) { w.pending += out; }
+      if (p.status === "paid") { w.paidCount++; } else { w.pendingCount++; }
     }
     return [...map.values()].sort((a, b) => a.start - b.start);
   }, [payouts]);
@@ -98,12 +110,17 @@ export default function PayoutsClient({ initialPayouts = [], initialVendors = []
   const thisWeekKey = fmtYmd(startOfWeek(new Date()));
 
   const visiblePayouts = useMemo(() => {
-    const arr = filter === "all" ? payouts : payouts.filter((p) => p.status === filter);
-    // Pending first (soonest due at top), then paid (most recent due first).
+    // "Pending" covers anything not fully settled — includes partial.
+    const arr =
+      filter === "all" ? payouts
+      : filter === "paid" ? payouts.filter((p) => p.status === "paid")
+      : payouts.filter((p) => p.status !== "paid");
+    // Open first (soonest due at top), then paid (most recent due first).
     return [...arr].sort((a, b) => {
-      if (a.status !== b.status) return a.status === "pending" ? -1 : 1;
+      const aOpen = a.status !== "paid", bOpen = b.status !== "paid";
+      if (aOpen !== bOpen) return aOpen ? -1 : 1;
       const da = a.dueDate || "", db = b.dueDate || "";
-      return a.status === "pending" ? da.localeCompare(db) : db.localeCompare(da);
+      return aOpen ? da.localeCompare(db) : db.localeCompare(da);
     });
   }, [payouts, filter]);
 
@@ -163,6 +180,29 @@ export default function PayoutsClient({ initialPayouts = [], initialVendors = []
       upsertLocal(j.payout);
     } catch (e) {
       setError(e.message || "Failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // Record a partial payment (installment). `amount` is what was just paid;
+  // the server caps it at the outstanding balance and re-derives status.
+  async function recordPayment(p, amount) {
+    setBusyId(p.id);
+    setError("");
+    try {
+      const r = await fetch(`/api/payouts/${p.id}/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "Failed");
+      upsertLocal(j.payout);
+      return true;
+    } catch (e) {
+      setError(e.message || "Failed");
+      return false;
     } finally {
       setBusyId(null);
     }
@@ -329,6 +369,7 @@ export default function PayoutsClient({ initialPayouts = [], initialVendors = []
                   onCancelEdit={() => setEditId(null)}
                   onSaveEdit={(patch) => saveEdit(p.id, patch)}
                   onToggle={() => togglePaid(p)}
+                  onRecordPayment={(amt) => recordPayment(p, amt)}
                   onDelete={() => removePayout(p.id)}
                 />
               ))}
@@ -430,50 +471,127 @@ function AddPayoutForm({ vendors, onAdd }) {
 }
 
 // ─── A single payout row (view + inline edit) ───────────────────────────────
-function PayoutRow({ p, today, vendors, busy, editing, onEdit, onCancelEdit, onSaveEdit, onToggle, onDelete }) {
-  const overdue = p.status === "pending" && p.dueDate && p.dueDate < today;
-  const dueToday = p.status === "pending" && p.dueDate === today;
+function PayoutRow({ p, today, vendors, busy, editing, onEdit, onCancelEdit, onSaveEdit, onToggle, onRecordPayment, onDelete }) {
+  const open = p.status !== "paid";
+  const overdue = open && p.dueDate && p.dueDate < today;
+  const dueToday = open && p.dueDate === today;
   const paid = p.status === "paid";
+  const partial = p.status === "partial";
+  const paidSoFar = outstandingPaid(p);
+  const outstanding = outstandingOf(p);
+  const [paying, setPaying] = useState(false);
 
   if (editing) {
     return <EditRow p={p} vendors={vendors} busy={busy} onCancel={onCancelEdit} onSave={onSaveEdit} />;
   }
 
+  async function submitPay(amt) {
+    const ok = await onRecordPayment(amt);
+    if (ok) setPaying(false);
+  }
+
   return (
-    <div className={`rounded-xl border bg-white px-4 py-3 flex items-center gap-3 dark:bg-gray-900 ${
+    <div className={`rounded-xl border bg-white dark:bg-gray-900 ${
       overdue ? "border-red-200 dark:border-red-900/50" : "border-gray-200 dark:border-gray-800"
     } ${paid ? "opacity-70" : ""}`}>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={`font-medium text-gray-900 dark:text-gray-100 ${paid ? "line-through decoration-gray-300" : ""}`}>{p.vendorName}</span>
-          {overdue && <Badge tone="red">Overdue</Badge>}
-          {dueToday && <Badge tone="amber">Due today</Badge>}
-          {paid && <Badge tone="emerald">Paid</Badge>}
+      <div className="px-4 py-3 flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`font-medium text-gray-900 dark:text-gray-100 ${paid ? "line-through decoration-gray-300" : ""}`}>{p.vendorName}</span>
+            {overdue && <Badge tone="red">Overdue</Badge>}
+            {dueToday && <Badge tone="amber">Due today</Badge>}
+            {partial && <Badge tone="sky">Part-paid</Badge>}
+            {paid && <Badge tone="emerald">Paid</Badge>}
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            Due {fmtDisplayDate(p.dueDate)}
+            {p.note ? <span> · {p.note}</span> : null}
+            {paid && p.paidAt ? <span> · paid {fmtDisplayDateTime(p.paidAt)}</span> : null}
+          </div>
         </div>
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-          Due {fmtDisplayDate(p.dueDate)}
-          {p.note ? <span> · {p.note}</span> : null}
-          {paid && p.paidAt ? <span> · paid {fmtDisplayDateTime(p.paidAt)}</span> : null}
+        <div className="text-right shrink-0">
+          {/* For an open payout the headline number is what's still OWED; the
+              total + paid-so-far sit underneath so the split is clear. */}
+          <div className={`tabular-nums font-semibold ${paid ? "text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>
+            {money(open ? outstanding : p.amount)}
+          </div>
+          {open && paidSoFar > 0 && (
+            <div className="text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
+              {money(paidSoFar)} paid of {money(p.amount)}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {open && (
+            <button
+              onClick={() => setPaying((v) => !v)}
+              disabled={busy}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 dark:border-emerald-900/50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+            >
+              Pay part
+            </button>
+          )}
+          <button
+            onClick={onToggle}
+            disabled={busy}
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${
+              paid
+                ? "border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                : "bg-emerald-600 text-white hover:bg-emerald-700"
+            }`}
+          >
+            {busy ? "…" : paid ? "Undo" : "Pay full"}
+          </button>
+          <button onClick={onEdit} disabled={busy} title="Edit" className="px-2 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800">Edit</button>
+          <button onClick={onDelete} disabled={busy} title="Delete" className="px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">✕</button>
         </div>
       </div>
-      <div className="text-right shrink-0">
-        <div className={`tabular-nums font-semibold ${paid ? "text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>{money(p.amount)}</div>
+
+      {paying && open && (
+        <PayPanel outstanding={outstanding} busy={busy} onCancel={() => setPaying(false)} onPay={submitPay} />
+      )}
+
+      {p.payments && p.payments.length > 0 && (
+        <div className="px-4 pb-2.5 -mt-0.5">
+          <div className="text-[11px] text-gray-400 dark:text-gray-500 flex flex-wrap gap-x-3 gap-y-0.5">
+            {p.payments.map((pay) => (
+              <span key={pay.id} className="tabular-nums">
+                {money(pay.amount)} · {fmtDisplayDateTime(pay.paidAt)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Inline "record a payment" panel. Defaults to the full outstanding so the
+// common "clear it" case is one click; edit the figure for a part payment.
+function PayPanel({ outstanding, busy, onCancel, onPay }) {
+  const [amt, setAmt] = useState(String(outstanding));
+  const n = Number(amt);
+  const valid = Number.isFinite(n) && n > 0;
+  return (
+    <div className="px-4 pb-3 pt-1 flex items-end gap-2 flex-wrap border-t border-gray-50 dark:border-gray-800/60">
+      <div>
+        <label className={labelCls}>Amount paid now (₹)</label>
+        <input
+          className={`${inputCls} tabular-nums w-40`}
+          type="number" min="0" step="0.01" inputMode="decimal" autoFocus
+          value={amt}
+          onChange={(e) => setAmt(e.target.value)}
+        />
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={onToggle}
-          disabled={busy}
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-40 ${
-            paid
-              ? "border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-              : "bg-emerald-600 text-white hover:bg-emerald-700"
-          }`}
-        >
-          {busy ? "…" : paid ? "Undo" : "Mark paid"}
-        </button>
-        <button onClick={onEdit} disabled={busy} title="Edit" className="px-2 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800">Edit</button>
-        <button onClick={onDelete} disabled={busy} title="Delete" className="px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">✕</button>
-      </div>
+      <button
+        onClick={() => valid && onPay(n)}
+        disabled={!valid || busy}
+        className="px-3 py-2 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
+      >
+        {busy ? "…" : "Record payment"}
+      </button>
+      <button onClick={onCancel} className="px-3 py-2 rounded-lg text-xs text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">Cancel</button>
+      <span className="text-[11px] text-gray-400 dark:text-gray-500 ml-auto self-center">{money(outstanding)} outstanding</span>
     </div>
   );
 }
@@ -584,21 +702,26 @@ function CalendarView({ payouts, monthCursor, setMonthCursor, today, onToggle })
                 </div>
                 <div className="mt-1 space-y-1">
                   {items.slice(0, 3).map((p) => {
-                    const overdue = p.status === "pending" && ymd < today;
+                    const open = p.status !== "paid";
+                    const overdue = open && ymd < today;
+                    const partial = p.status === "partial";
+                    const shown = open ? outstandingOf(p) : p.amount;
                     return (
                       <button
                         key={p.id}
                         onClick={() => onToggle(p)}
-                        title={`${p.vendorName} — ${money(p.amount)} · ${p.status === "paid" ? "paid (click to undo)" : "click to mark paid"}`}
+                        title={`${p.vendorName} — ${money(shown)}${partial ? ` outstanding (${money(outstandingPaid(p))} paid)` : ""} · ${p.status === "paid" ? "paid (click to undo)" : "click to pay in full"}`}
                         className={`w-full text-left truncate rounded px-1 py-0.5 text-[10px] leading-tight transition-colors ${
                           p.status === "paid"
                             ? "bg-emerald-50 text-emerald-700 line-through dark:bg-emerald-900/20 dark:text-emerald-400"
                             : overdue
                             ? "bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400"
+                            : partial
+                            ? "bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/20 dark:text-sky-400"
                             : "bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-300"
                         }`}
                       >
-                        {p.vendorName} · {money(p.amount)}
+                        {p.vendorName} · {money(shown)}
                       </button>
                     );
                   })}
@@ -638,6 +761,7 @@ const BADGE_TONES = {
   red: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
   amber: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
   emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+  sky: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300",
 };
 function Badge({ tone, children }) {
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${BADGE_TONES[tone]}`}>{children}</span>;

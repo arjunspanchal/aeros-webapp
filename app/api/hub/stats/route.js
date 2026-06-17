@@ -170,17 +170,21 @@ export async function GET() {
   if (internalPayouts) {
     // One round-trip for all pending payouts → pending total + overdue split.
     tasks.payoutsAgg = safe(async () => {
+      // Pending + partial both still owe money; pending total is the
+      // OUTSTANDING balance (amount - amount_paid), so a part-paid 3L payout
+      // contributes its 2L remainder, not the full 3L.
       const rows = await dbSelect("payouts", {
-        select: "amount,due_date",
-        filter: { status: "eq.pending" },
+        select: "amount,amount_paid,due_date",
+        filter: { status: "in.(pending,partial)" },
         limit: 5000,
       });
       const today = todayISO();
       let pending = 0, pendingCount = 0, overdue = 0, overdueCount = 0;
       for (const r of rows) {
-        const amt = Number(r.amount) || 0;
-        pending += amt; pendingCount += 1;
-        if (r.due_date && r.due_date < today) { overdue += amt; overdueCount += 1; }
+        const out = Math.max(0, (Number(r.amount) || 0) - (Number(r.amount_paid) || 0));
+        if (out <= 0) continue;
+        pending += out; pendingCount += 1;
+        if (r.due_date && r.due_date < today) { overdue += out; overdueCount += 1; }
       }
       return { pending, pendingCount, overdue, overdueCount };
     }, { pending: 0, pendingCount: 0, overdue: 0, overdueCount: 0 });
@@ -260,8 +264,8 @@ export async function GET() {
     alertTasks.push(
       safe(async () => {
         const rows = await dbSelect("payouts", {
-          select: "amount",
-          filter: { status: "eq.pending", due_date: `lt.${todayISO()}` },
+          select: "id",
+          filter: { status: "in.(pending,partial)", due_date: `lt.${todayISO()}` },
           limit: 5000,
         });
         return rows.length;
