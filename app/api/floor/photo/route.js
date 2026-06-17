@@ -3,6 +3,7 @@
 // path (the run row keeps the path; the bucket is public so the admin view can
 // render it via publicStorageUrl). 5 MB cap, images only.
 import { uploadToBucket, safeFilename } from "@/lib/db/storage";
+import { currentEmployee } from "@/lib/factoryos/floorAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 const MAX_BYTES = 5 * 1024 * 1024;
 
 export async function POST(req) {
+  if (!currentEmployee()) return Response.json({ error: "Not signed in" }, { status: 401 });
   try {
     const body = await req.json().catch(() => ({}));
     const { filename, contentType, fileBase64 } = body || {};

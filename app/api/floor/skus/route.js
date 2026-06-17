@@ -3,11 +3,13 @@
 // search keeps the payload small (the catalogue is ~750 SKUs).
 import { recentSkusForCategory } from "@/lib/factoryos/floor";
 import { fetchCatalogLite } from "@/lib/catalog";
+import { currentEmployee } from "@/lib/factoryos/floorAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req) {
+  if (!currentEmployee()) return Response.json({ error: "Not signed in" }, { status: 401 });
   try {
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category") || "";

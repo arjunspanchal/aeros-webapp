@@ -29,13 +29,19 @@ function elapsed(fromIso) {
 }
 
 export default function FloorClient() {
-  const [step, setStep] = useState("loading"); // loading|line|operator|roll|photo|sku|speed|review|running|finish|done|error
-  const [boot, setBoot] = useState({ categories: [], operators: [], rolls: [] });
+  const [step, setStep] = useState("loading"); // loading|login|line|roll|photo|sku|speed|review|running|finish|done|error
+  const [boot, setBoot] = useState({ categories: [], rolls: [] });
   const [bootErr, setBootErr] = useState("");
+
+  // Auth (employee code + PIN → shared punch-clock session)
+  const [me, setMe] = useState("");
+  const [loginCode, setLoginCode] = useState("");
+  const [loginPin, setLoginPin] = useState("");
+  const [loginErr, setLoginErr] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
 
   // Selections
   const [category, setCategory] = useState(null);   // {key,label}
-  const [operator, setOperator] = useState("");
   const [roll, setRoll] = useState(null);
   const [photoPath, setPhotoPath] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -59,16 +65,47 @@ export default function FloorClient() {
 
   const fileRef = useRef(null);
 
-  // Bootstrap
-  useEffect(() => {
-    fetch("/api/floor/bootstrap")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) { setBootErr(d.error); setStep("error"); return; }
-        setBoot(d); setStep("line");
+  // Bootstrap — 401 means no employee session yet → show the PIN login.
+  function loadBootstrap() {
+    return fetch("/api/floor/bootstrap")
+      .then(async (r) => ({ ok: r.ok, status: r.status, d: await r.json().catch(() => ({})) }))
+      .then(({ ok, status, d }) => {
+        if (status === 401) { setStep("login"); return; }
+        if (!ok || d.error) { setBootErr(d.error || "Failed to load"); setStep("error"); return; }
+        setBoot({ categories: d.categories || [], rolls: d.rolls || [] });
+        setMe(d.operator?.name || "");
+        setStep("line");
       })
       .catch((e) => { setBootErr(String(e)); setStep("error"); });
-  }, []);
+  }
+  useEffect(() => { loadBootstrap(); }, []);
+
+  async function doLogin(e) {
+    e?.preventDefault?.();
+    setLoginErr("");
+    if (!loginCode.trim() || !/^\d{4,6}$/.test(loginPin)) {
+      setLoginErr("Enter your employee code and 4–6 digit PIN");
+      return;
+    }
+    setLoginBusy(true);
+    try {
+      const res = await fetch("/api/hr/clock/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: loginCode.trim(), pin: loginPin }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || "Login failed");
+      setLoginPin("");
+      setStep("loading");
+      await loadBootstrap();
+    } catch (e2) { setLoginErr(e2.message); } finally { setLoginBusy(false); }
+  }
+
+  async function logout() {
+    await fetch("/api/hr/clock/logout", { method: "POST" }).catch(() => {});
+    setMe(""); setCategory(null); setRoll(null); setSku(null); setRun(null);
+    setStep("login");
+  }
 
   // Tick the running clock once a second (cosmetic).
   useEffect(() => {
@@ -116,7 +153,6 @@ export default function FloorClient() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           machineCategory: category.key,
-          operatorName: operator,
           rmRollId: roll.id,
           skuId: sku.id,
           skuSnapshot: `${sku.sku ? sku.sku + " · " : ""}${sku.productName}`,
@@ -146,11 +182,12 @@ export default function FloorClient() {
   }
 
   function resetAll() {
-    setCategory(null); setOperator(""); setRoll(null); setPhotoPath(null);
+    setCategory(null); setRoll(null); setPhotoPath(null);
     setPhotoPreview(null); setSku(null); setSpeed(""); setRun(null);
-    setGood(""); setWaste(""); setConsumed(""); setErr(""); setStep("line");
-    // refresh rolls so the consumed one drops off
-    fetch("/api/floor/bootstrap").then((r) => r.json()).then((d) => { if (!d.error) setBoot(d); }).catch(() => {});
+    setGood(""); setWaste(""); setConsumed(""); setErr("");
+    setStep("loading");
+    // refresh rolls so the consumed one drops off; lands back on the line step
+    loadBootstrap();
   }
 
   // ---- Shell ----
@@ -161,7 +198,11 @@ export default function FloorClient() {
           <button onClick={back} className="text-2xl leading-none px-2 -ml-2" aria-label="Back">←</button>
         )}
         <div className="font-semibold text-base">{title}</div>
-        <div className="ml-auto text-xs opacity-70">Aeros Production</div>
+        {me ? (
+          <button onClick={logout} className="ml-auto text-xs underline opacity-80">{me} · Logout</button>
+        ) : (
+          <div className="ml-auto text-xs opacity-70">Aeros Production</div>
+        )}
       </div>
       <div className="flex-1 p-4 max-w-xl w-full mx-auto space-y-3">{children}</div>
       {err && (
@@ -173,13 +214,34 @@ export default function FloorClient() {
   if (step === "loading") return <Shell title="Loading…"><p className="text-center text-gray-500 py-20">Loading…</p></Shell>;
   if (step === "error") return <Shell title="Problem"><div className="rounded-xl bg-red-50 border border-red-200 p-4 text-red-800">{bootErr}</div></Shell>;
 
+  // 0) Login — employee code + PIN (shared punch-clock session)
+  if (step === "login") {
+    return (
+      <Shell title="Sign in">
+        <form onSubmit={doLogin} className="space-y-3">
+          <p className="text-sm text-gray-600 dark:text-gray-300">Enter your employee code and PIN to start.</p>
+          <input value={loginCode} onChange={(e) => setLoginCode(e.target.value)} placeholder="Employee code"
+            autoComplete="off"
+            className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-xl text-center font-semibold dark:bg-gray-900 dark:text-white" />
+          <input value={loginPin} onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            inputMode="numeric" type="password" placeholder="PIN"
+            className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-2xl text-center font-bold tracking-widest dark:bg-gray-900 dark:text-white" />
+          <button type="submit" disabled={loginBusy} className={`${BTN} bg-blue-600 text-white`}>
+            {loginBusy ? "Signing in…" : "Sign in"}
+          </button>
+          {loginErr && <p className="text-sm text-red-600 text-center">{loginErr}</p>}
+        </form>
+      </Shell>
+    );
+  }
+
   // 1) Machine line
   if (step === "line") {
     return (
       <Shell title="1. Which machine?">
         {boot.categories.map((c) => (
           <button key={c.key} className={`${BTN} bg-white border-2 border-gray-200 text-gray-900 dark:bg-gray-900 dark:text-white`}
-            onClick={() => { setCategory(c); setStep("operator"); }}>
+            onClick={() => { setCategory(c); setStep("roll"); }}>
             {c.label}
           </button>
         ))}
@@ -187,25 +249,10 @@ export default function FloorClient() {
     );
   }
 
-  // 2) Operator
-  if (step === "operator") {
-    return (
-      <Shell title="2. Your name" back={() => setStep("line")}>
-        {boot.operators.length === 0 && <p className="text-gray-500 text-center py-8">No operators found. Ask admin to add employees.</p>}
-        {boot.operators.map((o) => (
-          <button key={o.id} className={`${BTN} ${operator === o.name ? "bg-blue-600 text-white" : "bg-white border-2 border-gray-200 text-gray-900 dark:bg-gray-900 dark:text-white"}`}
-            onClick={() => { setOperator(o.name); setStep("roll"); }}>
-            {o.name}
-          </button>
-        ))}
-      </Shell>
-    );
-  }
-
-  // 3) Roll
+  // 2) Roll
   if (step === "roll") {
     return (
-      <Shell title="3. Which paper roll?" back={() => setStep("operator")}>
+      <Shell title="2. Which paper roll?" back={() => setStep("line")}>
         {boot.rolls.length === 0 && <p className="text-gray-500 text-center py-8">No rolls in stock. Ask admin to register rolls.</p>}
         {boot.rolls.map((r) => (
           <button key={r.id} className={`${CARD} ${roll?.id === r.id ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 bg-white dark:bg-gray-900"}`}
@@ -224,7 +271,7 @@ export default function FloorClient() {
   // 4) Photo
   if (step === "photo") {
     return (
-      <Shell title="4. Photo of roll" back={() => setStep("roll")}>
+      <Shell title="3. Photo of roll" back={() => setStep("roll")}>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhoto} />
         {photoPreview && <img src={photoPreview} alt="roll" className="w-full rounded-2xl border-2 border-gray-200" />}
         <button className={`${BTN} bg-gray-900 text-white`} disabled={photoBusy} onClick={() => fileRef.current?.click()}>
@@ -240,7 +287,7 @@ export default function FloorClient() {
   // 5) SKU
   if (step === "sku") {
     return (
-      <Shell title="5. What are you making?" back={() => setStep("photo")}>
+      <Shell title="4. What are you making?" back={() => setStep("photo")}>
         {skuRecent.length > 0 && (
           <>
             <div className="text-xs uppercase tracking-wide text-gray-500">Recent</div>
@@ -269,7 +316,7 @@ export default function FloorClient() {
   // 6) Speed
   if (step === "speed") {
     return (
-      <Shell title="6. Machine speed" back={() => setStep("sku")}>
+      <Shell title="5. Machine speed" back={() => setStep("sku")}>
         <label className="block text-sm text-gray-600 dark:text-gray-300">Pieces per minute</label>
         <input value={speed} onChange={(e) => setSpeed(e.target.value.replace(/[^0-9.]/g, ""))}
           inputMode="decimal" placeholder="e.g. 80"
@@ -290,7 +337,7 @@ export default function FloorClient() {
       <Shell title="Check & start" back={() => setStep("speed")}>
         <div className="rounded-2xl bg-white dark:bg-gray-900 border-2 border-gray-200 px-4 py-2">
           <Row k="Machine" v={category?.label} />
-          <Row k="Operator" v={operator} />
+          <Row k="Operator" v={me} />
           <Row k="Roll" v={roll?.serial} />
           <Row k="SKU" v={sku?.productName} />
           <Row k="Speed" v={speed ? `${speed} pcs/min` : "—"} />
@@ -311,7 +358,7 @@ export default function FloorClient() {
         <div className={`rounded-2xl p-6 text-center text-white ${paused ? "bg-amber-500" : "bg-green-600"}`}>
           <div className="text-sm opacity-90">{category?.label} · {sku?.productName}</div>
           <div className="text-5xl font-bold mt-2 tabular-nums">{elapsed(run?.startTime)}</div>
-          <div className="text-sm opacity-90 mt-1">Roll {roll?.serial} · {operator}</div>
+          <div className="text-sm opacity-90 mt-1">Roll {roll?.serial} · {me}</div>
         </div>
         {paused ? (
           <button className={`${BTN} bg-green-600 text-white text-2xl py-6`} disabled={busy}

@@ -1,25 +1,23 @@
-// Public (QR-opened) operator page bootstrap. Returns everything the wizard
-// needs up front: machine lines, operator names, and in-stock rolls. No hub
-// session — /floor + /api/floor/* are intentionally outside the middleware
-// matcher (same public model as the punch clock). Runs server-side with the
-// service-role key, so reads are safe without exposing credentials.
+// Public (QR-opened) operator page bootstrap. Requires an employee session
+// (code + PIN via the punch-clock login). Returns who's logged in, the machine
+// lines, and in-stock rolls. /floor + /api/floor/* are outside the middleware
+// matcher, so each route self-verifies the employee session here.
 import { MACHINE_CATEGORIES, listRollsInStock } from "@/lib/factoryos/floor";
-import { listEmployees } from "@/lib/factoryos/repo";
+import { currentEmployee } from "@/lib/factoryos/floorAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const emp = currentEmployee();
+  if (!emp) return Response.json({ error: "Not signed in" }, { status: 401 });
   try {
-    const [employees, rolls] = await Promise.all([
-      listEmployees({ activeOnly: true }).catch(() => []),
-      listRollsInStock().catch(() => []),
-    ]);
-    const operators = employees
-      .map((e) => ({ id: e.id, name: e.name }))
-      .filter((e) => e.name)
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return Response.json({ categories: MACHINE_CATEGORIES, operators, rolls });
+    const rolls = await listRollsInStock().catch(() => []);
+    return Response.json({
+      operator: { name: emp.name || "" },
+      categories: MACHINE_CATEGORIES,
+      rolls,
+    });
   } catch (e) {
     console.error("floor bootstrap", e);
     return Response.json({ error: e.message || "Failed" }, { status: 500 });
