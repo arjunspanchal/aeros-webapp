@@ -67,6 +67,25 @@ export default function EmployeesAdmin({ initialEmployees, factoryManagers, isAd
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawerOpen]);
 
+  // Pre-fill the create form when arriving from a "Hire" action in /hr/hiring
+  // (/hr?create=1&name=…&phone=…&designation=…). Runs once on mount, then
+  // cleans the URL so a refresh doesn't reopen the prefilled drawer.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("create") !== "1") return;
+    setEditingId(null);
+    setForm({
+      ...EMPTY,
+      name: sp.get("name") || "",
+      phone: localTen(sp.get("phone") || ""),
+      designation: sp.get("designation") || "",
+    });
+    setErr(""); setPinInput(""); setPinMsg("");
+    setDrawerOpen(true);
+    window.history.replaceState(null, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function openCreate() {
     setEditingId(null);
     setForm(EMPTY);
