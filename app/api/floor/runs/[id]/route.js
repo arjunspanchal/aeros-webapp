@@ -1,6 +1,6 @@
 // Public — pause / resume / finish a running job from the operator page.
 // PATCH body: { action: "pause" | "resume" | "finish", ...finish fields }.
-import { pauseRun, resumeRun, finishRun, getRunById } from "@/lib/factoryos/floor";
+import { pauseRun, resumeRun, finishRun, getRunById, getRunFeeds } from "@/lib/factoryos/floor";
 import { currentEmployee } from "@/lib/factoryos/floorAuth";
 
 export const runtime = "nodejs";
@@ -11,7 +11,8 @@ export async function GET(_req, { params }) {
   try {
     const run = await getRunById(params.id);
     if (!run) return Response.json({ error: "Run not found" }, { status: 404 });
-    return Response.json({ run });
+    const feeds = await getRunFeeds(params.id);
+    return Response.json({ run, feeds });
   } catch (e) {
     return Response.json({ error: e.message || "Failed" }, { status: 500 });
   }
@@ -32,7 +33,7 @@ export async function PATCH(req, { params }) {
         runId: params.id,
         goodPcs: b.goodPcs,
         wastePcs: b.wastePcs,
-        consumedKg: b.consumedKg,
+        feedConsumption: b.feedConsumption || {},
       });
     } else {
       return Response.json({ error: "Unknown action" }, { status: 400 });

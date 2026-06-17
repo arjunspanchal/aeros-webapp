@@ -14,6 +14,7 @@ export async function POST(req) {
   if (!emp) return Response.json({ error: "Not signed in" }, { status: 401 });
   try {
     const b = await req.json().catch(() => ({}));
+    // Resolve the product SKU public id → PG uuid.
     let skuPgId = null;
     if (b.skuId) {
       const row = await findOne("master_products", b.skuId, "id");
@@ -21,15 +22,28 @@ export async function POST(req) {
     }
     if (!skuPgId) return Response.json({ error: "Pick a valid SKU" }, { status: 400 });
 
+    // Resolve any sku-kind feed (DW single-wall cups) public id → PG uuid.
+    const feeds = Array.isArray(b.feeds) ? b.feeds : [];
+    const resolvedFeeds = [];
+    for (const f of feeds) {
+      if (f.kind === "sku" && f.skuId) {
+        const row = await findOne("master_products", f.skuId, "id");
+        resolvedFeeds.push({ ...f, skuId: row?.id || null });
+      } else {
+        resolvedFeeds.push(f);
+      }
+    }
+
     const run = await startRun({
       machineCategory: b.machineCategory,
+      machineId: b.machineId || null,
       operatorName: emp.name || "",
-      rmRollId: b.rmRollId,
       skuId: skuPgId,
       skuSnapshot: b.skuSnapshot || "",
       machineSpeed: b.machineSpeed,
       speedUnit: b.speedUnit || "pcs/min",
       photoPath: b.photoPath || null,
+      feeds: resolvedFeeds,
     });
     return Response.json({ run });
   } catch (e) {

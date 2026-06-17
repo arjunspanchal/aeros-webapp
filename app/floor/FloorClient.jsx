@@ -1,10 +1,12 @@
 "use client";
 
-// Big-button production-capture wizard for shop-floor operators. Designed for
-// low-literacy / first-time phone users: one decision per screen, large tap
-// targets, minimal text, a clear back button, and a final review before the
-// big green START. After start it shows a live run screen with PAUSE and
-// FINISH; finish collects good/waste/consumed on number pads.
+// Big-button production-capture wizard for shop-floor operators.
+// Flow: sign in (employee code + PIN) → machine line → specific machine →
+// one slot per machine feed (roll, or for double-wall the single-wall-cup
+// SKU + qty) → photo → product SKU → speed → START. Live run screen with
+// PAUSE/RESUME and FINISH; finish collects good/waste + kg used per roll feed.
+// Designed for low-literacy / first-time phone users: one decision per screen,
+// large tap targets, clear back button.
 
 import { useEffect, useRef, useState } from "react";
 
@@ -29,11 +31,11 @@ function elapsed(fromIso) {
 }
 
 export default function FloorClient() {
-  const [step, setStep] = useState("loading"); // loading|login|line|roll|photo|sku|speed|review|running|finish|done|error
-  const [boot, setBoot] = useState({ categories: [], rolls: [] });
+  const [step, setStep] = useState("loading"); // loading|login|line|machine|feeds|photo|sku|speed|review|running|finish|done|error
+  const [boot, setBoot] = useState({ categories: [], machines: [], rolls: [] });
   const [bootErr, setBootErr] = useState("");
 
-  // Auth (employee code + PIN → shared punch-clock session)
+  // Auth
   const [me, setMe] = useState("");
   const [loginCode, setLoginCode] = useState("");
   const [loginPin, setLoginPin] = useState("");
@@ -42,37 +44,41 @@ export default function FloorClient() {
 
   // Selections
   const [category, setCategory] = useState(null);   // {key,label}
-  const [roll, setRoll] = useState(null);
+  const [machine, setMachine] = useState(null);      // machine row (with feeds[])
+  const [feedSel, setFeedSel] = useState([]);        // aligned with machine.feeds
+  const [feedIdx, setFeedIdx] = useState(0);
   const [photoPath, setPhotoPath] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [photoBusy, setPhotoBusy] = useState(false);
-  const [sku, setSku] = useState(null);
+  const [sku, setSku] = useState(null);              // product being made
   const [speed, setSpeed] = useState("");
 
-  // SKU picker
-  const [skuRecent, setSkuRecent] = useState([]);
+  // SKU search (shared by the product step and the sku-kind feed slot)
   const [skuQuery, setSkuQuery] = useState("");
+  const [skuRecent, setSkuRecent] = useState([]);
   const [skuResults, setSkuResults] = useState([]);
+  const [feedQty, setFeedQty] = useState("");        // qty for a sku-kind feed
 
   // Run + finish
   const [run, setRun] = useState(null);
+  const [runFeeds, setRunFeeds] = useState([]);      // DB feed rows for finish
+  const [feedKg, setFeedKg] = useState({});          // feedId → kg used
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [good, setGood] = useState("");
   const [waste, setWaste] = useState("");
-  const [consumed, setConsumed] = useState("");
   const [, force] = useState(0);
 
   const fileRef = useRef(null);
 
-  // Bootstrap — 401 means no employee session yet → show the PIN login.
+  // ---- Bootstrap / auth ----
   function loadBootstrap() {
     return fetch("/api/floor/bootstrap")
-      .then(async (r) => ({ ok: r.ok, status: r.status, d: await r.json().catch(() => ({})) }))
-      .then(({ ok, status, d }) => {
+      .then(async (r) => ({ status: r.status, ok: r.ok, d: await r.json().catch(() => ({})) }))
+      .then(({ status, ok, d }) => {
         if (status === 401) { setStep("login"); return; }
         if (!ok || d.error) { setBootErr(d.error || "Failed to load"); setStep("error"); return; }
-        setBoot({ categories: d.categories || [], rolls: d.rolls || [] });
+        setBoot({ categories: d.categories || [], machines: d.machines || [], rolls: d.rolls || [] });
         setMe(d.operator?.name || "");
         setStep("line");
       })
@@ -95,36 +101,75 @@ export default function FloorClient() {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || "Login failed");
-      setLoginPin("");
-      setStep("loading");
+      setLoginPin(""); setStep("loading");
       await loadBootstrap();
     } catch (e2) { setLoginErr(e2.message); } finally { setLoginBusy(false); }
   }
 
   async function logout() {
     await fetch("/api/hr/clock/logout", { method: "POST" }).catch(() => {});
-    setMe(""); setCategory(null); setRoll(null); setSku(null); setRun(null);
-    setStep("login");
+    resetSelections(); setMe(""); setStep("login");
   }
 
-  // Tick the running clock once a second (cosmetic).
+  // Tick running clock
   useEffect(() => {
     if (step !== "running") return;
     const t = setInterval(() => force((n) => n + 1), 1000);
     return () => clearInterval(t);
   }, [step]);
 
-  // Load SKUs when entering the SKU step or searching.
+  // Load SKUs for the product step OR a sku-kind feed slot.
+  const skuStepActive = step === "sku" || (step === "feeds" && machine?.feeds?.[feedIdx]?.kind === "sku");
   useEffect(() => {
-    if (step !== "sku" || !category) return;
-    const url = `/api/floor/skus?category=${encodeURIComponent(category.key)}&q=${encodeURIComponent(skuQuery)}`;
+    if (!skuStepActive) return;
+    const cat = category?.key || "";
+    const url = `/api/floor/skus?category=${encodeURIComponent(cat)}&q=${encodeURIComponent(skuQuery)}`;
     const id = setTimeout(() => {
       fetch(url).then((r) => r.json()).then((d) => {
         if (!d.error) { setSkuRecent(d.recent || []); setSkuResults(d.results || []); }
       }).catch(() => {});
     }, skuQuery ? 250 : 0);
     return () => clearTimeout(id);
-  }, [step, category, skuQuery]);
+  }, [skuStepActive, category, skuQuery, feedIdx]);
+
+  function resetSelections() {
+    setCategory(null); setMachine(null); setFeedSel([]); setFeedIdx(0);
+    setPhotoPath(null); setPhotoPreview(null); setSku(null); setSpeed("");
+    setSkuQuery(""); setFeedQty(""); setRun(null); setRunFeeds([]); setFeedKg({});
+    setGood(""); setWaste(""); setErr("");
+  }
+  function resetAll() { resetSelections(); setStep("loading"); loadBootstrap(); }
+
+  // ---- Step transitions ----
+  function pickLine(c) {
+    setCategory(c);
+    const ms = boot.machines.filter((m) => m.type === c.key);
+    if (ms.length === 1) { pickMachine(ms[0]); }
+    else { setMachine(null); setStep("machine"); }
+  }
+  function pickMachine(m) {
+    setMachine(m);
+    setFeedSel((m.feeds || []).map((f) => ({ ...f })));
+    setFeedIdx(0);
+    setSkuQuery("");
+    setStep("feeds");
+  }
+  function advanceFeed() {
+    setSkuQuery(""); setFeedQty("");
+    if (feedIdx < feedSel.length - 1) setFeedIdx((i) => i + 1);
+    else setStep("photo");
+  }
+  function pickRollForFeed(roll) {
+    setFeedSel((arr) => arr.map((f, i) => i === feedIdx ? { ...f, rmRollId: roll.id, roll } : f));
+    advanceFeed();
+  }
+  function pickSkuForFeed(s) {
+    const snap = `${s.sku ? s.sku + " · " : ""}${s.productName}`;
+    setFeedSel((arr) => arr.map((f, i) => i === feedIdx
+      ? { ...f, skuId: s.id, skuSnapshot: snap, qtyPcs: feedQty === "" ? null : Number(feedQty) }
+      : f));
+    advanceFeed();
+  }
 
   async function onPhoto(e) {
     const f = e.target.files?.[0];
@@ -139,26 +184,31 @@ export default function FloorClient() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Upload failed");
-      setPhotoPath(d.path);
-      setStep("sku");
-    } catch (e2) {
-      setErr(e2.message || "Photo failed");
-    } finally { setPhotoBusy(false); }
+      setPhotoPath(d.path); setStep("sku");
+    } catch (e2) { setErr(e2.message || "Photo failed"); } finally { setPhotoBusy(false); }
   }
 
   async function startRun() {
     setErr(""); setBusy(true);
     try {
+      const feeds = feedSel.map((f) => ({
+        role: f.role, roleLabel: f.label, kind: f.kind,
+        rmRollId: f.kind === "roll" ? f.rmRollId : undefined,
+        skuId: f.kind === "sku" ? f.skuId : undefined,
+        skuSnapshot: f.kind === "sku" ? f.skuSnapshot : undefined,
+        qtyPcs: f.kind === "sku" ? f.qtyPcs : undefined,
+      }));
       const res = await fetch("/api/floor/runs", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           machineCategory: category.key,
-          rmRollId: roll.id,
+          machineId: machine?.id || null,
           skuId: sku.id,
           skuSnapshot: `${sku.sku ? sku.sku + " · " : ""}${sku.productName}`,
           machineSpeed: speed === "" ? null : Number(speed),
           speedUnit: "pcs/min",
           photoPath,
+          feeds,
         }),
       });
       const d = await res.json();
@@ -181,152 +231,184 @@ export default function FloorClient() {
     } catch (e2) { setErr(e2.message); throw e2; } finally { setBusy(false); }
   }
 
-  function resetAll() {
-    setCategory(null); setRoll(null); setPhotoPath(null);
-    setPhotoPreview(null); setSku(null); setSpeed(""); setRun(null);
-    setGood(""); setWaste(""); setConsumed(""); setErr("");
-    setStep("loading");
-    // refresh rolls so the consumed one drops off; lands back on the line step
-    loadBootstrap();
+  async function openFinish() {
+    setErr("");
+    try {
+      const res = await fetch(`/api/floor/runs/${run.id}`);
+      const d = await res.json();
+      if (res.ok) {
+        setRunFeeds(d.feeds || []);
+        // default each roll feed kg input to its roll's remaining
+        const init = {};
+        for (const f of d.feeds || []) {
+          if (f.rmRollId) {
+            const sel = feedSel.find((s) => s.role === f.role);
+            init[f.id] = sel?.roll?.remainingKg != null ? String(sel.roll.remainingKg) : "";
+          }
+        }
+        setFeedKg(init);
+      }
+    } catch {}
+    setStep("finish");
   }
 
   // ---- Shell ----
   const Shell = ({ title, back, children }) => (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-950 flex flex-col">
       <div className="sticky top-0 z-10 bg-gray-900 text-white px-4 py-3 flex items-center gap-3">
-        {back && (
-          <button onClick={back} className="text-2xl leading-none px-2 -ml-2" aria-label="Back">←</button>
-        )}
+        {back && <button onClick={back} className="text-2xl leading-none px-2 -ml-2" aria-label="Back">←</button>}
         <div className="font-semibold text-base">{title}</div>
         {me ? (
           <button onClick={logout} className="ml-auto text-xs underline opacity-80">{me} · Logout</button>
-        ) : (
-          <div className="ml-auto text-xs opacity-70">Aeros Production</div>
-        )}
+        ) : <div className="ml-auto text-xs opacity-70">Aeros Production</div>}
       </div>
       <div className="flex-1 p-4 max-w-xl w-full mx-auto space-y-3">{children}</div>
-      {err && (
-        <div className="sticky bottom-0 bg-red-600 text-white text-center px-4 py-3 font-medium">{err}</div>
-      )}
+      {err && <div className="sticky bottom-0 bg-red-600 text-white text-center px-4 py-3 font-medium">{err}</div>}
     </div>
   );
 
+  const RollList = ({ onPick }) => (
+    <>
+      {boot.rolls.length === 0 && <p className="text-gray-500 text-center py-8">No rolls in stock. Ask admin to register rolls.</p>}
+      {boot.rolls.map((r) => (
+        <button key={r.id} className={`${CARD} border-gray-200 bg-white dark:bg-gray-900`} onClick={() => onPick(r)}>
+          <div className="font-bold text-gray-900 dark:text-white text-lg">{r.serial}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-300">
+            {[r.supplier, r.paperType, r.gsm ? `${r.gsm} GSM` : null].filter(Boolean).join(" · ") || r.paperName}
+          </div>
+          <div className="text-sm text-gray-500">{r.remainingKg} kg left</div>
+        </button>
+      ))}
+    </>
+  );
+
+  const SkuList = ({ onPick }) => (
+    <>
+      {skuRecent.length > 0 && (
+        <>
+          <div className="text-xs uppercase tracking-wide text-gray-500">Recent</div>
+          {skuRecent.map((s) => (
+            <button key={s.skuId} className={`${CARD} border-gray-200 bg-white dark:bg-gray-900`}
+              onClick={() => onPick({ id: s.skuId, productName: s.skuSnapshot, sku: "" })}>
+              <div className="font-semibold text-gray-900 dark:text-white">{s.skuSnapshot}</div>
+            </button>
+          ))}
+          <div className="text-xs uppercase tracking-wide text-gray-500 pt-2">Search all</div>
+        </>
+      )}
+      <input value={skuQuery} onChange={(e) => setSkuQuery(e.target.value)} placeholder="Type SKU or name…"
+        className="w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-base dark:bg-gray-900 dark:text-white" />
+      {skuResults.map((s) => (
+        <button key={s.id} className={`${CARD} border-gray-200 bg-white dark:bg-gray-900`} onClick={() => onPick(s)}>
+          <div className="font-semibold text-gray-900 dark:text-white">{s.productName}</div>
+          <div className="text-sm text-gray-500">{[s.sku, s.sizeVolume].filter(Boolean).join(" · ")}</div>
+        </button>
+      ))}
+    </>
+  );
+
+  // ---- Screens ----
   if (step === "loading") return <Shell title="Loading…"><p className="text-center text-gray-500 py-20">Loading…</p></Shell>;
   if (step === "error") return <Shell title="Problem"><div className="rounded-xl bg-red-50 border border-red-200 p-4 text-red-800">{bootErr}</div></Shell>;
 
-  // 0) Login — employee code + PIN (shared punch-clock session)
   if (step === "login") {
     return (
       <Shell title="Sign in">
         <form onSubmit={doLogin} className="space-y-3">
           <p className="text-sm text-gray-600 dark:text-gray-300">Enter your employee code and PIN to start.</p>
-          <input value={loginCode} onChange={(e) => setLoginCode(e.target.value)} placeholder="Employee code"
-            autoComplete="off"
+          <input value={loginCode} onChange={(e) => setLoginCode(e.target.value)} placeholder="Employee code" autoComplete="off"
             className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-xl text-center font-semibold dark:bg-gray-900 dark:text-white" />
           <input value={loginPin} onChange={(e) => setLoginPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
             inputMode="numeric" type="password" placeholder="PIN"
             className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-2xl text-center font-bold tracking-widest dark:bg-gray-900 dark:text-white" />
-          <button type="submit" disabled={loginBusy} className={`${BTN} bg-blue-600 text-white`}>
-            {loginBusy ? "Signing in…" : "Sign in"}
-          </button>
+          <button type="submit" disabled={loginBusy} className={`${BTN} bg-blue-600 text-white`}>{loginBusy ? "Signing in…" : "Sign in"}</button>
           {loginErr && <p className="text-sm text-red-600 text-center">{loginErr}</p>}
         </form>
       </Shell>
     );
   }
 
-  // 1) Machine line
   if (step === "line") {
     return (
-      <Shell title="1. Which machine?">
+      <Shell title="1. Which machine line?">
         {boot.categories.map((c) => (
           <button key={c.key} className={`${BTN} bg-white border-2 border-gray-200 text-gray-900 dark:bg-gray-900 dark:text-white`}
-            onClick={() => { setCategory(c); setStep("roll"); }}>
-            {c.label}
-          </button>
+            onClick={() => pickLine(c)}>{c.label}</button>
         ))}
       </Shell>
     );
   }
 
-  // 2) Roll
-  if (step === "roll") {
+  if (step === "machine") {
+    const ms = boot.machines.filter((m) => m.type === category.key);
     return (
-      <Shell title="2. Which paper roll?" back={() => setStep("line")}>
-        {boot.rolls.length === 0 && <p className="text-gray-500 text-center py-8">No rolls in stock. Ask admin to register rolls.</p>}
-        {boot.rolls.map((r) => (
-          <button key={r.id} className={`${CARD} ${roll?.id === r.id ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 bg-white dark:bg-gray-900"}`}
-            onClick={() => { setRoll(r); setStep("photo"); }}>
-            <div className="font-bold text-gray-900 dark:text-white text-lg">{r.serial}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-300">
-              {[r.supplier, r.paperType, r.gsm ? `${r.gsm} GSM` : null].filter(Boolean).join(" · ") || r.paperName}
-            </div>
-            <div className="text-sm text-gray-500">{r.remainingKg} kg left</div>
+      <Shell title="2. Which machine?" back={() => setStep("line")}>
+        {ms.length === 0 && <p className="text-gray-500 text-center py-8">No machines for this line yet.</p>}
+        {ms.map((m) => (
+          <button key={m.id} className={`${CARD} border-gray-200 bg-white dark:bg-gray-900`} onClick={() => pickMachine(m)}>
+            <div className="font-bold text-gray-900 dark:text-white text-lg">{m.name}</div>
+            {m.notes && <div className="text-sm text-gray-500">{m.notes}</div>}
           </button>
         ))}
       </Shell>
     );
   }
 
-  // 4) Photo
+  if (step === "feeds") {
+    const f = machine?.feeds?.[feedIdx];
+    const backFn = feedIdx > 0
+      ? () => setFeedIdx((i) => i - 1)
+      : () => { const ms = boot.machines.filter((m) => m.type === category.key); ms.length > 1 ? setStep("machine") : setStep("line"); };
+    const title = `Feed ${feedIdx + 1} of ${feedSel.length}: ${f?.label || ""}`;
+    if (!f) return <Shell title="Feed" back={backFn}><p className="text-gray-500">No feed.</p></Shell>;
+    if (f.kind === "roll") {
+      return <Shell title={title} back={backFn}><RollList onPick={pickRollForFeed} /></Shell>;
+    }
+    // sku-kind feed (DW single-wall cups): pick SKU + qty
+    return (
+      <Shell title={title} back={backFn}>
+        <label className="block text-sm text-gray-600 dark:text-gray-300">How many {f.label.toLowerCase()}?</label>
+        <input value={feedQty} onChange={(e) => setFeedQty(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal"
+          placeholder="qty (pcs)"
+          className="w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-xl text-center font-bold dark:bg-gray-900 dark:text-white" />
+        <div className="text-xs uppercase tracking-wide text-gray-500 pt-1">Pick the {f.label.toLowerCase()} item</div>
+        <SkuList onPick={pickSkuForFeed} />
+      </Shell>
+    );
+  }
+
   if (step === "photo") {
     return (
-      <Shell title="3. Photo of roll" back={() => setStep("roll")}>
+      <Shell title="Photo of material" back={() => { setFeedIdx(feedSel.length - 1); setStep("feeds"); }}>
         <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhoto} />
-        {photoPreview && <img src={photoPreview} alt="roll" className="w-full rounded-2xl border-2 border-gray-200" />}
+        {photoPreview && <img src={photoPreview} alt="material" className="w-full rounded-2xl border-2 border-gray-200" />}
         <button className={`${BTN} bg-gray-900 text-white`} disabled={photoBusy} onClick={() => fileRef.current?.click()}>
           {photoBusy ? "Uploading…" : photoPreview ? "Retake photo" : "📷 Take photo"}
         </button>
-        <button className={`${BTN} bg-white border-2 border-gray-300 text-gray-500`} onClick={() => setStep("sku")}>
-          Skip photo
-        </button>
+        <button className={`${BTN} bg-white border-2 border-gray-300 text-gray-500`} onClick={() => setStep("sku")}>Skip photo</button>
       </Shell>
     );
   }
 
-  // 5) SKU
   if (step === "sku") {
     return (
-      <Shell title="4. What are you making?" back={() => setStep("photo")}>
-        {skuRecent.length > 0 && (
-          <>
-            <div className="text-xs uppercase tracking-wide text-gray-500">Recent</div>
-            {skuRecent.map((s) => (
-              <button key={s.skuId} className={`${CARD} border-gray-200 bg-white dark:bg-gray-900`}
-                onClick={() => { setSku({ id: s.skuId, productName: s.skuSnapshot, sku: "" }); setStep("speed"); }}>
-                <div className="font-semibold text-gray-900 dark:text-white">{s.skuSnapshot}</div>
-              </button>
-            ))}
-            <div className="text-xs uppercase tracking-wide text-gray-500 pt-2">Search all</div>
-          </>
-        )}
-        <input value={skuQuery} onChange={(e) => setSkuQuery(e.target.value)} placeholder="Type SKU or name…"
-          className="w-full rounded-xl border-2 border-gray-300 px-4 py-3 text-base dark:bg-gray-900 dark:text-white" />
-        {skuResults.map((s) => (
-          <button key={s.id} className={`${CARD} border-gray-200 bg-white dark:bg-gray-900`}
-            onClick={() => { setSku(s); setStep("speed"); }}>
-            <div className="font-semibold text-gray-900 dark:text-white">{s.productName}</div>
-            <div className="text-sm text-gray-500">{[s.sku, s.sizeVolume].filter(Boolean).join(" · ")}</div>
-          </button>
-        ))}
+      <Shell title="What are you making?" back={() => setStep("photo")}>
+        <SkuList onPick={(s) => { setSku(s); setSkuQuery(""); setStep("speed"); }} />
       </Shell>
     );
   }
 
-  // 6) Speed
   if (step === "speed") {
     return (
-      <Shell title="5. Machine speed" back={() => setStep("sku")}>
+      <Shell title="Machine speed" back={() => setStep("sku")}>
         <label className="block text-sm text-gray-600 dark:text-gray-300">Pieces per minute</label>
-        <input value={speed} onChange={(e) => setSpeed(e.target.value.replace(/[^0-9.]/g, ""))}
-          inputMode="decimal" placeholder="e.g. 80"
+        <input value={speed} onChange={(e) => setSpeed(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal" placeholder="e.g. 80"
           className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-2xl text-center font-bold dark:bg-gray-900 dark:text-white" />
         <button className={`${BTN} bg-blue-600 text-white`} onClick={() => setStep("review")}>Next →</button>
       </Shell>
     );
   }
 
-  // 7) Review + START
   if (step === "review") {
     const Row = ({ k, v }) => (
       <div className="flex justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-800">
@@ -336,10 +418,12 @@ export default function FloorClient() {
     return (
       <Shell title="Check & start" back={() => setStep("speed")}>
         <div className="rounded-2xl bg-white dark:bg-gray-900 border-2 border-gray-200 px-4 py-2">
-          <Row k="Machine" v={category?.label} />
+          <Row k="Machine" v={machine?.name || category?.label} />
           <Row k="Operator" v={me} />
-          <Row k="Roll" v={roll?.serial} />
-          <Row k="SKU" v={sku?.productName} />
+          {feedSel.map((f) => (
+            <Row key={f.role} k={f.label} v={f.kind === "roll" ? (f.roll?.serial || "—") : `${f.skuSnapshot || "—"}${f.qtyPcs ? ` ×${f.qtyPcs}` : ""}`} />
+          ))}
+          <Row k="Making" v={sku?.productName} />
           <Row k="Speed" v={speed ? `${speed} pcs/min` : "—"} />
           <Row k="Photo" v={photoPath ? "✓" : "—"} />
         </div>
@@ -350,15 +434,14 @@ export default function FloorClient() {
     );
   }
 
-  // 8) Running
   if (step === "running") {
     const paused = run?.status === "paused";
     return (
       <Shell title={paused ? "Paused" : "Running"}>
         <div className={`rounded-2xl p-6 text-center text-white ${paused ? "bg-amber-500" : "bg-green-600"}`}>
-          <div className="text-sm opacity-90">{category?.label} · {sku?.productName}</div>
+          <div className="text-sm opacity-90">{machine?.name} · {sku?.productName}</div>
           <div className="text-5xl font-bold mt-2 tabular-nums">{elapsed(run?.startTime)}</div>
-          <div className="text-sm opacity-90 mt-1">Roll {roll?.serial} · {me}</div>
+          <div className="text-sm opacity-90 mt-1">{me}</div>
         </div>
         {paused ? (
           <button className={`${BTN} bg-green-600 text-white text-2xl py-6`} disabled={busy}
@@ -367,31 +450,36 @@ export default function FloorClient() {
           <button className={`${BTN} bg-amber-500 text-white text-2xl py-6`} disabled={busy}
             onClick={() => patchRun("pause").then(() => setStep("running"))}>⏸  PAUSE</button>
         )}
-        <button className={`${BTN} bg-red-600 text-white text-2xl py-6`}
-          onClick={() => { setConsumed(String(roll?.remainingKg ?? "")); setStep("finish"); }}>■  FINISH JOB</button>
+        <button className={`${BTN} bg-red-600 text-white text-2xl py-6`} onClick={openFinish}>■  FINISH JOB</button>
       </Shell>
     );
   }
 
-  // 9) Finish
   if (step === "finish") {
-    const Num = ({ label, val, set, hint }) => (
-      <div>
-        <label className="block text-sm text-gray-600 dark:text-gray-300">{label}</label>
-        <input value={val} onChange={(e) => set(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal"
-          className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-2xl text-center font-bold dark:bg-gray-900 dark:text-white" />
-        {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
-      </div>
-    );
     return (
       <Shell title="Finish job" back={() => setStep("running")}>
-        <Num label="Good pieces" val={good} set={setGood} />
-        <Num label="Waste pieces" val={waste} set={setWaste} />
-        <Num label="Paper used (kg)" val={consumed} set={setConsumed} hint={`Roll has ${roll?.remainingKg ?? 0} kg left`} />
+        <label className="block text-sm text-gray-600 dark:text-gray-300">Good pieces</label>
+        <input value={good} onChange={(e) => setGood(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal"
+          className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-2xl text-center font-bold dark:bg-gray-900 dark:text-white" />
+        <label className="block text-sm text-gray-600 dark:text-gray-300">Waste pieces</label>
+        <input value={waste} onChange={(e) => setWaste(e.target.value.replace(/[^0-9.]/g, ""))} inputMode="decimal"
+          className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-2xl text-center font-bold dark:bg-gray-900 dark:text-white" />
+        {runFeeds.filter((f) => f.rmRollId).map((f) => (
+          <div key={f.id}>
+            <label className="block text-sm text-gray-600 dark:text-gray-300">{f.roleLabel} — paper used (kg)</label>
+            <input value={feedKg[f.id] ?? ""} onChange={(e) => setFeedKg((m) => ({ ...m, [f.id]: e.target.value.replace(/[^0-9.]/g, "") }))}
+              inputMode="decimal"
+              className="w-full rounded-xl border-2 border-gray-300 px-4 py-4 text-2xl text-center font-bold dark:bg-gray-900 dark:text-white" />
+          </div>
+        ))}
         <button className={`${BTN} bg-red-600 text-white text-2xl py-6`} disabled={busy}
           onClick={async () => {
+            const feedConsumption = {};
+            for (const f of runFeeds) {
+              if (f.rmRollId) feedConsumption[f.id] = { consumedKg: feedKg[f.id] === "" || feedKg[f.id] == null ? 0 : Number(feedKg[f.id]) };
+            }
             try {
-              await patchRun("finish", { goodPcs: good === "" ? 0 : Number(good), wastePcs: waste === "" ? 0 : Number(waste), consumedKg: consumed === "" ? 0 : Number(consumed) });
+              await patchRun("finish", { goodPcs: good === "" ? 0 : Number(good), wastePcs: waste === "" ? 0 : Number(waste), feedConsumption });
               setStep("done");
             } catch {}
           }}>
@@ -401,7 +489,6 @@ export default function FloorClient() {
     );
   }
 
-  // 10) Done
   if (step === "done") {
     return (
       <Shell title="Done">
