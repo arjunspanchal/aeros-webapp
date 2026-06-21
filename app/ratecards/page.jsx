@@ -56,6 +56,13 @@ const SHEETS = [
     description:
       "Plastic-free straws — food-grade paper and plant-based rice, bulk or individually wrapped, across all common bore sizes.",
   },
+  {
+    href: "/bagasse",
+    eyebrow: "Tableware",
+    title: "Bagasse Tableware",
+    description:
+      "Compostable sugarcane-fibre plates, compartment trays, bowls, clamshell boxes, cups, lids and cutlery. Microwave- and oven-safe, plastic-free.",
+  },
 ];
 
 export default function RateCardsHubPage() {
