@@ -156,6 +156,17 @@ const TILES = [
       sub: "Download keylines",
     }),
   },
+  {
+    key: "ratecards",
+    href: "/ratecards",
+    title: "Rate Sheets",
+    blurb: "Public client rate cards — cups, bags, containers, straws, bagasse",
+    size: "md",
+    accent: "from-teal-600 to-emerald-700",
+    sparkColor: "#0D9488",
+    always: true, // public rate-card hub — open to every authed user
+    cta: "View rate sheets",
+  },
 ];
 
 const QUICK_ACTIONS = [
@@ -229,6 +240,17 @@ const CUSTOMER_TILES = [
     sparkColor: "#8B5CF6",
     customerOnly: true,
     cta: "Open library",
+  },
+  {
+    key: "ratecards_c",
+    href: "/ratecards",
+    title: "Rate Sheets",
+    blurb: "Public rate cards for the full Aeros range — quoted in INR, FCL",
+    size: "md",
+    accent: "from-teal-600 to-emerald-700",
+    sparkColor: "#0D9488",
+    customerOnly: true,
+    cta: "View rate sheets",
   },
   {
     key: "profile_c",
