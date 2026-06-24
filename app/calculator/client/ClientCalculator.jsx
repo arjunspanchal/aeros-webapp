@@ -1,11 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, Field, Toggle, PillBtn, inputCls } from "@/app/calculator/_components/ui";
 import { CURRENCIES, CURRENCY_CODES, formatCurrency } from "@/lib/calc/calculator";
 import { exportQuoteCSV, exportQuotePDF } from "@/app/calculator/_components/export";
+import {
+  deriveTypes, deriveSuppliers, supplierHasGsm, deriveGsms, deriveBfs,
+  deriveMatches, findPaper,
+} from "@/app/calculator/_components/paperCatalog";
 
-const GSM_OPTIONS = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140];
-const BF_OPTIONS = [16, 18, 20, 22, 24, 26, 28];
+const TYPE_LABEL = { "Brown Kraft": "Brown Kraft (MF)", "MG": "Brown Kraft (MG)" };
 const COLOUR_OPTIONS = [1, 2, 3, 4];
 
 // Unit conversion. Internal form state is always mm (the calculator engine is in mm);
@@ -27,7 +30,8 @@ export default function ClientCalculator() {
   const [form, setForm] = useState({
     bagType: "sos",
     width: 230, gusset: 125, height: 335,
-    paperType: "Brown Kraft", gsm: 120, bf: 28,
+    paperType: "", supplier: "", gsm: 120, bf: "",
+    paperId: "", materialName: "",
     casePack: 100,
     printing: false, colours: 1, coverage: 30,
     orderQty: 15000,
@@ -42,6 +46,16 @@ export default function ClientCalculator() {
   const [err, setErr] = useState("");
   const [pastQuotes, setPastQuotes] = useState([]);
   const [loadedQuoteId, setLoadedQuoteId] = useState("");
+  const [papers, setPapers] = useState([]);
+  const [papersError, setPapersError] = useState(false);
+
+  function loadPapers() {
+    setPapersError(false);
+    fetch("/api/calc/papers")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setPapers(d.papers || []))
+      .catch(() => setPapersError(true));
+  }
 
   async function refreshQuotes(autoLoadId) {
     try {
@@ -64,9 +78,12 @@ export default function ClientCalculator() {
     setForm({
       bagType: bagTypeFromLabel(q.bagType),
       width: q.width || 0, gusset: q.gusset || 0, height: q.height || 0,
-      paperType: q.paperType || "Brown Kraft",
+      paperType: q.paperType || "",
+      supplier: q.mill || "",
+      paperId: q.paperId || "",
+      materialName: q.materialName || "",
       gsm: q.gsm || 120,
-      bf: q.bf || 28,
+      bf: q.bf ? String(q.bf) : "",
       casePack: q.casePack || 100,
       printing: q.plainPrinted === "Printed",
       colours: q.colours || 1,
@@ -80,6 +97,7 @@ export default function ClientCalculator() {
   }
 
   useEffect(() => {
+    loadPapers();
     fetch("/api/calc/me")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -104,9 +122,12 @@ export default function ClientCalculator() {
     setForm({
       bagType: bagTypeFromLabel(q.bagType),
       width: q.width || 0, gusset: q.gusset || 0, height: q.height || 0,
-      paperType: q.paperType || "Brown Kraft",
+      paperType: q.paperType || "",
+      supplier: q.mill || "",
+      paperId: q.paperId || "",
+      materialName: q.materialName || "",
       gsm: q.gsm || 120,
-      bf: q.bf || 28,
+      bf: q.bf ? String(q.bf) : "",
       casePack: q.casePack || 100,
       printing: q.plainPrinted === "Printed",
       colours: q.colours || 1,
@@ -121,6 +142,44 @@ export default function ClientCalculator() {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const num = (k, v) => set(k, parseFloat(v) || 0);
+
+  // ---- RM paper cascade (rate-free; server derives the rate from paperId) ----
+  const paperTypes = useMemo(() => deriveTypes(papers), [papers]);
+  const suppliers = useMemo(() => deriveSuppliers(papers, form.paperType), [papers, form.paperType]);
+  const hasGsm = useMemo(() => supplierHasGsm(papers, form.paperType, form.supplier), [papers, form.paperType, form.supplier]);
+  const gsms = useMemo(() => deriveGsms(papers, form.paperType, form.supplier), [papers, form.paperType, form.supplier]);
+  const bfs = useMemo(() => deriveBfs(papers, form.paperType, form.supplier, form.gsm), [papers, form.paperType, form.supplier, form.gsm]);
+  const matches = useMemo(() => {
+    if (!form.paperType || !form.supplier) return [];
+    return hasGsm
+      ? deriveMatches(papers, { type: form.paperType, supplier: form.supplier, gsm: form.gsm, bf: form.bf })
+      : deriveMatches(papers, { type: form.paperType, supplier: form.supplier });
+  }, [papers, form.paperType, form.supplier, form.gsm, form.bf, hasGsm]);
+  const showGrade = matches.length > 1;
+  const selectedRow = useMemo(() => {
+    if (form.paperId) return findPaper(papers, form.paperId);
+    return matches.length === 1 ? matches[0] : null;
+  }, [papers, form.paperId, matches]);
+
+  useEffect(() => {
+    if (!selectedRow) return;
+    setForm((f) => {
+      if (f.paperId === selectedRow.id && f.materialName === selectedRow.materialName) return f;
+      return {
+        ...f,
+        paperId: selectedRow.id,
+        materialName: selectedRow.materialName,
+        ...(selectedRow.gsm != null ? { gsm: Number(selectedRow.gsm) } : {}),
+        ...(selectedRow.bf != null ? { bf: String(selectedRow.bf) } : {}),
+      };
+    });
+  }, [selectedRow]);
+
+  const chooseType = (t) => setForm((f) => ({ ...f, paperType: t, supplier: "", bf: "", paperId: "", materialName: "" }));
+  const chooseSupplier = (s) => setForm((f) => ({ ...f, supplier: s, bf: "", paperId: "", materialName: "" }));
+  const chooseGsm = (g) => setForm((f) => ({ ...f, gsm: Number(g) || f.gsm, bf: "", paperId: "", materialName: "" }));
+  const chooseBf = (b) => setForm((f) => ({ ...f, bf: b, paperId: "", materialName: "" }));
+  const chooseGrade = (id) => setForm((f) => ({ ...f, paperId: id, materialName: "" }));
 
   const setDim = (k, v) => set(k, fromDisplay(v, unit));
   const showDim = (mm) => toDisplay(mm, unit);
@@ -138,6 +197,7 @@ export default function ClientCalculator() {
   }
 
   async function calculate() {
+    if (!form.paperId) { setErr("Select a paper grade first."); return; }
     setErr(""); setSaveStatus(null); setLoading(true);
     try {
       const res = await fetch("/api/calc/rate", {
@@ -163,7 +223,9 @@ export default function ClientCalculator() {
       bagType: form.bagType,
       brand: form.brand || undefined,
       width: form.width, gusset: form.gusset, height: form.height,
-      paperType: form.paperType, gsm: form.gsm, bf: form.bf,
+      paperType: form.paperType, mill: form.supplier,
+      paperId: form.paperId || undefined, materialName: form.materialName || undefined,
+      gsm: form.gsm, bf: form.bf,
       casePack: form.casePack, orderQty: form.orderQty,
       printing: form.printing, colours: form.colours, coverage: form.coverage,
       sellingPrice: tier.ratePerBag,
@@ -258,26 +320,62 @@ export default function ClientCalculator() {
         </Card>
 
         <Card title="Paper">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Type">
-              <select className={inputCls} value={form.paperType} onChange={(e) => set("paperType", e.target.value)}>
-                <option value="Brown Kraft">Brown Kraft (MF)</option>
-                <option value="MG">Brown Kraft (MG)</option>
-                <option value="Bleach Kraft White">Bleach Kraft White</option>
-                <option value="OGR">OGR</option>
-              </select>
-            </Field>
-            <Field label="GSM">
-              <select className={inputCls} value={form.gsm} onChange={(e) => set("gsm", parseInt(e.target.value))}>
-                {GSM_OPTIONS.map((g) => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </Field>
-            <Field label="BF (Burst Factor)">
-              <select className={inputCls} value={form.bf} onChange={(e) => set("bf", parseInt(e.target.value))}>
-                {BF_OPTIONS.map((b) => <option key={b} value={b}>{b} BF</option>)}
-              </select>
-            </Field>
-          </div>
+          {papersError ? (
+            <div className="text-sm text-red-600 dark:text-red-400">
+              Couldn&apos;t load the paper catalogue.{" "}
+              <button onClick={loadPapers} className="underline font-medium">Retry</button>
+            </div>
+          ) : papers.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500">Loading papers…</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Type">
+                  <select className={inputCls} value={form.paperType} onChange={(e) => chooseType(e.target.value)}>
+                    <option value="">Select…</option>
+                    {paperTypes.map((t) => <option key={t} value={t}>{TYPE_LABEL[t] || t}</option>)}
+                  </select>
+                </Field>
+                <Field label="Supplier">
+                  <select className={inputCls} value={form.supplier} disabled={!form.paperType} onChange={(e) => chooseSupplier(e.target.value)}>
+                    <option value="">{form.paperType ? "Select…" : "Select type first"}</option>
+                    {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </Field>
+                <Field label="GSM">
+                  {hasGsm ? (
+                    <select className={inputCls} value={gsms.includes(Number(form.gsm)) ? form.gsm : ""} disabled={!form.supplier} onChange={(e) => chooseGsm(e.target.value)}>
+                      <option value="">Select…</option>
+                      {gsms.map((g) => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  ) : (
+                    <input type="number" className={inputCls} value={form.gsm} disabled={!form.supplier} onChange={(e) => num("gsm", e.target.value)} min="1" />
+                  )}
+                </Field>
+                {hasGsm && bfs.length > 0 && !(bfs.length === 1 && bfs[0] == null) && (
+                  <Field label="BF (Burst Factor)">
+                    <select className={inputCls} value={form.bf} onChange={(e) => chooseBf(e.target.value)}>
+                      <option value="">Select…</option>
+                      {bfs.filter((b) => b != null).map((b) => <option key={b} value={b}>{b} BF</option>)}
+                    </select>
+                  </Field>
+                )}
+              </div>
+              {showGrade && (
+                <div className="mt-3">
+                  <Field label="Grade / Material">
+                    <select className={inputCls} value={form.paperId} onChange={(e) => chooseGrade(e.target.value)}>
+                      <option value="">Pick a grade…</option>
+                      {matches.map((m) => <option key={m.id} value={m.id}>{m.materialName}</option>)}
+                    </select>
+                  </Field>
+                </div>
+              )}
+              {form.supplier && matches.length === 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">No paper available for this combination — pick a different GSM/BF.</p>
+              )}
+            </>
+          )}
         </Card>
 
         <Card title="Packaging & Order">

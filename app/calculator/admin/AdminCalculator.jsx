@@ -4,21 +4,22 @@ import { Card, Field, Toggle, PillBtn, Row, SectionHeader, inputCls } from "@/ap
 import { exportQuoteCSV, exportQuotePDF, exportAdminQuotePDF } from "@/app/calculator/_components/export";
 import {
   calculate, computeRateCurve, optimizationTips,
-  JODHANI_RATES, OM_SHIVAAY_RATES, JODHANI_DISCOUNT, WET_STRENGTH_EXTRA,
+  WET_STRENGTH_EXTRA,
   PRINTING_RATES, PLATE_COST_PER_COLOUR, USD_RATE,
-  getJodhaniGsmBucket, getJodhaniRate, getOmShivaayRate, getDefaultWastage,
+  getDefaultWastage,
   QTY_TIERS, HANDLE_DEFAULT_COST, isHandleBag,
 } from "@/lib/calc/calculator";
+import {
+  deriveTypes, deriveSuppliers, supplierHasGsm, deriveGsms, deriveBfs,
+  deriveMatches, findPaper,
+} from "@/app/calculator/_components/paperCatalog";
 
-const MILLS_BY_TYPE = {
-  "Brown Kraft": ["Ajit", "Jodhani", "Om Shivaay"],
-  "Bleach Kraft White": ["JK", "BILT", "Pudumjee"],
-  "OGR": ["JK", "BILT", "Pudumjee"],
-  "MG": ["Khateema", "Jani Mill"],
-};
+// Friendly labels for the RM `type` values; anything else shows the raw type.
+const TYPE_LABEL = { "Brown Kraft": "Brown Kraft (MF)", "MG": "Brown Kraft (MG)" };
+// Legacy bag-code mill names → the supplier strings stored in master_papers.
+const SUPPLIER_ALIAS = { Jodhani: "Jodhani Mill" };
+const round2 = (v) => Math.round(v * 100) / 100;
 
-const GSM_OPTIONS = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140];
-const BF_OPTIONS = [16, 18, 20, 22, 24, 26, 28];
 const COLOUR_OPTIONS = [1, 2, 3, 4];
 const MM_PER_UNIT = { mm: 1, cm: 10, in: 25.4 };
 const toDisplay = (mm, unit) => {
@@ -38,7 +39,8 @@ const DEFAULT_FORM = {
   width: 230, gusset: 125, height: 335,
   paperType: "", millName: "",
   gsm: 120, bf: "",
-  jodhaniGsmBucket: "", wetStrength: false, transportRate: "",
+  paperId: "", materialName: "",
+  wetStrength: false,
   tptRate: "", basePaperRate: 92, paperRate: 92,
   casePack: 100, handleCost: 0.85, customWastage: "", profitPercent: 10,
   printing: false, colours: 1, coverage: 30, orderQty: 15000,
@@ -54,6 +56,16 @@ export default function AdminCalculator() {
   const [unit, setUnit] = useState("mm");
   const [pastQuotes, setPastQuotes] = useState([]);
   const [loadedQuoteId, setLoadedQuoteId] = useState("");
+  const [papers, setPapers] = useState([]);
+  const [papersError, setPapersError] = useState(false);
+
+  function loadPapers() {
+    setPapersError(false);
+    fetch("/api/calc/papers")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setPapers(d.papers || []))
+      .catch(() => setPapersError(true));
+  }
 
   async function refreshQuotes(autoLoadId) {
     try {
@@ -79,6 +91,8 @@ export default function AdminCalculator() {
       width: q.width || f.width, gusset: q.gusset || f.gusset, height: q.height || f.height,
       paperType: q.paperType || f.paperType,
       millName: q.mill || f.millName,
+      paperId: q.paperId || "",
+      materialName: q.materialName || "",
       gsm: q.gsm || f.gsm,
       bf: q.bf ? String(q.bf) : f.bf,
       casePack: q.casePack || f.casePack,
@@ -98,6 +112,7 @@ export default function AdminCalculator() {
 
   useEffect(() => {
     fetch("/api/calc/bag-specs").then((r) => r.ok ? r.json() : []).then(setBagCodes).catch(() => {});
+    loadPapers();
     const saved = typeof window !== "undefined" ? localStorage.getItem("aeros_dim_unit") : null;
     if (saved === "in" || saved === "cm" || saved === "mm") setUnit(saved);
     const urlQuoteId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("quote") : null;
@@ -121,6 +136,8 @@ export default function AdminCalculator() {
       width: q.width || f.width, gusset: q.gusset || f.gusset, height: q.height || f.height,
       paperType: q.paperType || f.paperType,
       millName: q.mill || f.millName,
+      paperId: q.paperId || "",
+      materialName: q.materialName || "",
       gsm: q.gsm || f.gsm,
       bf: q.bf ? String(q.bf) : f.bf,
       casePack: q.casePack || f.casePack,
@@ -146,8 +163,46 @@ export default function AdminCalculator() {
   const setDim = (k, v) => setForm((f) => ({ ...f, [k]: fromDisplay(v, unit), selectedCodeId: "" }));
   const showDim = (mm) => toDisplay(mm, unit);
 
-  const isJodhani = form.millName === "Jodhani";
-  const isOmShivaay = form.millName === "Om Shivaay";
+  // ---- RM paper cascade: Type → Supplier → GSM → BF → (Grade on collision) ----
+  const paperTypes = useMemo(() => deriveTypes(papers), [papers]);
+  const suppliers = useMemo(() => deriveSuppliers(papers, form.paperType), [papers, form.paperType]);
+  const hasGsm = useMemo(() => supplierHasGsm(papers, form.paperType, form.millName), [papers, form.paperType, form.millName]);
+  const gsms = useMemo(() => deriveGsms(papers, form.paperType, form.millName), [papers, form.paperType, form.millName]);
+  const bfs = useMemo(() => deriveBfs(papers, form.paperType, form.millName, form.gsm), [papers, form.paperType, form.millName, form.gsm]);
+  const matches = useMemo(() => {
+    if (!form.paperType || !form.millName) return [];
+    // Flat (null-gsm) suppliers price one row regardless of GSM — don't filter on
+    // gsm/bf or the row drops out; the user still types a GSM for the weight calc.
+    return hasGsm
+      ? deriveMatches(papers, { type: form.paperType, supplier: form.millName, gsm: form.gsm, bf: form.bf })
+      : deriveMatches(papers, { type: form.paperType, supplier: form.millName });
+  }, [papers, form.paperType, form.millName, form.gsm, form.bf, hasGsm]);
+  const showGrade = matches.length > 1;
+  const selectedRow = useMemo(() => {
+    if (form.paperId) return findPaper(papers, form.paperId);
+    return matches.length === 1 ? matches[0] : null;
+  }, [papers, form.paperId, matches]);
+
+  // Sync the resolved row into the form (rate, ids, and gsm/bf when the row pins
+  // them). Guarded so it runs once per row and never clobbers admin rate edits.
+  useEffect(() => {
+    if (!selectedRow) return;
+    setForm((f) => {
+      if (f.paperId === selectedRow.id && f.materialName === selectedRow.materialName) return f;
+      const base = Number(selectedRow.effectiveRate) || 0;
+      const tpt = parseFloat(f.tptRate) || 0;
+      const wet = f.wetStrength ? WET_STRENGTH_EXTRA : 0;
+      return {
+        ...f,
+        paperId: selectedRow.id,
+        materialName: selectedRow.materialName,
+        basePaperRate: base,
+        paperRate: round2(base + tpt + wet),
+        ...(selectedRow.gsm != null ? { gsm: Number(selectedRow.gsm) } : {}),
+        ...(selectedRow.bf != null ? { bf: String(selectedRow.bf) } : {}),
+      };
+    });
+  }, [selectedRow]);
 
   // Live result — calculated client-side for responsiveness; server will re-verify when saving.
   const result = useMemo(() => {
@@ -166,9 +221,18 @@ export default function AdminCalculator() {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const num = (k, v) => set(k, parseFloat(v) || 0);
 
+  // Cascade selectors — each change clears the resolved row so it re-resolves
+  // (or surfaces the grade picker on a collision).
+  const chooseType = (t) => setForm((f) => ({ ...f, paperType: t, millName: "", bf: "", paperId: "", materialName: "", selectedCodeId: "" }));
+  const chooseSupplier = (s) => setForm((f) => ({ ...f, millName: s, bf: "", paperId: "", materialName: "", tptRate: s && s !== "Om Shivaay" ? "5" : "", selectedCodeId: "" }));
+  const chooseGsm = (g) => setForm((f) => ({ ...f, gsm: Number(g) || f.gsm, bf: "", paperId: "", materialName: "", selectedCodeId: "" }));
+  const chooseBf = (b) => setForm((f) => ({ ...f, bf: b, paperId: "", materialName: "", selectedCodeId: "" }));
+  const chooseGrade = (id) => setForm((f) => ({ ...f, paperId: id, materialName: "", selectedCodeId: "" }));
+
   function selectBagCode(id) {
     const c = bagCodes.find((x) => x.id === id);
     if (!c) { set("selectedCodeId", ""); return; }
+    const supplier = c.millName ? (SUPPLIER_ALIAS[c.millName] || c.millName) : "";
     setForm((f) => {
       const next = { ...f, selectedCodeId: id, width: c.width, gusset: c.gusset, height: c.height };
       if (c.bagType) {
@@ -177,56 +241,44 @@ export default function AdminCalculator() {
       }
       if (c.casePack) next.casePack = c.casePack;
       if (c.paperType) next.paperType = c.paperType;
-      if (c.millName) next.millName = c.millName;
+      next.millName = supplier;
       if (c.gsm) next.gsm = c.gsm;
-      if (c.bf) next.bf = String(c.bf);
+      next.bf = c.bf ? String(c.bf) : "";
       if (c.lockedWastage) next.customWastage = String(c.lockedWastage);
       next.printing = !!c.printing;
       if (c.colours) next.colours = c.colours;
       if (c.coverage) next.coverage = c.coverage;
       next.wetStrength = false;
-      next.transportRate = c.millName === "Jodhani" ? "5" : "";
-      next.tptRate = ["Pudumjee", "JK", "BILT", "Ajit"].includes(c.millName) ? "5" : "";
-      next.jodhaniGsmBucket = "";
-      if (c.millName === "Jodhani" && c.gsm && c.bf) {
-        const bucket = getJodhaniGsmBucket(c.gsm);
-        next.jodhaniGsmBucket = bucket;
-        const base = getJodhaniRate(bucket, parseInt(c.bf));
-        if (base) {
-          const rate = Math.round((base - JODHANI_DISCOUNT + WET_STRENGTH_EXTRA) * 100) / 100;
-          next.paperRate = rate; next.basePaperRate = rate;
-        }
-      } else if (c.millName === "Om Shivaay" && c.gsm && c.bf) {
-        const rate = getOmShivaayRate(c.gsm, c.bf);
-        if (rate) { next.paperRate = rate; next.basePaperRate = rate; }
-      }
-      return next;
-    });
-  }
-
-  function setJodhani(updates) {
-    setForm((f) => {
-      const next = { ...f, ...updates };
-      const base = getJodhaniRate(next.jodhaniGsmBucket, next.bf ? parseInt(next.bf) : null);
-      if (base) {
-        let rate = base - JODHANI_DISCOUNT;
-        if (next.wetStrength) rate += WET_STRENGTH_EXTRA;
-        if (next.transportRate && !isNaN(parseFloat(next.transportRate))) rate += parseFloat(next.transportRate);
-        next.paperRate = Math.round(rate * 100) / 100;
-      }
+      next.tptRate = supplier && supplier !== "Om Shivaay" ? "5" : "";
+      // Let the resolution effect pick the row (or the grade picker prompt).
+      next.paperId = ""; next.materialName = "";
       return next;
     });
   }
 
   function setManualPaperRate(v) {
     const base = parseFloat(v) || 0;
-    const tpt = parseFloat(form.tptRate) || 0;
-    setForm((f) => ({ ...f, basePaperRate: base, paperRate: Math.round((base + tpt) * 100) / 100 }));
+    setForm((f) => {
+      const tpt = parseFloat(f.tptRate) || 0;
+      const wet = f.wetStrength ? WET_STRENGTH_EXTRA : 0;
+      return { ...f, basePaperRate: base, paperRate: round2(base + tpt + wet) };
+    });
   }
 
   function setTpt(v) {
-    const tpt = parseFloat(v) || 0;
-    setForm((f) => ({ ...f, tptRate: v, paperRate: Math.round((f.basePaperRate + tpt) * 100) / 100 }));
+    setForm((f) => {
+      const tpt = parseFloat(v) || 0;
+      const wet = f.wetStrength ? WET_STRENGTH_EXTRA : 0;
+      return { ...f, tptRate: v, paperRate: round2(f.basePaperRate + tpt + wet) };
+    });
+  }
+
+  function toggleWet() {
+    setForm((f) => {
+      const wet = !f.wetStrength ? WET_STRENGTH_EXTRA : 0;
+      const tpt = parseFloat(f.tptRate) || 0;
+      return { ...f, wetStrength: !f.wetStrength, paperRate: round2(f.basePaperRate + tpt + wet) };
+    });
   }
 
   async function saveQuote({ asNew }) {
@@ -240,6 +292,7 @@ export default function AdminCalculator() {
       brand: selected?.brand,
       item: selected?.item,
       paperType: form.paperType, mill: form.millName,
+      paperId: form.paperId || undefined, materialName: form.materialName || undefined,
       gsm: form.gsm, bf: form.bf,
       width: form.width, gusset: form.gusset, height: form.height,
       paperRate: form.paperRate, casePack: form.casePack,
@@ -323,90 +376,80 @@ export default function AdminCalculator() {
         </Card>
 
         <Card title="Paper Specifications">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Paper Type">
-              <select className={inputCls} value={form.paperType} onChange={(e) => setForm((f) => ({ ...f, paperType: e.target.value, millName: "" }))}>
-                <option value="">Select…</option>
-                <option value="Brown Kraft">Brown Kraft (MF)</option>
-                <option value="MG">Brown Kraft (MG)</option>
-                <option value="Bleach Kraft White">Bleach Kraft White</option>
-                <option value="OGR">OGR</option>
-              </select>
-            </Field>
-            <Field label="Mill">
-              <select className={inputCls} value={form.millName} disabled={!form.paperType} onChange={(e) => setForm((f) => ({ ...f, millName: e.target.value, jodhaniGsmBucket: "", tptRate: ["Pudumjee", "JK", "BILT", "Ajit"].includes(e.target.value) ? "5" : "", transportRate: e.target.value === "Jodhani" ? "5" : "" }))}>
-                <option value="">{form.paperType ? "Select…" : "Select paper type first"}</option>
-                {(MILLS_BY_TYPE[form.paperType] || []).map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </Field>
-            {isJodhani ? (
-              <Field label="GSM">
-                <select className={inputCls} value={form.jodhaniGsmBucket} onChange={(e) => setJodhani({ jodhaniGsmBucket: e.target.value, gsm: parseInt(e.target.value) || form.gsm })}>
-                  <option value="">Select…</option>
-                  {[100, 110, 120, 130, 140, 90, 82].map((g) => <option key={g} value={String(g)}>{g}</option>)}
-                </select>
-              </Field>
-            ) : isOmShivaay ? (
-              <Field label="GSM">
-                <select className={inputCls} value={[60, 70].includes(form.gsm) ? String(form.gsm) : ""} onChange={(e) => {
-                  const g = parseInt(e.target.value);
-                  const rate = getOmShivaayRate(g, form.bf);
-                  setForm((f) => ({ ...f, gsm: g, ...(rate ? { paperRate: rate, basePaperRate: rate } : {}) }));
-                }}>
-                  <option value="">Select…</option>
-                  <option value="60">60</option>
-                  <option value="70">70</option>
-                </select>
-              </Field>
-            ) : (
-              <Field label="GSM">
-                <select className={inputCls} value={form.gsm} onChange={(e) => num("gsm", e.target.value)}>
-                  {GSM_OPTIONS.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </Field>
-            )}
-            <Field label="BF">
-              {isJodhani ? (
-                <select className={inputCls} value={form.bf} onChange={(e) => setJodhani({ bf: e.target.value })}>
-                  <option value="">Select…</option>
-                  <option value="24">24 BF</option><option value="26">26 BF</option><option value="28">28 BF</option>
-                </select>
-              ) : isOmShivaay ? (
-                <select className={inputCls} value={form.bf} onChange={(e) => {
-                  const bf = e.target.value;
-                  const rate = getOmShivaayRate(form.gsm, bf);
-                  setForm((f) => ({ ...f, bf, ...(rate ? { paperRate: rate, basePaperRate: rate } : {}) }));
-                }}>
-                  <option value="">Select…</option>
-                  <option value="28">28 BF</option>
-                </select>
-              ) : (
-                <select className={inputCls} value={form.bf} onChange={(e) => set("bf", e.target.value)}>
-                  <option value="">Select…</option>
-                  {BF_OPTIONS.map((b) => <option key={b} value={b}>{b} BF</option>)}
-                </select>
-              )}
-            </Field>
-          </div>
-          {isJodhani && (
-            <div className="mt-4 space-y-3 border-t border-gray-100 pt-3 dark:border-gray-800">
-              <Toggle value={form.wetStrength} onChange={() => setJodhani({ wetStrength: !form.wetStrength })} label="Wet Strength Paper" sub="+₹5/kg" />
-              <Field label="Transport (₹/kg)">
-                <input type="number" className={inputCls} value={form.transportRate} onChange={(e) => setJodhani({ transportRate: e.target.value })} min="0" step="0.5" />
-              </Field>
-              {form.jodhaniGsmBucket && form.bf && (
-                <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                  <p className="text-xs text-green-700 font-medium">Effective RM Rate: ₹{form.paperRate}/kg</p>
+          {papersError ? (
+            <div className="text-sm text-red-600 dark:text-red-400">
+              Couldn&apos;t load the paper catalogue.{" "}
+              <button onClick={loadPapers} className="underline font-medium">Retry</button>
+            </div>
+          ) : papers.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-gray-500">Loading papers from RM database…</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Paper Type">
+                  <select className={inputCls} value={form.paperType} onChange={(e) => chooseType(e.target.value)}>
+                    <option value="">Select…</option>
+                    {paperTypes.map((t) => <option key={t} value={t}>{TYPE_LABEL[t] || t}</option>)}
+                  </select>
+                </Field>
+                <Field label="Supplier">
+                  <select className={inputCls} value={form.millName} disabled={!form.paperType} onChange={(e) => chooseSupplier(e.target.value)}>
+                    <option value="">{form.paperType ? "Select…" : "Select paper type first"}</option>
+                    {suppliers.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </Field>
+                <Field label="GSM">
+                  {hasGsm ? (
+                    <select className={inputCls} value={gsms.includes(Number(form.gsm)) ? form.gsm : ""} disabled={!form.millName} onChange={(e) => chooseGsm(e.target.value)}>
+                      <option value="">Select…</option>
+                      {gsms.map((g) => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  ) : (
+                    // Flat paper — rate is GSM-agnostic; GSM is a free input for the weight calc.
+                    <input type="number" className={inputCls} value={form.gsm} disabled={!form.millName} onChange={(e) => num("gsm", e.target.value)} min="1" />
+                  )}
+                </Field>
+                {hasGsm && bfs.length > 0 && !(bfs.length === 1 && bfs[0] == null) && (
+                  <Field label="BF">
+                    <select className={inputCls} value={form.bf} onChange={(e) => chooseBf(e.target.value)}>
+                      <option value="">Select…</option>
+                      {bfs.filter((b) => b != null).map((b) => <option key={b} value={b}>{b} BF</option>)}
+                    </select>
+                  </Field>
+                )}
+              </div>
+
+              {showGrade && (
+                <div className="mt-3">
+                  <Field label="Grade / Material">
+                    <select className={inputCls} value={form.paperId} onChange={(e) => chooseGrade(e.target.value)}>
+                      <option value="">Pick a grade…</option>
+                      {matches.map((m) => (
+                        <option key={m.id} value={m.id}>{m.materialName} · ₹{m.effectiveRate}/kg</option>
+                      ))}
+                    </select>
+                  </Field>
                 </div>
               )}
-            </div>
-          )}
-          {!isJodhani && !isOmShivaay && form.millName && (
-            <div className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
-              <Field label="TPT (₹/kg)">
-                <input type="number" className={inputCls} value={form.tptRate} onChange={(e) => setTpt(e.target.value)} min="0" step="0.5" />
-              </Field>
-            </div>
+
+              {form.millName && matches.length === 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">No priced grade for this combination — pick a different GSM/BF.</p>
+              )}
+
+              {form.millName && (
+                <div className="mt-4 space-y-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+                  <Toggle value={form.wetStrength} onChange={toggleWet} label="Wet Strength Paper" sub="+₹5/kg" />
+                  <Field label="Transport (₹/kg)">
+                    <input type="number" className={inputCls} value={form.tptRate} onChange={(e) => setTpt(e.target.value)} min="0" step="0.5" />
+                  </Field>
+                  {selectedRow && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 dark:bg-green-900/20 dark:border-green-800">
+                      <p className="text-xs text-green-700 font-medium dark:text-green-300">{selectedRow.materialName} — Effective ₹{form.paperRate}/kg</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </Card>
 
@@ -435,14 +478,14 @@ export default function AdminCalculator() {
 
         <Card title="Paper & Cost">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Paper Rate (₹/kg)">
+            <Field label="Paper Rate (₹/kg base)">
               <input
                 type="number"
-                className={`${inputCls} ${(isJodhani && form.jodhaniGsmBucket && form.bf) || (isOmShivaay && form.bf) ? "bg-green-50 border-green-300" : ""}`}
-                value={isJodhani || isOmShivaay ? form.paperRate : form.basePaperRate}
-                onChange={(e) => { if (!isJodhani && !isOmShivaay) setManualPaperRate(e.target.value); }}
-                readOnly={(isJodhani && !!form.jodhaniGsmBucket && !!form.bf) || (isOmShivaay && [60, 70].includes(form.gsm) && form.bf === "28")}
+                className={`${inputCls} ${selectedRow ? "bg-green-50 border-green-300 dark:bg-green-900/20 dark:border-green-800" : ""}`}
+                value={form.basePaperRate}
+                onChange={(e) => setManualPaperRate(e.target.value)}
                 min="1"
+                title="Auto-filled from the RM database; edit to override. Transport + wet-strength are added on top."
               />
             </Field>
             <Field label="Case Pack"><input type="number" className={inputCls} value={form.casePack} onChange={(e) => num("casePack", e.target.value)} min="1" /></Field>

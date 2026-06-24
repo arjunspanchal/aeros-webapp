@@ -1,11 +1,15 @@
 // Server-side rate calculation. For clients, the profit % is taken from
 // their users record (live lookup via currentClientPricing) and never from
 // the request body. This keeps the margin hidden from the front-end.
-import { calculate, computeRateCurve, optimizationTips, lookupPaperRate } from "@/lib/calc/calculator";
+import { calculate, computeRateCurve, optimizationTips } from "@/lib/calc/calculator";
 import { getSession, requireRole } from "@/lib/auth/session";
 import { getSession as getLegacyCalcSession } from "@/lib/calc/session";
 import { currentClientPricing } from "@/lib/calc/user-directory";
-import { fetchPaperRMTables, lookupRMPaperRate } from "@/lib/calc/rmRates";
+import { getMasterPaperRow, rowBaseRate } from "@/lib/calc/resolvePaperRow";
+
+// Flat transport adder baked into every client paper rate (preserved from the
+// legacy server path). Admins control transport explicitly via the form instead.
+const CLIENT_TRANSPORT_PER_KG = 5;
 
 function applyDiscount(curve, discountPct) {
   if (!discountPct) return curve;
@@ -50,24 +54,25 @@ async function handle(req) {
 
   const body = await req.json();
 
-  // Clients never supply paper rate or wastage — both are derived server-side.
-  // Try live RM Master first, fall back to the static tables in calculator.js.
+  // Paper rate comes straight from the selected master_papers row (by id). No
+  // static fallback — if the row is gone or unpriced, the calc errors loudly so
+  // a stale quote can't silently mis-price.
+  // Admin computes its rate client-side and posts paperRate; clients send paperId
+  // and the rate (incl. flat transport) is derived here, hiding margin & cost.
   let paperRate = Number(body.paperRate) || 0;
   if (isClient) {
-    let rmTables = null;
-    try {
-      rmTables = await fetchPaperRMTables();
-    } catch (err) {
-      console.error("fetchPaperRMTables failed, using static fallback:", err);
+    if (!body.paperId) {
+      return Response.json({ error: "Select a paper grade." }, { status: 400 });
     }
-    const live = lookupRMPaperRate(rmTables, {
-      paperType: body.paperType, mill: body.mill,
-      gsm: Number(body.gsm), bf: body.bf ? Number(body.bf) : null,
-    });
-    paperRate = live ?? lookupPaperRate({
-      paperType: body.paperType, mill: body.mill,
-      gsm: Number(body.gsm), bf: body.bf,
-    });
+    const row = await getMasterPaperRow(body.paperId);
+    if (!row) {
+      return Response.json({ error: "Selected paper is no longer in the RM database. Pick a current grade." }, { status: 400 });
+    }
+    const base = rowBaseRate(row);
+    if (!(base > 0)) {
+      return Response.json({ error: `No rate set for ${row.material_name}. Set its base rate in master_papers.` }, { status: 400 });
+    }
+    paperRate = Math.round((base + CLIENT_TRANSPORT_PER_KG) * 100) / 100;
   }
 
   // Hub session no longer carries margin_pct directly. The live
@@ -112,9 +117,9 @@ async function handle(req) {
     return Response.json({ error: "Width, height, and GSM are required." }, { status: 400 });
   }
   if (inputs.paperRate <= 0) {
-    const sel = `${body.paperType || "—"} / ${body.mill || "any mill"} / ${body.gsm || "—"} GSM / ${body.bf || "—"} BF`;
+    const sel = body.materialName || `${body.paperType || "—"} / ${body.gsm || "—"} GSM`;
     return Response.json({
-      error: `No paper rate available for ${sel}. Add the row to master_papers (or set its base rate).`,
+      error: `No paper rate available for ${sel}. Set its base rate in master_papers.`,
     }, { status: 400 });
   }
 

@@ -47,6 +47,8 @@ function rowToQuote(row) {
     plainPrinted: p.plain_printed || "",
     paperType: p.paper_type || "",
     mill: p.mill || "",
+    paperId: p.paper_id || null,
+    materialName: p.material_name || "",
     gsm: p.gsm ?? null,
     bf: p.bf ?? null,
     width: p.width_mm ?? null,
@@ -109,6 +111,8 @@ function buildRow(body, session) {
       plain_printed: body.printing ? "Printed" : "Plain",
       paper_type: body.paperType || null,
       mill: body.mill || null,
+      paper_id: body.paperId || null,
+      material_name: body.materialName || null,
       gsm: num(body.gsm),
       bf: num(body.bf),
       width_mm: num(body.width),
@@ -122,7 +126,6 @@ function buildRow(body, session) {
       coverage_pct: num(body.coverage),
       handle_cost: num(body.handleCost),
     },
-    legacy_source: null, // null = native v2 row; rows imported from `quotes` carry the legacy id here
   };
 }
 
@@ -211,11 +214,10 @@ export async function PATCH(req) {
   }
 
   // Build the patch from the body, then strip immutable columns so PATCH
-  // can never mutate quote_type / generated_by / legacy_source.
+  // can never mutate quote_type / generated_by.
   const next = buildRow(body, session);
   delete next.quote_type;
   delete next.generated_by;
-  delete next.legacy_source;
 
   const updated = await dbUpdate("quotes_v2", "id", existing.id, next);
   const quote = rowToQuote(updated);
