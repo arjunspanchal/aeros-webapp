@@ -499,7 +499,7 @@ export default function JobEditor({
         canPush={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER}
       />
 
-      <JobThread jobId={job.id} viewerRole="team" title="Messages & files (vendor)" />
+      <JobThread jobId={job.id} viewerRole="team" title="Messages & files (customer + vendor)" />
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Update status</h2>
