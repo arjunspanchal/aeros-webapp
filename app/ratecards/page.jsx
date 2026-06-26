@@ -63,6 +63,13 @@ const SHEETS = [
     description:
       "Compostable sugarcane-fibre plates, compartment trays, bowls, clamshell boxes, cups, lids and cutlery. Microwave- and oven-safe, plastic-free.",
   },
+  {
+    href: "/aeros-seal",
+    eyebrow: "Machines",
+    title: "AeroSeal Sealing Machines",
+    description:
+      "Manual cup, tub and universal sealers — heat-seal film lids onto PP, PET and paper cups and tubs. Four cup-sealer tiers plus tub and universal models, priced per unit.",
+  },
 ];
 
 export default function RateCardsHubPage() {
