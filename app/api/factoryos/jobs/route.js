@@ -35,9 +35,9 @@ export async function POST(req) {
   }
   try {
     const body = await req.json();
-    // Traded (non-factory) jobs are bought-in items (e.g. foils) — they have
-    // no catalogue SKU and skip the production pipeline. The free-text item
-    // name identifies them instead of a master SKU.
+    // Traded (non-factory) jobs are bought-in items (e.g. foils) that skip the
+    // production pipeline — but they still pick a product from the catalogue, so
+    // the master-SKU requirement below applies to them too.
     const isTraded = body.sourcing === "traded";
     if (body.sourcing !== undefined && body.sourcing !== "traded" && body.sourcing !== "in_house") {
       return Response.json({ error: "Invalid sourcing" }, { status: 400 });
@@ -45,9 +45,9 @@ export async function POST(req) {
     if (!body.jNumber || !body.clientId || !body.item) {
       return Response.json({ error: "J#, client, and item are required" }, { status: 400 });
     }
-    // In-house jobs must map to a row in Aeros Products Master so FG inventory
-    // can be tracked by SKU. Traded jobs are exempt — there is no master SKU.
-    if (!isTraded && (!body.masterSku || !String(body.masterSku).trim())) {
+    // Every job must map to a row in Aeros Products Master so FG inventory can
+    // be tracked by SKU — including traded items (already in the catalogue).
+    if (!body.masterSku || !String(body.masterSku).trim()) {
       return Response.json(
         { error: "Pick a product from the master catalogue — required so this job maps to an SKU." },
         { status: 400 },

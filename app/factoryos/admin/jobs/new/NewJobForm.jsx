@@ -169,15 +169,10 @@ export default function NewJobForm({
 
     // Belt-and-braces guard — HTML5 `required` on the select also enforces this, but if
     // someone bypasses the browser we still catch it here before hitting the API.
-    // Traded jobs have no catalogue SKU; the free-text item name identifies them.
+    // Both in-house and traded jobs pick from the catalogue so the job maps to a DB SKU.
     const pickedProduct = products.find((p) => p.id === form.productId);
-    if (!isTraded && !pickedProduct) {
+    if (!pickedProduct) {
       setErr("Pick a product from the master catalogue — required so this job maps to an SKU.");
-      setBusy(false);
-      return;
-    }
-    if (isTraded && !form.item.trim()) {
-      setErr("Enter the item name (e.g. Aluminium Sealing Foil).");
       setBusy(false);
       return;
     }
@@ -202,9 +197,8 @@ export default function NewJobForm({
       clientId,
       // Snapshot the master SKU + name at creation time. Master catalogue can change later;
       // the job-level record keeps the original mapping so FG ledger stays consistent.
-      // Traded jobs carry no master SKU.
-      masterSku: isTraded ? "" : (pickedProduct?.sku || ""),
-      masterProductName: isTraded ? "" : (pickedProduct?.productName || ""),
+      masterSku: pickedProduct.sku || "",
+      masterProductName: pickedProduct.productName || "",
       orderRate: form.orderRate ? Number(form.orderRate) : undefined,
       qty: form.qty ? Number(form.qty) : undefined,
       gsm: form.gsm ? Number(form.gsm) : undefined,
@@ -261,8 +255,9 @@ export default function NewJobForm({
         </div>
         {isTraded && (
           <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-            Traded items skip the catalogue, raw-material and printing steps. Enter the item name and rate;
-            the customer sees a Confirmed → Procuring → Dispatched → Delivered flow.
+            Traded items skip raw-material and printing — but still pick the bought-in product from the
+            catalogue so it maps to a DB SKU. The customer sees a Confirmed → Procuring → Dispatched →
+            Delivered flow.
           </p>
         )}
       </div>
@@ -312,7 +307,6 @@ export default function NewJobForm({
       </Section>
 
       <Section title="Item">
-        {!isTraded && (
         <div className="sm:col-span-2">
           <label className={labelCls}>
             Master product <span className="text-red-500">*</span>
@@ -366,8 +360,6 @@ export default function NewJobForm({
             </div>
           )}
         </div>
-        )}
-        {!isTraded && (
         <div>
           <label className={labelCls}>Category</label>
           <select className={inputCls} value={form.category} onChange={(e) => set("category", e.target.value)}>
@@ -375,9 +367,8 @@ export default function NewJobForm({
             {formCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-        )}
         <div>
-          <label className={labelCls}>Item{isTraded && <span className="text-red-500"> *</span>}</label>
+          <label className={labelCls}>Item</label>
           <input className={inputCls} value={form.item} onChange={(e) => set("item", e.target.value)} placeholder="e.g. 250 ml DW Paper Cup" required />
         </div>
         <div>
