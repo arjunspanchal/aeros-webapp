@@ -6,6 +6,7 @@ import {
   addJobUpdate,
   deleteJob,
   countUpdatesForJob,
+  setJobDelivery,
 } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { sessionCanSeeJob } from "@/lib/factoryos/jobAccess";
@@ -102,6 +103,14 @@ export async function PATCH(req, { params }) {
     if (body.notes !== undefined) patch.notes = body.notes;
     if (body.expectedDispatchDate !== undefined) patch.expectedDispatchDate = body.expectedDispatchDate;
     if (body.estimatedDeliveryDate !== undefined) patch.estimatedDeliveryDate = body.estimatedDeliveryDate;
+    // Delivery-plan fields live on PG columns outside the Airtable shim, so
+    // they're written via setJobDelivery (not updateJob). Internal-only — the
+    // customer branch already returned above.
+    const deliveryPatch = {};
+    if (body.receivedQty !== undefined) deliveryPatch.receivedQty = body.receivedQty;
+    if (body.deliveryStatus !== undefined) deliveryPatch.deliveryStatus = body.deliveryStatus;
+    if (body.deliveryRemarks !== undefined) deliveryPatch.deliveryRemarks = body.deliveryRemarks;
+    if (body.orderRate !== undefined) deliveryPatch.orderRate = body.orderRate;
     // RM + production updates
     if (body.rmType !== undefined) patch.rmType = body.rmType;
     if (body.rmSupplier !== undefined) patch.rmSupplier = body.rmSupplier;
@@ -157,6 +166,10 @@ export async function PATCH(req, { params }) {
 
       if (body.masterSku !== undefined) patch.masterSku = body.masterSku;
       if (body.masterProductName !== undefined) patch.masterProductName = body.masterProductName;
+    }
+
+    if (Object.keys(deliveryPatch).length > 0) {
+      await setJobDelivery(job.id, deliveryPatch);
     }
 
     const updated = Object.keys(patch).length > 0 ? await updateJob(job.id, patch) : job;
