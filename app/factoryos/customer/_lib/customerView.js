@@ -39,21 +39,55 @@ export const MILESTONES = [
   { key: "delivered",  label: "Delivered",  matches: ["Delivered"] },
 ];
 
-export function milestoneIndex(stage) {
-  const idx = MILESTONES.findIndex((m) => m.matches.includes(stage));
+// Traded (non-factory) items — e.g. foils — are bought-in and delivered, so the
+// production milestone makes no sense. Collapse the middle stages into a single
+// "Procuring" step: Confirmed → Procuring → Dispatched → Delivered.
+export const TRADED_MILESTONES = [
+  { key: "confirmed",  label: "Confirmed",  matches: ["RM Pending"] },
+  { key: "procuring",  label: "Procuring",  matches: ["Under Printing", "In Conversion", "Packing", "Ready for Dispatch"] },
+  { key: "dispatched", label: "Dispatched", matches: ["Dispatched"] },
+  { key: "delivered",  label: "Delivered",  matches: ["Delivered"] },
+];
+
+export function milestonesFor(sourcing) {
+  return sourcing === "traded" ? TRADED_MILESTONES : MILESTONES;
+}
+
+export function milestoneIndex(stage, sourcing) {
+  const idx = milestonesFor(sourcing).findIndex((m) => m.matches.includes(stage));
   return idx === -1 ? 0 : idx;
 }
 
+// Plain-English stage labels for traded items — no printing/manufacturing.
+const TRADED_STAGE_LABEL = {
+  "RM Pending":         "Order confirmed",
+  "Under Printing":     "Procuring stock",
+  "In Conversion":      "Procuring stock",
+  "Packing":            "Procuring stock",
+  "Ready for Dispatch": "Ready to dispatch",
+  "Dispatched":         "On the way to you",
+  "Delivered":          "Delivered",
+};
+
 // Friendly label exposed to the UI. Falls back to the raw stage if we ever add
 // a stage and forget to translate it.
-export function friendlyStage(stage) {
-  return STAGE_LABEL[stage] || stage || "Confirmed";
+export function friendlyStage(stage, sourcing) {
+  const map = sourcing === "traded" ? TRADED_STAGE_LABEL : STAGE_LABEL;
+  return map[stage] || STAGE_LABEL[stage] || stage || "Confirmed";
 }
 
 // Short "what's happening now" copy keyed off the current stage. One sentence,
 // reassuring rather than apologetic. The detail page renders this large; the
 // dashboard renders it as a sub-line.
 export function whatHappeningNow(job) {
+  if (job.sourcing === "traded") {
+    switch (job.stage) {
+      case "Dispatched":         return "Your order has left us and is on its way.";
+      case "Delivered":          return "Your order has been delivered. Thanks for working with us.";
+      case "Ready for Dispatch": return "Your stock is ready and waiting for the truck.";
+      default:                   return "We're procuring your stock and will dispatch on the committed dates.";
+    }
+  }
   switch (job.stage) {
     case "RM Pending":
       return "We're sourcing paper and getting raw materials in. Production starts as soon as the stock arrives.";
@@ -79,6 +113,14 @@ export function whatHappeningNow(job) {
 // hunt for it.
 export function nextStep(job) {
   if (!job) return null;
+  if (job.sourcing === "traded") {
+    switch (job.stage) {
+      case "Dispatched":         return { tone: "good", text: "On the way to you" };
+      case "Delivered":          return { tone: "good", text: "Delivered" };
+      case "Ready for Dispatch": return { tone: "soon", text: "Loading onto truck next" };
+      default:                   return { tone: "info", text: "Procuring stock" };
+    }
+  }
   // Customer action needed — outranks everything else. Keyed off
   // `artworkAwaitingApproval`, which callers compute from the thread
   // (team-posted artwork present + no approval stamp). Guessing from the

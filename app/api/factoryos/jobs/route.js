@@ -1,5 +1,5 @@
 import { getSession, requireInternal, requireManager, requireRole } from "@/lib/auth/session";
-import { listJobsForSession, createJob } from "@/lib/factoryos/repo";
+import { listJobsForSession, createJob, setJobDelivery } from "@/lib/factoryos/repo";
 import { STAGES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
@@ -35,11 +35,19 @@ export async function POST(req) {
   }
   try {
     const body = await req.json();
+    // Traded (non-factory) jobs are bought-in items (e.g. foils) — they have
+    // no catalogue SKU and skip the production pipeline. The free-text item
+    // name identifies them instead of a master SKU.
+    const isTraded = body.sourcing === "traded";
+    if (body.sourcing !== undefined && body.sourcing !== "traded" && body.sourcing !== "in_house") {
+      return Response.json({ error: "Invalid sourcing" }, { status: 400 });
+    }
     if (!body.jNumber || !body.clientId || !body.item) {
       return Response.json({ error: "J#, client, and item are required" }, { status: 400 });
     }
-    // Every new job must map to a row in Aeros Products Master so FG inventory can be tracked by SKU.
-    if (!body.masterSku || !String(body.masterSku).trim()) {
+    // In-house jobs must map to a row in Aeros Products Master so FG inventory
+    // can be tracked by SKU. Traded jobs are exempt — there is no master SKU.
+    if (!isTraded && (!body.masterSku || !String(body.masterSku).trim())) {
       return Response.json(
         { error: "Pick a product from the master catalogue — required so this job maps to an SKU." },
         { status: 400 },
@@ -62,10 +70,19 @@ export async function POST(req) {
       }
       body.category = c || undefined;
     }
+    const { orderRate, ...rest } = body;
     const job = await createJob({
       stage: STAGES[0],
-      ...body,
+      ...rest,
+      sourcing: isTraded ? "traded" : "in_house",
     });
+    // order_rate lives on a PG column outside the Airtable shim — set it after
+    // create. Mainly used for traded items (open value / rate on the plan).
+    if (orderRate !== undefined && orderRate !== null && orderRate !== "") {
+      await setJobDelivery(job.id, { orderRate }).catch((e) =>
+        console.error("set order_rate on new job failed:", e),
+      );
+    }
     return Response.json({ job });
   } catch (e) {
     if (e instanceof Response) return e;

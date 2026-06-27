@@ -7,7 +7,7 @@ import {
   derivedEta,
   friendlyStage,
   milestoneIndex,
-  MILESTONES,
+  milestonesFor,
   nextStep,
   activityIsCustomerVisible,
   sanitizeActivityNote,
@@ -26,12 +26,13 @@ const TONE_CHIP = {
   good:   "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
 };
 
-function MilestoneStrip({ stage }) {
-  const current = milestoneIndex(stage);
+function MilestoneStrip({ stage, sourcing }) {
+  const ms = milestonesFor(sourcing);
+  const current = milestoneIndex(stage, sourcing);
   return (
     <div>
       <div className="flex items-center gap-1.5">
-        {MILESTONES.map((m, i) => {
+        {ms.map((m, i) => {
           const done = i <= current;
           const isCurrent = i === current;
           return (
@@ -45,8 +46,11 @@ function MilestoneStrip({ stage }) {
           );
         })}
       </div>
-      <div className="mt-2 grid grid-cols-5 gap-1 text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
-        {MILESTONES.map((m, i) => (
+      <div
+        className="mt-2 grid gap-1 text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400"
+        style={{ gridTemplateColumns: `repeat(${ms.length}, minmax(0, 1fr))` }}
+      >
+        {ms.map((m, i) => (
           <span
             key={m.key}
             className={`truncate ${i <= current ? "text-blue-700 dark:text-blue-300 font-medium" : ""}`}
@@ -226,9 +230,9 @@ export default function CustomerJobDetailClient({ initialJob, initialUpdates, in
         </div>
 
         <div className="mt-5">
-          <MilestoneStrip stage={job.stage} />
+          <MilestoneStrip stage={job.stage} sourcing={job.sourcing} />
           <div className="mt-3 flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
-            <span className="font-medium">{friendlyStage(job.stage)}</span>
+            <span className="font-medium">{friendlyStage(job.stage, job.sourcing)}</span>
             {eta?.date ? (
               <span className="text-gray-500 dark:text-gray-400">
                 {eta.isExplicit ? "ETA " : "Expected by "}{formatDate(eta.date)}
@@ -430,7 +434,7 @@ export default function CustomerJobDetailClient({ initialJob, initialUpdates, in
               <div className="mt-1.5 w-2 h-2 rounded-full bg-blue-500 shrink-0" />
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">{friendlyStage(u.stage)}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{friendlyStage(u.stage, job.sourcing)}</span>
                   <span className="text-xs text-gray-500 dark:text-gray-400">{formatDateTime(u.createdAt)}</span>
                 </div>
                 {u.note && (

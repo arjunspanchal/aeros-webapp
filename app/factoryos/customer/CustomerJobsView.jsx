@@ -7,7 +7,7 @@ import {
   derivedEta,
   friendlyStage,
   milestoneIndex,
-  MILESTONES,
+  milestonesFor,
   needsCustomerAttention,
   nextStep,
 } from "./_lib/customerView";
@@ -19,11 +19,11 @@ const TONE_CHIP = {
   good:   "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
 };
 
-function MilestoneStrip({ stage }) {
-  const current = milestoneIndex(stage);
+function MilestoneStrip({ stage, sourcing }) {
+  const current = milestoneIndex(stage, sourcing);
   return (
     <div className="flex items-center gap-1.5">
-      {MILESTONES.map((m, i) => {
+      {milestonesFor(sourcing).map((m, i) => {
         const done = i <= current;
         const isCurrent = i === current;
         return (
@@ -321,9 +321,9 @@ function JobCard({ job, unread, overdue }) {
         <NextStepChip job={job} />
       </div>
       <div className="mt-3">
-        <MilestoneStrip stage={job.stage} />
+        <MilestoneStrip stage={job.stage} sourcing={job.sourcing} />
         <div className="mt-2 flex items-center justify-between text-xs">
-          <span className="text-gray-600 dark:text-gray-300">{friendlyStage(job.stage)}</span>
+          <span className="text-gray-600 dark:text-gray-300">{friendlyStage(job.stage, job.sourcing)}</span>
           <span className={overdue ? "text-red-600 dark:text-red-400 font-medium" : ""}>
             <EtaLine job={job} />
             {overdue && " · Past ETA"}
