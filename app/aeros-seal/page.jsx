@@ -50,12 +50,13 @@ export default async function AerosSealPage() {
           <div className="max-w-2xl">
             <h1 className="text-display-md font-bold text-ink-900">AeroSeal Sealing Machines</h1>
             <p className="mt-3 text-ink-600">
-              Manual heat-seal machines that bond a pre-cut film lid onto{" "}
-              <strong>PP, PET and paper cups and tubs</strong> — a spill-proof closure for bubble
-              tea, juices, coffee, curd and ready meals. A four-tier{" "}
-              <strong>cup-sealer</strong> ladder from a basic energy-controlled frame up to an
-              export-grade CE build, plus dedicated <strong>tub</strong> and{" "}
-              <strong>universal</strong> models. Pairs with our pre-cut sealing foils.
+              <strong>Manual countertop sealers</strong> that heat-bond a pre-cut foil lid onto{" "}
+              <strong>paper, PET, PP and bagasse</strong> cups and tubs — a leak-proof closure for
+              bubble tea, juices, coffee, curd and ready meals. One workflow across the range: a
+              four-tier <strong>cup-sealer</strong> ladder from a simple energy-controlled frame up
+              to an export-grade CE build, plus dedicated <strong>tub</strong> and{" "}
+              <strong>universal</strong> models. Stainless-steel build with digital PID temperature
+              control on the higher tiers. Pairs with our pre-cut AeroSeal foils.
             </p>
           </div>
 

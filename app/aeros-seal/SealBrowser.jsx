@@ -10,6 +10,7 @@ import { useCurrency } from "./Currency";
 
 export default function SealBrowser({ sections, total, priced, usdPerInr }) {
   const [active, setActive] = useState("all");
+  const [openVideo, setOpenVideo] = useState(null); // section key whose demo is open
   const { currency } = useCurrency();
 
   const shown = active === "all" ? sections : sections.filter((s) => s.key === active);
@@ -38,8 +39,35 @@ export default function SealBrowser({ sections, total, priced, usdPerInr }) {
 
       {shown.map((section) => (
         <div key={section.key} className="mt-8">
-          <h3 className="text-lg font-semibold text-ink-900">{section.label}</h3>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-lg font-semibold text-ink-900">{section.label}</h3>
+            {section.video && (
+              <button
+                type="button"
+                onClick={() => setOpenVideo(openVideo === section.key ? null : section.key)}
+                aria-expanded={openVideo === section.key}
+                className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1 text-xs font-medium text-ink-700 transition-colors hover:border-ink-400"
+              >
+                <span aria-hidden>{openVideo === section.key ? "▾" : "▶"}</span>
+                {openVideo === section.key ? "Hide demo" : "Watch demo"}
+              </button>
+            )}
+          </div>
           {section.blurb && <p className="mt-1 max-w-2xl text-sm text-ink-600">{section.blurb}</p>}
+
+          {section.video && openVideo === section.key && (
+            <div className="mt-4 overflow-hidden rounded-md border border-ink-200 bg-black">
+              {/* preload="none" + render-on-open: the ~60–95 MB file only loads
+                  when the user opens this panel, never on first paint. */}
+              <video
+                src={section.video}
+                controls
+                preload="none"
+                playsInline
+                className="aspect-video w-full"
+              />
+            </div>
+          )}
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {section.rows.map((row) => (
@@ -55,6 +83,18 @@ export default function SealBrowser({ sections, total, priced, usdPerInr }) {
 function MachineCard({ row, currency, usdPerInr }) {
   return (
     <article className="flex flex-col rounded-md border border-ink-200 bg-white p-5">
+      {row.image && (
+        <div className="mb-4 overflow-hidden rounded-md border border-ink-100 bg-white">
+          {/* Plain <img> (not next/image) so no domain allow-list config is
+              needed; small files (~15–46 KB), lazy-loaded. */}
+          <img
+            src={row.image}
+            alt={row.name}
+            loading="lazy"
+            className="mx-auto aspect-[4/3] w-full object-contain"
+          />
+        </div>
+      )}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h4 className="font-bold text-ink-900">{row.name}</h4>
