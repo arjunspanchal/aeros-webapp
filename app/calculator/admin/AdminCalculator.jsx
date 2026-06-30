@@ -43,6 +43,7 @@ const DEFAULT_FORM = {
   wetStrength: false,
   tptRate: "", basePaperRate: 92, paperRate: 92,
   casePack: 100, handleCost: 0.85, customWastage: "", profitPercent: 10,
+  innerPack: 100, innerPolyRate: 2.0,
   printing: false, colours: 1, coverage: 30, orderQty: 15000,
   quoteRef: "",
 };
@@ -489,6 +490,12 @@ export default function AdminCalculator() {
               />
             </Field>
             <Field label="Case Pack"><input type="number" className={inputCls} value={form.casePack} onChange={(e) => num("casePack", e.target.value)} min="1" /></Field>
+            {form.bagType === "v_bottom_gusset" && (
+              <>
+                <Field label="Inner Poly Pack (pcs/poly)"><input type="number" className={inputCls} value={form.innerPack} onChange={(e) => num("innerPack", e.target.value)} min="1" title="V-Bottom bags ship bundled in an inner poly bag — mandatory in packing cost." /></Field>
+                <Field label="Inner Poly Cost (₹/poly)"><input type="number" className={inputCls} value={form.innerPolyRate} onChange={(e) => num("innerPolyRate", e.target.value)} min="0" step="0.01" /></Field>
+              </>
+            )}
             {isHandleBag(form.bagType) && (
               <Field label={`Handle Cost (₹/bag) — default ${HANDLE_DEFAULT_COST[form.bagType]}`}>
                 <input type="number" className={inputCls} value={form.handleCost} onChange={(e) => num("handleCost", e.target.value)} min="0" step="0.01" />
@@ -609,6 +616,9 @@ export default function AdminCalculator() {
                   <Row label="Paper" value={`₹${result.paperCost.toFixed(4)}`} />
                   <Row label="Glue" value={`₹${result.glueCost.toFixed(4)}`} />
                   <Row label="Case Packing" value={`₹${result.cpCost.toFixed(4)}`} />
+                  {form.bagType === "v_bottom_gusset" && (
+                    <Row label={`Inner Poly (₹${result.innerPolyRate}/poly ÷ ${result.innerPack})`} value={`₹${result.innerPolyCost.toFixed(4)}`} />
+                  )}
                   <Row label={`Wastage (${result.wastage}%)`} value={`₹${result.wastageCost.toFixed(4)}`} />
                   <Row label={`Conversion Labour (₹${result.convRate}/kg)`} value={`₹${result.labourCost.toFixed(4)}`} />
                   {isHandleBag(form.bagType) && <Row label="Handle" value={`₹${result.handleCost.toFixed(4)}`} />}
