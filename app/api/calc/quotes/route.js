@@ -85,6 +85,13 @@ function redactForClient(quote) {
 
 const num = (v) => (v === undefined || v === null || v === "" ? null : Number(v));
 
+// bag_spec_id is a uuid FK. A stale Airtable rec id (legacy bag selection) would
+// throw "invalid input syntax for type uuid" and 500 the save, so only accept a
+// real uuid; anything else (rec id, empty) drops to null.
+const isUuid = (v) =>
+  typeof v === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
 function buildRow(body, session) {
   const today = new Date().toISOString().split("T")[0];
   return {
@@ -103,7 +110,7 @@ function buildRow(body, session) {
     order_total_inr: body.orderTotal !== undefined ? Number(body.orderTotal) : null,
     margin_pct: body.profitPct !== undefined ? Number(body.profitPct) : null,
     // Top-level typed FK — Bag is the only calc that populates this.
-    bag_spec_id: body.bagCodeId || null,
+    bag_spec_id: isUuid(body.bagCodeId) ? body.bagCodeId : null,
     payload: {
       brand: body.brand || null,
       item: body.item || null,
@@ -200,7 +207,8 @@ export async function PATCH(req) {
   // can run the owns-the-row check below.
   const filterCol = idFilterCol(id);
   const existing = (await dbSelect("quotes_v2", {
-    select: "id,airtable_id,client_email,quote_type",
+    // NB: quotes_v2 has no airtable_id column — selecting it 500s the PATCH.
+    select: "id,client_email,quote_type",
     filter: { [filterCol]: `eq.${id}`, quote_type: `eq.${QUOTE_TYPE}` },
     limit: 1,
   }))[0];
