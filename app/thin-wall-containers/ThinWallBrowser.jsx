@@ -138,30 +138,28 @@ export default function ThinWallBrowser({ sections, priced, total, usdPerInr = 9
 
       {/* Filter bar */}
       <div className="mt-4 rounded-md border border-ink-200 bg-white p-4">
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
-          <div>
-            <label htmlFor="twc-search" className="block text-xs uppercase tracking-wide text-ink-400">
-              Search
-            </label>
-            <input
-              id="twc-search"
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Code, capacity or name — e.g. 500ml, thali, lockable"
-              className="mt-1.5 h-10 w-full rounded border border-ink-200 bg-white px-3 text-sm text-ink-800 placeholder:text-ink-400 focus:border-ink-900 focus:outline-none focus:ring-1 focus:ring-ink-900"
-            />
-          </div>
+        <div>
+          <label htmlFor="twc-search" className="block text-xs uppercase tracking-wide text-ink-400">
+            Search
+          </label>
+          <input
+            id="twc-search"
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Code, capacity or name — e.g. 500ml, thali, lockable"
+            className="mt-1.5 h-10 w-full rounded border border-ink-200 bg-white px-3 text-sm text-ink-800 placeholder:text-ink-400 focus:border-ink-900 focus:outline-none focus:ring-1 focus:ring-ink-900"
+          />
+        </div>
 
-          <div>
-            <span className="block text-xs uppercase tracking-wide text-ink-400">Type</span>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {typeOptions.map((opt) => (
-                <Chip key={opt.value} active={type === opt.value} onClick={() => setType(opt.value)} title={opt.title}>
-                  {opt.label}
-                </Chip>
-              ))}
-            </div>
+        <div className="mt-4">
+          <span className="block text-xs uppercase tracking-wide text-ink-400">Type</span>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {typeOptions.map((opt) => (
+              <Chip key={opt.value} active={type === opt.value} onClick={() => setType(opt.value)} title={opt.title}>
+                {opt.label}
+              </Chip>
+            ))}
           </div>
         </div>
 
