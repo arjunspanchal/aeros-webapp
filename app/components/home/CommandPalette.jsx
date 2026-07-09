@@ -34,6 +34,7 @@ const STATIC_ITEMS = [
   { kind: "public", label: "PP cups & IM lids",  hint: "Public rate sheet",          href: "/pp-cups" },
   { kind: "public", label: "Straws",             hint: "Public rate sheet",          href: "/straws" },
   { kind: "public", label: "Take-out containers",hint: "Public rate sheet",          href: "/take-out-containers" },
+  { kind: "public", label: "PP thin-wall containers",hint: "Public rate sheet",       href: "/thin-wall-containers" },
 ];
 
 function filterItems(items, q) {

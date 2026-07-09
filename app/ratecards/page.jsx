@@ -50,6 +50,13 @@ const SHEETS = [
       "Paper tubs, ice cream tubs and round, rectangular & square salad bowls with matching lids. White & kraft, plain or custom-printed.",
   },
   {
+    href: "/thin-wall-containers",
+    eyebrow: "Containers",
+    title: "PP Thin-Wall Containers",
+    description:
+      "Injection-moulded PP containers with matching clear lids — round, rectangular, compartment trays, thalis, bowls, buckets and lockable tubs. Clear or black base, microwave- & freezer-safe.",
+  },
+  {
     href: "/straws",
     eyebrow: "Straws",
     title: "Paper & Rice Straws",
