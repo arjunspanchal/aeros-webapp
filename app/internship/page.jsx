@@ -67,6 +67,17 @@ export default async function InternshipLandingPage() {
           </div>
         </div>
 
+        {/* Trusted by — brand band lifted from the Aeros Internship Kit 2026 */}
+        <section className="mt-10">
+          <img
+            src="/brands/trusted-brands.png"
+            alt="Trusted by leading brands — ITC, Zepto, Swiggy, Taj SATS, 7-Eleven and Third Wave Coffee. 100+ brands served, Pan-India delivery."
+            width={1760}
+            height={260}
+            className="w-full rounded-md border border-ink-200"
+          />
+        </section>
+
         {/* Roles */}
         {kit.tracks.length > 0 && (
           <section className="mt-12">
