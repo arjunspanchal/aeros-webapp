@@ -1,8 +1,12 @@
 "use client";
-// Candidate pipeline as a Kanban board. Drag a card between stage columns (or
-// use the per-card "Move" menu on mobile), add/edit candidates in a slide-over,
-// and "Hire" to carry a candidate into the employee roster. Rejected / On-hold
-// live below the board, not as columns. Any HR user can manage candidates.
+// Candidate pipeline as a Kanban board. Two intake streams share it:
+//   • Full-time candidates (hiring_candidates) — add/edit in a slide-over,
+//     "Hire" carries them into the employee roster.
+//   • Internship applications (internship_applications) from the public
+//     /internship form — read-only cards with a resume link + a status pipeline.
+// Internship applicants keep their own 5-status vocabulary; it maps onto the
+// board columns so both kinds sit in one pipeline. Drag a card between columns
+// (or use the per-card menu). Rejected / On-hold live below the board.
 import { useMemo, useState } from "react";
 import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 import { HIRING_BOARD_STAGES, HIRING_STAGES, HIRING_STAGE_MAP, HIRING_SOURCES } from "@/lib/factoryos/constants";
@@ -19,10 +23,60 @@ const STAGE_DOT = {
 
 const SIDE_STAGES = HIRING_STAGES.filter((s) => !s.board);
 
-const EMPTY = {
-  name: "", phone: "", source: "", role: "", experience: "",
-  expectedSalary: "", location: "", linkUrl: "", notes: "",
+// Internship status ⇄ board stage. Interns have no "hired"/"on_hold" of their
+// own; a board move to those clamps to the nearest internship status.
+const INTERN_STATUS_TO_STAGE = {
+  new: "new",
+  shortlisted: "screening",
+  interviewing: "interview",
+  offered: "selected",
+  rejected: "rejected",
 };
+const STAGE_TO_INTERN_STATUS = {
+  new: "new",
+  screening: "shortlisted",
+  interview: "interviewing",
+  selected: "offered",
+  hired: "offered",
+  rejected: "rejected",
+  on_hold: "rejected",
+};
+const INTERN_STATUSES = [
+  { value: "new", label: "New" },
+  { value: "shortlisted", label: "Shortlisted" },
+  { value: "interviewing", label: "Interviewing" },
+  { value: "offered", label: "Offered" },
+  { value: "rejected", label: "Rejected" },
+];
+const INTERN_STATUS_LABEL = Object.fromEntries(INTERN_STATUSES.map((s) => [s.value, s.label]));
+const INTERN_TRACKS = ["Supply Chain & Operations", "Management", "E-commerce Sales"];
+const INTERN_SOURCE = "Internship"; // synthetic board source, for filtering
+
+function internToItem(a) {
+  return {
+    id: a.id,
+    kind: "internship",
+    name: a.fullName || "",
+    role: a.preferredTrack || "",
+    track: a.preferredTrack || "",
+    phone: a.phone || "",
+    email: a.email || "",
+    college: a.college || "",
+    degree: a.degreeSpecialization || "",
+    gradYear: a.graduationYear ?? null,
+    availableStartDate: a.availableStartDate || null,
+    canCommit6Months: a.canCommit6Months,
+    canWorkBhiwandiOffice: a.canWorkBhiwandiOffice,
+    resumeUrl: a.resumeUrl || null,
+    linkUrl: a.linkedinUrl || "",
+    note: a.note || "",
+    placementSource: a.source || "",
+    source: INTERN_SOURCE,
+    status: a.status || "new",
+    stage: INTERN_STATUS_TO_STAGE[a.status] || "new",
+    createdAt: a.createdAt || null,
+  };
+}
 
 async function api(url, method, body) {
   const res = await fetch(url, {
@@ -34,9 +88,16 @@ async function api(url, method, body) {
   return { ok: res.ok, data };
 }
 
-export default function HiringBoard({ initial }) {
+const EMPTY = {
+  name: "", phone: "", source: "", role: "", experience: "",
+  expectedSalary: "", location: "", linkUrl: "", notes: "",
+};
+
+export default function HiringBoard({ initial, internships }) {
   const [candidates, setCandidates] = useState(initial || []);
+  const [interns, setInterns] = useState(() => (internships || []).map(internToItem));
   const [source, setSource] = useState("");
+  const [track, setTrack] = useState("");
   const [q, setQ] = useState("");
   const [dragOver, setDragOver] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -44,19 +105,27 @@ export default function HiringBoard({ initial }) {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [detail, setDetail] = useState(null); // internship card being viewed
+
+  // Full-time candidates + internship applicants in one list. Candidates get an
+  // explicit kind so the render/move logic can branch.
+  const merged = useMemo(
+    () => [...candidates.map((c) => ({ ...c, kind: "candidate" })), ...interns],
+    [candidates, interns],
+  );
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return candidates.filter((c) => {
-      if (source && c.source !== source) return false;
+    return merged.filter((item) => {
+      // Track filter is intern-specific — selecting one narrows to interns.
+      if (track && (item.kind !== "internship" || item.track !== track)) return false;
+      if (source && item.source !== source) return false;
       if (!needle) return true;
-      return (
-        c.name.toLowerCase().includes(needle) ||
-        (c.phone || "").toLowerCase().includes(needle) ||
-        (c.role || "").toLowerCase().includes(needle)
-      );
+      const hay = [item.name, item.phone, item.role, item.track, item.college, item.email]
+        .filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(needle);
     });
-  }, [candidates, source, q]);
+  }, [merged, source, track, q]);
 
   const byStage = useMemo(() => {
     const m = {};
@@ -65,16 +134,33 @@ export default function HiringBoard({ initial }) {
     return m;
   }, [filtered]);
 
+  const internCount = useMemo(() => merged.filter((i) => i.kind === "internship").length, [merged]);
+
   function patchLocal(id, patch) {
     setCandidates((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   }
 
+  // Drag-drop / column move — branches on card kind.
   async function move(id, stage) {
-    const before = candidates.find((c) => c.id === id);
-    if (!before || before.stage === stage) return;
+    const item = merged.find((x) => x.id === id);
+    if (!item) return;
+    if (item.kind === "internship") {
+      return moveIntern(id, STAGE_TO_INTERN_STATUS[stage] || item.status);
+    }
+    if (item.stage === stage) return;
     patchLocal(id, { stage }); // optimistic
     const { ok } = await api(`/api/hr/hiring/${id}`, "PATCH", { stage });
-    if (!ok) patchLocal(id, { stage: before.stage }); // revert
+    if (!ok) patchLocal(id, { stage: item.stage }); // revert
+  }
+
+  async function moveIntern(id, status) {
+    const before = interns.find((i) => i.id === id);
+    if (!before || before.status === status) return;
+    setInterns((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, status, stage: INTERN_STATUS_TO_STAGE[status] || "new" } : i)),
+    );
+    const { ok } = await api(`/api/hr/internships/${id}`, "PATCH", { status });
+    if (!ok) setInterns((prev) => prev.map((i) => (i.id === id ? { ...i, status: before.status, stage: before.stage } : i)));
   }
 
   function openCreate() {
@@ -125,21 +211,35 @@ export default function HiringBoard({ initial }) {
 
   const sideCount = SIDE_STAGES.reduce((n, s) => n + (byStage[s.value]?.length || 0), 0);
 
+  function renderCard(item, opts = {}) {
+    if (item.kind === "internship") {
+      return <InternCard key={item.id} a={item} muted={opts.muted} onMoveStatus={moveIntern} onOpen={setDetail} />;
+    }
+    return <CandidateCard key={item.id} c={item} muted={opts.muted} onEdit={openEdit} onMove={move} onHire={hire} onRemove={remove} />;
+  }
+
   return (
     <div className="mt-6">
       <div className="flex flex-wrap items-center gap-2 justify-between bg-white border border-gray-200 rounded-xl p-3 dark:bg-gray-900 dark:border-gray-800">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, phone, role…"
+            placeholder="Search name, phone, role, college…"
             className={`${inputCls} w-56`}
           />
           <select value={source} onChange={(e) => setSource(e.target.value)} className={`${inputCls} w-auto`}>
             <option value="">All sources</option>
             {HIRING_SOURCES.map((s) => <option key={s} value={s}>{s}</option>)}
+            <option value={INTERN_SOURCE}>Internship form</option>
           </select>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{filtered.length} candidate{filtered.length === 1 ? "" : "s"}</span>
+          <select value={track} onChange={(e) => setTrack(e.target.value)} className={`${inputCls} w-auto`} title="Internship track (narrows to interns)">
+            <option value="">All tracks</option>
+            {INTERN_TRACKS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {filtered.length} shown · {internCount} internship{internCount === 1 ? "" : "s"}
+          </span>
         </div>
         <button onClick={openCreate} className="text-sm font-medium px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">
           + Add candidate
@@ -161,9 +261,7 @@ export default function HiringBoard({ initial }) {
               <span className="text-xs text-gray-400">{byStage[stage.value]?.length || 0}</span>
             </div>
             <div className="space-y-2">
-              {(byStage[stage.value] || []).map((c) => (
-                <CandidateCard key={c.id} c={c} onEdit={openEdit} onMove={move} onHire={hire} onRemove={remove} />
-              ))}
+              {(byStage[stage.value] || []).map((item) => renderCard(item))}
             </div>
           </div>
         ))}
@@ -173,9 +271,7 @@ export default function HiringBoard({ initial }) {
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Rejected · On hold ({sideCount})</h2>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {SIDE_STAGES.flatMap((s) => byStage[s.value] || []).map((c) => (
-              <CandidateCard key={c.id} c={c} muted onEdit={openEdit} onMove={move} onHire={hire} onRemove={remove} />
-            ))}
+            {SIDE_STAGES.flatMap((s) => byStage[s.value] || []).map((item) => renderCard(item, { muted: true }))}
           </div>
         </div>
       )}
@@ -186,12 +282,13 @@ export default function HiringBoard({ initial }) {
           busy={busy} err={err} onSave={save} onClose={() => setDrawerOpen(false)}
         />
       )}
+
+      {detail && <InternDetailModal a={detail} onClose={() => setDetail(null)} onMoveStatus={moveIntern} />}
     </div>
   );
 }
 
 function CandidateCard({ c, muted, onEdit, onMove, onHire, onRemove }) {
-  const stageMeta = HIRING_STAGE_MAP[c.stage];
   return (
     <div
       draggable
@@ -232,6 +329,123 @@ function CandidateCard({ c, muted, onEdit, onMove, onHire, onRemove }) {
         )}
         <button onClick={() => onRemove(c)} className="ml-auto text-[11px] text-gray-400 hover:text-red-600" title="Remove">✕</button>
       </div>
+    </div>
+  );
+}
+
+function InternCard({ a, muted, onMoveStatus, onOpen }) {
+  return (
+    <div
+      draggable
+      onDragStart={(e) => e.dataTransfer.setData("text/plain", a.id)}
+      className={`rounded-lg border bg-white p-2.5 cursor-grab active:cursor-grabbing dark:bg-gray-900 ${
+        muted ? "opacity-80" : ""
+      } border-indigo-200 ring-1 ring-inset ring-indigo-100 dark:border-indigo-900/50 dark:ring-indigo-900/30`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <button onClick={() => onOpen(a)} className="text-left min-w-0 flex-1">
+          <p className="text-sm font-medium text-gray-900 truncate dark:text-white">{a.name}</p>
+          {a.track && <p className="text-xs text-gray-500 truncate dark:text-gray-400">{a.track}</p>}
+        </button>
+        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium dark:bg-indigo-900/40 dark:text-indigo-200">Intern</span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+        {a.college && <span className="truncate max-w-full">{a.college}</span>}
+        {a.gradYear && <span>· {a.gradYear}</span>}
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+        {a.phone && <a href={`tel:${a.phone}`} className="hover:text-blue-600 dark:hover:text-blue-400">{a.phone}</a>}
+        {a.email && <a href={`mailto:${a.email}`} className="hover:text-blue-600 dark:hover:text-blue-400 truncate">{a.email}</a>}
+      </div>
+      <div className="mt-1 flex items-center gap-2">
+        {a.resumeUrl && (
+          <a href={a.resumeUrl} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline dark:text-blue-400">📄 Resume</a>
+        )}
+        <button onClick={() => onOpen(a)} className="text-[11px] text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">Details</button>
+      </div>
+      <div className="mt-2 flex items-center gap-1.5">
+        <select
+          value={a.status}
+          onChange={(e) => onMoveStatus(a.id, e.target.value)}
+          className="text-[11px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-600 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300"
+          title="Update application status"
+        >
+          {INTERN_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function InternDetailModal({ a, onClose, onMoveStatus }) {
+  const yesNo = (v) => (v === true ? "Yes" : v === false ? "No" : "—");
+  const fmt = (iso) => {
+    if (!iso) return "—";
+    try { return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch { return "—"; }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white h-full overflow-y-auto p-5 dark:bg-gray-900">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{a.name}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+        </div>
+        <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium dark:bg-indigo-900/40 dark:text-indigo-200 mb-4">
+          Internship application
+        </span>
+
+        <div className="mb-4">
+          <label className={labelCls}>Status</label>
+          <select
+            value={a.status}
+            onChange={(e) => onMoveStatus(a.id, e.target.value)}
+            className={inputCls}
+          >
+            {INTERN_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        </div>
+
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+          <Detail label="Track" value={a.track} />
+          <Detail label="Applied" value={fmt(a.createdAt)} />
+          <Detail label="Email" value={a.email ? <a className="text-blue-600 hover:underline dark:text-blue-400" href={`mailto:${a.email}`}>{a.email}</a> : "—"} />
+          <Detail label="Phone" value={a.phone ? <a className="text-blue-600 hover:underline dark:text-blue-400" href={`tel:${a.phone}`}>{a.phone}</a> : "—"} />
+          <Detail label="College" value={a.college || "—"} />
+          <Detail label="Degree" value={a.degree || "—"} />
+          <Detail label="Grad year" value={a.gradYear ?? "—"} />
+          <Detail label="Available from" value={fmt(a.availableStartDate)} />
+          <Detail label="6-month commit" value={yesNo(a.canCommit6Months)} />
+          <Detail label="Bhiwandi office" value={yesNo(a.canWorkBhiwandiOffice)} />
+          <Detail label="LinkedIn" value={a.linkUrl ? <a className="text-blue-600 hover:underline dark:text-blue-400" href={a.linkUrl} target="_blank" rel="noreferrer">Profile ↗</a> : "—"} />
+          <Detail label="Heard via" value={a.placementSource || "—"} />
+        </dl>
+
+        <div className="mt-4">
+          <label className={labelCls}>Resume</label>
+          {a.resumeUrl ? (
+            <a href={a.resumeUrl} target="_blank" rel="noreferrer" className="inline-block text-sm text-blue-600 hover:underline dark:text-blue-400">📄 Download resume ↗</a>
+          ) : (
+            <p className="text-sm text-gray-400">Not attached</p>
+          )}
+        </div>
+
+        {a.note && (
+          <div className="mt-4">
+            <label className={labelCls}>Why Aeros?</label>
+            <p className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{a.note}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Detail({ label, value }) {
+  return (
+    <div>
+      <dt className="text-[11px] uppercase tracking-wide text-gray-400">{label}</dt>
+      <dd className="mt-0.5 text-sm text-gray-800 dark:text-gray-200">{value}</dd>
     </div>
   );
 }
