@@ -39,15 +39,24 @@ export default async function HiringPage() {
               stages; mark a full-timer Hired to add them to the roster.
             </p>
           </div>
-          <a
-            href="/internship"
-            target="_blank"
-            rel="noreferrer"
-            title="Public internship application form — share this link with candidates"
-            className="shrink-0 mt-1 px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-          >
-            Internship form ↗
-          </a>
+          <div className="shrink-0 mt-1 flex flex-wrap gap-2">
+            <Link
+              href="/hr/internship-kit"
+              title="Edit the highlights + FAQ on the public application form"
+              className="px-3 py-2 bg-white border border-gray-200 rounded-md hover:border-gray-300 text-sm dark:bg-gray-900 dark:border-gray-800"
+            >
+              Edit internship kit
+            </Link>
+            <a
+              href="/internship"
+              target="_blank"
+              rel="noreferrer"
+              title="Public internship application form — share this link with candidates"
+              className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+            >
+              Internship form ↗
+            </a>
+          </div>
         </div>
         <CollegeOutreach initial={colleges} />
         <HiringBoard initial={candidates} internships={internships} />

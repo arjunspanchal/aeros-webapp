@@ -9,6 +9,18 @@ import { Button } from "@/app/components/ui/Button";
 
 const TRACKS = ["Supply Chain & Operations", "Management", "E-commerce Sales"];
 
+// Country dial codes — India first (default), then a few common others. Mirrors
+// the emission module's list. The phone is submitted as a single canonical
+// string "+91 9876543210".
+const DIAL_CODES = [
+  { c: "+91", n: "IN" }, { c: "+971", n: "AE" }, { c: "+966", n: "SA" },
+  { c: "+974", n: "QA" }, { c: "+968", n: "OM" }, { c: "+965", n: "KW" },
+  { c: "+973", n: "BH" }, { c: "+1", n: "US" }, { c: "+44", n: "GB" },
+  { c: "+65", n: "SG" }, { c: "+61", n: "AU" }, { c: "+60", n: "MY" },
+  { c: "+49", n: "DE" }, { c: "+33", n: "FR" }, { c: "+81", n: "JP" },
+];
+const DEFAULT_DIAL = "+91";
+
 const RESUME_MAX_BYTES = 5 * 1024 * 1024;
 const RESUME_ACCEPT = ".pdf,.doc,.docx";
 const RESUME_TYPES = [
@@ -54,6 +66,7 @@ function fileToBase64(file) {
 
 export default function InternshipForm({ collegeOptions = [] }) {
   const [form, setForm] = useState(EMPTY);
+  const [dialCode, setDialCode] = useState(DEFAULT_DIAL);
   const [resume, setResume] = useState(null);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState("");
@@ -65,6 +78,13 @@ export default function InternshipForm({ collegeOptions = [] }) {
   const set = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
     if (errors[k]) setErrors((prev) => ({ ...prev, [k]: undefined }));
+  };
+
+  // Phone national part — digits only; the dial code is stored separately and
+  // joined at submit into "+91 9876543210".
+  const setPhone = (v) => {
+    setForm((f) => ({ ...f, phone: v.replace(/\D/g, "") }));
+    if (errors.phone) setErrors((prev) => ({ ...prev, phone: undefined }));
   };
 
   function pickFile(e) {
@@ -110,6 +130,8 @@ export default function InternshipForm({ collegeOptions = [] }) {
     setBusy(true);
     try {
       const payload = { ...form, company_website: honeypotRef.current?.value || "" };
+      // Join dial code + national number into one canonical phone string.
+      payload.phone = form.phone.trim() ? `${dialCode} ${form.phone.trim()}` : "";
       if (resume) {
         payload.resumeBase64 = await fileToBase64(resume);
         payload.resumeContentType = resume.type || "application/octet-stream";
@@ -169,7 +191,7 @@ export default function InternshipForm({ collegeOptions = [] }) {
         <Input label="Full name *" value={form.fullName} onChange={set("fullName")} error={errors.fullName} autoComplete="name" />
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Email *" type="email" value={form.email} onChange={set("email")} error={errors.email} autoComplete="email" />
-          <Input label="Phone *" type="tel" value={form.phone} onChange={set("phone")} error={errors.phone} autoComplete="tel" />
+          <PhoneField label="Phone *" dialCode={dialCode} number={form.phone} onDial={setDialCode} onNumber={setPhone} error={errors.phone} />
         </div>
       </Section>
 
@@ -268,6 +290,41 @@ function Section({ title, children }) {
       <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-400">{title}</h2>
       <div className="mt-4 space-y-4">{children}</div>
     </section>
+  );
+}
+
+function PhoneField({ label, dialCode, number, onDial, onNumber, error }) {
+  const border = error
+    ? "border-red-600 focus:border-red-600 focus:ring-red-600"
+    : "border-ink-200 focus:border-royal-600 focus:ring-royal-600";
+  return (
+    <div className="w-full">
+      {label && <label htmlFor="phone" className="block text-sm text-ink-600 mb-1.5">{label}</label>}
+      <div className="flex gap-2">
+        <select
+          aria-label="Country code"
+          value={dialCode}
+          onChange={(e) => onDial(e.target.value)}
+          className={`h-12 w-auto shrink-0 rounded border bg-white px-2 text-ink-800 focus:outline-none focus:ring-1 ${border}`}
+        >
+          {DIAL_CODES.map((d) => (
+            <option key={d.c} value={d.c}>{d.n} {d.c}</option>
+          ))}
+        </select>
+        <input
+          id="phone"
+          type="tel"
+          inputMode="numeric"
+          autoComplete="tel-national"
+          value={number}
+          onChange={(e) => onNumber(e.target.value)}
+          placeholder="Mobile number"
+          aria-invalid={error ? "true" : undefined}
+          className={`h-12 w-full rounded border bg-white px-3 text-ink-800 placeholder:text-ink-400 focus:outline-none focus:ring-1 ${border}`}
+        />
+      </div>
+      {error && <p className="text-xs text-red-600 mt-1.5">{error}</p>}
+    </div>
   );
 }
 
