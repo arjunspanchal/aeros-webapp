@@ -52,7 +52,7 @@ function fileToBase64(file) {
   });
 }
 
-export default function InternshipForm() {
+export default function InternshipForm({ collegeOptions = [] }) {
   const [form, setForm] = useState(EMPTY);
   const [resume, setResume] = useState(null);
   const [errors, setErrors] = useState({});
@@ -234,7 +234,20 @@ export default function InternshipForm() {
             placeholder="A few lines on what draws you to this role."
           />
         </div>
-        <Input label="How did you hear about us? / Placement cell" value={form.source} onChange={set("source")} helper="Optional — college placement cell, referral, etc." />
+        <Input
+          label="How did you hear about us? / College placement cell"
+          value={form.source}
+          onChange={set("source")}
+          list={collegeOptions.length ? "college-options" : undefined}
+          helper="Optional — pick your college or type how you heard about us."
+        />
+        {collegeOptions.length > 0 && (
+          <datalist id="college-options">
+            {collegeOptions.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+        )}
       </Section>
 
       {formError && (

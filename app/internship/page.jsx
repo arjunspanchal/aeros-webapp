@@ -1,4 +1,5 @@
 import { Brand } from "@/app/components/ui/Brand";
+import { listCollegeNamesSafe } from "@/lib/hr/colleges";
 import InternshipForm from "./InternshipForm";
 
 // PUBLIC application page — the single link shared with candidates. Not in the
@@ -13,7 +14,11 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function InternshipApplyPage() {
+export default async function InternshipApplyPage() {
+  // Active outreach colleges populate the "how did you hear" picker so an
+  // applicant's source ties back to a college row. Safe: [] if unavailable.
+  const collegeOptions = await listCollegeNamesSafe();
+
   return (
     <div className="min-h-screen bg-ink-50 text-ink-800">
       <header className="sticky top-0 z-20 border-b border-ink-200 bg-white">
@@ -34,7 +39,7 @@ export default function InternshipApplyPage() {
         </div>
 
         <div className="mt-8">
-          <InternshipForm />
+          <InternshipForm collegeOptions={collegeOptions} />
         </div>
       </main>
 

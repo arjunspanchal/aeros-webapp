@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { getSession, hasModule } from "@/lib/auth/session";
 import { listCandidates } from "@/lib/factoryos/repo";
 import { listApplications } from "@/lib/hr/internships";
+import { listColleges } from "@/lib/hr/colleges";
 import HiringBoard from "./HiringBoard";
+import CollegeOutreach from "./CollegeOutreach";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +15,14 @@ export default async function HiringPage() {
   if (!hasModule(session, "hr")) redirect("/hub");
 
   // Two intake streams share one board: full-time candidates (hiring_candidates)
-  // and internship applications from the public /internship form.
-  const [candidates, internships] = await Promise.all([listCandidates(), listApplications()]);
+  // and internship applications from the public /internship form. College
+  // outreach (placement cells we're contacting) sits above them as the funnel's
+  // top.
+  const [candidates, internships, colleges] = await Promise.all([
+    listCandidates(),
+    listApplications(),
+    listColleges(),
+  ]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -41,6 +49,7 @@ export default async function HiringPage() {
             Internship form ↗
           </a>
         </div>
+        <CollegeOutreach initial={colleges} />
         <HiringBoard initial={candidates} internships={internships} />
       </main>
     </div>
