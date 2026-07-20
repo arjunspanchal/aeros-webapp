@@ -39,8 +39,8 @@ export default async function InternshipApplyPage() {
           <h1 className="mt-1 text-display-md font-bold text-ink-900">Apply for an Internship</h1>
           <p className="mt-3 text-ink-600">
             Join the Aeros team in Mumbai, India across Supply Chain &amp; Operations, Management,
-            or E-commerce Sales. Fill in the form below and attach your resume — it takes a couple
-            of minutes. We&apos;ll be in touch if there&apos;s a fit.
+            or E-commerce Sales. Read about the program below, then apply — we&apos;ll be in touch
+            if there&apos;s a fit.
           </p>
 
           {kit.highlights.length > 0 && (
@@ -57,9 +57,77 @@ export default async function InternshipApplyPage() {
           )}
         </div>
 
-        <div className="mt-8">
-          <InternshipForm collegeOptions={collegeOptions} />
-        </div>
+        {/* Learn about the internship — program overview from the kit */}
+        <section className="mt-10">
+          <h2 className="text-lg font-bold text-ink-900">Learn about the internship</h2>
+
+          {kit.tracks.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Roles we&apos;re hiring for</p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-3">
+                {kit.tracks.map((t, i) => (
+                  <div key={t.title} className="rounded-md border border-ink-200 bg-white p-4">
+                    <p className="text-[11px] font-medium text-ink-400">Track {String(i + 1).padStart(2, "0")}</p>
+                    <h3 className="mt-0.5 text-sm font-bold text-ink-900">{t.title}</h3>
+                    <ul className="mt-2 space-y-1">
+                      {t.points.map((p) => (
+                        <li key={p} className="flex gap-1.5 text-xs text-ink-600">
+                          <span className="text-ink-300" aria-hidden="true">—</span>
+                          <span>{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {kit.program.length > 0 && (
+            <div className="mt-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Program at a glance</p>
+              <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-md border border-ink-200 bg-ink-200 sm:grid-cols-3">
+                {kit.program.map((p) => (
+                  <div key={p.label} className="bg-white p-3">
+                    <p className="text-[11px] uppercase tracking-wide text-ink-400">{p.label}</p>
+                    <p className="mt-0.5 text-sm font-semibold text-ink-900">{p.value}</p>
+                    {p.note && <p className="text-[11px] text-ink-500">{p.note}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 grid gap-6 sm:grid-cols-2">
+            {kit.gains.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">What you&apos;ll gain</p>
+                <ul className="mt-3 space-y-1.5">
+                  {kit.gains.map((g) => (
+                    <li key={g} className="flex gap-2 text-sm text-ink-600">
+                      <span className="mt-0.5 shrink-0 text-royal-600" aria-hidden="true">✓</span>
+                      <span>{g}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {kit.whoCanApply && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Who can apply</p>
+                <p className="mt-3 text-sm leading-relaxed text-ink-600">{kit.whoCanApply}</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-10 border-t border-ink-200 pt-8">
+          <h2 className="text-lg font-bold text-ink-900">Apply now</h2>
+          <p className="mt-1 text-sm text-ink-600">Fill in the form below and attach your resume — it takes a couple of minutes.</p>
+          <div className="mt-6">
+            <InternshipForm collegeOptions={collegeOptions} />
+          </div>
+        </section>
 
         {kit.faqs.length > 0 && (
           <section className="mt-12 border-t border-ink-200 pt-8">

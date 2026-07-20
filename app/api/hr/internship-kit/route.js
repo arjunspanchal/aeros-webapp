@@ -27,6 +27,10 @@ export async function PATCH(req) {
       contactName: body.contactName,
       contactPhone: body.contactPhone,
       contactEmail: body.contactEmail,
+      whoCanApply: body.whoCanApply,
+      tracks: body.tracks,
+      program: body.program,
+      gains: body.gains,
       highlights: body.highlights,
       faqs: body.faqs,
     });
