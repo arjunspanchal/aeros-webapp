@@ -34,16 +34,43 @@ export default function CollegeOutreach({ initial }) {
   const [colleges, setColleges] = useState(initial || []);
   const [open, setOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [q, setQ] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  const filtered = useMemo(
-    () => (statusFilter ? colleges.filter((c) => c.status === statusFilter) : colleges),
-    [colleges, statusFilter],
-  );
+  // Distinct locations for the filter dropdown (+ whether any blanks exist).
+  const locations = useMemo(() => {
+    const set = new Set();
+    let hasBlank = false;
+    for (const c of colleges) {
+      const city = (c.city || "").trim();
+      if (city) set.add(city);
+      else hasBlank = true;
+    }
+    return { list: [...set].sort((a, b) => a.localeCompare(b)), hasBlank };
+  }, [colleges]);
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return colleges.filter((c) => {
+      if (statusFilter && c.status !== statusFilter) return false;
+      if (locationFilter) {
+        const city = (c.city || "").trim();
+        if (locationFilter === "__none__") { if (city) return false; }
+        else if (city !== locationFilter) return false;
+      }
+      if (needle) {
+        const hay = [c.collegeName, c.city, c.course, c.contactEmail, c.contactName, c.owner]
+          .filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [colleges, statusFilter, locationFilter, q]);
 
   const totals = useMemo(() => {
     const t = { count: colleges.length, applicants: 0, active: 0, toContact: 0 };
@@ -123,10 +150,29 @@ export default function CollegeOutreach({ initial }) {
       {open && (
         <div className="border-t border-gray-100 px-4 py-4 dark:border-gray-800">
           <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search college, city, course…"
+              className={`${inputCls} w-56`}
+            />
+            <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className={`${inputCls} w-auto`}>
+              <option value="">All locations</option>
+              {locations.list.map((city) => <option key={city} value={city}>{city}</option>)}
+              {locations.hasBlank && <option value="__none__">No location</option>}
+            </select>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${inputCls} w-auto`}>
               <option value="">All statuses</option>
               {COLLEGE_STATUSES.map((s) => <option key={s} value={s}>{COLLEGE_STATUS_LABEL[s]}</option>)}
             </select>
+            {(q || locationFilter || statusFilter) && (
+              <button
+                onClick={() => { setQ(""); setLocationFilter(""); setStatusFilter(""); }}
+                className="text-xs text-gray-500 hover:text-gray-800 dark:text-gray-400"
+              >
+                Clear
+              </button>
+            )}
             <span className="text-xs text-gray-400">{filtered.length} shown</span>
             <button onClick={openCreate} className="ml-auto text-sm font-medium px-3 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">
               + Add college
@@ -134,10 +180,11 @@ export default function CollegeOutreach({ initial }) {
           </div>
 
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[820px] text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-gray-400">
                   <th className="py-2 pr-3 font-medium">College</th>
+                  <th className="py-2 pr-3 font-medium">Location</th>
                   <th className="py-2 pr-3 font-medium">Course</th>
                   <th className="py-2 pr-3 font-medium">Placement contact</th>
                   <th className="py-2 pr-3 font-medium">Applicants</th>
@@ -147,14 +194,16 @@ export default function CollegeOutreach({ initial }) {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="py-8 text-center text-gray-400">No colleges yet.</td></tr>
+                  <tr><td colSpan={7} className="py-8 text-center text-gray-400">No colleges match these filters.</td></tr>
                 ) : filtered.map((c) => (
                   <tr key={c.id} className="align-top">
                     <td className="py-2 pr-3">
                       <button onClick={() => openEdit(c)} className="text-left font-medium text-gray-900 hover:text-blue-700 dark:text-white dark:hover:text-blue-400">
                         {c.collegeName}
                       </button>
-                      {c.city && <div className="text-xs text-gray-400">{c.city}</div>}
+                    </td>
+                    <td className="py-2 pr-3 text-gray-600 dark:text-gray-300">
+                      {c.city ? c.city : <span className="text-gray-300 dark:text-gray-600">—</span>}
                     </td>
                     <td className="py-2 pr-3 text-gray-600 dark:text-gray-300">{c.course || "—"}</td>
                     <td className="py-2 pr-3">
