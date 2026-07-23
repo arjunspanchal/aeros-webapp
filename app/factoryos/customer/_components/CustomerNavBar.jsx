@@ -7,7 +7,7 @@ import { useState } from "react";
 // welcome strip + separate CustomerTabs combo. One horizontal surface:
 //
 //   ┌──────────────────────────────────────────────────────────────────┐
-//   │ [Brewbay ▾]   Orders · Inbox · Documents · POs · Profile         │
+//   │ [Brewbay ▾]   Orders · Delivery Plan · Inbox · Documents · POs · Profile │
 //   └──────────────────────────────────────────────────────────────────┘
 //
 // Left: company picker, only renders the dropdown affordance if the user
@@ -26,10 +26,16 @@ const TABS = [
     match: (p) =>
       p === "/factoryos/customer" ||
       (p.startsWith("/factoryos/customer/") &&
+        !p.startsWith("/factoryos/customer/delivery") &&
         !p.startsWith("/factoryos/customer/inbox") &&
         !p.startsWith("/factoryos/customer/documents") &&
         !p.startsWith("/factoryos/customer/pos") &&
         !p.startsWith("/factoryos/customer/profile")),
+  },
+  {
+    href: "/factoryos/customer/delivery",
+    label: "Delivery Plan",
+    match: (p) => p.startsWith("/factoryos/customer/delivery"),
   },
   {
     href: "/factoryos/customer/inbox",

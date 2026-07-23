@@ -4,7 +4,7 @@ import { useState } from "react";
 import MovementForm from "../MovementForm";
 import RecentMovementsTable from "../RecentMovementsTable";
 
-export default function InwardClient({ items, locations, initialRecent }) {
+export default function InwardClient({ items, locations, stock, initialRecent }) {
   const [recent, setRecent] = useState(initialRecent);
 
   async function refreshRecent() {
@@ -21,6 +21,7 @@ export default function InwardClient({ items, locations, initialRecent }) {
         kind="inward"
         items={items}
         locations={locations}
+        stock={stock}
         onPosted={refreshRecent}
       />
       <section>

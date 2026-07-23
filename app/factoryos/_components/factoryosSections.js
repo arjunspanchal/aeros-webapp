@@ -25,9 +25,10 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
   sections.push({
     label: "Daily",
     items: [
-      { href: "/factoryos/manager",     label: "Jobs",         exact: false },
-      { href: "/factoryos/inbox",       label: "Inbox",        exact: false },
-      { href: "/factoryos/manager/pos", label: "Customer POs", exact: false },
+      { href: "/factoryos/manager",     label: "Jobs",          exact: false },
+      { href: "/factoryos/inbox",       label: "Inbox",         exact: false },
+      { href: "/factoryos/delivery",    label: "Delivery Plan", exact: false },
+      { href: "/factoryos/manager/pos", label: "Customer POs",  exact: false },
     ],
   });
 

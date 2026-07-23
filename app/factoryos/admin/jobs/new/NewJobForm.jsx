@@ -40,6 +40,10 @@ export default function NewJobForm({
     // Auto-incremented J# computed server-side from the highest sequence for
     // the current month. Editable — operators can override if they need to.
     jNumber: initialJNumber || fallbackJNumber(),
+    // 'in_house' = manufactured here (full production pipeline). 'traded' =
+    // bought-in and delivered (e.g. foils) — no catalogue SKU, no RM/printing.
+    sourcing: "in_house",
+    orderRate: "",
     clientId: "",
     newClientName: "",
     brand: "",
@@ -87,6 +91,7 @@ export default function NewJobForm({
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
   const isNewClient = form.clientId === NEW_CLIENT;
+  const isTraded = form.sourcing === "traded";
 
   // Unique categories derived from the loaded catalog. Sourcing them from the
   // products themselves keeps the dropdown honest if the taxonomy changes.
@@ -164,6 +169,7 @@ export default function NewJobForm({
 
     // Belt-and-braces guard — HTML5 `required` on the select also enforces this, but if
     // someone bypasses the browser we still catch it here before hitting the API.
+    // Both in-house and traded jobs pick from the catalogue so the job maps to a DB SKU.
     const pickedProduct = products.find((p) => p.id === form.productId);
     if (!pickedProduct) {
       setErr("Pick a product from the master catalogue — required so this job maps to an SKU.");
@@ -193,6 +199,7 @@ export default function NewJobForm({
       // the job-level record keeps the original mapping so FG ledger stays consistent.
       masterSku: pickedProduct.sku || "",
       masterProductName: pickedProduct.productName || "",
+      orderRate: form.orderRate ? Number(form.orderRate) : undefined,
       qty: form.qty ? Number(form.qty) : undefined,
       gsm: form.gsm ? Number(form.gsm) : undefined,
       rmSizeMm: form.rmSizeMm ? Number(form.rmSizeMm) : undefined,
@@ -218,11 +225,43 @@ export default function NewJobForm({
     setBusy(false);
     if (!res.ok) { setErr((await res.json()).error || "Failed"); return; }
     const data = await res.json();
-    router.push(`/factoryos/admin/jobs/${data.job.id}`);
+    // Route via the manager detail path — it resolves to the right surface for
+    // every internal role (admin → admin job page, AM/FM → manager page).
+    router.push(`/factoryos/manager/${data.job.id}`);
   }
 
   return (
     <form onSubmit={submit} className="mt-6 bg-white border border-gray-200 rounded-xl p-5 space-y-5 dark:bg-gray-900 dark:border-gray-800">
+      <div>
+        <label className={labelCls}>Item type</label>
+        <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          {[
+            { v: "in_house", label: "In-house (manufactured)" },
+            { v: "traded", label: "Traded (bought-in, e.g. foils)" },
+          ].map((o) => (
+            <button
+              type="button"
+              key={o.v}
+              onClick={() => set("sourcing", o.v)}
+              className={`px-3 py-1.5 text-sm ${
+                form.sourcing === o.v
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        {isTraded && (
+          <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+            Traded items skip raw-material and printing — but still pick the bought-in product from the
+            catalogue so it maps to a DB SKU. The customer sees a Confirmed → Procuring → Dispatched →
+            Delivered flow.
+          </p>
+        )}
+      </div>
+
       <Section title="Basics">
         <div>
           <label className={labelCls}>J#</label>
@@ -345,6 +384,10 @@ export default function NewJobForm({
           <input type="number" className={inputCls} value={form.qty} onChange={(e) => set("qty", e.target.value)} />
         </div>
         <div>
+          <label className={labelCls}>Rate (₹/unit)</label>
+          <input type="number" step="0.0001" className={inputCls} value={form.orderRate} onChange={(e) => set("orderRate", e.target.value)} placeholder="e.g. 0.72" />
+        </div>
+        <div>
           <label className={labelCls}>Expected dispatch</label>
           <input type="date" className={inputCls} value={form.expectedDispatchDate} onChange={(e) => set("expectedDispatchDate", e.target.value)} />
         </div>
@@ -354,6 +397,7 @@ export default function NewJobForm({
         </div>
       </Section>
 
+      {!isTraded && (
       <Section title="Raw material">
         <div className="sm:col-span-2">
           <label className={labelCls}>Pick from Paper RM Database (auto-fills paper type, GSM, supplier)</label>
@@ -407,7 +451,9 @@ export default function NewJobForm({
           <input type="date" className={inputCls} value={form.rmDeliveryDate} onChange={(e) => set("rmDeliveryDate", e.target.value)} />
         </div>
       </Section>
+      )}
 
+      {!isTraded && (
       <Section title="Printing & production">
         <div>
           <label className={labelCls}>Printing type</label>
@@ -431,6 +477,7 @@ export default function NewJobForm({
           <input type="date" className={inputCls} value={form.productionDueDate} onChange={(e) => set("productionDueDate", e.target.value)} />
         </div>
       </Section>
+      )}
 
       <Section title="Workflow">
         <div>

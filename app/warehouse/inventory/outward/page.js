@@ -5,6 +5,7 @@ import {
   canManageInventory,
   listItems,
   listLocations,
+  listStockPositions,
 } from "@/lib/warehouse/inventory";
 import { listMovements } from "@/lib/warehouse/movements";
 import OutwardClient from "./OutwardClient";
@@ -26,11 +27,12 @@ export default async function OutwardPage() {
     );
   }
 
-  let items = [], locations = [], recent = [], error = null;
+  let items = [], locations = [], stock = [], recent = [], error = null;
   try {
-    [items, locations, recent] = await Promise.all([
+    [items, locations, stock, recent] = await Promise.all([
       listItems(),
       listLocations(),
+      listStockPositions(),
       listMovements({ type: "outward", limit: 20 }),
     ]);
   } catch (e) {
@@ -53,7 +55,7 @@ export default async function OutwardPage() {
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">{error}</div>
       ) : (
-        <OutwardClient items={items} locations={locations} initialRecent={recent} />
+        <OutwardClient items={items} locations={locations} stock={stock} initialRecent={recent} />
       )}
     </div>
   );
