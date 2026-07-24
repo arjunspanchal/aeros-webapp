@@ -82,6 +82,8 @@ export default function VehicleDetailClient({
   manifestLines = [],
   history = [],
   lastManifest = null,
+  invoices = [],
+  clients = [],
 }) {
   const router = useRouter();
   const [d, setD] = useState(initial);
@@ -232,8 +234,16 @@ export default function VehicleDetailClient({
         <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <h2 className="mb-4 text-sm font-semibold text-gray-700 dark:text-gray-200">Paperwork &amp; customer</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Field label="Invoice no.">{d.invoice_no}</Field>
-            <Field label="E-way bill no.">{d.eway_bill_no}</Field>
+            <Field label="Invoices">
+              {invoices.length
+                ? invoices.map((i) => i.invoice_no).filter(Boolean).join(", ")
+                : null}
+            </Field>
+            <Field label="E-way bills">
+              {invoices.length
+                ? invoices.map((i) => i.eway_bill_no).filter(Boolean).join(", ") || null
+                : null}
+            </Field>
             <Field label="Customer">{d.customer_name}</Field>
             <Field label="Account manager">{d.account_manager_name}</Field>
           </div>
@@ -270,6 +280,8 @@ export default function VehicleDetailClient({
           dispatch={d}
           boxTypes={boxTypes}
           initialLines={manifestLines}
+          initialInvoices={invoices}
+          clients={clients}
           history={history}
           lastManifest={lastManifest}
         />

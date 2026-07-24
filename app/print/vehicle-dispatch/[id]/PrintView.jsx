@@ -44,7 +44,7 @@ function Pair({ label, value }) {
   );
 }
 
-export default function PrintView({ dispatch: d, lines = [], totals, suggestion = null }) {
+export default function PrintView({ dispatch: d, groups = [], invoices = [], totals, suggestion = null }) {
   useEffect(() => {
     // Auto-open the print dialog so "Save as PDF" is one keystroke away.
     const t = setTimeout(() => window.print(), 300);
@@ -99,10 +99,12 @@ export default function PrintView({ dispatch: d, lines = [], totals, suggestion 
         }}
       >
         <div>
-          <Pair label="Customer" value={d.customer_name} />
+          <Pair label="Account" value={d.customer_name} />
           <Pair label="Account manager" value={d.account_manager_name} />
-          <Pair label="Invoice no" value={d.invoice_no} />
-          <Pair label="E-way bill" value={d.eway_bill_no} />
+          <Pair
+            label={invoices.length === 1 ? "Invoice" : "Invoices"}
+            value={invoices.length ? `${invoices.length} on this vehicle` : "—"}
+          />
         </div>
         <div>
           <Pair label="Transporter" value={d.transporter_name} />
@@ -116,56 +118,85 @@ export default function PrintView({ dispatch: d, lines = [], totals, suggestion 
         </div>
       </section>
 
-      {/* Box types */}
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "16px" }}>
-        <thead>
-          <tr style={{ background: "#f4f4f4" }}>
-            <th style={th()}>#</th>
-            <th style={th()}>SKU</th>
-            <th style={th()}>Item description</th>
-            <th style={th("right")}>Pcs / box</th>
-            <th style={th("right")}>Carton (mm)</th>
-            <th style={th("right")}>Boxes</th>
-            <th style={th("right")}>Kg / box</th>
-            <th style={th("right")}>Total kg</th>
-            <th style={th("right")}>CBM</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.length === 0 ? (
-            <tr>
-              <td style={{ ...td("center"), color: "#777" }} colSpan={9}>
-                No box types on this manifest.
-              </td>
-            </tr>
-          ) : (
-            lines.map((l) => (
-              <tr key={l.id}>
-                <td style={td()}>{l.sr_no}</td>
-                <td style={{ ...td(), fontFamily: "monospace", fontSize: "10.5px" }}>{l.sku || "—"}</td>
-                <td style={td()}>{l.description}</td>
-                <td style={td("right")}>{l.units_per_case != null ? fmtInt(l.units_per_case) : "—"}</td>
-                <td style={{ ...td("right"), whiteSpace: "nowrap" }}>{l.carton_dims || "—"}</td>
-                <td style={{ ...td("right"), fontWeight: 600 }}>{fmtInt(l.box_count)}</td>
-                <td style={td("right")}>{l.kg_per_box != null ? fmt(l.kg_per_box, 2) : "—"}</td>
-                <td style={td("right")}>{l.line_kg != null ? fmt(l.line_kg) : "—"}</td>
-                <td style={td("right")}>{l.line_cbm != null ? fmt(l.line_cbm, 3) : "—"}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-        <tfoot>
-          <tr style={{ background: "#f4f4f4" }}>
-            <td style={{ ...th(), textAlign: "right" }} colSpan={5}>
-              Total
-            </td>
-            <td style={{ ...th("right") }}>{fmtInt(totals.boxes)}</td>
-            <td style={th()} />
-            <td style={{ ...th("right") }}>{fmt(totals.kg)}</td>
-            <td style={{ ...th("right") }}>{fmt(totals.cbm, 3)}</td>
-          </tr>
-        </tfoot>
-      </table>
+      {/* One section per invoice — the consignee reconciles their own boxes
+          against their own invoice at the gate, which a single merged table
+          can't support on a multi-drop vehicle. */}
+      {groups.length === 0 ? (
+        <p style={{ fontSize: "11px", color: "#777", marginBottom: "16px" }}>
+          No box types on this manifest.
+        </p>
+      ) : (
+        groups.map((g, gi) => (
+          <section key={g.invoice?.id || `unassigned-${gi}`} style={{ marginBottom: "16px" }}>
+            <div
+              style={{
+                display: "flex", justifyContent: "space-between", alignItems: "baseline",
+                borderBottom: "1px solid #999", paddingBottom: "3px", marginBottom: "6px",
+              }}
+            >
+              <div style={{ fontSize: "12px", fontWeight: 700 }}>
+                {g.invoice ? (
+                  <>
+                    {groups.length > 1 && `Drop ${g.invoice.seq} · `}
+                    Invoice {g.invoice.invoice_no}
+                    <span style={{ fontWeight: 400, color: "#555" }}>
+                      {" — "}{g.invoice.customer_name}
+                      {g.invoice.drop_city ? `, ${g.invoice.drop_city}` : ""}
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ color: "#92400e" }}>Not assigned to an invoice</span>
+                )}
+              </div>
+              <div style={{ fontSize: "10.5px", color: "#555" }}>
+                {g.invoice?.eway_bill_no ? `E-way bill ${g.invoice.eway_bill_no}` : ""}
+              </div>
+            </div>
+
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#f4f4f4" }}>
+                  <th style={th()}>#</th>
+                  <th style={th()}>SKU</th>
+                  <th style={th()}>Item description</th>
+                  <th style={th("right")}>Pcs / box</th>
+                  <th style={th("right")}>Carton (mm)</th>
+                  <th style={th("right")}>Boxes</th>
+                  <th style={th("right")}>Kg / box</th>
+                  <th style={th("right")}>Total kg</th>
+                  <th style={th("right")}>CBM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.lines.map((l, i) => (
+                  <tr key={l.id}>
+                    <td style={td()}>{i + 1}</td>
+                    <td style={{ ...td(), fontFamily: "monospace", fontSize: "10.5px" }}>{l.sku || "—"}</td>
+                    <td style={td()}>{l.description}</td>
+                    <td style={td("right")}>{l.units_per_case != null ? fmtInt(l.units_per_case) : "—"}</td>
+                    <td style={{ ...td("right"), whiteSpace: "nowrap" }}>{l.carton_dims || "—"}</td>
+                    <td style={{ ...td("right"), fontWeight: 600 }}>{fmtInt(l.box_count)}</td>
+                    <td style={td("right")}>{l.kg_per_box != null ? fmt(l.kg_per_box, 2) : "—"}</td>
+                    <td style={td("right")}>{l.line_kg != null ? fmt(l.line_kg) : "—"}</td>
+                    <td style={td("right")}>{l.line_cbm != null ? fmt(l.line_cbm, 3) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: "#fafafa" }}>
+                  <td style={{ ...td("right"), fontWeight: 600 }} colSpan={5}>
+                    {g.invoice ? `Invoice ${g.invoice.invoice_no} subtotal` : "Unassigned subtotal"}
+                  </td>
+                  <td style={{ ...td("right"), fontWeight: 700 }}>{fmtInt(g.totals.boxes)}</td>
+                  <td style={td()} />
+                  <td style={{ ...td("right"), fontWeight: 700 }}>{fmt(g.totals.kg)}</td>
+                  <td style={{ ...td("right"), fontWeight: 700 }}>{fmt(g.totals.cbm, 3)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </section>
+        ))
+      )}
 
       {/* The headline the driver, the transporter and the gate all read off. */}
       <section
@@ -178,7 +209,7 @@ export default function PrintView({ dispatch: d, lines = [], totals, suggestion 
       >
         <div style={{ padding: "10px 14px", borderRight: "1px solid #999" }}>
           <div style={{ fontSize: "10.5px", textTransform: "uppercase", letterSpacing: "0.05em", color: "#555" }}>
-            Total boxes
+            {groups.length > 1 ? "Vehicle total \u2014 boxes" : "Total boxes"}
           </div>
           <div style={{ fontSize: "22px", fontWeight: 700, marginTop: "2px" }}>{fmtInt(totals.boxes)}</div>
         </div>

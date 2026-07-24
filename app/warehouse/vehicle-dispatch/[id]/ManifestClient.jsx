@@ -34,9 +34,12 @@ let keySeq = 0;
 const nextKey = () => `row${++keySeq}`;
 
 // A saved DB line (or a picked box type) → the shape this form edits.
-function toRow(l) {
+function toRow(l, invoiceKeyById = null) {
   return {
     key: nextKey(),
+    // Lines reference their invoice by the form's local key, never the DB id —
+    // saving replaces the invoice rows, so ids don't survive a round-trip.
+    invoice_key: l.invoice_key ?? (invoiceKeyById && l.invoice_id ? invoiceKeyById.get(l.invoice_id) ?? null : null),
     master_product_id: l.master_product_id || null,
     sku: l.sku || "",
     description: l.description || "",
@@ -46,6 +49,17 @@ function toRow(l) {
     cbm_per_box: l.cbm_per_box ?? null,
     units_per_case: l.units_per_case ?? null,
     spec_source: l.spec_source || "manual",
+  };
+}
+
+function toInvoice(inv, fallbackCustomer = "") {
+  return {
+    key: nextKey(),
+    invoice_no: inv?.invoice_no || "",
+    eway_bill_no: inv?.eway_bill_no || "",
+    client_id: inv?.client_id || "",
+    customer_name: inv?.customer_name || fallbackCustomer,
+    drop_city: inv?.drop_city || "",
   };
 }
 
@@ -65,6 +79,8 @@ function lineMath(r) {
   };
 }
 
+const OTHER_CONSIGNEE = "__other__";
+
 const SOURCE_LABEL = {
   master: "specs from master",
   derived: "weight derived from piece weight",
@@ -76,12 +92,24 @@ export default function ManifestClient({
   dispatch,
   boxTypes = [],
   initialLines = [],
+  initialInvoices = [],
+  clients = [],
   history = [],
   lastManifest = null,
 }) {
   const router = useRouter();
-  const [rows, setRows] = useState(() => initialLines.map(toRow));
-  const [saved, setSaved] = useState(() => serialise(initialLines.map(toRow)));
+
+  // Invoices and lines are seeded together: a saved line points at an invoice
+  // by database id, which the form immediately translates into that invoice's
+  // local key (ids don't survive a save, keys do).
+  const [seed] = useState(() => {
+    const invs = initialInvoices.map((i) => toInvoice(i, dispatch?.customer_name));
+    const keyById = new Map(initialInvoices.map((i, idx) => [i.id, invs[idx].key]));
+    return { invs, rows: initialLines.map((l) => toRow(l, keyById)) };
+  });
+  const [invoices, setInvoices] = useState(seed.invs);
+  const [rows, setRows] = useState(seed.rows);
+  const [saved, setSaved] = useState(() => serialise(seed.rows, seed.invs));
   const [syncDispatch, setSyncDispatch] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -94,7 +122,7 @@ export default function ManifestClient({
   const byId = useMemo(() => new Map(boxTypes.map((b) => [b.id, b])), [boxTypes]);
   const picked = pickId ? byId.get(pickId) : null;
 
-  const dirty = useMemo(() => serialise(rows) !== saved, [rows, saved]);
+  const dirty = useMemo(() => serialise(rows, invoices) !== saved, [rows, invoices, saved]);
 
   const totals = useMemo(() => {
     let boxes = 0, kg = 0, cbm = 0, pcs = 0, missingKg = 0, missingCbm = 0;
@@ -108,11 +136,63 @@ export default function ManifestClient({
     return { boxes, kg: +kg.toFixed(2), cbm: +cbm.toFixed(3), pcs, missingKg, missingCbm };
   }, [rows]);
 
+  // Per-invoice subtotals, keyed by invoice key — what the consignee checks
+  // their own boxes against, and what the PDF prints under each section.
+  const invoiceTotals = useMemo(() => {
+    const m = new Map();
+    for (const r of rows) {
+      const k = r.invoice_key ?? "__none__";
+      const cur = m.get(k) || { boxes: 0, kg: 0, cbm: 0, pcs: 0, lines: 0 };
+      const mm = lineMath(r);
+      cur.lines += 1;
+      cur.boxes += mm.boxes;
+      if (mm.kg != null) cur.kg += mm.boxes * mm.kg;
+      if (mm.cbm != null) cur.cbm += mm.boxes * mm.cbm;
+      if (mm.linePcs != null) cur.pcs += mm.linePcs;
+      m.set(k, cur);
+    }
+    for (const v of m.values()) { v.kg = +v.kg.toFixed(2); v.cbm = +v.cbm.toFixed(3); }
+    return m;
+  }, [rows]);
+
+  const consigneeCount = useMemo(
+    () => new Set(invoices.map((i) => (i.customer_name || "").trim().toLowerCase()).filter(Boolean)).size,
+    [invoices],
+  );
+
+  const unassignedCount = useMemo(
+    () => rows.filter((r) => !r.invoice_key && (num(r.box_count) || 0) > 0).length,
+    [rows],
+  );
+
   // Vehicle recommendation off the live cube — the whole point of tallying CBM.
   const suggestion = useMemo(
     () => suggestVehicle(totals.cbm, totals.kg),
     [totals.cbm, totals.kg],
   );
+
+  // Exactly one invoice → every new line belongs to it without asking. More
+  // than one and the team has to say which, since that's the whole point.
+  const soleInvoiceKey = invoices.length === 1 ? invoices[0].key : null;
+
+  function addInvoice() {
+    setError("");
+    setInvoices((is) => [...is, toInvoice(null, dispatch?.customer_name)]);
+  }
+  function setInvoice(key, patch) {
+    setInvoices((is) => is.map((i) => (i.key === key ? { ...i, ...patch } : i)));
+  }
+  function removeInvoice(key) {
+    setInvoices((is) => is.filter((i) => i.key !== key));
+    // Don't delete the boxes with the invoice — surface them as unassigned so
+    // nothing silently disappears off the vehicle.
+    setRows((rs) => rs.map((r) => (r.invoice_key === key ? { ...r, invoice_key: null } : r)));
+  }
+  // Consignee dropdown: picking a known client snapshots its name too.
+  function setInvoiceClient(key, clientId) {
+    const c = clients.find((x) => x.id === clientId);
+    setInvoice(key, { client_id: clientId || "", customer_name: c?.name || "" });
+  }
 
   function setRow(key, patch) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -136,6 +216,7 @@ export default function ManifestClient({
       return [
         ...rs,
         toRow({
+          invoice_key: soleInvoiceKey,
           master_product_id: boxType.id,
           sku: boxType.sku,
           description: boxType.name,
@@ -172,7 +253,9 @@ export default function ManifestClient({
   function loadLastManifest() {
     if (!lastManifest) return;
     setError("");
-    setRows(lastManifest.lines.map(toRow));
+    // Those lines were tagged to the PREVIOUS dispatch's invoices — drop the
+    // link and let them fall to this vehicle's sole invoice, or be assigned.
+    setRows(lastManifest.lines.map((l) => toRow({ ...l, invoice_id: null, invoice_key: soleInvoiceKey })));
     setNote(`Loaded the ${lastManifest.lines.length} line(s) from ${lastManifest.dispatch_no}. Adjust the counts and save.`);
   }
 
@@ -181,13 +264,23 @@ export default function ManifestClient({
       const s = v == null ? "" : String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const head = ["Sr", "SKU", "Item", "Pcs/box", "Carton (mm)", "Boxes", "Total pcs", "Kg/box", "Total kg", "CBM/box", "Total CBM"];
+    const invLabel = (key) => {
+      const inv = invoices.find((i) => i.key === key);
+      return inv ? (inv.invoice_no || "(unnumbered)") : "Unassigned";
+    };
+    const head = ["Sr", "Invoice", "Consignee", "SKU", "Item", "Pcs/box", "Carton (mm)", "Boxes", "Total pcs", "Kg/box", "Total kg", "CBM/box", "Total CBM"];
     const body = rows.map((r, i) => {
       const m = lineMath(r);
-      return [i + 1, r.sku, r.description, r.units_per_case ?? "", r.carton_dims, m.boxes, m.linePcs ?? "", m.kg ?? "", m.lineKg ?? "", m.cbm ?? "", m.lineCbm ?? ""];
+      const inv = invoices.find((x) => x.key === r.invoice_key);
+      return [i + 1, invLabel(r.invoice_key), inv?.customer_name ?? "", r.sku, r.description, r.units_per_case ?? "", r.carton_dims, m.boxes, m.linePcs ?? "", m.kg ?? "", m.lineKg ?? "", m.cbm ?? "", m.lineCbm ?? ""];
     });
+    // Per-invoice subtotals, then the vehicle grand total.
     body.push([]);
-    body.push(["", "", "TOTAL", "", "", totals.boxes, totals.pcs || "", "", totals.kg, "", totals.cbm]);
+    for (const inv of invoices) {
+      const t = invoiceTotals.get(inv.key);
+      if (t) body.push(["", invLabel(inv.key), inv.customer_name, "", "SUBTOTAL", "", "", t.boxes, t.pcs || "", "", t.kg, "", t.cbm]);
+    }
+    body.push(["", "", "", "", "VEHICLE TOTAL", "", "", totals.boxes, totals.pcs || "", "", totals.kg, "", totals.cbm]);
     const csv = [head, ...body].map((r) => r.map(esc).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -208,7 +301,16 @@ export default function ManifestClient({
       const payload = {
         syncDispatch,
         vehicle_size: vehicleSize || undefined,
+        invoices: invoices.map((i) => ({
+          key: i.key,
+          invoice_no: i.invoice_no,
+          eway_bill_no: i.eway_bill_no,
+          client_id: i.client_id || null,
+          customer_name: i.customer_name,
+          drop_city: i.drop_city,
+        })),
         lines: rows.map((r) => ({
+          invoice_key: r.invoice_key,
           master_product_id: r.master_product_id,
           sku: r.sku,
           description: r.description,
@@ -227,9 +329,12 @@ export default function ManifestClient({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed to save manifest");
-      const next = (data.lines || []).map(toRow);
+      const nextInvoices = (data.invoices || []).map((i) => toInvoice(i, dispatch?.customer_name));
+      const keyById = new Map((data.invoices || []).map((i, idx) => [i.id, nextInvoices[idx].key]));
+      const next = (data.lines || []).map((l) => toRow(l, keyById));
+      setInvoices(nextInvoices);
       setRows(next);
-      setSaved(serialise(next));
+      setSaved(serialise(next, nextInvoices));
       setNote(
         [
           "Manifest saved.",
@@ -247,6 +352,8 @@ export default function ManifestClient({
 
   const cellInput =
     "w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm tabular-nums text-right dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100";
+  const miniInput =
+    "w-full min-w-[110px] rounded border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100";
 
   const usedIds = new Set(rows.map((r) => r.master_product_id));
   const historyStrip = history.filter((h) => !usedIds.has(h.master_product_id)).slice(0, 8);
@@ -302,6 +409,125 @@ export default function ManifestClient({
           </button>
         </div>
       )}
+
+      {/* Invoices on this vehicle. One trip commonly carries three or four,
+          and not always to the same consignee — each gets its own e-way bill
+          because that's how they're issued. */}
+      <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+              Invoices on this vehicle
+            </span>
+            <span className="ml-2 text-[11px] text-gray-400">
+              {invoices.length === 0
+                ? "Add each invoice — the manifest prints a section and subtotal per invoice."
+                : `${invoices.length} invoice${invoices.length > 1 ? "s" : ""}${
+                    consigneeCount > 1 ? ` · ${consigneeCount} drops` : ""
+                  }`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={addInvoice}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            + Add invoice
+          </button>
+        </div>
+
+        {invoices.length === 0 ? (
+          <p className="py-2 text-sm text-gray-500 dark:text-gray-400">
+            No invoices yet. Box types can still be added and will print as unassigned.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th className="py-1 pr-2">Drop</th>
+                  <th className="py-1 pr-2">Invoice no.</th>
+                  <th className="py-1 pr-2">E-way bill</th>
+                  <th className="py-1 pr-2">Consignee</th>
+                  <th className="py-1 pr-2">Drop city</th>
+                  <th className="py-1 pr-2 text-right">Boxes</th>
+                  <th className="py-1" />
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((inv, i) => {
+                  const sub = invoiceTotals.get(inv.key);
+                  return (
+                    <tr key={inv.key}>
+                      <td className="py-1 pr-2 tabular-nums text-gray-500">{i + 1}</td>
+                      <td className="py-1 pr-2">
+                        <input
+                          value={inv.invoice_no}
+                          onChange={(e) => setInvoice(inv.key, { invoice_no: e.target.value })}
+                          placeholder="INV-…"
+                          className={miniInput}
+                        />
+                      </td>
+                      <td className="py-1 pr-2">
+                        <input
+                          value={inv.eway_bill_no}
+                          onChange={(e) => setInvoice(inv.key, { eway_bill_no: e.target.value })}
+                          placeholder="EWB no."
+                          className={miniInput}
+                        />
+                      </td>
+                      <td className="py-1 pr-2">
+                        <select
+                          value={inv.client_id || OTHER_CONSIGNEE}
+                          onChange={(e) =>
+                            e.target.value === OTHER_CONSIGNEE
+                              ? setInvoice(inv.key, { client_id: "" })
+                              : setInvoiceClient(inv.key, e.target.value)
+                          }
+                          className={miniInput}
+                        >
+                          {clients.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                          <option value={OTHER_CONSIGNEE}>Other (type a name)…</option>
+                        </select>
+                        {!inv.client_id && (
+                          <input
+                            value={inv.customer_name}
+                            onChange={(e) => setInvoice(inv.key, { customer_name: e.target.value })}
+                            placeholder="Consignee name"
+                            className={`${miniInput} mt-1`}
+                          />
+                        )}
+                      </td>
+                      <td className="py-1 pr-2">
+                        <input
+                          value={inv.drop_city}
+                          onChange={(e) => setInvoice(inv.key, { drop_city: e.target.value })}
+                          placeholder="optional"
+                          className={miniInput}
+                        />
+                      </td>
+                      <td className="py-1 pr-2 text-right tabular-nums text-gray-700 dark:text-gray-200">
+                        {sub ? fmtInt(sub.boxes) : 0}
+                      </td>
+                      <td className="py-1 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeInvoice(inv.key)}
+                          className="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Add a box type */}
       <div className="mb-3 grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:grid-cols-[1fr_140px_auto] sm:items-end dark:border-gray-800 dark:bg-gray-950">
@@ -375,6 +601,7 @@ export default function ManifestClient({
             <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
               <th className="px-3 py-2">#</th>
               <th className="px-3 py-2">Item</th>
+              <th className="px-3 py-2">Invoice</th>
               <th className="px-3 py-2 text-right">Boxes</th>
               <th className="px-3 py-2 text-right">Total pcs</th>
               <th className="px-3 py-2 text-right">Kg / box</th>
@@ -388,7 +615,7 @@ export default function ManifestClient({
           <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={11} className="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
                   No box types on this manifest yet.
                 </td>
               </tr>
@@ -404,6 +631,25 @@ export default function ManifestClient({
                       {r.units_per_case ? ` · ${fmtInt(r.units_per_case)} pcs/box` : ""}
                       {` · ${SOURCE_LABEL[r.spec_source] || SOURCE_LABEL.manual}`}
                     </div>
+                  </td>
+                  <td className="px-3 py-2 w-[150px]">
+                    {invoices.length === 0 ? (
+                      <span className="text-[11px] text-gray-400">no invoices yet</span>
+                    ) : (
+                      <select
+                        value={r.invoice_key || ""}
+                        onChange={(e) => setRow(r.key, { invoice_key: e.target.value || null })}
+                        className={`${miniInput} ${!r.invoice_key ? "border-amber-400" : ""}`}
+                      >
+                        <option value="">— Unassigned —</option>
+                        {invoices.map((inv, n) => (
+                          <option key={inv.key} value={inv.key}>
+                            {inv.invoice_no || `Invoice ${n + 1}`}
+                            {consigneeCount > 1 && inv.customer_name ? ` · ${inv.customer_name}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   <td className="px-3 py-2 w-[90px]">
                     <input type="number" min="0" step="1" value={r.box_count}
@@ -473,6 +719,14 @@ export default function ManifestClient({
         </p>
       )}
 
+      {unassignedCount > 0 && invoices.length > 0 && (
+        <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+          {unassignedCount} box type(s) aren&apos;t tagged to an invoice — they still ship and still
+          count towards the vehicle total, but they print in an &ldquo;unassigned&rdquo; section the
+          consignee can&apos;t reconcile.
+        </p>
+      )}
+
       {/* Vehicle recommendation */}
       {suggestion && (
         <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
@@ -535,9 +789,13 @@ export default function ManifestClient({
   );
 }
 
-// Row keys are UI-only; excluding them keeps the dirty check about the data.
-function serialise(rows) {
-  return JSON.stringify(rows.map(({ key, ...rest }) => rest));
+// Keys are UI-only, but a line's invoice_key IS data (it's the link), so it
+// stays in. Only the row's own identity key is stripped.
+function serialise(rows, invoices = []) {
+  return JSON.stringify({
+    rows: rows.map(({ key, ...rest }) => rest),
+    invoices: invoices.map(({ key, ...rest }) => rest),
+  });
 }
 
 // Searchable box-type combobox over the product master. Name-first (that's how

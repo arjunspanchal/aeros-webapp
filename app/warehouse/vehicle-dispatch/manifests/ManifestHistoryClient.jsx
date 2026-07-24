@@ -42,7 +42,7 @@ export default function ManifestHistoryClient({ manifests = [] }) {
       if (am && m.account_manager_name !== am) return false;
       if (!needle) return true;
       const hay = [
-        m.dispatch_no, m.invoice_no, m.customer_name, m.account_manager_name,
+        m.dispatch_no, m.invoice_numbers, m.consignees, m.customer_name, m.account_manager_name,
         m.vehicle_size, m.vehicle_number, m.transporter_name, m.from_city, m.to_city,
       ].filter(Boolean).join(" ").toLowerCase();
       return hay.includes(needle);
@@ -111,9 +111,16 @@ export default function ManifestHistoryClient({ manifests = [] }) {
                 <td className="whitespace-nowrap px-4 py-3 text-gray-600 dark:text-gray-300">{fmtDate(m.dispatch_date)}</td>
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
                   {m.dispatch_no}
-                  {m.invoice_no && <div className="text-[11px] font-normal text-gray-400">{m.invoice_no}</div>}
+                  {m.invoice_numbers && (
+                    <div className="text-[11px] font-normal text-gray-400">{m.invoice_numbers}</div>
+                  )}
                 </td>
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{m.customer_name}</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-200">
+                  {m.consignees || m.customer_name}
+                  {m.invoice_count > 1 && (
+                    <div className="text-[11px] text-gray-400">{m.invoice_count} invoices</div>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{m.account_manager_name || "—"}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset ${STATUS_BADGE[m.status] || ""}`}>

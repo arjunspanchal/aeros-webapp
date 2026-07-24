@@ -36,8 +36,6 @@ export default function VehicleDispatchForm({
 
   const [form, setForm] = useState(() => ({
     dispatch_date:  initial?.dispatch_date || today,
-    invoice_no:     initial?.invoice_no || "",
-    eway_bill_no:   initial?.eway_bill_no || "",
     client_id:      initialClientKnown ? initial.client_id : "",
     customer_name:  initial?.customer_name || "",
     account_manager_user_id: initial?.account_manager_user_id || "",
@@ -256,13 +254,9 @@ export default function VehicleDispatchForm({
             <label className={labelCls}>Dispatch date</label>
             <input type="date" value={form.dispatch_date} onChange={(e) => setField("dispatch_date", e.target.value)} className={inputCls} />
           </div>
-          <div>
-            <label className={labelCls}>Invoice no.</label>
-            <input value={form.invoice_no} onChange={(e) => setField("invoice_no", e.target.value)} className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>E-way bill no.</label>
-            <input value={form.eway_bill_no} onChange={(e) => setField("eway_bill_no", e.target.value)} className={inputCls} />
+          <div className="sm:col-span-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+            Invoices &amp; e-way bills are added on the dispatch page, with the manifest — a vehicle
+            usually carries several, sometimes to different consignees.
           </div>
           <div className="sm:col-span-2">
             <label className={labelCls}>Customer *</label>

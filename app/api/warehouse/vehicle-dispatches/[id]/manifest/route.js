@@ -7,7 +7,8 @@ import {
 } from "@/lib/warehouse/vehicleDispatches";
 import {
   listManifestLines,
-  replaceManifestLines,
+  listDispatchInvoices,
+  saveManifest,
   manifestTotals,
 } from "@/lib/warehouse/dispatchManifest";
 
@@ -18,14 +19,19 @@ export async function GET(_req, { params }) {
   if (!canManageVehicleDispatch(session)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  const lines = await listManifestLines(params.id);
-  return NextResponse.json({ lines, totals: manifestTotals(lines) });
+  const [lines, invoices] = await Promise.all([
+    listManifestLines(params.id),
+    listDispatchInvoices(params.id),
+  ]);
+  return NextResponse.json({ lines, invoices, totals: manifestTotals(lines) });
 }
 
-// Replace the whole manifest. `syncDispatch` (the form's default) pushes the
-// rolled-up box count and weight onto the parent dispatch so ₹/box and ₹/kg
-// stay honest — the manifest is the more detailed source. Left off, the
-// dispatch's own figures (e.g. straight off the e-way bill) are untouched.
+// Replace the whole manifest — invoices and box types together, since lines
+// reference invoices and the two must not be saved out of step.
+//
+// `syncDispatch` (the form's default) pushes the rolled-up box count and weight
+// onto the parent dispatch so ₹/box and ₹/kg stay honest — the manifest is the
+// more detailed source. Left off, the dispatch's own figures are untouched.
 export async function PUT(req, { params }) {
   const session = getSession();
   if (!canManageVehicleDispatch(session)) {
@@ -39,7 +45,10 @@ export async function PUT(req, { params }) {
   if (!dispatch) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {
-    const lines = await replaceManifestLines(params.id, body?.lines || []);
+    const { lines, invoices } = await saveManifest(params.id, {
+      invoices: body?.invoices || [],
+      lines: body?.lines || [],
+    });
     const totals = manifestTotals(lines);
 
     // `vehicle_size` arrives when the team accepts the suggested vehicle.
@@ -56,7 +65,7 @@ export async function PUT(req, { params }) {
       if (setVehicle) patch.vehicle_size = body.vehicle_size.trim();
       updated = await updateVehicleDispatch(params.id, patch);
     }
-    return NextResponse.json({ lines, totals, dispatch: updated });
+    return NextResponse.json({ lines, invoices, totals, dispatch: updated });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }

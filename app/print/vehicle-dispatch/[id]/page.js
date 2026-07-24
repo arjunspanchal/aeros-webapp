@@ -5,7 +5,12 @@ import {
   getVehicleDispatch,
   suggestVehicle,
 } from "@/lib/warehouse/vehicleDispatches";
-import { listManifestLines, manifestTotals } from "@/lib/warehouse/dispatchManifest";
+import {
+  listManifestLines,
+  listDispatchInvoices,
+  manifestTotals,
+  groupByInvoice,
+} from "@/lib/warehouse/dispatchManifest";
 import PrintView from "./PrintView";
 
 export const dynamic = "force-dynamic";
@@ -22,11 +27,23 @@ export default async function VehicleManifestPrintPage({ params }) {
   const dispatch = await getVehicleDispatch(params.id);
   if (!dispatch) notFound();
 
-  const lines = await listManifestLines(params.id);
+  const [lines, invoices] = await Promise.all([
+    listManifestLines(params.id),
+    listDispatchInvoices(params.id),
+  ]);
   const totals = manifestTotals(lines);
+  const groups = groupByInvoice(lines, invoices);
   // Only worth printing when no vehicle has been committed yet — once one is
   // booked, the manifest should show what's actually coming, not a suggestion.
   const suggestion = dispatch.vehicle_size ? null : suggestVehicle(totals.cbm, totals.kg);
 
-  return <PrintView dispatch={dispatch} lines={lines} totals={totals} suggestion={suggestion} />;
+  return (
+    <PrintView
+      dispatch={dispatch}
+      groups={groups}
+      invoices={invoices}
+      totals={totals}
+      suggestion={suggestion}
+    />
+  );
 }

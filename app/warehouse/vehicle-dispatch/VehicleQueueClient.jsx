@@ -60,7 +60,8 @@ export default function VehicleQueueClient({ initialDispatches }) {
       if (tab && d.status !== tab) return false;
       if (!q) return true;
       const hay = [
-        d.dispatch_no, d.invoice_no, d.eway_bill_no, d.customer_name, d.account_manager_name,
+        d.dispatch_no, d.customer_name, d.account_manager_name,
+        ...(d.invoices || []).flatMap((i) => [i.invoice_no, i.eway_bill_no, i.customer_name]),
         d.transporter_name, d.vehicle_size, d.vehicle_number,
         d.driver_name, d.from_city, d.to_city,
       ].filter(Boolean).join(" ").toLowerCase();
@@ -138,7 +139,14 @@ export default function VehicleQueueClient({ initialDispatches }) {
             ) : rows.map((d) => (
               <tr key={d.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                 <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtDate(d.dispatch_date)}</td>
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{d.invoice_no || d.dispatch_no}</td>
+                <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                  {(d.invoices || []).length ? d.invoices[0].invoice_no : d.dispatch_no}
+                  {(d.invoices || []).length > 1 && (
+                    <span className="ml-1 text-[11px] font-normal text-gray-400">
+                      +{d.invoices.length - 1}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{d.customer_name}</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{d.account_manager_name || "—"}</td>
                 <td className="px-4 py-3">
