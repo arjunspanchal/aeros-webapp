@@ -4,6 +4,7 @@ import {
   canManageVehicleDispatch,
   listDispatchClients,
   listTransporters,
+  listAccountManagers,
   VEHICLE_SIZES,
 } from "@/lib/warehouse/vehicleDispatches";
 import VehicleDispatchForm from "../VehicleDispatchForm";
@@ -25,9 +26,10 @@ export default async function NewVehicleDispatchPage() {
     );
   }
 
-  let clients = [], transporters = [];
+  let clients = [], transporters = [], accountManagers = [];
   try { clients = await listDispatchClients(); } catch {}
   try { transporters = await listTransporters(); } catch {}
+  try { accountManagers = await listAccountManagers(); } catch {}
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
@@ -40,6 +42,7 @@ export default async function NewVehicleDispatchPage() {
       <VehicleDispatchForm
         clients={clients}
         transporters={transporters}
+        accountManagers={accountManagers}
         vehicleSizes={VEHICLE_SIZES}
       />
     </div>

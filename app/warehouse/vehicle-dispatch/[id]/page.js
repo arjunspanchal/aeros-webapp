@@ -4,6 +4,12 @@ import {
   canManageVehicleDispatch,
   getVehicleDispatch,
 } from "@/lib/warehouse/vehicleDispatches";
+import {
+  listBoxTypes,
+  listManifestLines,
+  listBoxTypeHistory,
+  getLastManifestForCustomer,
+} from "@/lib/warehouse/dispatchManifest";
 import VehicleDetailClient from "./VehicleDetailClient";
 
 export const dynamic = "force-dynamic";
@@ -29,5 +35,31 @@ export default async function VehicleDispatchDetailPage({ params }) {
   const dispatch = await getVehicleDispatch(params.id);
   if (!dispatch) notFound();
 
-  return <VehicleDetailClient dispatch={dispatch} isAdmin={!!session.isAdmin} />;
+  // Manifest inputs. None of these are load-bearing for the rest of the page,
+  // so a failure just opens the calculator with an empty picker / no history
+  // rather than 500-ing the dispatch record.
+  const [boxTypes, manifestLines, history, lastManifest] = await Promise.all([
+    listBoxTypes().catch(() => []),
+    listManifestLines(params.id).catch(() => []),
+    listBoxTypeHistory({
+      clientId: dispatch.client_id,
+      customerName: dispatch.customer_name,
+    }).catch(() => []),
+    getLastManifestForCustomer({
+      dispatchId: dispatch.id,
+      clientId: dispatch.client_id,
+      customerName: dispatch.customer_name,
+    }).catch(() => null),
+  ]);
+
+  return (
+    <VehicleDetailClient
+      dispatch={dispatch}
+      isAdmin={!!session.isAdmin}
+      boxTypes={boxTypes}
+      manifestLines={manifestLines}
+      history={history}
+      lastManifest={lastManifest}
+    />
+  );
 }

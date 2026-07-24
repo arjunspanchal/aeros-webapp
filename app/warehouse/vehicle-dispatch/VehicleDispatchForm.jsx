@@ -15,6 +15,7 @@ function fmtINR(n) {
 export default function VehicleDispatchForm({
   clients = [],
   transporters = [],
+  accountManagers = [],
   vehicleSizes = [],
   mode = "create",
   initial = null,
@@ -39,6 +40,8 @@ export default function VehicleDispatchForm({
     eway_bill_no:   initial?.eway_bill_no || "",
     client_id:      initialClientKnown ? initial.client_id : "",
     customer_name:  initial?.customer_name || "",
+    account_manager_user_id: initial?.account_manager_user_id || "",
+    account_manager_name:    initial?.account_manager_name || "",
     vehicle_size:   initial?.vehicle_size || "",
     vehicle_number: initial?.vehicle_number || "",
     transporter_vendor_id: initialTransporterKnown ? initial.transporter_vendor_id : "",
@@ -162,6 +165,18 @@ export default function VehicleDispatchForm({
     }
   }
 
+  // AM is picked from the users directory, never typed — the name is
+  // snapshotted alongside the id so the manifest still prints it if the
+  // account later moves or is deactivated.
+  function onAccountManagerChange(val) {
+    const u = accountManagers.find((x) => x.id === val);
+    setForm((f) => ({
+      ...f,
+      account_manager_user_id: val || "",
+      account_manager_name: u?.name || "",
+    }));
+  }
+
   function onTransporterChange(val) {
     setTransporterMode(val);
     if (val === ADD_NEW) {
@@ -249,7 +264,7 @@ export default function VehicleDispatchForm({
             <label className={labelCls}>E-way bill no.</label>
             <input value={form.eway_bill_no} onChange={(e) => setField("eway_bill_no", e.target.value)} className={inputCls} />
           </div>
-          <div className="sm:col-span-3">
+          <div className="sm:col-span-2">
             <label className={labelCls}>Customer *</label>
             <select value={customerMode} onChange={(e) => onCustomerChange(e.target.value)} className={inputCls}>
               <option value="">— Select customer —</option>
@@ -266,6 +281,19 @@ export default function VehicleDispatchForm({
                 className={`${inputCls} mt-2`}
               />
             )}
+          </div>
+          <div>
+            <label className={labelCls}>Account manager</label>
+            <select
+              value={form.account_manager_user_id}
+              onChange={(e) => onAccountManagerChange(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">— Select AM —</option>
+              {accountManagers.map((u) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
           </div>
         </div>
       </section>

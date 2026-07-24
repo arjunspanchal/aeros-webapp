@@ -60,7 +60,7 @@ export default function VehicleQueueClient({ initialDispatches }) {
       if (tab && d.status !== tab) return false;
       if (!q) return true;
       const hay = [
-        d.dispatch_no, d.invoice_no, d.eway_bill_no, d.customer_name,
+        d.dispatch_no, d.invoice_no, d.eway_bill_no, d.customer_name, d.account_manager_name,
         d.transporter_name, d.vehicle_size, d.vehicle_number,
         d.driver_name, d.from_city, d.to_city,
       ].filter(Boolean).join(" ").toLowerCase();
@@ -118,6 +118,7 @@ export default function VehicleQueueClient({ initialDispatches }) {
               <th className="px-4 py-3">Date</th>
               <th className="px-4 py-3">Invoice</th>
               <th className="px-4 py-3">Customer</th>
+              <th className="px-4 py-3">AM</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Transporter</th>
               <th className="px-4 py-3">Vehicle</th>
@@ -133,12 +134,13 @@ export default function VehicleQueueClient({ initialDispatches }) {
           </thead>
           <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
             {rows.length === 0 ? (
-              <tr><td colSpan={14} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">No dispatches in this view.</td></tr>
+              <tr><td colSpan={15} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">No dispatches in this view.</td></tr>
             ) : rows.map((d) => (
               <tr key={d.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                 <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtDate(d.dispatch_date)}</td>
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{d.invoice_no || d.dispatch_no}</td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{d.customer_name}</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{d.account_manager_name || "—"}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset ${STATUS_BADGE[d.status] || ""}`}>
                     {d.status}
@@ -164,7 +166,7 @@ export default function VehicleQueueClient({ initialDispatches }) {
           {rows.length > 0 && (
             <tfoot className="border-t border-gray-200 bg-gray-50 text-sm font-medium dark:border-gray-800 dark:bg-gray-900/60">
               <tr className="text-gray-700 dark:text-gray-200">
-                <td className="px-4 py-3" colSpan={8}>Totals ({rows.length})</td>
+                <td className="px-4 py-3" colSpan={9}>Totals ({rows.length})</td>
                 <td className="px-4 py-3 text-right tabular-nums">{fmtNum(totals.boxes)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{fmtNum(totals.kg)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{fmtINR(totals.freight, 0)}</td>

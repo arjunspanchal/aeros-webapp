@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ManifestClient from "./ManifestClient";
 
 function fmtINR(n, dp = 2) {
   if (n == null) return "—";
@@ -74,7 +75,14 @@ function Field({ label, children }) {
   );
 }
 
-export default function VehicleDetailClient({ dispatch: initial, isAdmin }) {
+export default function VehicleDetailClient({
+  dispatch: initial,
+  isAdmin,
+  boxTypes = [],
+  manifestLines = [],
+  history = [],
+  lastManifest = null,
+}) {
   const router = useRouter();
   const [d, setD] = useState(initial);
   const [deleting, setDeleting] = useState(false);
@@ -129,7 +137,7 @@ export default function VehicleDetailClient({ dispatch: initial, isAdmin }) {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <Link href="/warehouse/vehicle-dispatch" className="text-sm text-blue-700 hover:text-blue-800 dark:text-blue-400">← Vehicle Dispatch</Link>
@@ -227,6 +235,7 @@ export default function VehicleDetailClient({ dispatch: initial, isAdmin }) {
             <Field label="Invoice no.">{d.invoice_no}</Field>
             <Field label="E-way bill no.">{d.eway_bill_no}</Field>
             <Field label="Customer">{d.customer_name}</Field>
+            <Field label="Account manager">{d.account_manager_name}</Field>
           </div>
         </section>
 
@@ -255,6 +264,15 @@ export default function VehicleDetailClient({ dispatch: initial, isAdmin }) {
             <Field label="Total weight (kg)">{fmtNum(d.total_weight_kg)}</Field>
           </div>
         </section>
+
+        <ManifestClient
+          dispatchId={d.id}
+          dispatch={d}
+          boxTypes={boxTypes}
+          initialLines={manifestLines}
+          history={history}
+          lastManifest={lastManifest}
+        />
 
         {d.notes && (
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
