@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Card, Field, Toggle, PillBtn, inputCls } from "@/app/calculator/_components/ui";
-import { BOX_TYPES, FLUTE_PROFILES, PLY_OPTIONS, isCorrugated } from "@/lib/calc/box-calculator";
+import { CLIENT_BOX_TYPES, FLUTE_PROFILES, PLY_OPTIONS, isCorrugated } from "@/lib/calc/box-calculator";
 
 const QTY_OPTIONS = [5000, 10000, 25000, 50000, 100000];
 
@@ -76,7 +76,7 @@ export default function ClientBoxCalculator({ papers = [] }) {
       <div className="lg:col-span-2 space-y-4">
         <Card title="Box Type">
           <div className="grid grid-cols-2 gap-2">
-            {Object.entries(BOX_TYPES).map(([val, cfg]) => (
+            {Object.entries(CLIENT_BOX_TYPES).map(([val, cfg]) => (
               <PillBtn key={val} active={form.boxType === val} onClick={() => set("boxType", val)}>
                 {cfg.label}
               </PillBtn>

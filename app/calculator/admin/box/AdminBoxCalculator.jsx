@@ -2,8 +2,9 @@
 import { useMemo, useState } from "react";
 import { Card, Field, Toggle, PillBtn, Row, SectionHeader, inputCls } from "@/app/calculator/_components/ui";
 import {
-  BOX_TYPES, FLUTE_PROFILES, PLY_OPTIONS, calculate, computeRateCurve, optimizationTips,
-  getDefaultWastage, isPasted, isCorrugated, defaultCorrugatedLayers,
+  BOX_TYPES, FLUTE_PROFILES, PLY_OPTIONS, MASTER_SHEETS, calculate, computeRateCurve, optimizationTips,
+  getDefaultWastage, isPasted, isCorrugated, isTaped, defaultCorrugatedLayers, sheetLayout,
+  TAPE_ROLL_LENGTH_M,
 } from "@/lib/calc/box-calculator";
 
 const QTY_OPTIONS = [5000, 10000, 25000, 50000, 100000];
@@ -13,8 +14,11 @@ export default function AdminBoxCalculator({ papers = [] }) {
     boxType: "cake",
     openLength: 250, openWidth: 180,
     paperId: "", paperName: "", gsm: 300, paperRate: 70,
+    masterSheet: "", customSheetW: 0, customSheetH: 0, dieCutBasis: "piece",
     ply: 3, flute: "B", layers: defaultCorrugatedLayers(3),
     corrugationRate: 0, stitchingPerCarton: 0,
+    taping: false, tapeStraps: 2, tapeStrapLength: 250, tapeRatePerM: 0.8,
+    tapeApplyPerPc: 0.35, tapeWastagePct: "",
     printing: false, colours: 1, coverage: 30,
     punching: false, punchingDieCost: 0, punchingPerPiece: 0,
     innerPackRate: 0, innerPackQty: 0,
@@ -29,6 +33,12 @@ export default function AdminBoxCalculator({ papers = [] }) {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const num = (k, v) => set(k, parseFloat(v) || 0);
+
+  // Bag sealers are tape-strapped by default; other types aren't. Picking the
+  // type seeds the sensible construction rather than making the user find it.
+  function setBoxType(val) {
+    setForm((f) => ({ ...f, boxType: val, taping: isTaped(val) ? true : f.taping }));
+  }
 
   function setPly(p) {
     setForm((f) => ({ ...f, ply: p, layers: defaultCorrugatedLayers(p) }));
@@ -59,6 +69,7 @@ export default function AdminBoxCalculator({ papers = [] }) {
     }));
   }
 
+  const layout = useMemo(() => sheetLayout(form), [form]);
   const result = useMemo(() => calculate(form), [form]);
   const curve = useMemo(() => computeRateCurve(form), [form]);
   const tips = useMemo(() => optimizationTips(form, result), [form, result]);
@@ -98,7 +109,7 @@ export default function AdminBoxCalculator({ papers = [] }) {
         <Card title="Box Type">
           <div className="grid grid-cols-2 gap-2">
             {Object.entries(BOX_TYPES).map(([val, cfg]) => (
-              <PillBtn key={val} active={form.boxType === val} onClick={() => set("boxType", val)}>
+              <PillBtn key={val} active={form.boxType === val} onClick={() => setBoxType(val)}>
                 {cfg.label}
               </PillBtn>
             ))}
@@ -106,6 +117,8 @@ export default function AdminBoxCalculator({ papers = [] }) {
           <p className="text-xs text-gray-400 mt-2">
             {corrugated
               ? "Multi-ply board with flute take-up. Conversion ₹/kg + stitching/carton are user-supplied."
+              : isTaped(form.boxType)
+              ? "Flat die-cut blank closed with bought-in double-sided tape straps — no pasting."
               : isPasted(form.boxType)
               ? "Pasting applied at ₹15/kg (clam-forming / 8-side)."
               : "Flat die-cut only — no pasting cost."}
@@ -118,6 +131,50 @@ export default function AdminBoxCalculator({ papers = [] }) {
             <Field label="Width"><input type="number" className={inputCls} value={form.openWidth} onChange={(e) => num("openWidth", e.target.value)} min="1" /></Field>
           </div>
         </Card>
+
+        {!corrugated && (
+          <Card title="Master Sheet & Nesting">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Master sheet" hint="Prices actual board consumed">
+                <select className={inputCls} value={form.masterSheet} onChange={(e) => set("masterSheet", e.target.value)}>
+                  <option value="">— None (net blank area) —</option>
+                  {Object.entries(MASTER_SHEETS).map(([k, s]) => (
+                    <option key={k} value={k}>{s.label}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Die-cutting basis">
+                <div className="flex gap-2">
+                  <PillBtn active={form.dieCutBasis === "piece"} onClick={() => set("dieCutBasis", "piece")}>₹350/1000 pc</PillBtn>
+                  <PillBtn active={form.dieCutBasis === "sheet"} onClick={() => set("dieCutBasis", "sheet")}>₹300/1000 sheet</PillBtn>
+                </div>
+              </Field>
+              {form.masterSheet === "custom" && (
+                <>
+                  <Field label="Sheet width (mm)"><input type="number" className={inputCls} value={form.customSheetW} onChange={(e) => num("customSheetW", e.target.value)} min="0" /></Field>
+                  <Field label="Sheet height (mm)"><input type="number" className={inputCls} value={form.customSheetH} onChange={(e) => num("customSheetH", e.target.value)} min="0" /></Field>
+                </>
+              )}
+            </div>
+            {form.masterSheet && (
+              layout ? (
+                <div className="mt-3 border-t border-gray-100 pt-3 text-xs dark:border-gray-800">
+                  <p className="text-gray-700 dark:text-gray-200">
+                    <span className="font-semibold">{layout.ups}-up</span> ({layout.nx} x {layout.ny}
+                    {layout.rotated ? ", rotated" : ""}) on {layout.sheetW.toFixed(0)} x {layout.sheetH.toFixed(0)} mm
+                    {" · "}<span className={layout.yieldPct < 80 ? "text-amber-600 font-semibold" : "text-emerald-600 font-semibold"}>{layout.yieldPct.toFixed(1)}% yield</span>
+                  </p>
+                  <p className="text-gray-400 mt-1">
+                    Spare {layout.spareX.toFixed(0)}mm x {layout.spareY.toFixed(0)}mm after a {form.gripperMm ?? 10}mm gripper ·
+                    net blank {result.netKg ? (result.netKg * 1000).toFixed(2) : "—"} g vs {(result.wkg * 1000).toFixed(2)} g board consumed
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-red-500">Blank does not fit this sheet, even rotated.</p>
+              )
+            )}
+          </Card>
+        )}
 
         {!corrugated && (
           <Card title="Paper">
@@ -242,6 +299,34 @@ export default function AdminBoxCalculator({ papers = [] }) {
           )}
         </Card>
 
+        {!corrugated && (
+          <Card title="Double-sided Tape Straps">
+            <Toggle value={form.taping} onChange={() => set("taping", !form.taping)} label="Tape strap required" />
+            {form.taping && (
+              <div className="mt-3 space-y-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Straps / piece"><input type="number" className={inputCls} value={form.tapeStraps} onChange={(e) => num("tapeStraps", e.target.value)} min="0" /></Field>
+                  <Field label="Strap length (mm)"><input type="number" className={inputCls} value={form.tapeStrapLength} onChange={(e) => num("tapeStrapLength", e.target.value)} min="0" /></Field>
+                  <Field label="Tape rate (₹/m)" hint={`₹40 / ${TAPE_ROLL_LENGTH_M}m roll = ₹0.80`}>
+                    <input type="number" className={inputCls} value={form.tapeRatePerM} onChange={(e) => num("tapeRatePerM", e.target.value)} min="0" step="0.05" />
+                  </Field>
+                  <Field label="Application (₹/pc)" hint="Labour / machine time">
+                    <input type="number" className={inputCls} value={form.tapeApplyPerPc} onChange={(e) => num("tapeApplyPerPc", e.target.value)} min="0" step="0.01" />
+                  </Field>
+                  <Field label="Splice wastage % (default 5%)">
+                    <input type="number" className={inputCls} value={form.tapeWastagePct} onChange={(e) => set("tapeWastagePct", e.target.value)} placeholder="5" min="0" step="0.5" />
+                  </Field>
+                </div>
+                <p className="text-xs text-gray-400">
+                  {result.tapeMetresPerPc.toFixed(3)} m/pc ·{" "}
+                  {(form.qty * result.tapeMetresPerPc / TAPE_ROLL_LENGTH_M).toFixed(0)} rolls for {form.qty.toLocaleString()} pcs
+                  {" = ₹"}{(form.qty * result.tapeMetresPerPc * form.tapeRatePerM).toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                </p>
+              </div>
+            )}
+          </Card>
+        )}
+
         <Card title="Punching">
           <Toggle value={form.punching} onChange={() => set("punching", !form.punching)} label="Punching Required" />
           {form.punching && (
@@ -332,11 +417,28 @@ export default function AdminBoxCalculator({ papers = [] }) {
           <table className="w-full">
             <tbody>
               <SectionHeader label="Geometry" />
-              <Row label="Weight / box" value={`${result.wkg.toFixed(5)} kg`} />
+              <Row label="Weight / box" value={`${result.wkg.toFixed(5)} kg`} sub={result.layout ? `board consumed at ${result.layout.ups}-up` : undefined} />
+              {result.layout && (
+                <Row
+                  label="Sheet yield"
+                  value={`${result.layout.yieldPct.toFixed(1)}%`}
+                  sub={`${result.layout.sheetLabel} · ${result.layout.nx}x${result.layout.ny} · net blank ${(result.netKg * 1000).toFixed(2)} g`}
+                />
+              )}
 
               <SectionHeader label="Per-box costs" />
-              <Row label="Paper" value={`₹${result.paperCost.toFixed(4)}`} sub={corrugated ? `${form.ply}-ply, ${form.flute}-flute` : undefined} />
-              {!corrugated && <Row label="Die-cutting" value={`₹${result.dieCutCost.toFixed(4)}`} sub="₹350 / 1000" />}
+              <Row label="Paper" value={`₹${result.paperCost.toFixed(4)}`} sub={corrugated ? `${form.ply}-ply, ${form.flute}-flute` : result.layout ? "sheet consumption" : "net blank area"} />
+              {!corrugated && (
+                <Row
+                  label="Die-cutting"
+                  value={`₹${result.dieCutCost.toFixed(4)}`}
+                  sub={result.sheetBasis ? `₹300 / 1000 sheets ÷ ${result.layout.ups}-up` : "₹350 / 1000 pcs"}
+                />
+              )}
+              {result.tapeCost > 0 && (
+                <Row label="Tape strap" value={`₹${result.tapeCost.toFixed(4)}`} sub={`${result.tapeMetresPerPc.toFixed(3)} m/pc incl. ${result.tapeWastagePct}% splice @ ₹${form.tapeRatePerM}/m`} />
+              )}
+              {result.tapeApplyCost > 0 && <Row label="Tape application" value={`₹${result.tapeApplyCost.toFixed(4)}`} />}
               {result.corrugationCost > 0 && <Row label={`Corrugation (₹${form.corrugationRate}/kg)`} value={`₹${result.corrugationCost.toFixed(4)}`} />}
               {result.stitchingCost > 0 && <Row label="Stitching / glue" value={`₹${result.stitchingCost.toFixed(4)}`} />}
               {result.pastingCost > 0 && <Row label="Pasting (₹15/kg)" value={`₹${result.pastingCost.toFixed(4)}`} />}

@@ -75,6 +75,20 @@ export async function POST(req) {
     boxesPerCarton: Number(body.boxesPerCarton) || 0,
     customWastage: isClient ? "" : (body.customWastage ?? ""),
     profitPercent: marginPct,
+    // Sheet nesting + tape straps are admin-only: a client can't supply a master
+    // sheet or a tape spec, and silently defaulting them would understate the rate.
+    ...(isAdmin ? {
+      masterSheet: body.masterSheet || "",
+      customSheetW: Number(body.customSheetW) || 0,
+      customSheetH: Number(body.customSheetH) || 0,
+      dieCutBasis: body.dieCutBasis === "sheet" ? "sheet" : "piece",
+      taping: !!body.taping,
+      tapeStraps: Number(body.tapeStraps) || 0,
+      tapeStrapLength: Number(body.tapeStrapLength) || 0,
+      tapeRatePerM: Number(body.tapeRatePerM) || 0,
+      tapeApplyPerPc: Number(body.tapeApplyPerPc) || 0,
+      tapeWastagePct: body.tapeWastagePct ?? "",
+    } : { taping: false }),
   };
 
   if (inputs.openLength <= 0 || inputs.openWidth <= 0) {

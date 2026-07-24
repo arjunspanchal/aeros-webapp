@@ -106,7 +106,6 @@ function buildRow(body, session) {
       items_count: num(body.itemsCount),
       items: Array.isArray(body.items) ? body.items : [],
     },
-    legacy_source: null, // null = native v2 row; backfilled rows carry 'import_quotes' here
   };
 }
 
@@ -179,11 +178,10 @@ export async function PATCH(req) {
   if (!existing) return Response.json({ error: "Not found" }, { status: 404 });
 
   // Build the patch from the body, then strip the immutable columns so PATCH
-  // can never mutate quote_type / generated_by / legacy_source.
+  // can never mutate quote_type / generated_by.
   const next = buildRow(body, session);
   delete next.quote_type;
   delete next.generated_by;
-  delete next.legacy_source;
 
   const updated = await dbUpdate("quotes_v2", "id", existing.id, next);
   return Response.json(rowToQuote(updated));
