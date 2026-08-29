@@ -13,6 +13,7 @@ import { buildDcutbagDieline } from "@/lib/dieline/dcutbag";
 import { buildSandwichboxDieline } from "@/lib/dieline/sandwichbox";
 import { buildBowlsleeveDieline } from "@/lib/dieline/bowlsleeve";
 import { buildCutlerypouchDieline } from "@/lib/dieline/cutlerypouch";
+import { buildPartitionDieline } from "@/lib/dieline/partition";
 import { buildTuckboxDieline } from "@/lib/dieline/tuckbox";
 import { buildCartonDieline, CARTON_TYPES } from "@/lib/dieline/carton";
 import { buildSleeveDieline, buildCupSleeveDieline } from "@/lib/dieline/sleeves";
@@ -266,6 +267,24 @@ const STYLES = {
     note:
       "Flat blank for print/artwork — seam | front | gusset | back | gusset, SOS diamond folds at the gusset centres. Blank maths matches the bag rate calculator exactly (seam 15/20/25 by width, bottom = 0.75×G, V-bottom +15).",
   },
+  partition: {
+    label: "Partition Tray",
+    build: buildPartitionDieline,
+    defaultUnits: "in",
+    defaults: { L: "6", W: "4", H: "2" },
+    hints: { L: "box internal length (the base the partition sits in)", W: "box internal width", H: "box internal wall height" },
+    presets: [
+      { label: "3-burger · 6×4×2\" box (3 col × 1 row)", dims: [6, 4, 2], unit: "in", cellsX: 3, cellsY: 1 },
+      { label: "6 cells · 6×4×2\" (3 × 2)", dims: [6, 4, 2], unit: "in", cellsX: 3, cellsY: 2 },
+      { label: "4 cells · square box (2 × 2)", dims: [6, 6, 2], unit: "in", cellsX: 2, cellsY: 2 },
+    ],
+    hasCells: true,
+    usesThickness: true,
+    defaultMaterial: { family: "kraft", idx: 2 },
+    depthLabel: "Slot depth",
+    note:
+      "Slotted egg-crate divider set for an existing box — enter the BOX's internal size, then columns × rows. Long strips slot from the top, cross strips from the bottom (slot width = 2 × board + 1 mm, depth = half height) and press together. Single-row grids get 20 mm end tabs instead (fold back against the walls). Strips run 1 mm under the wall height.",
+  },
   cutlerypouch: {
     label: "Cutlery Pouch",
     build: buildCutlerypouchDieline,
@@ -369,6 +388,8 @@ export default function DielineClient() {
   const [winW, setWinW] = useState("");
   const [winH, setWinH] = useState("");
   const [cups, setCups] = useState(2);
+  const [cellsX, setCellsX] = useState("3");
+  const [cellsY, setCellsY] = useState("1");
   const [view, setView] = useState("2d");
   const [foldT, setFoldT] = useState(1);
   const [artwork, setArtwork] = useState(null);
@@ -386,8 +407,8 @@ export default function DielineClient() {
   const boardMm = materialThicknessMm(matFamily, matIdx, matCustomMm);
   const taperMm = style.hasTaper ? parseFloat(taper) || 7 : undefined;
   const result = useMemo(
-    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, thickness: boardMm, units }) : null),
-    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, cups, hem, winW, winH, boardMm, units, ready],
+    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, thickness: boardMm, units }) : null),
+    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
   );
 
   const title = `${style.label} KLD ${L} x ${W} x ${H} ${units} - ${matLabel}`;
@@ -440,6 +461,8 @@ export default function DielineClient() {
     setH(conv(p.dims[2]));
     if (p.taper != null) setTaper(String(p.taper));
     if (p.cups != null) setCups(p.cups);
+    if (p.cellsX != null) setCellsX(String(p.cellsX));
+    if (p.cellsY != null) setCellsY(String(p.cellsY));
   }
 
   function onArtworkFile(e) {
@@ -492,8 +515,10 @@ export default function DielineClient() {
   const rig = useMemo(() => {
     if (!has3d || !ready) return null;
     const mm = (v) => (units === "in" ? v * 25.4 : v);
-    return buildRig(styleId, { L: mm(dims.L), W: mm(dims.W), H: mm(dims.H), taper: taperMm, cups });
-  }, [styleId, dims.L, dims.W, dims.H, taperMm, cups, units, ready, has3d]);
+    // partition packs its grid into the cups slot (nx*100 + ny)
+    const cupsArg = styleId === "partition" ? (+cellsX || 1) * 100 + (+cellsY || 1) : cups;
+    return buildRig(styleId, { L: mm(dims.L), W: mm(dims.W), H: mm(dims.H), taper: taperMm, cups: cupsArg });
+  }, [styleId, dims.L, dims.W, dims.H, taperMm, cups, cellsX, cellsY, units, ready, has3d]);
 
   const dieMask = useMemo(
     () => (view === "3d" && rig && DIE_MASK_STYLES.has(styleId) && result?.valid ? buildDieMask(result) : null),
@@ -581,6 +606,20 @@ export default function DielineClient() {
                   {label}
                 </button>
               ))}
+            </div>
+          )}
+          {style.hasCells && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Columns (along L)</span>
+                <input type="number" min="1" max="12" step="1" value={cellsX} onChange={(e) => setCellsX(e.target.value)} className={inputCls} />
+                <span className="mt-0.5 block text-[10px] leading-tight text-gray-400">cells across the length</span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Rows (along W)</span>
+                <input type="number" min="1" max="12" step="1" value={cellsY} onChange={(e) => setCellsY(e.target.value)} className={inputCls} />
+                <span className="mt-0.5 block text-[10px] leading-tight text-gray-400">cells across the width</span>
+              </label>
             </div>
           )}
           {style.hasCartonType && (
