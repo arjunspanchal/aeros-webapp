@@ -4,7 +4,7 @@
 // lib/dieline/ (verified against a real Aeros/reference die); exporters are
 // style-agnostic. Everything runs client-side.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildCakeboxDieline } from "@/lib/dieline/cakebox";
 import { buildFoodboxDieline } from "@/lib/dieline/foodbox";
 import { buildBurgerboxDieline } from "@/lib/dieline/burgerbox";
@@ -14,6 +14,7 @@ import { buildSandwichboxDieline } from "@/lib/dieline/sandwichbox";
 import { buildBowlsleeveDieline } from "@/lib/dieline/bowlsleeve";
 import { buildCutlerypouchDieline } from "@/lib/dieline/cutlerypouch";
 import { buildPartitionDieline } from "@/lib/dieline/partition";
+import { buildPapercupDieline, CUP_DIES } from "@/lib/dieline/papercup";
 import { buildTuckboxDieline } from "@/lib/dieline/tuckbox";
 import { buildCartonDieline, CARTON_TYPES } from "@/lib/dieline/carton";
 import { buildSleeveDieline, buildCupSleeveDieline } from "@/lib/dieline/sleeves";
@@ -267,6 +268,24 @@ const STYLES = {
     note:
       "Flat blank for print/artwork — seam | front | gusset | back | gusset, SOS diamond folds at the gusset centres. Blank maths matches the bag rate calculator exactly (seam 15/20/25 by width, bottom = 0.75×G, V-bottom +15).",
   },
+  papercup: {
+    label: "Paper Cup (fan)",
+    build: buildPapercupDieline,
+    defaultUnits: "mm",
+    defaults: { L: "75.68", W: "59.94", H: "86.08" },
+    fieldLabels: ["Wall top Ø", "Wall bottom Ø", "Wall height"],
+    hints: { L: "sidewall top diameter (under the rim curl)", W: "sidewall bottom diameter", H: "vertical wall height" },
+    presets: [
+      { label: "8 oz DW outer (die-exact)", dims: [75.68, 59.94, 86.08], unit: "mm" },
+      { label: "12 oz DW outer (die-exact)", dims: [83.71, 62.8, 104.85], unit: "mm" },
+      { label: "16 oz DW outer (die-exact)", dims: [84.65, 63.99, 125.77], unit: "mm" },
+    ],
+    hasCupPicker: true,
+    defaultMaterial: { family: "white", idx: 4 },
+    depthLabel: "Seam flap",
+    note:
+      "Annular-sector fan of the cup SIDEWALL, calibrated against the production 8 oz and 12 oz DW outer-wall dies (7.5 mm glue seam, 5 mm bottom crimp band, orange dashed = artwork safe boundary). Wall dims ≠ cup rim/base dims — the outer wall sits under the rim curl. Offset nesting reference: 250 mL DW runs 12-up interleaved on a 668 × 395 mm print area. Single-wall dies get their own presets when the files arrive.",
+  },
   partition: {
     label: "Partition Tray",
     build: buildPartitionDieline,
@@ -390,6 +409,9 @@ export default function DielineClient() {
   const [cups, setCups] = useState(2);
   const [cellsX, setCellsX] = useState("3");
   const [cellsY, setCellsY] = useState("1");
+  const [cupList, setCupList] = useState(null); // catalog paper cups (lazy)
+  const [cupSku, setCupSku] = useState("");
+  const [cupNote, setCupNote] = useState("");
   const [view, setView] = useState("2d");
   const [foldT, setFoldT] = useState(1);
   const [artwork, setArtwork] = useState(null);
@@ -449,6 +471,38 @@ export default function DielineClient() {
     setW(conv(W));
     setH(conv(H));
     setUnits(next);
+  }
+
+  useEffect(() => {
+    if (styleId !== "papercup" || cupList) return;
+    fetch("/api/dieline/cups")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setCupList(d.cups || []))
+      .catch(() => setCupList([]));
+  }, [styleId, cupList]);
+
+  function applyCupSku(sku) {
+    setCupSku(sku);
+    const cup = (cupList || []).find((c) => c.sku === sku);
+    if (!cup) return;
+    // calibrated die for this size? (DW outer walls so far)
+    const m = sku.match(/^PC-DW-(\d+)/);
+    const die = m ? CUP_DIES[`dw${m[1]}-outer`] : null;
+    setUnits("mm");
+    if (die) {
+      const h = Math.sqrt(die.S * die.S - ((die.Dt - die.Db) / 2) ** 2);
+      setL(String(die.Dt));
+      setW(String(die.Db));
+      setH(String(+h.toFixed(2)));
+      setCupNote(`${cup.sku}: die-exact outer-wall fan applied (cup spec ${cup.td}×${cup.bd}×${cup.h}).`);
+    } else if (cup.td && cup.bd && cup.h) {
+      setL(String(cup.td));
+      setW(String(cup.bd));
+      setH(String(cup.h));
+      setCupNote(`${cup.sku}: no calibrated wall die for this size yet — using the CUP spec (${cup.td}×${cup.bd}×${cup.h}) as the wall. Send the production die to calibrate before cutting.`);
+    } else {
+      setCupNote(`${cup.sku}: no dimensions in the catalog — fill the wall dims manually.`);
+    }
   }
 
   function applyPreset(p) {
@@ -606,6 +660,25 @@ export default function DielineClient() {
                   {label}
                 </button>
               ))}
+            </div>
+          )}
+          {style.hasCupPicker && (
+            <div className="mt-3">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Load from catalog (master_products)</span>
+                <select value={cupSku} onChange={(e) => applyCupSku(e.target.value)} className={inputCls}>
+                  <option value="">— pick a paper cup SKU —</option>
+                  {(cupList || []).map((c) => (
+                    <option key={c.sku} value={c.sku}>
+                      {c.sku} · {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {cupList === null && styleId === "papercup" && (
+                <p className="mt-1 text-[10px] text-gray-400">Loading catalog…</p>
+              )}
+              {cupNote && <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{cupNote}</p>}
             </div>
           )}
           {style.hasCells && (
