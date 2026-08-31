@@ -15,6 +15,7 @@ import { buildBowlsleeveDieline } from "@/lib/dieline/bowlsleeve";
 import { buildCutlerypouchDieline } from "@/lib/dieline/cutlerypouch";
 import { buildPartitionDieline } from "@/lib/dieline/partition";
 import { buildPapercupDieline, CUP_DIES } from "@/lib/dieline/papercup";
+import { buildCupNesting } from "@/lib/dieline/nesting";
 import { buildTuckboxDieline } from "@/lib/dieline/tuckbox";
 import { buildCartonDieline, CARTON_TYPES } from "@/lib/dieline/carton";
 import { buildSleeveDieline, buildCupSleeveDieline } from "@/lib/dieline/sleeves";
@@ -412,6 +413,8 @@ export default function DielineClient() {
   const [cupList, setCupList] = useState(null); // catalog paper cups (lazy)
   const [cupSku, setCupSku] = useState("");
   const [cupNote, setCupNote] = useState("");
+  const [printW, setPrintW] = useState("668.37");
+  const [printH, setPrintH] = useState("395.37");
   const [view, setView] = useState("2d");
   const [foldT, setFoldT] = useState(1);
   const [artwork, setArtwork] = useState(null);
@@ -561,6 +564,27 @@ export default function DielineClient() {
     URL.revokeObjectURL(url);
   }
 
+  // offset/flexo sheet nesting for cup fans
+  const nesting = useMemo(
+    () => (styleId === "papercup" && result?.valid ? buildCupNesting(result, { printW: +printW || 668.37, printH: +printH || 395.37 }) : null),
+    [styleId, result, printW, printH],
+  );
+
+  function downloadLayout(ext) {
+    if (!nesting?.valid) return;
+    const t = `${style.label} sheet layout ${printW} x ${printH} mm - ${nesting.meta.ups}-up`;
+    let blob;
+    if (ext === "svg") blob = new Blob([toSvg(nesting, { units: "mm", showDims: true, title: t })], { type: "image/svg+xml" });
+    else if (ext === "pdf") blob = new Blob([toPdf(nesting, { units: "mm", showDims: true, title: t })], { type: "application/pdf" });
+    else blob = new Blob([toDxf(nesting)], { type: "application/dxf" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `aeros-papercup-layout-${printW}x${printH}-${nesting.meta.ups}up.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const blank = result?.blank;
   const has3d = RIGGED_STYLES.includes(styleId);
   // 3D surface: follows the 2D board pick until a swatch is chosen explicitly
@@ -679,6 +703,43 @@ export default function DielineClient() {
                 <p className="mt-1 text-[10px] text-gray-400">Loading catalog…</p>
               )}
               {cupNote && <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{cupNote}</p>}
+
+              <div className="mt-3 rounded-md border border-gray-200 p-2 dark:border-gray-800">
+                <p className="mb-1.5 text-xs font-semibold text-gray-900 dark:text-gray-100">Sheet layout (offset / flexo)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="text-[11px] text-gray-600 dark:text-gray-400">Print area W (mm)</span>
+                    <input type="number" min="100" value={printW} onChange={(e) => setPrintW(e.target.value)} className={inputCls} />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] text-gray-600 dark:text-gray-400">Print area H (mm)</span>
+                    <input type="number" min="100" value={printH} onChange={(e) => setPrintH(e.target.value)} className={inputCls} />
+                  </label>
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {[["668.37", "395.37", "Offset 668×395"], ["737.54", "370.27", "Flexo 737×370"], ["750", "440", "750×440"]].map(([w, h, lbl]) => (
+                    <button key={lbl} onClick={() => { setPrintW(w); setPrintH(h); }} className="rounded-full border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 hover:border-gray-500 dark:border-gray-700 dark:text-gray-300">
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+                {nesting?.valid ? (
+                  <>
+                    <p className="mt-1.5 text-[11px] text-gray-600 dark:text-gray-300">
+                      {nesting.meta.ups}-up · {nesting.meta.nU}×{nesting.meta.nRu} upright + {nesting.meta.nI}×{nesting.meta.nRi} inverted · pitch {nesting.meta.pitchMm} × {nesting.meta.vPitchMm} mm
+                    </p>
+                    <div className="mt-1.5 flex gap-1.5">
+                      {["svg", "pdf", "dxf"].map((ext) => (
+                        <button key={ext} onClick={() => downloadLayout(ext)} className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold uppercase text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">
+                          Layout {ext}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="mt-1.5 text-[11px] text-amber-600">{nesting?.warnings?.[0] || "Layout unavailable for these dims."}</p>
+                )}
+              </div>
             </div>
           )}
           {style.hasCells && (
