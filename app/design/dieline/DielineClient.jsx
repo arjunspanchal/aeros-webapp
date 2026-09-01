@@ -331,15 +331,17 @@ const STYLES = {
     fieldLabels: ["Bowl Ø at crease", "Strap width", "Disc Ø (0 = none)"],
     hints: { L: "bowl diameter measured at the corner creases (physical sample)", W: "width of the strap band", H: "circular extension of the top panel that caps the lid" },
     presets: [
-      { label: "Zepto 750 mL bagasse (Ø175, disc 148)", dims: [175, 89, 148], unit: "mm" },
-      { label: "Ø150 × 80, disc 130", dims: [150, 80, 130], unit: "mm" },
-      { label: "Ø175 × 89, no disc", dims: [175, 89, 0], unit: "mm" },
+      { label: "Zepto 750 mL bagasse (Ø175 · disc 148 · bottom 95)", dims: [175, 89, 148], unit: "mm", winW: 80, winH: 95 },
+      { label: "1000 mL bagasse (disc 168 · bottom 140 — enter bowl Ø)", dims: [175, 89, 168], unit: "mm", winW: 80, winH: 140 },
+      { label: "Ø175 × 89, no disc", dims: [175, 89, 0], unit: "mm", winW: 80, winH: 95 },
     ],
     allowZeroH: true,
+    hasWindow: true,
+    windowLabels: ["Side panel (mm)", "Bottom span (mm)"],
     defaultMaterial: { family: "duplex", idx: 1 },
     depthLabel: "Glue flap",
     note:
-      "VERTICAL anti-leak strap from the Zepto Cafe 750 mL bagasse-bowl keyline — side | top (bowl Ø + 2.92 mm between the corner creases) | side | bottom, 15 mm glue flap tapered 2.96/side; the disc caps over the lid dome. Folds over the lid, down both sides, glues under the base. Side drop and bottom span scale from the reference — verify against the actual bowl + lid. Duplex 280 gsm.",
+      "VERTICAL anti-leak strap from the Zepto Cafe 750 mL bagasse-bowl sample — side | top (= bowl Ø between the corner creases) | side | bottom, 15 mm glue flap tapered 2.96/side; the disc caps over the lid dome. Sides are a FIXED 80 mm across bowl sizes; the bottom span is per-size (750 mL: 95, 1000 mL: 140). Folds over the lid, down both sides, glues under the base. Duplex 280 gsm.",
   },
   sandwichbox: {
     label: "Sandwich Box (wedge)",
@@ -520,6 +522,8 @@ export default function DielineClient() {
     if (p.cups != null) setCups(p.cups);
     if (p.cellsX != null) setCellsX(String(p.cellsX));
     if (p.cellsY != null) setCellsY(String(p.cellsY));
+    if (p.winW != null) setWinW(String(p.winW));
+    if (p.winH != null) setWinH(String(p.winH));
   }
 
   function onArtworkFile(e) {
@@ -792,11 +796,11 @@ export default function DielineClient() {
           {style.hasWindow && (
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Window W ({units}, optional)</span>
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{style.windowLabels?.[0] || `Window W (${units}, optional)`}</span>
                 <input type="number" min="0" value={winW} onChange={(e) => setWinW(e.target.value)} className={inputCls} />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Window H ({units}, optional)</span>
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{style.windowLabels?.[1] || `Window H (${units}, optional)`}</span>
                 <input type="number" min="0" value={winH} onChange={(e) => setWinH(e.target.value)} className={inputCls} />
               </label>
             </div>
