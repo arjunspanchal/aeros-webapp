@@ -332,7 +332,7 @@ const STYLES = {
     hints: { L: "bowl diameter measured at the corner creases (physical sample)", W: "width of the strap band", H: "circular extension of the top panel that caps the lid" },
     presets: [
       { label: "Zepto 750 mL bagasse (Ø175 · disc 148 · bottom 95)", dims: [175, 89, 148], unit: "mm", winW: 80, winH: 95 },
-      { label: "1000 mL bagasse (disc 168 · bottom 140 — enter bowl Ø)", dims: [175, 89, 168], unit: "mm", winW: 80, winH: 140 },
+      { label: "1000 mL bagasse (Ø206 · disc 168 · bottom 140)", dims: [206, 89, 168], unit: "mm", winW: 80, winH: 140 },
       { label: "Ø175 × 89, no disc", dims: [175, 89, 0], unit: "mm", winW: 80, winH: 95 },
     ],
     allowZeroH: true,
