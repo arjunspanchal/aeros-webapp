@@ -862,8 +862,10 @@ export default function DielineClient() {
             />
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
-            Stamped on every export and used for the outer-size estimate below. Dims stay INTERNAL —
-            thickness allowances on folds remain the die maker's call.
+            Stamped on every export and used for the outer-size estimate below. Dims stay INTERNAL.
+            {styleId === "tuckbox"
+              ? " On this die-exact family the caliper also steps the fold allowances (roll creases, tuck offsets, lock slits) — reference die is E-flute 1.5 mm."
+              : " Thickness allowances on folds remain the die maker's call."}
           </p>
         </section>
 
