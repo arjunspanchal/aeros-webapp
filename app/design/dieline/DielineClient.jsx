@@ -17,6 +17,7 @@ import { buildPartitionDieline } from "@/lib/dieline/partition";
 import { buildPapercupDieline, CUP_DIES } from "@/lib/dieline/papercup";
 import { buildCupNesting } from "@/lib/dieline/nesting";
 import { buildTuckboxDieline } from "@/lib/dieline/tuckbox";
+import { buildRscboxDieline } from "@/lib/dieline/rscbox";
 import { buildCartonDieline, CARTON_TYPES } from "@/lib/dieline/carton";
 import { buildSleeveDieline, buildCupSleeveDieline } from "@/lib/dieline/sleeves";
 import { buildPillowboxDieline } from "@/lib/dieline/pillowbox";
@@ -249,6 +250,21 @@ const STYLES = {
     depthLabel: "Wall height",
     note:
       "Roll-end tuck-top mailer calibrated to a die-maker's production family (die-exact at 6×6×2, 6×4×2 and 6×2×2 in; other sizes band-scale from the nearest hand-tuned original). Thumb-notch tuck, double roll creases, corner ears, base lock slits. Drawn for corrugated board.",
+  },
+  rscbox: {
+    label: "Shipper / RSC (0201)",
+    build: buildRscboxDieline,
+    defaultUnits: "mm",
+    defaults: { L: "408.5", W: "333.5", H: "490.5" },
+    hints: { L: "internal length", W: "internal width", H: "internal height" },
+    presets: [
+      { label: "8oz DW cup shipper (die 415×340×500)", dims: [408.5, 333.5, 490.5], unit: "mm" },
+      { label: "640×400×570 scores (8oz 1000s master)", dims: [633.5, 393.5, 560.5], unit: "mm" },
+    ],
+    defaultMaterial: { family: "corrugated", idx: 5 }, // 5-ply BC
+    depthLabel: "Flap depth",
+    note:
+      "Regular slotted container (FEFCO 0201) for 5-ply master cartons, modelled on the Aeros 8oz DW cup shipper keyline: panels L|W|L|W, meeting flaps (W+t)/2, 40 mm join lap, slots caliper+3, and the reference's 20 mm artwork-safe frame on every panel (orange dash). Scores = internal + 1 caliper; the reference is an artwork keyline, so confirm allowances with the die maker.",
   },
   paperbag: {
     label: "Paper Bag (keyline)",
