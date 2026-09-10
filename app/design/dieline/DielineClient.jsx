@@ -18,6 +18,7 @@ import { buildPapercupDieline, CUP_DIES } from "@/lib/dieline/papercup";
 import { buildCupNesting } from "@/lib/dieline/nesting";
 import { buildTuckboxDieline } from "@/lib/dieline/tuckbox";
 import { buildRscboxDieline } from "@/lib/dieline/rscbox";
+import { buildRopebagKeyline } from "@/lib/dieline/ropebag";
 import { buildCartonDieline, CARTON_TYPES } from "@/lib/dieline/carton";
 import { buildSleeveDieline, buildCupSleeveDieline } from "@/lib/dieline/sleeves";
 import { buildPillowboxDieline } from "@/lib/dieline/pillowbox";
@@ -265,6 +266,21 @@ const STYLES = {
     depthLabel: "Flap depth",
     note:
       "Regular slotted container (FEFCO 0201) for 5-ply master cartons, modelled on the Aeros 8oz DW cup shipper keyline: panels L|W|L|W, meeting flaps (W+t)/2, 40 mm join lap, slots caliper+3, and the reference's 20 mm artwork-safe frame on every panel (orange dash). Scores = internal + 1 caliper; the reference is an artwork keyline, so confirm allowances with the die maker.",
+  },
+  ropebag: {
+    label: "Rope-Handle Bag (offset half-punch)",
+    build: buildRopebagKeyline,
+    defaultUnits: "mm",
+    defaults: { L: "291.3", W: "194.8", H: "270" },
+    fieldLabels: ["Face width (W)", "Gusset (G)", "Height (H)"],
+    hints: { L: "bag face width", W: "side gusset", H: "bag height (hem to bottom fold)" },
+    presets: [
+      { label: "Drink bag (die-exact 291\u00d7195\u00d7270)", dims: [291.3, 194.8, 270], unit: "mm" },
+    ],
+    defaultMaterial: { family: "kraft", idx: 2 },
+    depthLabel: "Bottom flap",
+    note:
+      "Offset HALF-PUNCH calibrated to the Aeros drink-bag production die: one impression = one face + one gusset + 20 mm seam, two impressions paste into a bag (a full rope-handle blank doesn't fit the offset bed). 30 mm hem with \u00d85 rope holes ON the hem crease (105 mm apart, self-aligning when the hem folds), SOS diamond bottom, split flap G/2+30 deep.",
   },
   paperbag: {
     label: "Paper Bag (keyline)",
