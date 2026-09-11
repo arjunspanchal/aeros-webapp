@@ -4,7 +4,7 @@ import { Card, Field, Toggle, PillBtn, Row, SectionHeader, inputCls } from "@/ap
 import {
   BOX_TYPES, FLUTE_PROFILES, PLY_OPTIONS, MASTER_SHEETS, calculate, computeRateCurve, optimizationTips,
   getDefaultWastage, isPasted, isCorrugated, isTaped, defaultCorrugatedLayers, sheetLayout,
-  TAPE_ROLL_LENGTH_M, FINISH_RATES,
+  TAPE_ROLL_LENGTH_M, FINISH_RATES, RSC_GLUE_LAP_MM, SHIPPER_BENCHMARK_PER_KG,
 } from "@/lib/calc/box-calculator";
 
 const QTY_OPTIONS = [5000, 10000, 25000, 50000, 100000];
@@ -15,8 +15,9 @@ export default function AdminBoxCalculator({ papers = [] }) {
     openLength: 250, openWidth: 180,
     paperId: "", paperName: "", gsm: 300, paperRate: 70,
     masterSheet: "", customSheetW: 0, customSheetH: 0, dieCutBasis: "piece",
-    ply: 3, flute: "B", layers: defaultCorrugatedLayers(3),
-    corrugationRate: 0, stitchingPerCarton: 0,
+    ply: 5, flute: "C", layers: defaultCorrugatedLayers(5),
+    corrugationRate: 12, stitchingPerCarton: 1.5,
+    rscMode: true, boxL: 0, boxB: 0, boxH: 0,
     taping: false, tapeStraps: 2, tapeStrapLength: 250, tapeRatePerM: 0.8,
     tapeApplyPerPc: 0.35, tapeWastagePct: "",
     outsideFinish: "", insideFinish: "", insideBlister: false,
@@ -37,8 +38,25 @@ export default function AdminBoxCalculator({ papers = [] }) {
 
   // Bag sealers are tape-strapped by default; other types aren't. Picking the
   // type seeds the sensible construction rather than making the user find it.
+  // Corrugated seeds the full vendor-validated setup (Sep 2026: 5-ply C-flute,
+  // liner ₹42 / flute ₹38, conversion ₹12/kg + ₹1.5/carton — together these
+  // reproduce the confirmed ₹52.6/kg finished market rate) so the admin only
+  // has to enter box size and tweak GSMs. Values already typed are kept.
   function setBoxType(val) {
-    setForm((f) => ({ ...f, boxType: val, taping: isTaped(val) ? true : f.taping }));
+    setForm((f) => ({
+      ...f,
+      boxType: val,
+      taping: isTaped(val) ? true : f.taping,
+      ...(isCorrugated(val)
+        ? {
+            ply: 5,
+            flute: f.flute || "C",
+            layers: f.layers?.length === 5 ? f.layers : defaultCorrugatedLayers(5),
+            corrugationRate: f.corrugationRate || 12,
+            stitchingPerCarton: f.stitchingPerCarton || 1.5,
+          }
+        : {}),
+    }));
   }
 
   function setPly(p) {
@@ -84,7 +102,10 @@ export default function AdminBoxCalculator({ papers = [] }) {
       body: JSON.stringify({
         quoteRef: form.quoteRef || `BQ ${new Date().toISOString().split("T")[0]}`,
         boxType: form.boxType,
-        openLength: form.openLength, openWidth: form.openWidth,
+        // RSC mode: persist the derived blank so the saved quote reflects what
+        // was actually priced, not the stale manual open-size fields.
+        openLength: result.rscBlank ? result.rscBlank.blankW : form.openLength,
+        openWidth: result.rscBlank ? result.rscBlank.blankH : form.openWidth,
         paperName: corrugated
           ? `${form.ply}-ply ${form.flute}-flute (${form.layers.map((l) => l.gsm).join("/")})`
           : form.paperName,
@@ -126,12 +147,44 @@ export default function AdminBoxCalculator({ papers = [] }) {
           </p>
         </Card>
 
-        <Card title="Open Size (mm)">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Length"><input type="number" className={inputCls} value={form.openLength} onChange={(e) => num("openLength", e.target.value)} min="1" /></Field>
-            <Field label="Width"><input type="number" className={inputCls} value={form.openWidth} onChange={(e) => num("openWidth", e.target.value)} min="1" /></Field>
-          </div>
-        </Card>
+        {corrugated ? (
+          <Card title="Carton Size">
+            <div className="flex gap-2 mb-3">
+              <PillBtn active={form.rscMode} onClick={() => set("rscMode", true)}>RSC shipper (box OD)</PillBtn>
+              <PillBtn active={!form.rscMode} onClick={() => set("rscMode", false)}>Manual blank</PillBtn>
+            </div>
+            {form.rscMode ? (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <Field label="Length OD (mm)"><input type="number" className={inputCls} value={form.boxL} onChange={(e) => num("boxL", e.target.value)} min="0" /></Field>
+                  <Field label="Breadth OD (mm)"><input type="number" className={inputCls} value={form.boxB} onChange={(e) => num("boxB", e.target.value)} min="0" /></Field>
+                  <Field label="Height OD (mm)"><input type="number" className={inputCls} value={form.boxH} onChange={(e) => num("boxH", e.target.value)} min="0" /></Field>
+                </div>
+                {result.rscBlank ? (
+                  <p className="mt-3 text-xs text-gray-700 dark:text-gray-200 border-t border-gray-100 pt-3 dark:border-gray-800">
+                    Blank <span className="font-semibold">{result.rscBlank.blankW.toFixed(0)} × {result.rscBlank.blankH.toFixed(0)} mm</span>
+                    {" "}(2×(L+B) + {RSC_GLUE_LAP_MM}mm lap × H+B, +18 gsm starch) ·
+                    box weight <span className="font-semibold">{(result.wkg * 1000).toFixed(0)} g</span>
+                  </p>
+                ) : (
+                  <p className="mt-3 text-xs text-amber-600">Enter all three OD dimensions to derive the blank.</p>
+                )}
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Blank length (mm)"><input type="number" className={inputCls} value={form.openLength} onChange={(e) => num("openLength", e.target.value)} min="1" /></Field>
+                <Field label="Blank width (mm)"><input type="number" className={inputCls} value={form.openWidth} onChange={(e) => num("openWidth", e.target.value)} min="1" /></Field>
+              </div>
+            )}
+          </Card>
+        ) : (
+          <Card title="Open Size (mm)">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Length"><input type="number" className={inputCls} value={form.openLength} onChange={(e) => num("openLength", e.target.value)} min="1" /></Field>
+              <Field label="Width"><input type="number" className={inputCls} value={form.openWidth} onChange={(e) => num("openWidth", e.target.value)} min="1" /></Field>
+            </div>
+          </Card>
+        )}
 
         {!corrugated && (
           <Card title="Master Sheet & Nesting">
@@ -524,6 +577,17 @@ export default function AdminBoxCalculator({ papers = [] }) {
               <Row label="Manufacturing" value={`₹${result.totalMfg.toFixed(4)}`} />
               <Row label={`Profit (${result.profitPct}%)`} value={`₹${result.profit.toFixed(4)}`} />
               <Row label="Selling Price" value={`₹${result.sellingPrice.toFixed(4)}`} highlight />
+              {corrugated && result.perKgFinished > 0 && (
+                <Row
+                  label="Finished ₹/kg"
+                  value={`₹${result.perKgFinished.toFixed(1)}/kg · ${(result.wkg * 1000).toFixed(0)} g/box`}
+                  sub={
+                    result.perKgFinished <= SHIPPER_BENCHMARK_PER_KG * 1.05
+                      ? `within market band (confirmed ₹${SHIPPER_BENCHMARK_PER_KG}/kg)`
+                      : `above confirmed market ₹${SHIPPER_BENCHMARK_PER_KG}/kg — vendor should beat this`
+                  }
+                />
+              )}
             </tbody>
           </table>
         </Card>
