@@ -3,7 +3,7 @@
 // server-side; the paper rate is taken from a conservative default env
 // until per-paper rates are wired up (the bag calc's Jodhani/Om Shivaay
 // tables are mill-specific and do not apply to box stocks).
-import { calculate, computeRateCurve, optimizationTips, isCorrugated, defaultCorrugatedLayers } from "@/lib/calc/box-calculator";
+import { calculate, computeRateCurve, optimizationTips, isCorrugated, defaultCorrugatedLayers, rscBlank } from "@/lib/calc/box-calculator";
 import { getSession, requireRole } from "@/lib/auth/session";
 import { currentClientPricing } from "@/lib/calc/user-directory";
 
@@ -23,22 +23,23 @@ export async function POST(req) {
   const paperRate = isClient
     ? Number(process.env.DEFAULT_BOX_PAPER_RATE || 70)
     : Number(body.paperRate) || 0;
+  // Conversion fallbacks (admin included): ₹12/kg + ₹1.5/carton are the Sep-2026
+  // vendor-validated rates that reproduce the confirmed ₹52.6/kg finished market
+  // price — an empty field now prices realistically instead of at ₹0.
   const corrugationRate = isClient
-    ? Number(process.env.DEFAULT_CORRUGATION_RATE || 25)
-    : Number(body.corrugationRate) || 0;
+    ? Number(process.env.DEFAULT_CORRUGATION_RATE || 12)
+    : Number(body.corrugationRate) || 12;
   const stitchingPerCarton = isClient
     ? Number(process.env.DEFAULT_STITCHING_PER_CARTON || 1.5)
-    : Number(body.stitchingPerCarton) || 0;
+    : Number(body.stitchingPerCarton) || 1.5;
 
   // For clients, seed layers server-side from defaults so they don't have to
   // supply a full BOM. Admin sends the full layers array from the form.
+  // Layer seeds carry validated kraft rates (liner ₹42 / flute ₹38) — the old
+  // cupstock-derived ₹70 default wildly overpriced corrugated kraft.
   let layers = Array.isArray(body.layers) ? body.layers : [];
   if (corrugated && isClient) {
-    const defaultPaperRate = Number(process.env.DEFAULT_BOX_PAPER_RATE || 70);
-    layers = defaultCorrugatedLayers(Number(body.ply) || 3).map((l) => ({
-      ...l,
-      paperRate: defaultPaperRate * (l.kind === "flute" ? 0.9 : 1),
-    }));
+    layers = defaultCorrugatedLayers(Number(body.ply) || 5);
   }
 
   // The legacy calc cookie carried the user's margin_pct as a fallback.
@@ -92,10 +93,17 @@ export async function POST(req) {
       outsideFinish: body.outsideFinish || "",
       insideFinish: body.insideFinish || "",
       insideBlister: !!body.insideBlister,
+      // RSC shipper mode (corrugated only): blank derived server-side from box
+      // OD via rscBlank(); admin-only like the other construction overrides.
+      rscMode: !!body.rscMode,
+      boxL: Number(body.boxL) || 0,
+      boxB: Number(body.boxB) || 0,
+      boxH: Number(body.boxH) || 0,
     } : { taping: false }),
   };
 
-  if (inputs.openLength <= 0 || inputs.openWidth <= 0) {
+  const rscDerived = corrugated && rscBlank(inputs);
+  if (!rscDerived && (inputs.openLength <= 0 || inputs.openWidth <= 0)) {
     return Response.json({ error: "Open size is required." }, { status: 400 });
   }
   if (corrugated) {
