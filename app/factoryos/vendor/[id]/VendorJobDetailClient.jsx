@@ -4,6 +4,7 @@ import { StageBadge, formatDate, inputCls } from "@/app/factoryos/_components/ui
 import JobThread from "@/app/factoryos/_components/JobThread";
 import VendorProgressStepper from "./VendorProgressStepper";
 import VendorInvoicePanel from "./VendorInvoicePanel";
+import VendorJobOrderPanel from "./VendorJobOrderPanel";
 
 function Spec({ label, value }) {
   if (value == null || value === "") return null;
@@ -15,7 +16,7 @@ function Spec({ label, value }) {
   );
 }
 
-export default function VendorJobDetailClient({ initialJob, initialThread }) {
+export default function VendorJobDetailClient({ initialJob, initialThread, jobOrder = null }) {
   const job = initialJob;
   const [dueDate, setDueDate] = useState(job.printingDueDate || "");
   const [savingDate, setSavingDate] = useState(false);
@@ -69,6 +70,13 @@ export default function VendorJobDetailClient({ initialJob, initialThread }) {
           </div>
         )}
       </div>
+
+      {/* Print job order — what to print and how */}
+      <VendorJobOrderPanel
+        jobId={job.id}
+        initialSpec={jobOrder?.spec || null}
+        initialColours={jobOrder?.colours || []}
+      />
 
       {/* Editable delivery date */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">

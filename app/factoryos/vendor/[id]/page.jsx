@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { getJob, getVendor, listJobThread } from "@/lib/factoryos/repo";
 import { vendorOwnsJob } from "@/lib/factoryos/vendorScope";
 import { ROLES } from "@/lib/factoryos/constants";
+import { getJobOrder } from "@/lib/factoryos/jobOrder";
 import VendorJobDetailClient from "./VendorJobDetailClient";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,12 @@ export default async function VendorJobDetail({ params }) {
     redirect("/factoryos/vendor");
   }
 
-  const thread = await listJobThread(job.id);
+  const [thread, order] = await Promise.all([
+    listJobThread(job.id),
+    getJobOrder(job.id).catch((e) => { console.error("Job order fetch failed:", e); return { spec: null, colours: [] }; }),
+  ]);
+  // Vendors only see a released order — a draft stays invisible.
+  const issued = order.spec?.status === "issued";
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -35,7 +41,11 @@ export default async function VendorJobDetail({ params }) {
         >
           ← All jobs
         </Link>
-        <VendorJobDetailClient initialJob={job} initialThread={thread} />
+        <VendorJobDetailClient
+          initialJob={job}
+          initialThread={thread}
+          jobOrder={issued ? order : null}
+        />
       </main>
     </div>
   );

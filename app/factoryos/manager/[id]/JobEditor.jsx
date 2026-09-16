@@ -54,6 +54,8 @@ export default function JobEditor({
   const [trackingSaved, setTrackingSaved] = useState(false);
   // Master-product mapping (admin + factory manager can edit; others see read-only).
   const canEditMasterProduct = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
+  // Mirrors requireManager on the job-order page + PUT route.
+  const canManageJobOrder = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
   // Hard-delete (cascades the job + its timeline). FE included alongside
   // admin / FM because shop floor sometimes needs to drop test jobs.
   const canDeleteJob =
@@ -344,6 +346,35 @@ export default function JobEditor({
           <Col label="RM delivery" value={formatDate(job.rmDeliveryDate)} />
         </dl>
       </div>
+
+      {canManageJobOrder && job.sourcing !== "traded" && (
+        <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Vendor job order</h2>
+              <p className="text-xs text-gray-500 mt-0.5 dark:text-gray-400">
+                Paper, Pantones, varnish, plates and allowances for {job.printingVendor || "the printing vendor"} — exports as PDF and shows in their portal once issued.
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <a
+                href={`/print/job-order/${job.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 dark:border-gray-700 dark:text-gray-200"
+              >
+                PDF
+              </a>
+              <a
+                href={`/factoryos/admin/jobs/${job.id}/job-order`}
+                className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-gray-900"
+              >
+                Open job order
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {canEditMasterProduct && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
