@@ -289,6 +289,8 @@ const STYLES = {
     defaults: { L: "230", W: "125", H: "335" },
     fieldLabels: ["Width (W)", "Gusset (G)", "Height (H)"],
     hints: { L: "bag face width", W: "side gusset", H: "bag height" },
+    hasWindow: true,
+    windowLabels: ["Tamper flap (mm, 0 = none)", "\u2014 (not used)"],
     presets: [
       { label: "105×65×165", dims: [105, 65, 165], unit: "mm" },
       { label: "127×73×271", dims: [127, 73, 271], unit: "mm" },
