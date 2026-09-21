@@ -267,6 +267,23 @@ const STYLES = {
     note:
       "Regular slotted container (FEFCO 0201) for 5-ply master cartons, modelled on the Aeros 8oz DW cup shipper keyline: panels L|W|L|W, meeting flaps (W+t)/2, 40 mm join lap, slots caliper+3, and the reference's 20 mm artwork-safe frame on every panel (orange dash). Scores = internal + 1 caliper; the reference is an artwork keyline, so confirm allowances with the die maker.",
   },
+  tamperpouch: {
+    label: "Tamper-Seal Pouch (pinch bottom)",
+    build: (a) => buildPaperbagKeyline({ ...a, bagType: "v_bottom", windowW: a.windowW === undefined ? 25 : a.windowW }),
+    defaultUnits: "mm",
+    defaults: { L: "200", W: "80", H: "130" },
+    fieldLabels: ["Width (W)", "Base (G)", "Height (H)"],
+    hints: { L: "pouch face width", W: "base / gusset", H: "pouch height (mouth to base fold)" },
+    presets: [
+      { label: "200\u00d780\u00d7130 (brown kraft ref)", dims: [200, 80, 130], unit: "mm" },
+    ],
+    hasWindow: true,
+    windowLabels: ["Tamper flap (mm, default 25)", "\u2014 (not used)"],
+    defaultMaterial: { family: "kraft", idx: 0 },
+    depthLabel: "Base pleat",
+    note:
+      "Pinch/V-bottom pouch with a tamper-seal flap on the back panel (chamfered ends, folds over the mouth; adhesive strip under the flap). Handmade-friendly \u2014 seam | front | gusset | back | gusset wrap, 15 mm base pleat. Flap defaults to 25 mm; set 0 for a plain pouch.",
+  },
   ropebag: {
     label: "Rope-Handle Bag (offset half-punch)",
     build: buildRopebagKeyline,
