@@ -269,7 +269,7 @@ const STYLES = {
   },
   tamperpouch: {
     label: "Tamper-Seal Pouch (pinch bottom)",
-    build: (a) => buildPaperbagKeyline({ ...a, bagType: "v_bottom", windowW: a.windowW === undefined ? 25 : a.windowW }),
+    build: (a) => buildPaperbagKeyline({ ...a, bagType: "v_bottom", pinchBottom: true, windowW: a.windowW === undefined ? 25 : a.windowW }),
     defaultUnits: "mm",
     defaults: { L: "200", W: "80", H: "130" },
     fieldLabels: ["Width (W)", "Base (G)", "Height (H)"],
@@ -282,7 +282,7 @@ const STYLES = {
     defaultMaterial: { family: "kraft", idx: 0 },
     depthLabel: "Base pleat",
     note:
-      "Pinch/V-bottom pouch with a tamper-seal flap on the back panel (chamfered ends, folds over the mouth; adhesive strip under the flap). Handmade-friendly \u2014 seam | front | gusset | back | gusset wrap, 15 mm base pleat. Flap defaults to 25 mm; set 0 for a plain pouch.",
+      "Pinch/V-bottom pouch with a tamper-seal flap on the back panel (chamfered ends, folds over the mouth; adhesive strip under the flap). Handmade-friendly \u2014 seam | front | gusset | back | gusset wrap; PINCH (stepped) bottom: the back layer runs 15 mm past the front and folds over to paste. Flap defaults to 25 mm; set 0 for a plain pouch.",
   },
   ropebag: {
     label: "Rope-Handle Bag (offset half-punch)",
