@@ -19,6 +19,7 @@ import { buildCupNesting } from "@/lib/dieline/nesting";
 import { buildTuckboxDieline } from "@/lib/dieline/tuckbox";
 import { buildRscboxDieline } from "@/lib/dieline/rscbox";
 import { buildRopebagKeyline } from "@/lib/dieline/ropebag";
+import { buildNwBoxBagKeyline } from "@/lib/dieline/nwboxbag";
 import { buildCartonDieline, CARTON_TYPES } from "@/lib/dieline/carton";
 import { buildSleeveDieline, buildCupSleeveDieline } from "@/lib/dieline/sleeves";
 import { buildPillowboxDieline } from "@/lib/dieline/pillowbox";
@@ -283,6 +284,25 @@ const STYLES = {
     depthLabel: "Base pleat",
     note:
       "Pinch/V-bottom pouch with a tamper-seal flap on the back panel (chamfered ends, folds over the mouth; adhesive strip under the flap). Handmade-friendly \u2014 seam | front | gusset | back | gusset wrap; full-width bottom fold (25 mm, per the HomeRun sample) pasted onto the back. Flap defaults to 25 mm; set 0 for a plain pouch.",
+  },
+  nwboxbag: {
+    label: "Non-Woven BOPP Box Bag",
+    build: buildNwBoxBagKeyline,
+    defaultUnits: "mm",
+    defaults: { L: "410", W: "155", H: "430" },
+    fieldLabels: ["Width (W)", "Gusset / bottom (G)", "Height (H)"],
+    hints: { L: "bag face width", W: "side gusset = bottom depth", H: "bag height" },
+    presets: [
+      { label: '16\u00d717\u00d76" (410\u00d7430\u00d7155)', dims: [410, 155, 430], unit: "mm", winW: 32.5, winH: 10 },
+      { label: '18\u00d717\u00d77" (460\u00d7430\u00d7180)', dims: [460, 180, 430], unit: "mm", winW: 25, winH: 10 },
+      { label: "Maharani 380\u00d7410\u00d7115", dims: [380, 115, 410], unit: "mm", winW: 35, winH: 10 },
+    ],
+    hasWindow: true,
+    windowLabels: ["Top hem (default 32.5 mm)", "Edge seal (default 10 mm)"],
+    defaultMaterial: { family: "nonwoven", idx: 1 },
+    depthLabel: "Top hem",
+    note:
+      "Print-cylinder keyline for laminated non-woven (BOPP) box bags, decoded from the 16\u00d717\u00d76 and 18\u00d717\u00d77 vendor KLDs and the Maharani layout. Along the roll: hem | face | bottom | face | hem; across: seal | G/2 | W | G/2 | seal. Faces print SIDEWAYS \u2014 the purple 'PLACE ARTWORK HERE' notes and arrows show which way is the top of the bag (toward the nearer hem). Handles are separate loops sealed under the hem.",
   },
   ropebag: {
     label: "Rope-Handle Bag (offset half-punch)",
