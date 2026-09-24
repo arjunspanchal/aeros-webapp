@@ -207,20 +207,18 @@ const STYLES = {
     label: "Take Away Cup Holder",
     build: buildCupcarrierDieline,
     defaultUnits: "mm",
-    defaults: { L: "82", W: "115", H: "135" },
+    defaults: { L: "75", W: "115", H: "135" },
     fieldLabels: ["Cup hole Ø", "Pitch / strip W", "Handle H"],
     hints: { L: "cup RIM Ø minus 10 mm", W: "2-cup: centre-to-centre · 1-cup: strip width", H: "handle panel height" },
     presets: [
-      { label: "Two cup · Ø70 hole (80mm rim cup)", dims: [70, 115, 135], unit: "mm", cups: 2 },
-      { label: "Two cup · Ø80 hole (90mm rim cup)", dims: [80, 115, 135], unit: "mm", cups: 2 },
-      { label: "Two cup · tall grip (Ø82, 150 handle)", dims: [82, 115, 150], unit: "mm", cups: 2 },
+      { label: "Two cup · STANDARD (Ø75 × 115 × 135)", dims: [75, 115, 135], unit: "mm", cups: 2 },
       { label: "Single cup · Ø60 × 120 strip", dims: [60, 120, 130], unit: "mm", cups: 1 },
       { label: "Single cup · Ø82 × 130 strip", dims: [82, 130, 135], unit: "mm", cups: 1 },
     ],
     hasCups: true,
     depthLabel: "Wing / band depth",
     note:
-      "Take Away Cup Holder — one-piece sling that drops over the cups: handle panel | central band with cup hole(s) | handle panel; the ends fold up and the hand-holes align. Handle panels default to 135 mm with a 95 \u00d7 32 mm hand hole 36 mm from the top edge, so the grip clears the lid domes by a hand's width (our first print at ~80 mm was too low). Hole \u00d8 = cup RIM \u00d8 minus 10 mm so the cup hangs on its taper \u2014 the Kinster die cut \u00d875 for an 80 mm cup and the cup pushed straight through.",
+      "Take Away Cup Holder — one-piece sling that drops over the cups: handle panel | central band with cup hole(s) | handle panel; the ends fold up and the hand-holes align. Handle panels default to 135 mm with a 95 \u00d7 32 mm hand hole 36 mm from the top edge, so the grip clears the lid domes by a hand's width (our first print at ~80 mm was too low). AEROS STANDARD double holder = \u00d875 holes \u00d7 115 pitch \u00d7 135 mm handle (blank 230 \u00d7 377), set from the Kinster 250 ml job with the handle raised from 95 mm \u2014 the 95 mm version put knuckles on the lids. Hole \u00d8 runs ~5 mm under the cup rim; if cups push through, drop to rim \u00d8 minus 10 or use a stiffer board.",
   },
   envelope: {
     label: "Envelope",
