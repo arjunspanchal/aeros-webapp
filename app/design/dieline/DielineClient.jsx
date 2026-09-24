@@ -20,6 +20,7 @@ import { buildTuckboxDieline } from "@/lib/dieline/tuckbox";
 import { buildRscboxDieline } from "@/lib/dieline/rscbox";
 import { buildRopebagKeyline } from "@/lib/dieline/ropebag";
 import { buildNwBoxBagKeyline } from "@/lib/dieline/nwboxbag";
+import { buildPieboxDieline } from "@/lib/dieline/piebox";
 import { buildCartonDieline, CARTON_TYPES } from "@/lib/dieline/carton";
 import { buildSleeveDieline, buildCupSleeveDieline } from "@/lib/dieline/sleeves";
 import { buildPillowboxDieline } from "@/lib/dieline/pillowbox";
@@ -284,6 +285,22 @@ const STYLES = {
     depthLabel: "Base pleat",
     note:
       "Pinch/V-bottom pouch with a tamper-seal flap on the back panel (chamfered ends, folds over the mouth; adhesive strip under the flap). Handmade-friendly \u2014 seam | front | gusset | back | gusset wrap; full-width bottom fold (25 mm, per the HomeRun sample) pasted onto the back. Flap defaults to 25 mm; set 0 for a plain pouch.",
+  },
+  piebox: {
+    label: "Pie Box (hinged lid)",
+    build: buildPieboxDieline,
+    defaultUnits: "mm",
+    defaults: { L: "156", W: "145", H: "64" },
+    fieldLabels: ["Base length (L)", "Base depth (W)", "Wall height (H)"],
+    hints: { L: "internal base length", W: "internal base depth", H: "tray wall height" },
+    presets: [
+      { label: "156\u00d7145\u00d764 (die-exact)", dims: [156, 145, 64], unit: "mm" },
+      { label: "200\u00d7200\u00d765", dims: [200, 200, 65], unit: "mm" },
+    ],
+    defaultMaterial: { family: "white", idx: 3 },
+    depthLabel: "Wall height",
+    note:
+      "Hinged-lid pie box calibrated to the 66 Chuim production die (die-exact at 156\u00d7145\u00d764, blank 424\u00d7482). Tray with doubled side walls (3 mm board gaps) and corner ears, hinged at the front wall to a lid that runs 6 mm narrower so it drops inside the tray. Prototype the first cut at a new size.",
   },
   nwboxbag: {
     label: "Non-Woven BOPP Box Bag",
