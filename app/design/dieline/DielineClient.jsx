@@ -209,9 +209,10 @@ const STYLES = {
     defaultUnits: "mm",
     defaults: { L: "82", W: "115", H: "135" },
     fieldLabels: ["Cup hole Ø", "Pitch / strip W", "Handle H"],
-    hints: { L: "cup body Ø at support + 1mm", W: "2-cup: centre-to-centre · 1-cup: strip width", H: "handle panel height" },
+    hints: { L: "cup RIM Ø minus 10 mm", W: "2-cup: centre-to-centre · 1-cup: strip width", H: "handle panel height" },
     presets: [
-      { label: "Two cup · Ø82 (90mm cups)", dims: [82, 115, 135], unit: "mm", cups: 2 },
+      { label: "Two cup · Ø70 hole (80mm rim cup)", dims: [70, 115, 135], unit: "mm", cups: 2 },
+      { label: "Two cup · Ø80 hole (90mm rim cup)", dims: [80, 115, 135], unit: "mm", cups: 2 },
       { label: "Two cup · tall grip (Ø82, 150 handle)", dims: [82, 115, 150], unit: "mm", cups: 2 },
       { label: "Single cup · Ø60 × 120 strip", dims: [60, 120, 130], unit: "mm", cups: 1 },
       { label: "Single cup · Ø82 × 130 strip", dims: [82, 130, 135], unit: "mm", cups: 1 },
@@ -219,7 +220,7 @@ const STYLES = {
     hasCups: true,
     depthLabel: "Wing / band depth",
     note:
-      "Take Away Cup Holder — one-piece sling that drops over the cups: handle panel | central band with cup hole(s) | handle panel; the ends fold up and the hand-holes align. Handle panels default to 135 mm with a 95 \u00d7 32 mm hand hole 36 mm from the top edge, so the grip clears the lid domes by a hand's width (our first print at ~80 mm was too low). Verify hole \u00d8 against the cup taper before cutting.",
+      "Take Away Cup Holder — one-piece sling that drops over the cups: handle panel | central band with cup hole(s) | handle panel; the ends fold up and the hand-holes align. Handle panels default to 135 mm with a 95 \u00d7 32 mm hand hole 36 mm from the top edge, so the grip clears the lid domes by a hand's width (our first print at ~80 mm was too low). Hole \u00d8 = cup RIM \u00d8 minus 10 mm so the cup hangs on its taper \u2014 the Kinster die cut \u00d875 for an 80 mm cup and the cup pushed straight through.",
   },
   envelope: {
     label: "Envelope",
