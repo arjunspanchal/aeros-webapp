@@ -30,6 +30,7 @@ import { buildSnackboxDieline } from "@/lib/dieline/snackbox";
 import { buildTrayDieline } from "@/lib/dieline/tray";
 import { buildEnvelopeDieline } from "@/lib/dieline/envelope";
 import { buildCupcarrierDieline } from "@/lib/dieline/cupcarrier";
+import { buildCarrier4Dieline } from "@/lib/dieline/carrier4";
 import { toSvg, toPdf, toDxf, fmtBoth } from "@/lib/dieline/exports";
 import { MATERIALS, materialStamp, materialThicknessMm } from "@/lib/dieline/materials";
 import { SURFACES_3D } from "@/lib/dieline/materials3d";
@@ -203,6 +204,21 @@ const STYLES = {
     depthLabel: "Wall height",
     note:
       "Glue-free open tray: side-wall ears wrap the ends, end-wall fold-over lips lock into base slots (same lock as the mailer). For a telescope set, generate a cover at L+3 × W+3 with the cover height. Standard construction — prototype the first cut.",
+  },
+  carrier4: {
+    label: "4-Cup Carrier (carry box)",
+    build: buildCarrier4Dieline,
+    defaultUnits: "mm",
+    defaults: { L: "165.5", W: "165.5", H: "108.8" },
+    fieldLabels: ["Wall width", "\u2014 (square)", "Wall height"],
+    hints: { L: "one side of the square box", W: "follows the wall width", H: "wall height to the gable crease" },
+    presets: [
+      { label: "165.5 \u00d7 165.5 \u00d7 228 (die-exact)", dims: [165.5, 165.5, 108.8], unit: "mm" },
+    ],
+    defaultMaterial: { family: "kraft", idx: 2 },
+    depthLabel: "Wall height",
+    note:
+      "Square 4-cup carry box embedded VERBATIM from the PCKG / Testing Grounds production die (Jallo Creamery V2): four walls with gable peaks, hand holes on two opposite panels, auto-lock bottom, glue flap. Die-exact at 165.5 \u00d7 165.5 \u00d7 228 (blank 744 \u00d7 328.7); other sizes band-scale the walls and keep the die maker's gable, handle and bottom-lock proportions.",
   },
   cupcarrier: {
     label: "Take Away Cup Holder",
