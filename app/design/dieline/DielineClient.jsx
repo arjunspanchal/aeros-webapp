@@ -476,8 +476,8 @@ const STYLES = {
     presets: [
       { label: "Burma Burma Small \u2014 FIXED (232\u00d7140, gusset kept)", dims: [232, 140, 317.5], unit: "mm" },
       { label: "Burma Burma Small \u2014 OLD die (handle clash)", dims: [209.5, 140, 317.5], unit: "mm" },
-      { label: "180×110×270", dims: [180, 110, 270], unit: "mm" },
-      { label: "250×160×350", dims: [250, 160, 350], unit: "mm" },
+      { label: "202×110×270 (handle clears)", dims: [202, 110, 270], unit: "mm" },
+      { label: "252×160×350 (handle clears)", dims: [252, 160, 350], unit: "mm" },
     ],
     defaultMaterial: { family: "white", idx: 0 },
     depthLabel: "Bottom flap",
