@@ -481,7 +481,7 @@ const STYLES = {
     defaultMaterial: { family: "white", idx: 0 },
     depthLabel: "Bottom flap",
     note:
-      "Die-cut stadium-handle bag calibrated to the Burma Burma Small Bag production file — seam | face | gusset | face | gusset wrap, 63.7 mm fold-over hem with rounded corners over face 1, 80 × 25.5 mm handle slots in both faces (hem slot mirrored so the holes align), glued flat bottom with G/2 + 26 flaps. Handle stays fixed across sizes (it's ergonomic).",
+      "Die-cut stadium-handle bag calibrated to the Burma Burma Small Bag production file — seam | face | gusset | face | gusset wrap, 63.7 mm fold-over hem with rounded corners over face 1, 80 × 25.5 mm handle slots in both faces (hem slot mirrored so the holes align), glued flat bottom with G/2 + 26 flaps. Handle stays fixed across sizes (it's ergonomic). CONSTRAINT: the folded gusset halves sit behind the face, so only (face \u2212 gusset) stays single-ply \u2014 the 80 mm D-cut needs 92 mm of that, or the gusset fold lands inside the handle. The orange dashed lines show where the folds land; the engine flags the clash and gives the max gusset.",
   },
   burgerbox: {
     label: "Burger Box (clamshell)",
