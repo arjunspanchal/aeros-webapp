@@ -470,11 +470,11 @@ const STYLES = {
     label: "D-Cut Bag",
     build: buildDcutbagDieline,
     defaultUnits: "mm",
-    defaults: { L: "232", W: "140", H: "317.5" },
+    defaults: { L: "221", W: "128", H: "317.5" },
     fieldLabels: ["Width (W)", "Gusset (G)", "Height (H)"],
     hints: { L: "bag face width", W: "side gusset", H: "body height (below the mouth)" },
     presets: [
-      { label: "Burma Burma Small \u2014 FIXED (232\u00d7140)", dims: [232, 140, 317.5], unit: "mm" },
+      { label: "Burma Burma Small \u2014 FIXED (221\u00d7128, same blank)", dims: [221, 128, 317.5], unit: "mm" },
       { label: "Burma Burma Small \u2014 OLD die (handle clash)", dims: [209.5, 140, 317.5], unit: "mm" },
       { label: "180×110×270", dims: [180, 110, 270], unit: "mm" },
       { label: "250×160×350", dims: [250, 160, 350], unit: "mm" },
