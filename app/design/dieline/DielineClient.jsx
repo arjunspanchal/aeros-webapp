@@ -475,6 +475,7 @@ const STYLES = {
     hints: { L: "bag face width", W: "side gusset", H: "body height (below the mouth)" },
     presets: [
       { label: "Burma Burma Small \u2014 FIXED (232\u00d7140, gusset kept)", dims: [232, 140, 317.5], unit: "mm" },
+      { label: "Burma Burma v2 \u2014 11.25\u00d77.5\u00d713 in (handle clears)", dims: [285.8, 190.5, 330.2], unit: "mm" },
       { label: "Burma Burma Small \u2014 OLD die (handle clash)", dims: [209.5, 140, 317.5], unit: "mm" },
       { label: "202×110×270 (handle clears)", dims: [202, 110, 270], unit: "mm" },
       { label: "252×160×350 (handle clears)", dims: [252, 160, 350], unit: "mm" },
