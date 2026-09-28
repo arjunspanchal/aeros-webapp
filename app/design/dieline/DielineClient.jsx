@@ -92,7 +92,7 @@ const STYLES = {
       { label: "60×60×160", dims: [60, 60, 160], unit: "mm" },
       { label: "100×50×140", dims: [100, 50, 140], unit: "mm" },
       { label: "Single cup holder 91×50×93 STE (Ø70 petal hole)", dims: [91, 50, 93], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 1 },
-      { label: "Double cup holder 90×48×180 STE (2× Ø70 petal holes)", dims: [90, 48, 180], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 2, notch: true, thumbNotch: false },
+      { label: "Double cup holder 90×48×180 STE (2× Ø70 petal holes)", dims: [90, 48, 180], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 2, notch: true, thumbNotch: false, tuck: 10 },
     ],
     hasWindow: true,
     windowLabels: ["Cup hole ring Ø (mm, 0 = none)", "Cup hole cut Ø (mm)"],
@@ -522,6 +522,7 @@ export default function DielineClient() {
   const [holeCount, setHoleCount] = useState(1); // carton: cup holes across the front panel
   const [holeNotch, setHoleNotch] = useState(false); // carton: I-cut notch between holes
   const [thumbNotch, setThumbNotch] = useState(true); // carton: U thumb notch on the tuck folds
+  const [tuckD, setTuckD] = useState(""); // carton: tuck depth (blank = auto ~20 mm)
   const [winW, setWinW] = useState("");
   const [winH, setWinH] = useState("");
   const [cups, setCups] = useState(2);
@@ -549,8 +550,8 @@ export default function DielineClient() {
   const boardMm = materialThicknessMm(matFamily, matIdx, matCustomMm);
   const taperMm = style.hasTaper ? parseFloat(taper) || 7 : undefined;
   const result = useMemo(
-    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, thickness: boardMm, units }) : null),
-    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
+    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, thickness: boardMm, units }) : null),
+    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
   );
 
   const title = `${style.label} KLD ${L} x ${W} x ${H} ${units} - ${matLabel}`;
@@ -576,6 +577,7 @@ export default function DielineClient() {
     setHoleCount(1);
     setHoleNotch(false);
     setThumbNotch(true);
+    setTuckD("");
     if (s.defaultMaterial) {
       setMatFamily(s.defaultMaterial.family);
       setMatIdx(s.defaultMaterial.idx);
@@ -648,6 +650,7 @@ export default function DielineClient() {
     setHoleCount(p.holes ?? 1);
     setHoleNotch(!!p.notch);
     setThumbNotch(p.thumbNotch ?? true);
+    setTuckD(p.tuck != null ? conv(p.tuck) : "");
   }
 
   function onArtworkFile(e) {
@@ -906,6 +909,10 @@ export default function DielineClient() {
               <label className="block">
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Glue flap width ({units})</span>
                 <input type="number" min="0" step="0.5" placeholder="auto (12\u201320 mm)" value={glueW} onChange={(e) => setGlueW(e.target.value)} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Tuck depth ({units})</span>
+                <input type="number" min="0" step="0.5" placeholder="auto (~20 mm)" value={tuckD} onChange={(e) => setTuckD(e.target.value)} className={inputCls} />
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Cup holes (front panel)</span>
