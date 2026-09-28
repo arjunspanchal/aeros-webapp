@@ -264,7 +264,10 @@ const STYLES = {
       { label: '6×4×2" (die-exact)', dims: [6, 4, 2], unit: "in" },
       { label: '6×2×2" (die-exact)', dims: [6, 2, 2], unit: "in" },
       { label: "315×202×62 mm", dims: [315, 202, 62], unit: "mm" },
+      { label: "Single cup holder 93×91×50 (Ø70 petal hole)", dims: [93, 91, 50], unit: "mm", winW: 70, winH: 42 },
     ],
+    hasWindow: true,
+    windowLabels: ["Cup hole ring Ø (mm, 0 = none)", "Cup hole cut Ø (mm)"],
     defaultMaterial: { family: "corrugated", idx: 2 },
     depthLabel: "Wall height",
     note:
@@ -628,8 +631,8 @@ export default function DielineClient() {
     if (p.cups != null) setCups(p.cups);
     if (p.cellsX != null) setCellsX(String(p.cellsX));
     if (p.cellsY != null) setCellsY(String(p.cellsY));
-    if (p.winW != null) setWinW(String(p.winW));
-    if (p.winH != null) setWinH(String(p.winH));
+    if (p.winW != null) setWinW(conv(p.winW));
+    if (p.winH != null) setWinH(conv(p.winH));
   }
 
   function onArtworkFile(e) {
