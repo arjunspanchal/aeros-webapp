@@ -91,7 +91,10 @@ const STYLES = {
       { label: "80×40×120", dims: [80, 40, 120], unit: "mm" },
       { label: "60×60×160", dims: [60, 60, 160], unit: "mm" },
       { label: "100×50×140", dims: [100, 50, 140], unit: "mm" },
+      { label: "Single cup holder 91×50×93 STE (Ø70 petal hole)", dims: [91, 50, 93], unit: "mm", winW: 70, winH: 42, cartonType: "ste" },
     ],
+    hasWindow: true,
+    windowLabels: ["Cup hole ring Ø (mm, 0 = none)", "Cup hole cut Ø (mm)"],
     hasCartonType: true,
     usesThickness: true,
     depthLabel: "Top panel depth",
@@ -264,10 +267,7 @@ const STYLES = {
       { label: '6×4×2" (die-exact)', dims: [6, 4, 2], unit: "in" },
       { label: '6×2×2" (die-exact)', dims: [6, 2, 2], unit: "in" },
       { label: "315×202×62 mm", dims: [315, 202, 62], unit: "mm" },
-      { label: "Single cup holder 93×91×50 (Ø70 petal hole)", dims: [93, 91, 50], unit: "mm", winW: 70, winH: 42 },
     ],
-    hasWindow: true,
-    windowLabels: ["Cup hole ring Ø (mm, 0 = none)", "Cup hole cut Ø (mm)"],
     defaultMaterial: { family: "corrugated", idx: 2 },
     depthLabel: "Wall height",
     note:
@@ -633,6 +633,7 @@ export default function DielineClient() {
     if (p.cellsY != null) setCellsY(String(p.cellsY));
     if (p.winW != null) setWinW(conv(p.winW));
     if (p.winH != null) setWinH(conv(p.winH));
+    if (p.cartonType) setCartonType(p.cartonType);
   }
 
   function onArtworkFile(e) {
