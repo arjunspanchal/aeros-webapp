@@ -92,7 +92,7 @@ const STYLES = {
       { label: "60×60×160", dims: [60, 60, 160], unit: "mm" },
       { label: "100×50×140", dims: [100, 50, 140], unit: "mm" },
       { label: "Single cup holder 91×50×93 STE (Ø70 petal hole)", dims: [91, 50, 93], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 1 },
-      { label: "Double cup holder 91×50×178 STE (2× Ø70 petal holes)", dims: [91, 50, 178], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 2, notch: true },
+      { label: "Double cup holder 90×48×180 STE (2× Ø70 petal holes)", dims: [90, 48, 180], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 2, notch: true },
     ],
     hasWindow: true,
     windowLabels: ["Cup hole ring Ø (mm, 0 = none)", "Cup hole cut Ø (mm)"],
