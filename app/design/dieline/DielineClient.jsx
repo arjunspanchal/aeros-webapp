@@ -91,7 +91,7 @@ const STYLES = {
       { label: "80×40×120", dims: [80, 40, 120], unit: "mm" },
       { label: "60×60×160", dims: [60, 60, 160], unit: "mm" },
       { label: "100×50×140", dims: [100, 50, 140], unit: "mm" },
-      { label: "Single cup holder 91×50×93 STE (Ø70 petal hole)", dims: [91, 50, 93], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 1 },
+      { label: "Single cup holder 90×45×80 STE (Ø70 petal hole)", dims: [90, 45, 80], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 1, thumbNotch: false, tuck: 10 },
       { label: "Double cup holder 90×48×180 STE (2× Ø70 petal holes)", dims: [90, 48, 180], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 2, notch: true, thumbNotch: false, tuck: 10 },
     ],
     hasWindow: true,
@@ -304,7 +304,7 @@ const STYLES = {
     defaultMaterial: { family: "kraft", idx: 0 },
     depthLabel: "Base pleat",
     note:
-      "Pinch/V-bottom pouch with a tamper-seal flap on the back panel (chamfered ends, folds over the mouth; adhesive strip under the flap). Handmade-friendly \u2014 seam | front | gusset | back | gusset wrap; full-width bottom fold (25 mm, per the HomeRun sample) pasted onto the back. Flap defaults to 25 mm; set 0 for a plain pouch.",
+      "Pinch/V-bottom pouch with a tamper-seal flap on the back panel (chamfered ends, folds over the mouth; adhesive strip under the flap). Handmade-friendly \u2014 seam | front | gusset | back | gusset wrap; full-width bottom fold (25 mm, per the HomeRun sample) pasted onto the back. Flap defaults to 25 mm; set 0 for a plain pouch. The flap's two outer corners are filleted R4 (a sharp point dog-ears in the stack and starts a tear at the seal) \u2014 pass flapRadius to change it, 0 for square.",
   },
   piebox: {
     label: "Pie Box (hinged lid)",
