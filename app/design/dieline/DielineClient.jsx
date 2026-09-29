@@ -298,8 +298,10 @@ const STYLES = {
     hints: { L: "pouch face width", W: "base / gusset", H: "pouch height (mouth to base fold)" },
     presets: [
       { label: "200\u00d780\u00d7130 (brown kraft ref)", dims: [200, 80, 130], unit: "mm" },
+      { label: "HomeRun 7\u00d74\u00d710 in \u00b7 handmade v3 (seam 25.4, bottom 15 + back tab 25.4)", dims: [177.8, 101.6, 254], unit: "mm", winW: 25, winH: 15, seam: 25.4, bottomBack: 25.4 },
     ],
     hasWindow: true,
+    hasBagTabs: true,
     windowLabels: ["Tamper flap (default 25 mm)", "Bottom paste fold (default 25 mm)"],
     defaultMaterial: { family: "kraft", idx: 0 },
     depthLabel: "Base pleat",
@@ -523,6 +525,8 @@ export default function DielineClient() {
   const [holeNotch, setHoleNotch] = useState(false); // carton: I-cut notch between holes
   const [thumbNotch, setThumbNotch] = useState(true); // carton: U thumb notch on the tuck folds
   const [tuckD, setTuckD] = useState(""); // carton: tuck depth (blank = auto ~20 mm)
+  const [bagSeam, setBagSeam] = useState(""); // pouch: pasting seam override (blank = machine rule)
+  const [bagBackTab, setBagBackTab] = useState(""); // pouch: deeper bottom tab on the back panel
   const [winW, setWinW] = useState("");
   const [winH, setWinH] = useState("");
   const [cups, setCups] = useState(2);
@@ -550,8 +554,8 @@ export default function DielineClient() {
   const boardMm = materialThicknessMm(matFamily, matIdx, matCustomMm);
   const taperMm = style.hasTaper ? parseFloat(taper) || 7 : undefined;
   const result = useMemo(
-    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, thickness: boardMm, units }) : null),
-    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
+    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, thickness: boardMm, units }) : null),
+    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
   );
 
   const title = `${style.label} KLD ${L} x ${W} x ${H} ${units} - ${matLabel}`;
@@ -578,6 +582,8 @@ export default function DielineClient() {
     setHoleNotch(false);
     setThumbNotch(true);
     setTuckD("");
+    setBagSeam("");
+    setBagBackTab("");
     if (s.defaultMaterial) {
       setMatFamily(s.defaultMaterial.family);
       setMatIdx(s.defaultMaterial.idx);
@@ -651,6 +657,8 @@ export default function DielineClient() {
     setHoleNotch(!!p.notch);
     setThumbNotch(p.thumbNotch ?? true);
     setTuckD(p.tuck != null ? conv(p.tuck) : "");
+    setBagSeam(p.seam != null ? conv(p.seam) : "");
+    setBagBackTab(p.bottomBack != null ? conv(p.bottomBack) : "");
   }
 
   function onArtworkFile(e) {
@@ -884,6 +892,18 @@ export default function DielineClient() {
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Rows (along W)</span>
                 <input type="number" min="1" max="12" step="1" value={cellsY} onChange={(e) => setCellsY(e.target.value)} className={inputCls} />
                 <span className="mt-0.5 block text-[10px] leading-tight text-gray-400">cells across the width</span>
+              </label>
+            </div>
+          )}
+          {style.hasBagTabs && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Pasting seam ({units})</span>
+                <input type="number" min="0" step="0.1" placeholder="auto (15/20/25 by width)" value={bagSeam} onChange={(e) => setBagSeam(e.target.value)} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Back-panel bottom tab ({units})</span>
+                <input type="number" min="0" step="0.1" placeholder="= bottom fold" value={bagBackTab} onChange={(e) => setBagBackTab(e.target.value)} className={inputCls} />
               </label>
             </div>
           )}
