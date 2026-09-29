@@ -45,6 +45,12 @@ export default function CalculatorPickerPage() {
       accent: "from-fuchsia-600 to-purple-700",
     },
     {
+      href: "/calculator/gsm",
+      title: "GSM Calculator",
+      desc: "Weigh a 10 × 10 cm square, 5 × 5 cm square or punched disc of board and get its real GSM, with the nearest standard grade.",
+      accent: "from-stone-600 to-stone-800",
+    },
+    {
       href: "/design/dieline",
       title: "Cake Box Dieline Generator",
       desc: "Parametric KLD for lock-corner cake / snack boxes — any size, instant preview, PDF / SVG / DXF for the die maker.",
