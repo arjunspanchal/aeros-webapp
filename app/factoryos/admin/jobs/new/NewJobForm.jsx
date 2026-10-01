@@ -455,6 +455,17 @@ export default function NewJobForm({
               </option>
             ))}
           </select>
+          {(() => {
+            const pp = products.find((x) => x.id === form.productId);
+            if (!pp) return null;
+            return (
+              <p className="mt-1.5 text-xs text-gray-700 dark:text-gray-300">
+                <span className="text-gray-500 dark:text-gray-400">Dimensions: </span>
+                <span className="font-medium">{pp.sizeVolume || "not recorded in catalogue"}</span>
+                {pp.sku && <span className="ml-2 font-mono text-gray-500 dark:text-gray-400">{pp.sku}</span>}
+              </p>
+            );
+          })()}
           {products.length === 0 && (
             <div className="mt-1 text-xs text-red-600 dark:text-red-400 space-y-1">
               <p>No master products loaded.</p>

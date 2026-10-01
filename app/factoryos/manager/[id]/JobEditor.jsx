@@ -61,6 +61,13 @@ export default function JobEditor({
   const [trackingSaved, setTrackingSaved] = useState(false);
   // Master-product mapping (admin + factory manager can edit; others see read-only).
   const canEditMasterProduct = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
+  // Live dimensions from the catalogue for the mapped SKU; older jobs that
+  // were never mapped fall back to whatever size was typed on the job.
+  const catalogDims = useMemo(() => {
+    if (!job.masterSku) return "";
+    const pp = products.find((x) => x.sku === job.masterSku);
+    return pp?.sizeVolume || "";
+  }, [products, job.masterSku]);
   // Mirrors requireManager on the job-order page + PUT route.
   const canManageJobOrder = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
   // Hard-delete (cascades the job + its timeline). FE included alongside
@@ -337,7 +344,7 @@ export default function JobEditor({
         <dl className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 text-sm">
           <Col label="Quantity" value={job.qty != null ? job.qty.toLocaleString("en-IN") : "—"} />
           <Col label="Category" value={job.category || "—"} />
-          <Col label="Item size" value={job.itemSize || "—"} />
+          <Col label="Dimensions" value={catalogDims || job.itemSize || "—"} />
           <Col label="PO #" value={job.poNumber || "—"} />
           <Col label="Master SKU" value={job.masterSku || "— (unmapped)"} />
           <Col label="Order date" value={formatDate(job.orderDate)} />
