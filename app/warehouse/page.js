@@ -42,6 +42,16 @@ const STAFF_TILES = [
   },
 ];
 
+// Handover register from FactoryOS: jobs the factory has closed, with the
+// finished qty; warehouse marks them dispatched.
+const FACTORY_FG_TILE = {
+  key: "factory-fg",
+  href: "/warehouse/factory-fg",
+  title: "From Factory",
+  description: "Finished goods the factory has closed and handed over — awaiting dispatch, with quantities and cartons.",
+  accent: "from-gray-700 to-gray-900",
+};
+
 const SAMPLE_DISPATCH_TILE = {
   key: "sample-dispatch",
   href: "/warehouse/sample-dispatch",
@@ -65,7 +75,7 @@ export default function WarehouseHubPage() {
   const showSampleKits = canManageSampleKits(session);
   const tiles = [
     PUBLIC_TILE,
-    ...(showStaff ? STAFF_TILES : []),
+    ...(showStaff ? [FACTORY_FG_TILE, ...STAFF_TILES] : []),
     ...(showSampleDispatch ? [SAMPLE_DISPATCH_TILE] : []),
     ...(showSampleKits ? [SAMPLE_KITS_TILE] : []),
   ];

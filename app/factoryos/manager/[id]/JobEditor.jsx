@@ -9,6 +9,7 @@ import { rmStockLabel, rmStockFree } from "@/lib/factoryos/rmStock";
 import PushToWarehouseCard from "./PushToWarehouseCard";
 import JobThread from "@/app/factoryos/_components/JobThread";
 import InwardPanel from "./InwardPanel";
+import CloseJobCard from "./CloseJobCard";
 import { V1 } from "@/lib/factoryos/v1";
 
 export default function JobEditor({
@@ -695,6 +696,10 @@ export default function JobEditor({
           vendor={job.printingVendor}
           canEdit={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER || role === ROLES.FACTORY_EXECUTIVE}
         />
+      )}
+
+      {(role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER) && job.sourcing !== "traded" && (
+        <CloseJobCard job={job} onChanged={() => router.refresh()} />
       )}
 
       {V1.warehousePush && (

@@ -29,6 +29,12 @@ export function warehouseSections(session) {
   if (canClearance) clearanceItems.push({ href: "/warehouse/clearance/manage", label: "Manage stock" });
   sections.push({ label: "Clearance", items: clearanceItems });
 
+  // Handover from FactoryOS (closed jobs → warehouse). Same audience as the
+  // clearance backend: admin / FM / FE.
+  if (canClearance) {
+    sections.push({ label: "From Factory", items: [{ href: "/warehouse/factory-fg", label: "Finished goods", exact: true }] });
+  }
+
   if (canInventory) {
     sections.push({
       label: "Inventory",
