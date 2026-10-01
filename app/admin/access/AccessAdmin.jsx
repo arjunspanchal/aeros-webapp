@@ -1,4 +1,5 @@
 "use client";
+import { LINES } from "@/lib/factoryos/lines";
 // One-row-per-user editor for the unified access page. Click a row to
 // expand into an inline edit form — every access knob (FactoryOS role,
 // Calculator role, client links, pricing, active flag) is in one place.
@@ -69,6 +70,7 @@ function pickFormFromUser(u) {
     phone: u.phone || "",
     company: u.company || "",
     factoryosRole: u.factoryosRole || "",
+    factoryosLines: [...(u.factoryosLines || [])],
     calculatorRole: u.calculatorRole || "",
     rateCardsRole: u.rateCardsRole || "",
     hrRole: u.hrRole || "",
@@ -242,6 +244,28 @@ function UserRow({ user, clients, vendors, onSaved }) {
                       <select className={inputCls} value={form.factoryosRole} onChange={(e) => set("factoryosRole", e.target.value)}>
                         {FACTORYOS_ROLES.filter((r) => r.value).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                       </select>
+                    )}
+                    {["factory_manager", "factory_executive", "admin"].includes(form.factoryosRole) && (
+                      <div className="mt-2">
+                        <label className={labelCls}>Production lines</label>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1">
+                          {LINES.map((l) => (
+                            <label key={l.key} className="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300">
+                              <input
+                                type="checkbox"
+                                checked={form.factoryosLines.includes(l.key)}
+                                onChange={(e) => set("factoryosLines", e.target.checked
+                                  ? [...form.factoryosLines, l.key]
+                                  : form.factoryosLines.filter((k) => k !== l.key))}
+                              />
+                              {l.label}
+                            </label>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
+                          Jobs opens on these lines by default for this user. None ticked = all lines.
+                        </p>
+                      </div>
                     )}
                     {form.factoryosRole === "vendor" && (
                       <div className="mt-2">

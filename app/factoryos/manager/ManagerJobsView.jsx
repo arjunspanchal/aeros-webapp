@@ -1,4 +1,5 @@
 "use client";
+import { LINES, LINE_KEYS, LINE_LABEL, lineForCategory, describeLines } from "@/lib/factoryos/lines";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -13,7 +14,22 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
+function LinePill({ active, onClick, label, count }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-full text-sm border whitespace-nowrap transition-colors ${
+        active
+          ? "bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900 dark:border-white"
+          : "bg-white text-gray-700 border-gray-200 hover:border-gray-400 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700"}`}
+    >
+      {label} <span className={active ? "opacity-75" : "text-gray-400"}>· {count}</span>
+    </button>
+  );
+}
+
+export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLines = null }) {
   const searchParams = useSearchParams();
   const initialStage  = (() => {
     const s = searchParams.get("stage");
@@ -22,6 +38,14 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
   const initialUrgent = searchParams.get("urgent") === "1";
   const initialDue    = searchParams.get("due") === "overdue" ? "overdue" : "all";
 
+  // "mine" = the user's own production lines (default when they have any),
+  // "all", or a single line key. URL ?line= overrides so links can deep-link.
+  const initialLine = (() => {
+    const l = searchParams.get("line");
+    if (l === "all" || l === "mine" || LINE_KEYS.has(l)) return l;
+    return myLines?.length ? "mine" : "all";
+  })();
+  const [line, setLine] = useState(initialLine);
   const [q, setQ] = useState("");
   const [stage, setStage] = useState(initialStage);
   const [clientId, setClientId] = useState("all");
@@ -41,6 +65,10 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     return jobs.filter((j) => {
+      if (line !== "all") {
+        const jl = lineForCategory(j.category);
+        if (line === "mine" ? !(myLines || []).includes(jl) : jl !== line) return false;
+      }
       if (urgentOnly && !j.urgent) return false;
       if (stage !== "all" && j.stage !== stage) return false;
       if (clientId !== "all" && !j.clientIds.includes(clientId)) return false;
@@ -56,9 +84,23 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
       const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.poNumber} ${clientName} ${j.internalStatus}`.toLowerCase();
       return hay.includes(term);
     });
-  }, [jobs, q, stage, clientId, urgentOnly, dueFilter, today, clientMap]);
+  }, [jobs, q, stage, clientId, urgentOnly, dueFilter, today, clientMap, line, myLines]);
 
   const urgentCount = useMemo(() => jobs.filter((j) => j.urgent).length, [jobs]);
+
+  // Open-job count per line for the pills (closed jobs aren't work).
+  const lineCount = useMemo(() => {
+    const c = { mine: 0, all: 0 };
+    for (const l of LINES) c[l.key] = 0;
+    for (const j of jobs) {
+      if (j.stage === "Dispatched" || j.stage === "Delivered") continue;
+      c.all++;
+      const jl = lineForCategory(j.category);
+      if (jl) c[jl]++;
+      if (jl && (myLines || []).includes(jl)) c.mine++;
+    }
+    return c;
+  }, [jobs, myLines]);
 
   const stageCount = useMemo(() => {
     const c = Object.fromEntries(STAGES.map((s) => [s, 0]));
@@ -72,7 +114,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Jobs</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-            {role === "account_manager" ? "Jobs for your customers" : "All jobs"} · {jobs.length} total
+            {role === "account_manager" ? "Jobs for your customers" : line === "mine" ? describeLines(myLines) : line === "all" ? "All jobs" : LINE_LABEL[line]} · {filtered.length} shown · {jobs.length} total
           </p>
         </div>
         {/* Mirrors the create-job allow-list: admin / FM / AM. Middleware
@@ -86,6 +128,16 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
             + New job
           </Link>
         )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {myLines?.length > 0 && (
+          <LinePill active={line === "mine"} onClick={() => setLine("mine")} label={`My lines · ${describeLines(myLines)}`} count={lineCount.mine} />
+        )}
+        <LinePill active={line === "all"} onClick={() => setLine("all")} label="All lines" count={lineCount.all} />
+        {LINES.map((l) => (
+          <LinePill key={l.key} active={line === l.key} onClick={() => setLine(l.key)} label={l.label} count={lineCount[l.key]} />
+        ))}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-5">
