@@ -84,6 +84,8 @@ export default function NewJobForm({
   // Admin may raise a job that over-claims a stock line (with a note); factory
   // managers are blocked so stock isn't promised twice.
   canOverrideRm = false,
+  // Repeat order: fields copied from a previous job (never J#, qty, dates).
+  prefill = null,
 }) {
   const [overrideShortRm, setOverrideShortRm] = useState(false);
   const router = useRouter();
@@ -135,6 +137,7 @@ export default function NewJobForm({
     printingDueDate: "",
     productionDueDate: "",
     notes: "",
+    ...(prefill?.fields || {}),
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -145,7 +148,7 @@ export default function NewJobForm({
   // In-house jobs only ever produce the four factory lines, so the picker
   // opens on those ("line:any") instead of the 19-category catalogue.
   // Values: "line:any" | "line:<key>" | "" (whole catalogue) | a category name.
-  const [productCategory, setProductCategory] = useState("line:any");
+  const [productCategory, setProductCategory] = useState(prefill?.line ? `line:${prefill.line}` : "line:any");
   const [productSize, setProductSize] = useState("");
   const [masterPaperQuery, setMasterPaperQuery] = useState("");
 
@@ -340,6 +343,7 @@ export default function NewJobForm({
       // Snapshot the master SKU + name at creation time. Master catalogue can change later;
       // the job-level record keeps the original mapping so FG ledger stays consistent.
       overrideShortRm: canOverrideRm && overrideShortRm,
+      copySpecFromJobId: prefill?.fromJobId || undefined,
       masterSku: pickedProduct.sku || "",
       masterProductName: pickedProduct.productName || "",
       orderRate: form.orderRate ? Number(form.orderRate) : undefined,
@@ -375,6 +379,11 @@ export default function NewJobForm({
 
   return (
     <form onSubmit={submit} className="mt-6 bg-white border border-gray-200 rounded-xl p-5 space-y-5 dark:bg-gray-900 dark:border-gray-800">
+      {prefill && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-900/20 dark:text-blue-200">
+          Repeating <span className="font-mono">J# {prefill.fromJNumber}</span> — product, paper, printer and job-order spec are copied. Enter the new quantity and dates, check RM, then create.
+        </div>
+      )}
       {/* Item type toggle removed 01-Oct-2026: FactoryOS records in-house jobs only. */}
 
       <Section title="Basics">

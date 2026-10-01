@@ -1,6 +1,7 @@
 import { getSession, requireInternal, requireManager, requireRole } from "@/lib/auth/session";
 import { routeAt } from "@/lib/factoryos/routes";
 import { listRmStockOptions, rmStockFree } from "@/lib/factoryos/rmStock";
+import { copyJobOrder } from "@/lib/factoryos/jobOrder";
 import { listJobsForSession, createJob, setJobDelivery } from "@/lib/factoryos/repo";
 import { STAGES } from "@/lib/factoryos/constants";
 
@@ -93,7 +94,7 @@ export async function POST(req) {
       }
       body.category = c || undefined;
     }
-    const { orderRate, ...rest } = body;
+    const { orderRate, copySpecFromJobId, overrideShortRm, ...rest } = body;
     const job = await createJob({
       stage: STAGES[0],
       ...rest,
@@ -108,6 +109,10 @@ export async function POST(req) {
       await setJobDelivery(job.id, { orderRate }).catch((e) =>
         console.error("set order_rate on new job failed:", e),
       );
+    }
+    // Repeat order: carry the previous job's print spec over as a fresh draft.
+    if (copySpecFromJobId) {
+      await copyJobOrder(String(copySpecFromJobId), job.id).catch((e) => console.error("copyJobOrder failed:", e));
     }
     return Response.json({ job });
   } catch (e) {

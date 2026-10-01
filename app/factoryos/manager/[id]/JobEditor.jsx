@@ -354,6 +354,15 @@ export default function JobEditor({
           </div>
           <div className="flex items-start gap-3 shrink-0">
             <StageBadge stage={job.stage} />
+            {(role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER) && job.sourcing !== "traded" && (
+              <a
+                href={`/factoryos/admin/jobs/new?from=${job.id}`}
+                className="text-xs font-medium text-blue-700 hover:underline dark:text-blue-400"
+                title="New job with the same product, paper, printer and job-order spec"
+              >
+                Repeat this job
+              </a>
+            )}
             {canDeleteJob && (
               <button
                 type="button"

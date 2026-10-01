@@ -29,6 +29,7 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
       { href: "/factoryos/inbox",       label: "Inbox",         exact: false },
       { href: "/factoryos/delivery",    label: "Delivery Plan", exact: false },
       { href: "/factoryos/manager/pos", label: "Customer POs",  exact: false },
+      { href: "/factoryos/how-to",      label: "How to use",    exact: true },
     ],
   });
 

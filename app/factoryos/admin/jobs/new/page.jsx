@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { listClients, listUsers, listVendors, getNextJobNumber } from "@/lib/factoryos/repo";
+import { listClients, listUsers, listVendors, getNextJobNumber, getJob } from "@/lib/factoryos/repo";
+import { lineForCategory } from "@/lib/factoryos/lines";
 import { listMasterPapers } from "@/lib/paper-rm";
 import { listBrandsByClient } from "@/lib/factoryos/brands";
 import { listRmStockOptions } from "@/lib/factoryos/rmStock";
@@ -11,7 +12,7 @@ import NewJobForm from "./NewJobForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewJobPage() {
+export default async function NewJobPage({ searchParams }) {
   const session = getSession();
   const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
   if (!session || !role) redirect("/login");
@@ -45,6 +46,42 @@ export default async function NewJobPage() {
   const catalogError = catalogResult.error;
   const accountManagers = users.filter((u) => u.role === ROLES.ACCOUNT_MANAGER && u.active);
 
+  // Repeat order: copy the identifying + production fields of a previous job.
+  let prefill = null;
+  if (searchParams?.from) {
+    const src = await getJob(String(searchParams.from)).catch(() => null);
+    if (src) {
+      const product = products.find((p) => p.sku && p.sku === src.masterSku) || null;
+      prefill = {
+        fromJobId: src.id,
+        fromJNumber: src.jNumber,
+        line: lineForCategory(src.category, src.item) || "",
+        fields: {
+          clientId: src.clientIds?.[0] || "",
+          brand: src.brand || "",
+          customerManagerId: src.customerManagerId || "",
+          productId: product?.id || "",
+          category: src.category || "",
+          item: src.item || "",
+          itemSize: product?.sizeVolume || src.itemSize || "",
+          city: src.city || "",
+          orderRate: src.orderRate != null ? String(src.orderRate) : "",
+          rmType: src.rmType || "",
+          rmSupplier: src.rmSupplier || "",
+          rmMill: src.rmMill || "",
+          paperType: src.paperType || "",
+          gsm: src.gsm != null ? String(src.gsm) : "",
+          rmSizeMm: src.rmSizeMm != null ? String(src.rmSizeMm) : "",
+          printingType: src.printingType || "",
+          printingVendor: src.printingVendor || "",
+          conversionAt: src.conversionAt || "aeros",
+          packingAt: src.packingAt || "aeros",
+          notes: src.notes || "",
+        },
+      };
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -55,6 +92,7 @@ export default async function NewJobPage() {
           clients={clients}
           accountManagers={accountManagers}
           canOverrideRm={role === ROLES.ADMIN}
+          prefill={prefill}
           products={products}
           catalogError={catalogError}
           masterPapers={masterPapers}

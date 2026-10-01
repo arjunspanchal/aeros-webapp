@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 import {
   PROCESSES, PRINT_SIDES, PROOF_TYPES, VARNISH_TYPES, VARNISH_COVERAGE,
-  LAMINATIONS, PLATE_STATUSES, PLATE_OWNERS, SUBSTRATE_FORMS, GRAINS,
+  LAMINATIONS, PLATE_OWNERS, SUBSTRATE_FORMS, GRAINS,
   PUNCHING, QTY_UOMS, WIND_DIRECTIONS, COLOUR_TYPES, COLOUR_SIDES, qtyBand,
   processFromPrintingType,
 } from "@/lib/factoryos/jobOrderConstants";
@@ -442,7 +442,19 @@ export default function JobOrderEditor({ job, clientName, vendor, initialSpec, i
 
       {/* Plates */}
       <Section title={isFlexo ? "Plates / cylinders" : "Plates"}>
-        <F label="Plates"><Select value={form.platesStatus} onChange={set("platesStatus")} options={PLATE_STATUSES} /></F>
+        <F label="Plates available with vendor?" hint={form.platesStatus === "vendor_held" ? "Printer uses the plates they hold — no new plates." : form.platesStatus === "new" ? "New plates to be made." : undefined}>
+          <div className="flex gap-2">
+            {[["vendor_held", "Yes"], ["new", "No — make new"]].map(([v, l]) => (
+              <button key={v} type="button" onClick={() => set("platesStatus")(v)}
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                  form.platesStatus === v || (v === "vendor_held" && form.platesStatus === "existing")
+                    ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
+                    : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-300"}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </F>
         <F label="Plate ref / set no."><input className={inputCls} {...bind("platesRef")} /></F>
         <F label="Plates owned by"><Select value={form.plateOwner} onChange={set("plateOwner")} options={PLATE_OWNERS} /></F>
         <F label="Plate charge (₹)" hint="Leave blank if not charged on this job">
