@@ -67,9 +67,15 @@ function Jobs({ vendorName, pending: initialPending, recent }) {
   const [busyId, setBusyId] = useState("");
   const [err, setErr] = useState("");
 
-  async function mark(job, status) {
+  const UNDO_MS = 30 * 60 * 1000;
+  const canUndo = (j) => j.vendorStatus && j.vendorStatusUpdatedAt && Date.now() - new Date(j.vendorStatusUpdatedAt).getTime() <= UNDO_MS;
+
+  async function mark(job, status, { undo = false } = {}) {
+    const ask = status === "dispatched" ? `Mark J# ${job.jNumber} as SENT TO AEROS? Only tap this when the stock has actually left.`
+      : status === "printing_completed" ? `Mark J# ${job.jNumber} as PRINTED?` : null;
+    if (!undo && ask && !window.confirm(ask)) return;
     setBusyId(job.id); setErr("");
-    const body = { status };
+    const body = { status, undo };
     if (status === "dispatched") body.dispatchDate = today();
     const res = await fetch(`/api/factoryos/jobs/${job.id}/vendor-status`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -78,7 +84,8 @@ function Jobs({ vendorName, pending: initialPending, recent }) {
     if (!res.ok) { setErr((await res.json().catch(() => ({}))).error || "Could not update"); return; }
     const data = await res.json();
     const vs = data.job?.vendorStatus || status;
-    setPending((list) => vs === "dispatched" ? list.filter((j) => j.id !== job.id) : list.map((j) => (j.id === job.id ? { ...j, vendorStatus: vs } : j)));
+    const at = data.job?.vendorStatusUpdatedAt || new Date().toISOString();
+    setPending((list) => list.map((j) => (j.id === job.id ? { ...j, vendorStatus: vs, vendorStatusUpdatedAt: at } : j)));
   }
 
   async function logout() {
@@ -90,6 +97,8 @@ function Jobs({ vendorName, pending: initialPending, recent }) {
   const Row = ({ j, done }) => {
     const late = !done && j.printingDueDate && j.printingDueDate.slice(0, 10) < t && !["printing_completed", "dispatched"].includes(j.vendorStatus || "");
     const printed = ["printing_completed", "dispatched"].includes(j.vendorStatus || "");
+    const sent = j.vendorStatus === "dispatched";
+    const undoTo = j.vendorStatus === "dispatched" ? "printing_completed" : j.vendorStatus === "printing_completed" ? "accepted" : null;
     return (
       <tr className={late ? "bg-red-50" : ""}>
         <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{j.jNumber}</td>
@@ -106,11 +115,16 @@ function Jobs({ vendorName, pending: initialPending, recent }) {
         </td>
         <td className="px-3 py-2 whitespace-nowrap text-right">
           {done ? (
-            <span className="text-xs text-gray-500">{j.vendorStatus === "dispatched" ? "Sent to Aeros" : j.stage}</span>
+            <span className="text-xs text-gray-500">{sent ? "Sent to Aeros" : j.stage}</span>
+          ) : sent ? (
+            <span className="text-xs text-gray-600">✓ Sent to Aeros</span>
           ) : printed ? (
             <button disabled={busyId === j.id} onClick={() => mark(j, "dispatched")} className="rounded-lg bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50">Sent to Aeros</button>
           ) : (
             <button disabled={busyId === j.id} onClick={() => mark(j, "printing_completed")} className="rounded-lg border border-black px-3 py-1.5 text-sm disabled:opacity-50">Printed</button>
+          )}
+          {!done && undoTo && canUndo(j) && (
+            <button disabled={busyId === j.id} onClick={() => mark(j, undoTo, { undo: true })} className="ml-2 text-xs text-gray-500 underline" title="You can undo your last tap for 30 minutes">Undo</button>
           )}
         </td>
       </tr>
@@ -132,7 +146,7 @@ function Jobs({ vendorName, pending: initialPending, recent }) {
         <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-semibold">With you now · {pending.length}</h2>
-            <span className="text-xs text-gray-500">Tap <b>Printed</b> when done, then <b>Sent to Aeros</b> when it leaves.</span>
+            <span className="text-xs text-gray-500">Tap <b>Printed</b> when done, then <b>Sent to Aeros</b> when it leaves. Mis-tap? <b>Undo</b> works for 30 minutes.</span>
           </div>
           {pending.length === 0 ? (
             <p className="px-4 py-8 text-center text-gray-500">Nothing pending. 🎉</p>

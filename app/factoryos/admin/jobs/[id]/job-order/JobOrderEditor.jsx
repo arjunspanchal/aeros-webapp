@@ -4,7 +4,7 @@ import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 import {
   PROCESSES, PRINT_SIDES, PROOF_TYPES, VARNISH_TYPES, VARNISH_COVERAGE,
   LAMINATIONS, PLATE_OWNERS, SUBSTRATE_FORMS, GRAINS,
-  PUNCHING, QTY_UOMS, WIND_DIRECTIONS, COLOUR_TYPES, COLOUR_SIDES, qtyBand,
+  PUNCHING, QTY_UOMS, WIND_DIRECTIONS, COLOUR_TYPES, COLOUR_SIDES, PAPER_SUPPLIED_BY, qtyBand,
   processFromPrintingType,
 } from "@/lib/factoryos/jobOrderConstants";
 import { V1 } from "@/lib/factoryos/v1";
@@ -276,6 +276,17 @@ export default function JobOrderEditor({ job, clientName, vendor, initialSpec, i
             ))}
           </div>
         </F>
+        <F label="New job or repeat?">
+          <div className="flex gap-2">
+            {[[false, "New job"], [true, "Repeat job"]].map(([v, l]) => (
+              <button key={String(v)} type="button" onClick={() => set("repeatOrder")(v)}
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                  form.repeatOrder === v
+                    ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
+                    : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-300"}`}>{l}</button>
+            ))}
+          </div>
+        </F>
         <F label="Print side"><Select value={form.printSide} onChange={set("printSide")} options={PRINT_SIDES} /></F>
         <F label="Total colours" hint={colourCountMismatch ? `Colour list has ${namedColours}` : undefined}>
           <input type="number" min="0" className={inputCls} {...bind("totalColours")} />
@@ -311,7 +322,18 @@ export default function JobOrderEditor({ job, clientName, vendor, initialSpec, i
         <F label="GSM"><input type="number" className={inputCls} {...bind("substrateGsm")} /></F>
         <F label="BF"><input type="number" className={inputCls} {...bind("substrateBf")} /></F>
         <F label="Form"><Select value={form.substrateForm} onChange={set("substrateForm")} options={SUBSTRATE_FORMS} /></F>
-        <F label="Substrate notes" span={3}>
+        <F label="Who supplies the paper?">
+          <div className="flex gap-2">
+            {PAPER_SUPPLIED_BY.map((o) => (
+              <button key={o.value} type="button" onClick={() => set("paperSuppliedBy")(o.value)}
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${
+                  form.paperSuppliedBy === o.value
+                    ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
+                    : "border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-300"}`}>{o.value === "aeros" ? "Aeros" : "Printer"}</button>
+            ))}
+          </div>
+        </F>
+        <F label="Substrate notes" span={2}>
           <input className={inputCls} placeholder="e.g. print on uncoated side; PE side is food contact" {...bind("substrateNotes")} />
         </F>
       </Section>
@@ -484,11 +506,14 @@ export default function JobOrderEditor({ job, clientName, vendor, initialSpec, i
           <F label="Corona treatment" span={3}><input className={inputCls} placeholder="e.g. treat print side to ≥ 38 dyn" {...bind("flexoCoronaTreatment")} /></F>
         </Section>
       ) : (
-        <Section title="Offset details" hint="Sheet press settings." cols={4}>
+        <Section title="Offset details" hint="Stock sheet size → cutting size → ups." cols={4}>
           <F label="Sheet length (mm)"><input type="number" className={inputCls} {...bind("offsetSheetLengthMm")} /></F>
           <F label="Sheet width (mm)"><input type="number" className={inputCls} {...bind("offsetSheetWidthMm")} /></F>
+          <F label="Cutting size L (mm)" hint="press sheet cut from the stock sheet"><input type="number" className={inputCls} {...bind("offsetCutLengthMm")} /></F>
+          <F label="Cutting size W (mm)"><input type="number" className={inputCls} {...bind("offsetCutWidthMm")} /></F>
           <F label="Grain"><Select value={form.offsetGrain} onChange={set("offsetGrain")} options={GRAINS} /></F>
           <F label="Ups per sheet"><input type="number" className={inputCls} {...bind("offsetUpsPerSheet")} /></F>
+          <F label="No. of forms" hint="print forms (sheet layouts)"><input type="number" className={inputCls} {...bind("offsetNoOfForms")} /></F>
           <F label="No. of plates"><input type="number" className={inputCls} {...bind("offsetNoOfPlates")} /></F>
           <F label="Sheets required"><input type="number" className={inputCls} {...bind("offsetSheetsRequired")} /></F>
           <F label="Machine" span={2}><input className={inputCls} placeholder="e.g. Heidelberg 4-colour" {...bind("offsetMachine")} /></F>

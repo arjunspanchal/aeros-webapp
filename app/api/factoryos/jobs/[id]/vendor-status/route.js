@@ -30,11 +30,12 @@ export async function PATCH(req, { params }) {
   }
 
   try {
-    const updated = await setVendorStatus(job.id, status, { dispatchDate });
+    const undo = body.undo === true && access === "vendor";
+    const updated = await setVendorStatus(job.id, status, { dispatchDate, undo });
     const who = access === "vendor" ? "vendor" : "team";
     await postJobMessage({
       jobId: job.id,
-      body: `Marked: ${LABEL[status]}${dispatchDate ? ` (${dispatchDate})` : ""}`,
+      body: `${undo ? "Undone → " : "Marked: "}${LABEL[status]}${dispatchDate ? ` (${dispatchDate})` : ""}`,
       authorEmail: session.email || null,
       authorRole: who,
       kind: "system",
@@ -42,7 +43,7 @@ export async function PATCH(req, { params }) {
     return Response.json({ job: updated });
   } catch (e) {
     if (e?.code === "STATUS_REGRESSION") {
-      return Response.json({ error: "Progress can't move backwards." }, { status: 409 });
+      return Response.json({ error: "Can't undo now — more than 30 minutes have passed. Call Aeros." }, { status: 409 });
     }
     console.error("vendor-status update failed:", e);
     return Response.json({ error: "Could not update progress" }, { status: 500 });

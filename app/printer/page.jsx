@@ -39,7 +39,7 @@ export default async function PrinterPage() {
   const issuedRev = Object.fromEntries(orders);
   const slim = (j) => ({
     id: j.id, jNumber: j.jNumber, item: j.item, brand: j.brand, qty: j.qty,
-    printingDueDate: j.printingDueDate, vendorStatus: j.vendorStatus, stage: j.stage,
+    printingDueDate: j.printingDueDate, vendorStatus: j.vendorStatus, vendorStatusUpdatedAt: j.vendorStatusUpdatedAt, stage: j.stage,
     jobOrderRev: issuedRev[j.id] ?? null, printingType: j.printingType,
   });
 

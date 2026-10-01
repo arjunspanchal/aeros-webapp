@@ -15,6 +15,12 @@ function fmtNum(n, suffix = "") {
   return `${Number(n).toLocaleString("en-IN")}${suffix}`;
 }
 const has = (v) => v !== null && v !== undefined && v !== "";
+// Printers quote sheet sizes in inches ("26 x 28"); show both.
+const inch = (mm) => (has(mm) ? (Number(mm) / 25.4).toFixed(Number(mm) % 25.4 === 0 ? 0 : 1).replace(/\.0$/, "") : null);
+function dims(l, w) {
+  if (!has(l) && !has(w)) return null;
+  return `${fmtNum(l) ?? "?"} × ${fmtNum(w) ?? "?"} mm (${inch(l) ?? "?"}" × ${inch(w) ?? "?"}")`;
+}
 
 const INK = "#111";
 const MUTED = "#666";
@@ -128,13 +134,38 @@ export default function PrintView({ job, vendor, spec: s, colours = [], autoPrin
           <div style={{ border: `1px solid ${RULE}`, padding: "8px 10px" }}>
             <Grid cols={2} rows={[
               { label: "Item", value: [job.item, job.itemSize].filter(Boolean).join(" · "), span: 2, strong: true },
+              { label: "Job type", value: s.repeatOrder ? "REPEAT JOB — same artwork as before" : "NEW JOB", strong: true },
               { label: "Brand", value: job.brand },
               { label: "Aeros SKU", value: job.masterSku },
-              { label: "Order quantity", value: s.orderQty != null ? `${fmtNum(s.orderQty)} ${uom}` : null, strong: true, required: true },
+              { label: "Qty of printing", value: s.orderQty != null ? `${fmtNum(s.orderQty)} ${uom}` : null, strong: true, required: true },
               { label: "Delivery due", value: fmtDate(s.deliveryDueDate), strong: true, required: true },
             ]} />
           </div>
         </div>
+
+        {/* Job card — the printer's own format (Blue Line WhatsApp cards, 2025–26),
+            same order and wording so the press team reads it at a glance. */}
+        <Block title="Job card">
+          <Grid cols={2} rows={[
+            { label: "Client name", value: "Aeros (TPC)" },
+            { label: "Job name", value: [job.brand, job.item].filter(Boolean).join(" — "), strong: true },
+            { label: "New job / repeat job", value: s.repeatOrder ? "Repeat job" : "New job", strong: true },
+            { label: "Paper supplier", value: s.paperSuppliedBy === "vendor" ? "Printer to buy" : "Aeros (TPC)" },
+            { label: "Paper type", value: [s.substrateName || null, s.substrateMill ? `(${s.substrateMill})` : null].filter(Boolean).join(" "), required: true },
+            { label: "Paper qty", value: isFlexo
+                ? (has(s.orderQty) && uom !== "pcs" ? `${fmtNum(s.orderQty)} ${uom}` : null)
+                : (has(s.offsetSheetsRequired) ? `${fmtNum(s.offsetSheetsRequired)} sheets` : null), required: !isFlexo },
+            { label: "Paper size", value: isFlexo ? (has(s.flexoReelDeckleMm) ? `${fmtNum(s.flexoReelDeckleMm)} mm (${inch(s.flexoReelDeckleMm)}") reel` : null) : dims(s.offsetSheetLengthMm, s.offsetSheetWidthMm), required: true },
+            { label: "Paper GSM", value: fmtNum(s.substrateGsm), required: true },
+            !isFlexo && { label: "Cutting size", value: dims(s.offsetCutLengthMm, s.offsetCutWidthMm), required: true },
+            !isFlexo && { label: "Number of forms", value: fmtNum(s.offsetNoOfForms) },
+            { label: "Qty of printing", value: has(s.orderQty) ? `${fmtNum(s.orderQty)} ${uom}` : null, strong: true, required: true },
+            { label: "Lamination type", value: s.lamination && s.lamination !== "none" ? LABEL.lamination[s.lamination] : (s.varnishRequired ? `Varnish — ${LABEL.varnishType[s.varnishType] || ""}` : "None") },
+            { label: "Punching instructions", value: !isFlexo ? (s.offsetPunching && s.offsetPunching !== "none" ? `${LABEL.punching[s.offsetPunching]}${s.offsetDieRef ? ` · die ${s.offsetDieRef}` : ""}` : "None") : null },
+            { label: "Delivery location", value: [s.deliveryTo, s.deliveryAddress].filter(Boolean).join(" — "), required: true },
+            { label: "Special remarks", value: s.specialInstructions, span: 2 },
+          ]} />
+        </Block>
 
         {/* Substrate */}
         <Block title="1 · Substrate / paper">
@@ -271,6 +302,11 @@ export default function PrintView({ job, vendor, spec: s, colours = [], autoPrin
                 label: "Sheet size", strong: true, required: true,
                 value: has(s.offsetSheetLengthMm) || has(s.offsetSheetWidthMm)
                   ? `${fmtNum(s.offsetSheetLengthMm) ?? "?"} × ${fmtNum(s.offsetSheetWidthMm) ?? "?"} mm` : null,
+              },
+              {
+                label: "Cutting size", strong: true, required: true,
+                value: has(s.offsetCutLengthMm) || has(s.offsetCutWidthMm)
+                  ? `${fmtNum(s.offsetCutLengthMm) ?? "?"} × ${fmtNum(s.offsetCutWidthMm) ?? "?"} mm` : null,
               },
               { label: "Grain", value: LABEL.grain[s.offsetGrain], required: true },
               { label: "Ups / sheet", value: fmtNum(s.offsetUpsPerSheet), strong: true },
