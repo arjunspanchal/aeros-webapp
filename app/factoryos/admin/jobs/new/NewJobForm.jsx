@@ -1,7 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
+import { inputCls, labelCls, ButtonGroup } from "@/app/factoryos/_components/ui";
+import { RM_FORMS, PRINTING_TYPES as PRINT_TYPES, PAPER_TYPES, normRmForm, normPrintingType } from "@/lib/factoryos/jobOptions";
 import { STAGES, LEGACY_CATEGORIES } from "@/lib/factoryos/constants";
 import { LINES, lineForCategory } from "@/lib/factoryos/lines";
 import { ROUTE_AT, defaultRoute, describeRoute } from "@/lib/factoryos/routes";
@@ -58,8 +59,6 @@ function sizeSort(a, b) {
   if (vb != null) return 1;
   return a.localeCompare(b, undefined, { numeric: true });
 }
-
-const PRINTING_TYPES = ["", "Flexo", "Offset", "NA"];
 
 function Section({ title, children }) {
   return (
@@ -239,6 +238,14 @@ export default function NewJobForm({
   // Paper from stock: fill the RM fields from the stock line, and since the
   // paper is already here the job can start at Under Printing instead of
   // RM Pending (operator can still change the starting stage below).
+  const supplierOptions = useMemo(() => {
+    const set = new Set();
+    for (const mp of masterPapers) if (mp.supplier) set.add(mp.supplier.trim());
+    for (const rm of rmStock) if (rm.supplier) set.add(rm.supplier.trim());
+    for (const x of ["TPC", "KC Paper", "BILT", "Jodhani Mill", "Janta Paper", "ITC", "Ajit Paper", "Kesari Paper"]) set.add(x);
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [masterPapers, rmStock]);
+
   const linkedRm = useMemo(() => rmStock.find((x) => x.id === form.rmStockLineId) || null, [rmStock, form.rmStockLineId]);
 
   function onPickRmStock(id) {
@@ -247,7 +254,7 @@ export default function NewJobForm({
     setForm((f) => ({
       ...f,
       rmStockLineId: id,
-      rmType: rm.form || f.rmType,
+      rmType: normRmForm(rm.form) || f.rmType,
       rmSupplier: rm.supplier || f.rmSupplier,
       paperType: rm.paperType || f.paperType,
       gsm: rm.gsm != null ? String(rm.gsm) : f.gsm,
@@ -265,7 +272,7 @@ export default function NewJobForm({
       paperType: mp.type || f.paperType,
       rmSupplier: mp.supplier || f.rmSupplier,
       gsm: mp.gsm != null ? String(mp.gsm) : f.gsm,
-      rmType: mp.form || f.rmType,
+      rmType: normRmForm(mp.form) || f.rmType,
     }));
   }
 
@@ -497,7 +504,10 @@ export default function NewJobForm({
         </div>
         <div>
           <label className={labelCls}>Delivery city</label>
-          <input className={inputCls} placeholder="e.g. Mumbai — the printer goes in Printing vendor below" value={form.city} onChange={(e) => set("city", e.target.value)} />
+          <input className={inputCls} list="city-options" autoComplete="off" placeholder="e.g. Mumbai — the printer goes in Printing vendor below" value={form.city} onChange={(e) => set("city", e.target.value)} />
+          <datalist id="city-options">
+            {["Mumbai", "Bhiwandi", "Pune", "Delhi", "Bengaluru", "Hyderabad", "Chennai", "Ahmedabad", "Surat", "Vapi"].map((c) => <option key={c} value={c} />)}
+          </datalist>
         </div>
         <div>
           <label className={labelCls}>Quantity</label>
@@ -583,15 +593,22 @@ export default function NewJobForm({
         </div>
         <div>
           <label className={labelCls}>RM type</label>
-          <input className={inputCls} value={form.rmType} onChange={(e) => set("rmType", e.target.value)} placeholder="Rolls / Sheets" />
+          <ButtonGroup value={form.rmType} onChange={(v) => set("rmType", v)} options={RM_FORMS} />
         </div>
         <div>
           <label className={labelCls}>RM supplier</label>
-          <input className={inputCls} value={form.rmSupplier} onChange={(e) => set("rmSupplier", e.target.value)} placeholder="e.g. BILT, Ajit Paper" />
+          <input className={inputCls} list="rm-supplier-options" autoComplete="off" value={form.rmSupplier} onChange={(e) => set("rmSupplier", e.target.value)} placeholder="pick or type" />
+          <datalist id="rm-supplier-options">
+            {supplierOptions.map((x) => <option key={x} value={x} />)}
+          </datalist>
         </div>
         <div>
           <label className={labelCls}>Paper type</label>
-          <input className={inputCls} value={form.paperType} onChange={(e) => set("paperType", e.target.value)} placeholder="e.g. Bleach Kraft" />
+          <select className={inputCls} value={form.paperType} onChange={(e) => set("paperType", e.target.value)}>
+            <option value="">—</option>
+            {form.paperType && !PAPER_TYPES.includes(form.paperType) && <option value={form.paperType}>{form.paperType}</option>}
+            {PAPER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
         </div>
         <div>
           <label className={labelCls}>GSM</label>
@@ -629,9 +646,7 @@ export default function NewJobForm({
       <Section title="Printing & production">
         <div>
           <label className={labelCls}>Printing type</label>
-          <select className={inputCls} value={form.printingType} onChange={(e) => set("printingType", e.target.value)}>
-            {PRINTING_TYPES.map((t) => <option key={t} value={t}>{t || "—"}</option>)}
-          </select>
+          <ButtonGroup value={form.printingType} onChange={(v) => set("printingType", v)} options={PRINT_TYPES} />
         </div>
         <div>
           <label className={labelCls}>Printing vendor</label>

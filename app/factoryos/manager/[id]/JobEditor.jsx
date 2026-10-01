@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { StageBadge, StageTimeline, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
+import { StageBadge, StageTimeline, ButtonGroup, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
+import { RM_FORMS, PRINTING_TYPES, PAPER_TYPES, normRmForm, normPrintingType } from "@/lib/factoryos/jobOptions";
 import { ROLES } from "@/lib/factoryos/constants";
 import { ROUTE_AT, stagesForJob, stageOptionsForJob, describeRoute } from "@/lib/factoryos/routes";
 import { rmStockLabel, rmStockFree } from "@/lib/factoryos/rmStock";
@@ -37,6 +38,8 @@ export default function JobEditor({
   // RM + production editable fields
   const [rmStockLineId, setRmStockLineId] = useState(initialJob.rmStockLineId || "");
   const [rmSupplier, setRmSupplier] = useState(initialJob.rmSupplier);
+  const [rmType, setRmType] = useState(normRmForm(initialJob.rmType));
+  const [printingType, setPrintingType] = useState(normPrintingType(initialJob.printingType));
   const [paperType, setPaperType] = useState(initialJob.paperType);
   const [gsm, setGsm] = useState(initialJob.gsm ?? "");
   const [rmSizeMm, setRmSizeMm] = useState(initialJob.rmSizeMm ?? "");
@@ -61,6 +64,12 @@ export default function JobEditor({
   const [trackingSaved, setTrackingSaved] = useState(false);
   // Master-product mapping (admin + factory manager can edit; others see read-only).
   const canEditMasterProduct = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
+  const supplierOptions = useMemo(() => {
+    const set = new Set(["TPC", "KC Paper", "BILT", "Jodhani Mill", "Janta Paper", "ITC", "Ajit Paper", "Kesari Paper"]);
+    for (const rm of rmStock) if (rm.supplier) set.add(rm.supplier.trim());
+    if (job.rmSupplier) set.add(job.rmSupplier);
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [rmStock, job.rmSupplier]);
   // Live dimensions from the catalogue for the mapped SKU; older jobs that
   // were never mapped fall back to whatever size was typed on the job.
   const catalogDims = useMemo(() => {
@@ -151,6 +160,8 @@ export default function JobEditor({
     if (norm(estimatedDeliveryDate) !== norm(job.estimatedDeliveryDate)) return true;
     if ((rmStockLineId || "") !== (job.rmStockLineId || "")) return true;
     if (norm(rmSupplier) !== norm(job.rmSupplier)) return true;
+    if (rmType !== normRmForm(job.rmType)) return true;
+    if (printingType !== normPrintingType(job.printingType)) return true;
     if (norm(paperType) !== norm(job.paperType)) return true;
     if (norm(gsm) !== norm(job.gsm)) return true;
     if (norm(rmSizeMm) !== norm(job.rmSizeMm)) return true;
@@ -167,7 +178,7 @@ export default function JobEditor({
     job, note, stage, internalStatus, actionPoints,
     expectedDispatchDate, estimatedDeliveryDate,
     rmSupplier, paperType, gsm, rmSizeMm, rmQtySheets, rmQtyKgs,
-    rmDeliveryDate, printingVendor, printingDueDate, productionDueDate, conversionAt, packingAt, rmStockLineId,
+    rmDeliveryDate, printingVendor, printingDueDate, productionDueDate, conversionAt, packingAt, rmStockLineId, rmType, printingType,
   ]);
 
   useEffect(() => {
@@ -272,6 +283,8 @@ export default function JobEditor({
         expectedDispatchDate: expectedDispatchDate || null,
         estimatedDeliveryDate: estimatedDeliveryDate || null,
         rmStockLineId: rmStockLineId || null,
+        rmType: rmType || null,
+        printingType: printingType || null,
         rmSupplier,
         paperType,
         gsm: gsm === "" ? null : Number(gsm),
@@ -530,12 +543,23 @@ export default function JobEditor({
             })()}
           </div>
           <div>
+            <label className={labelCls}>RM type</label>
+            <ButtonGroup value={rmType} onChange={setRmType} options={RM_FORMS} />
+          </div>
+          <div>
             <label className={labelCls}>RM supplier</label>
-            <input className={inputCls} value={rmSupplier} onChange={(e) => setRmSupplier(e.target.value)} />
+            <input className={inputCls} list="rm-supplier-options" autoComplete="off" value={rmSupplier} onChange={(e) => setRmSupplier(e.target.value)} />
+            <datalist id="rm-supplier-options">
+              {supplierOptions.map((x) => <option key={x} value={x} />)}
+            </datalist>
           </div>
           <div>
             <label className={labelCls}>Paper type</label>
-            <input className={inputCls} value={paperType} onChange={(e) => setPaperType(e.target.value)} />
+            <select className={inputCls} value={paperType || ""} onChange={(e) => setPaperType(e.target.value)}>
+              <option value="">—</option>
+              {paperType && !PAPER_TYPES.includes(paperType) && <option value={paperType}>{paperType}</option>}
+              {PAPER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
           </div>
           <div>
             <label className={labelCls}>GSM</label>
@@ -556,6 +580,10 @@ export default function JobEditor({
           <div>
             <label className={labelCls}>RM delivery date</label>
             <input type="date" className={inputCls} value={rmDeliveryDate ? rmDeliveryDate.slice(0, 10) : ""} onChange={(e) => setRmDeliveryDate(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Printing type</label>
+            <ButtonGroup value={printingType} onChange={setPrintingType} options={PRINTING_TYPES} />
           </div>
           <div>
             <label className={labelCls}>Printing vendor</label>
@@ -654,6 +682,9 @@ export default function JobEditor({
               value={internalStatus}
               onChange={(e) => setInternalStatus(e.target.value)}
             />
+            <datalist id="internal-status-options">
+              {["In Production", "Printing in progress", "Artwork dev in progress", "RM pending", "Plates pending", "Handle pasting in progress", "Packing in progress", "On hold"].map((x) => <option key={x} value={x} />)}
+            </datalist>
           </div>
           <div className="sm:col-span-2">
             <label className={labelCls}>Action points (internal)</label>

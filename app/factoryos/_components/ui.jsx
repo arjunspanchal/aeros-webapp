@@ -69,3 +69,26 @@ export function formatDateTime(isoOrNull) {
     return "—";
   }
 }
+
+// Segmented buttons for a small fixed choice (Rolls | Sheets, Flexo | Offset).
+// `options` = [{ value, label }]; `value` may be "" for a "none" option.
+export function ButtonGroup({ value, onChange, options, className = "" }) {
+  return (
+    <div className={`inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden ${className}`}>
+      {options.map((o) => (
+        <button
+          type="button"
+          key={String(o.value)}
+          onClick={() => onChange(o.value)}
+          className={`px-3 py-1.5 text-sm ${
+            value === o.value
+              ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+              : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
