@@ -8,9 +8,9 @@ function fmt(d) {
   return isNaN(dt) ? d : dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 }
 
-export default function PrinterOnePager({ mode, vendors = [], vendorName = "", pending = [], recent = [] }) {
+export default function PrinterOnePager({ mode, vendors = [], vendorName = "", pending = [], recent = [], statuses = [] }) {
   if (mode === "login") return <Login vendors={vendors} />;
-  return <Jobs vendorName={vendorName} pending={pending} recent={recent} />;
+  return <Jobs vendorName={vendorName} pending={pending} recent={recent} statuses={statuses} />;
 }
 
 function Login({ vendors }) {
@@ -62,20 +62,22 @@ function Login({ vendors }) {
   );
 }
 
-function Jobs({ vendorName, pending: initialPending, recent }) {
+function Jobs({ vendorName, pending: initialPending, recent, statuses }) {
+  const order = Object.fromEntries(statuses.map((x, i) => [x.value, i]));
   const [pending, setPending] = useState(initialPending);
   const [busyId, setBusyId] = useState("");
   const [err, setErr] = useState("");
 
   const UNDO_MS = 30 * 60 * 1000;
-  const canUndo = (j) => j.vendorStatus && j.vendorStatusUpdatedAt && Date.now() - new Date(j.vendorStatusUpdatedAt).getTime() <= UNDO_MS;
+  const canGoBack = (j) => j.vendorStatus && j.vendorStatusUpdatedAt && Date.now() - new Date(j.vendorStatusUpdatedAt).getTime() <= UNDO_MS;
 
-  async function mark(job, status, { undo = false } = {}) {
-    const ask = status === "dispatched" ? `Mark J# ${job.jNumber} as SENT TO AEROS? Only tap this when the stock has actually left.`
-      : status === "printing_completed" ? `Mark J# ${job.jNumber} as PRINTED?` : null;
-    if (!undo && ask && !window.confirm(ask)) return;
+  async function setStatus(job, status) {
+    if (!status || status === (job.vendorStatus || "")) return;
+    const backwards = (order[status] ?? -1) < (order[job.vendorStatus] ?? -1);
+    if (backwards && !canGoBack(job)) { setErr("More than 30 minutes have passed — call Aeros to change this job."); return; }
+    if (status === "dispatched" && !window.confirm(`Mark J# ${job.jNumber} as SENT TO AEROS? Only choose this when the stock has actually left.`)) return;
     setBusyId(job.id); setErr("");
-    const body = { status, undo };
+    const body = { status, undo: backwards };
     if (status === "dispatched") body.dispatchDate = today();
     const res = await fetch(`/api/factoryos/jobs/${job.id}/vendor-status`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -96,9 +98,7 @@ function Jobs({ vendorName, pending: initialPending, recent }) {
   const t = today();
   const Row = ({ j, done }) => {
     const late = !done && j.printingDueDate && j.printingDueDate.slice(0, 10) < t && !["printing_completed", "dispatched"].includes(j.vendorStatus || "");
-    const printed = ["printing_completed", "dispatched"].includes(j.vendorStatus || "");
     const sent = j.vendorStatus === "dispatched";
-    const undoTo = j.vendorStatus === "dispatched" ? "printing_completed" : j.vendorStatus === "printing_completed" ? "accepted" : null;
     return (
       <tr className={late ? "bg-red-50" : ""}>
         <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{j.jNumber}</td>
@@ -116,15 +116,16 @@ function Jobs({ vendorName, pending: initialPending, recent }) {
         <td className="px-3 py-2 whitespace-nowrap text-right">
           {done ? (
             <span className="text-xs text-gray-500">{sent ? "Sent to Aeros" : j.stage}</span>
-          ) : sent ? (
-            <span className="text-xs text-gray-600">✓ Sent to Aeros</span>
-          ) : printed ? (
-            <button disabled={busyId === j.id} onClick={() => mark(j, "dispatched")} className="rounded-lg bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50">Sent to Aeros</button>
           ) : (
-            <button disabled={busyId === j.id} onClick={() => mark(j, "printing_completed")} className="rounded-lg border border-black px-3 py-1.5 text-sm disabled:opacity-50">Printed</button>
-          )}
-          {!done && undoTo && canUndo(j) && (
-            <button disabled={busyId === j.id} onClick={() => mark(j, undoTo, { undo: true })} className="ml-2 text-xs text-gray-500 underline" title="You can undo your last tap for 30 minutes">Undo</button>
+            <select
+              disabled={busyId === j.id}
+              value={j.vendorStatus || ""}
+              onChange={(e) => setStatus(j, e.target.value)}
+              className={`rounded-lg border px-3 py-2 text-base sm:text-sm ${sent ? "border-green-600 bg-green-50 text-green-900" : j.vendorStatus === "paper_awaited" ? "border-amber-500 bg-amber-50 text-amber-900" : "border-gray-300 bg-white"} disabled:opacity-50`}
+            >
+              <option value="">— Update status —</option>
+              {statuses.filter((x) => !x.legacy || j.vendorStatus === x.value).map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+            </select>
           )}
         </td>
       </tr>
@@ -146,7 +147,7 @@ function Jobs({ vendorName, pending: initialPending, recent }) {
         <section className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <h2 className="font-semibold">With you now · {pending.length}</h2>
-            <span className="text-xs text-gray-500">Tap <b>Printed</b> when done, then <b>Sent to Aeros</b> when it leaves. Mis-tap? <b>Undo</b> works for 30 minutes.</span>
+            <span className="text-xs text-gray-500">Update the status as the job moves. Pick <b>Paper awaited</b> if you don\u2019t have our paper yet. Wrong pick? You can move it back for 30 minutes.</span>
           </div>
           {pending.length === 0 ? (
             <p className="px-4 py-8 text-center text-gray-500">Nothing pending. 🎉</p>

@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth/session";
-import { listJobsForSession, getVendor } from "@/lib/factoryos/repo";
+import { listJobsForSession, getVendor, VENDOR_STATUSES } from "@/lib/factoryos/repo";
 import { getJobOrder } from "@/lib/factoryos/jobOrder";
 import { listPortalVendors } from "@/lib/factoryos/printerAuth";
 import PrinterOnePager from "./PrinterOnePager";
@@ -46,6 +46,7 @@ export default async function PrinterPage() {
   return (
     <PrinterOnePager
       mode="jobs"
+      statuses={VENDOR_STATUSES}
       vendorName={vendor?.name || session.name || "Printer"}
       pending={pending.map(slim)}
       recent={recent.map(slim)}

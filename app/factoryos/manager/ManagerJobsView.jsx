@@ -259,6 +259,9 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
                     </td>
                     <td className="px-4 py-2 text-gray-600 dark:text-gray-300">
                       {j.printingVendor || "—"}
+                      {j.vendorStatus === "paper_awaited" && !["Ready for Dispatch", "Dispatched", "Delivered"].includes(j.stage) && (
+                        <span className="ml-1.5 inline-flex items-center text-[10px] font-semibold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded align-middle dark:bg-amber-900/40 dark:text-amber-200" title="Printer says they haven't received the paper">NO PAPER</span>
+                      )}
                       {isPrinterLate(j, today) && (
                         <span className="ml-1.5 inline-flex items-center text-[10px] font-semibold bg-red-100 text-red-800 px-1.5 py-0.5 rounded align-middle dark:bg-red-900/40 dark:text-red-200">LATE</span>
                       )}

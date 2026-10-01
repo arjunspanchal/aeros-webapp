@@ -417,10 +417,12 @@ export default function JobEditor({
             label="Vendor status"
             value={
               {
+                paper_awaited: "⚠ Paper awaited — printer has no paper",
                 accepted: "Job accepted",
-                printing_started: "Printing started",
-                printing_completed: "Printing completed",
-                dispatched: `Dispatched${job.vendorDispatchDate ? ` · ${formatDate(job.vendorDispatchDate)}` : ""}`,
+                paper_received: "Paper received",
+                printing_started: "Printing",
+                printing_completed: "Printed",
+                dispatched: `Sent to Aeros${job.vendorDispatchDate ? ` · ${formatDate(job.vendorDispatchDate)}` : ""}`,
               }[job.vendorStatus] || "—"
             }
           />
