@@ -9,6 +9,7 @@ import { rmStockLabel, rmStockFree } from "@/lib/factoryos/rmStock";
 import PushToWarehouseCard from "./PushToWarehouseCard";
 import JobThread from "@/app/factoryos/_components/JobThread";
 import InwardPanel from "./InwardPanel";
+import { V1 } from "@/lib/factoryos/v1";
 
 export default function JobEditor({
   job: initialJob,
@@ -694,10 +695,12 @@ export default function JobEditor({
         />
       )}
 
-      <PushToWarehouseCard
-        job={job}
-        canPush={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER}
-      />
+      {V1.warehousePush && (
+        <PushToWarehouseCard
+          job={job}
+          canPush={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER}
+        />
+      )}
 
       <JobThread jobId={job.id} viewerRole="team" title="Messages & files (customer + vendor)" />
 

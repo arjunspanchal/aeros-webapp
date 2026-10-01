@@ -1,3 +1,4 @@
+import { V1 } from "@/lib/factoryos/v1";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, requireManager } from "@/lib/auth/session";
@@ -63,7 +64,7 @@ function buildKpis(jobs) {
     {
       key: "ready",
       label: "Ready for Dispatch",
-      sub: "push pending",
+      sub: V1.warehousePush ? "push pending" : "awaiting dispatch",
       count: jobs.filter((j) => j.stage === "Ready for Dispatch").length,
       href: "/factoryos/manager?stage=Ready%20for%20Dispatch",
       tone: "green",
