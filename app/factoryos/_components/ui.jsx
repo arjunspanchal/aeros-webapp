@@ -23,11 +23,14 @@ export function StageBadge({ stage }) {
   );
 }
 
-export function StageTimeline({ stage }) {
-  const current = STAGE_INDEX[stage] ?? 0;
+export function StageTimeline({ stage, stages = STAGES }) {
+  // `stages` = this job's own flow (vendor-converted / vendor-packed jobs
+  // skip steps); falls back to the full list.
+  const idx = stages.indexOf(stage);
+  const current = idx >= 0 ? idx : (STAGE_INDEX[stage] ?? 0);
   return (
     <div className="flex items-center gap-1 w-full">
-      {STAGES.map((s, i) => {
+      {stages.map((s, i) => {
         const done = i <= current;
         const isCurrent = i === current;
         return (
@@ -37,7 +40,7 @@ export function StageTimeline({ stage }) {
                 done ? (isCurrent ? "bg-blue-600" : "bg-blue-400") : "bg-gray-200 dark:bg-gray-700"
               }`}
             />
-            {i < STAGES.length - 1 && <div className="w-1" />}
+            {i < stages.length - 1 && <div className="w-1" />}
           </div>
         );
       })}

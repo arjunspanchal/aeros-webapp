@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StageBadge, StageTimeline, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
-import { ROLES, STAGES } from "@/lib/factoryos/constants";
+import { ROLES } from "@/lib/factoryos/constants";
+import { ROUTE_AT, stagesForJob, stageOptionsForJob, describeRoute } from "@/lib/factoryos/routes";
 import PushToWarehouseCard from "./PushToWarehouseCard";
 import JobThread from "@/app/factoryos/_components/JobThread";
 
@@ -40,6 +41,8 @@ export default function JobEditor({
   const [rmDeliveryDate, setRmDeliveryDate] = useState(initialJob.rmDeliveryDate || "");
   const [printingVendor, setPrintingVendor] = useState(initialJob.printingVendor || "");
   const [printingDueDate, setPrintingDueDate] = useState(initialJob.printingDueDate || "");
+  const [conversionAt, setConversionAt] = useState(initialJob.conversionAt || "aeros");
+  const [packingAt, setPackingAt] = useState(initialJob.packingAt || "aeros");
   const [productionDueDate, setProductionDueDate] = useState(initialJob.productionDueDate || "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -143,6 +146,8 @@ export default function JobEditor({
     if (norm(rmQtyKgs) !== norm(job.rmQtyKgs)) return true;
     if (norm(rmDeliveryDate) !== norm(job.rmDeliveryDate)) return true;
     if (norm(printingVendor) !== norm(job.printingVendor)) return true;
+    if (conversionAt !== (job.conversionAt || "aeros")) return true;
+    if (packingAt !== (job.packingAt || "aeros")) return true;
     if (norm(printingDueDate) !== norm(job.printingDueDate)) return true;
     if (norm(productionDueDate) !== norm(job.productionDueDate)) return true;
     return false;
@@ -150,7 +155,7 @@ export default function JobEditor({
     job, note, stage, internalStatus, actionPoints,
     expectedDispatchDate, estimatedDeliveryDate,
     rmSupplier, paperType, gsm, rmSizeMm, rmQtySheets, rmQtyKgs,
-    rmDeliveryDate, printingVendor, printingDueDate, productionDueDate,
+    rmDeliveryDate, printingVendor, printingDueDate, productionDueDate, conversionAt, packingAt,
   ]);
 
   useEffect(() => {
@@ -263,6 +268,8 @@ export default function JobEditor({
         rmDeliveryDate: rmDeliveryDate || null,
         printingVendor: printingVendor || null,
         printingDueDate: printingDueDate || null,
+        conversionAt,
+        packingAt,
         productionDueDate: productionDueDate || null,
       }),
     });
@@ -318,7 +325,7 @@ export default function JobEditor({
           <p className="mt-2 text-xs text-red-600 dark:text-red-400">{deleteErr}</p>
         )}
         <div className="mt-4">
-          <StageTimeline stage={job.stage} />
+          <StageTimeline stage={job.stage} stages={stagesForJob({ ...job, conversionAt, packingAt })} />
         </div>
 
         <dl className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 text-sm">
@@ -510,6 +517,33 @@ export default function JobEditor({
               ))}
             </select>
           </div>
+          <div className="sm:col-span-2">
+            <label className={labelCls}>Where does the work happen?</label>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              {[["Conversion", conversionAt, setConversionAt], ["Packing", packingAt, setPackingAt]].map(([label, val, setter]) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-300 w-20">{label}</span>
+                  <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    {ROUTE_AT.map((o) => (
+                      <button
+                        type="button"
+                        key={o.value}
+                        onClick={() => setter(o.value)}
+                        className={`px-3 py-1 text-sm ${val === o.value
+                          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                          : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300"}`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {describeRoute({ conversionAt, packingAt })}. Stages that happen at the vendor are skipped for this job.
+            </p>
+          </div>
           <div>
             <label className={labelCls}>Printing due date</label>
             <input type="date" className={inputCls} value={printingDueDate ? printingDueDate.slice(0, 10) : ""} onChange={(e) => setPrintingDueDate(e.target.value)} />
@@ -538,7 +572,7 @@ export default function JobEditor({
           <div>
             <label className={labelCls}>Stage</label>
             <select className={inputCls} value={stage} onChange={(e) => setStage(e.target.value)}>
-              {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+              {stageOptionsForJob({ ...job, stage, conversionAt, packingAt }).map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>

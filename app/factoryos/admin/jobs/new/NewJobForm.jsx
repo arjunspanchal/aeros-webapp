@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 import { STAGES, LEGACY_CATEGORIES } from "@/lib/factoryos/constants";
 import { LINES, lineForCategory } from "@/lib/factoryos/lines";
+import { ROUTE_AT, defaultRoute, describeRoute } from "@/lib/factoryos/routes";
 
 // Fallback if the server didn't pass a precomputed J#. Returns "YYMM001"
 // (just the prefix + first-of-month seq) so the form never starts blank.
@@ -120,6 +121,9 @@ export default function NewJobForm({
     // Printing / production
     printingType: "",
     printingVendor: "",
+    // Where conversion / packing happen — defaulted from product + printer.
+    conversionAt: "aeros",
+    packingAt: "aeros",
     printingDueDate: "",
     productionDueDate: "",
     notes: "",
@@ -205,6 +209,7 @@ export default function NewJobForm({
       ...f,
       productId: id,
       item: p.productName,
+      ...defaultRoute({ category: p.category, subCategory: p.subCategory, item: p.productName, printingVendor: f.printingVendor }),
       itemSize: p.sizeVolume || f.itemSize,
       // Use the catalog's category verbatim. The previous gate
       // (`CATEGORIES.includes(...) ? p.category : f.category`) silently
@@ -534,10 +539,45 @@ export default function NewJobForm({
         </div>
         <div>
           <label className={labelCls}>Printing vendor</label>
-          <select className={inputCls} value={form.printingVendor} onChange={(e) => set("printingVendor", e.target.value)}>
+          <select
+            className={inputCls}
+            value={form.printingVendor}
+            onChange={(e) => {
+              const v = e.target.value;
+              // Printer choice can change the route (table mats: Viana packs).
+              setForm((f) => ({ ...f, printingVendor: v, ...defaultRoute({ category: f.category, item: f.item, printingVendor: v }) }));
+            }}
+          >
             <option value="">—</option>
             {printingVendors.map((v) => <option key={v} value={v}>{v}</option>)}
           </select>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Where does the work happen?</label>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            {[["conversionAt", "Conversion"], ["packingAt", "Packing"]].map(([k, label]) => (
+              <div key={k} className="flex items-center gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-300 w-20">{label}</span>
+                <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  {ROUTE_AT.map((o) => (
+                    <button
+                      type="button"
+                      key={o.value}
+                      onClick={() => set(k, o.value)}
+                      className={`px-3 py-1 text-sm ${form[k] === o.value
+                        ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                        : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300"}`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {describeRoute(form)}. Stages that happen at the vendor are skipped on this job.
+          </p>
         </div>
         <div>
           <label className={labelCls}>Printing due date</label>

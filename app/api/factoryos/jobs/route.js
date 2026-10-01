@@ -1,4 +1,5 @@
 import { getSession, requireInternal, requireManager, requireRole } from "@/lib/auth/session";
+import { routeAt } from "@/lib/factoryos/routes";
 import { listJobsForSession, createJob, setJobDelivery } from "@/lib/factoryos/repo";
 import { STAGES } from "@/lib/factoryos/constants";
 
@@ -75,6 +76,8 @@ export async function POST(req) {
       stage: STAGES[0],
       ...rest,
       sourcing: isTraded ? "traded" : "in_house",
+      conversionAt: routeAt(body.conversionAt),
+      packingAt: routeAt(body.packingAt),
     });
     // order_rate lives on a PG column outside the Airtable shim — set it after
     // create. Mainly used for traded items (open value / rate on the plan).

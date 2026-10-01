@@ -11,6 +11,7 @@ import {
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { sessionCanSeeJob } from "@/lib/factoryos/jobAccess";
 import { STAGES, ROLES, canUpdateStage } from "@/lib/factoryos/constants";
+import { routeAt } from "@/lib/factoryos/routes";
 
 // Roles allowed to remove a job entirely. Account managers + customers can
 // only update fields, never destroy the row + its timeline.
@@ -121,6 +122,8 @@ export async function PATCH(req, { params }) {
     if (body.rmQtyKgs !== undefined) patch.rmQtyKgs = body.rmQtyKgs;
     if (body.rmDeliveryDate !== undefined) patch.rmDeliveryDate = body.rmDeliveryDate;
     if (body.printingType !== undefined) patch.printingType = body.printingType;
+    if (body.conversionAt !== undefined) patch.conversionAt = routeAt(body.conversionAt);
+    if (body.packingAt !== undefined) patch.packingAt = routeAt(body.packingAt);
     if (body.printingVendor !== undefined) patch.printingVendor = body.printingVendor;
     if (body.printingDueDate !== undefined) patch.printingDueDate = body.printingDueDate;
     if (body.productionDueDate !== undefined) patch.productionDueDate = body.productionDueDate;
