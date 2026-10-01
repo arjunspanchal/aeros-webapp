@@ -411,7 +411,7 @@ export default function NewJobForm({
           </datalist>
         </div>
         <div>
-          <label className={labelCls}>Account manager</label>
+          <label className={labelCls}>Account manager <span className="font-normal normal-case text-gray-400">(handles the customer)</span></label>
           <select className={inputCls} value={form.customerManagerId} onChange={(e) => set("customerManagerId", e.target.value)}>
             <option value="">—</option>
             {accountManagers.map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
@@ -528,7 +528,7 @@ export default function NewJobForm({
           <input type="number" step="0.0001" className={inputCls} value={form.orderRate} onChange={(e) => set("orderRate", e.target.value)} placeholder="e.g. 0.72" />
         </div>
         <div>
-          <label className={labelCls}>Expected dispatch</label>
+          <label className={labelCls}>Expected dispatch <span className="font-normal normal-case text-gray-400">(customer promise — defaults to production due)</span></label>
           <input type="date" className={inputCls} value={form.expectedDispatchDate} onChange={(e) => set("expectedDispatchDate", e.target.value)} />
         </div>
         <div>
@@ -712,8 +712,17 @@ export default function NewJobForm({
           <input type="date" className={inputCls} value={form.printingDueDate} onChange={(e) => set("printingDueDate", e.target.value)} />
         </div>
         <div>
-          <label className={labelCls}>Production due date</label>
-          <input type="date" className={inputCls} value={form.productionDueDate} onChange={(e) => set("productionDueDate", e.target.value)} />
+          <label className={labelCls}>Production due date <span className="font-normal normal-case text-gray-400">(the floor works to this)</span></label>
+          <input
+            type="date"
+            className={inputCls}
+            value={form.productionDueDate}
+            onChange={(e) => {
+              const v = e.target.value;
+              // Expected dispatch follows production due unless the AM set it.
+              setForm((f) => ({ ...f, productionDueDate: v, expectedDispatchDate: f.expectedDispatchDate || v }));
+            }}
+          />
         </div>
       </Section>
       )}

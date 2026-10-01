@@ -46,6 +46,10 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
     return myLines?.length ? "mine" : "all";
   })();
   const [line, setLine] = useState(initialLine);
+  // Which date this screen manages by. Factory roles run the floor to the
+  // production due date; account managers manage the customer promise
+  // (expected dispatch).
+  const factoryView = role !== "account_manager" && role !== "customer";
   const [q, setQ] = useState("");
   const [stage, setStage] = useState(initialStage);
   const [clientId, setClientId] = useState("all");
@@ -76,15 +80,21 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
       // post-dispatch stages. Delivered and Dispatched jobs aren't "overdue"
       // even if their date is in the past.
       if (dueFilter === "overdue") {
-        if (!j.expectedDispatchDate || j.expectedDispatchDate >= today) return false;
-        if (j.stage === "Dispatched" || j.stage === "Delivered") return false;
+        if (factoryView) {
+          // Floor works to Production due: late if FG aren't ready by then.
+          if (!j.productionDueDate || j.productionDueDate >= today) return false;
+          if (["Ready for Dispatch", "Dispatched", "Delivered"].includes(j.stage)) return false;
+        } else {
+          if (!j.expectedDispatchDate || j.expectedDispatchDate >= today) return false;
+          if (j.stage === "Dispatched" || j.stage === "Delivered") return false;
+        }
       }
       if (!term) return true;
       const clientName = j.clientIds.map((c) => clientMap[c]?.name || "").join(" ");
       const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.printingVendor} ${j.poNumber} ${clientName} ${j.internalStatus}`.toLowerCase();
       return hay.includes(term);
     });
-  }, [jobs, q, stage, clientId, urgentOnly, dueFilter, today, clientMap, line, myLines]);
+  }, [jobs, q, stage, clientId, urgentOnly, dueFilter, today, clientMap, line, myLines, factoryView]);
 
   const urgentCount = useMemo(() => jobs.filter((j) => j.urgent).length, [jobs]);
 
@@ -117,10 +127,8 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
             {role === "account_manager" ? "Jobs for your customers" : line === "mine" ? describeLines(myLines) : line === "all" ? "All jobs" : LINE_LABEL[line]} · {filtered.length} shown · {jobs.length} total
           </p>
         </div>
-        {/* Mirrors the create-job allow-list: admin / FM / AM. Middleware
-            now lets AM through to /factoryos/admin/jobs/new (audit H1).
-            FE excluded — shop floor doesn't open new jobs. */}
-        {(role === "admin" || role === "factory_manager" || role === "account_manager") && (
+        {/* Mirrors the create-job allow-list: admin / factory manager only. */}
+        {(role === "admin" || role === "factory_manager") && (
           <Link
             href="/factoryos/admin/jobs/new"
             className="shrink-0 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -183,7 +191,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
             type="button"
             onClick={() => setDueFilter("all")}
             className="shrink-0 px-3 py-2 text-sm rounded-lg border whitespace-nowrap bg-amber-600 text-white border-amber-600"
-            title="Showing jobs past their expected dispatch date. Click to clear."
+            title={factoryView ? "Showing jobs past their production due date and not yet ready. Click to clear." : "Showing jobs past their expected dispatch date. Click to clear."}
           >
             Overdue only ✓
           </button>
@@ -202,7 +210,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
                 <th className="text-left px-4 py-2 font-medium">Printer</th>
                 <th className="text-left px-4 py-2 font-medium">Stage</th>
                 <th className="text-left px-4 py-2 font-medium">Internal</th>
-                <th className="text-left px-4 py-2 font-medium">Dispatch</th>
+                <th className="text-left px-4 py-2 font-medium">{factoryView ? "Prod due" : "Dispatch"}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -231,8 +239,11 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
                     <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 max-w-xs truncate">
                       {j.internalStatus || "—"}
                     </td>
-                    <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">
-                      {formatDate(j.expectedDispatchDate)}
+                    <td className={`px-4 py-2 text-xs ${
+                      factoryView && j.productionDueDate && j.productionDueDate < today && !["Ready for Dispatch", "Dispatched", "Delivered"].includes(j.stage)
+                        ? "text-red-600 font-semibold dark:text-red-400"
+                        : "text-gray-600 dark:text-gray-300"}`}>
+                      {formatDate(factoryView ? j.productionDueDate : j.expectedDispatchDate)}
                     </td>
                   </tr>
                 );

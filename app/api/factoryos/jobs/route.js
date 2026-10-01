@@ -31,8 +31,9 @@ export async function POST(req) {
   // Allow admin / factory manager / account manager to create jobs.
   // FE is shop-floor and shouldn't open new jobs; CUSTOMER is already
   // blocked by requireInternal().
-  if (!requireManager(session) && !requireRole(session, "factoryos", "account_manager")) {
-    return Response.json({ error: "Only admin, factory manager or account manager can create jobs" }, { status: 403 });
+  // Factory managers (Rahul / Sachin) or admin only — Arjun, 01-Oct-2026.
+  if (!requireManager(session)) {
+    return Response.json({ error: "Only a factory manager or admin can create jobs" }, { status: 403 });
   }
   try {
     const body = await req.json();

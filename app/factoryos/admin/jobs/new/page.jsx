@@ -15,13 +15,11 @@ export default async function NewJobPage() {
   const session = getSession();
   const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
   if (!session || !role) redirect("/login");
-  // Mirror the API's create-job allow-list: admin / factory manager / account
-  // manager. AMs in particular need this — they're the ones taking the brief
-  // from the customer and turning it into a job.
+  // Jobs are raised by the factory managers (Rahul / Sachin) or admin only —
+  // Arjun, 01-Oct-2026. Mirrors the API's create-job allow-list.
   if (
     role !== ROLES.ADMIN &&
-    role !== ROLES.FACTORY_MANAGER &&
-    role !== ROLES.ACCOUNT_MANAGER
+    role !== ROLES.FACTORY_MANAGER
   ) {
     redirect("/factoryos");
   }
