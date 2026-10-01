@@ -67,6 +67,8 @@ export default function JobEditor({
   const [trackingSaved, setTrackingSaved] = useState(false);
   // Master-product mapping (admin + factory manager can edit; others see read-only).
   const canEditMasterProduct = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
+  // Factory roles stop at Ready for Dispatch; the warehouse team dispatches.
+  const floorOnly = !V1.factoryDispatches && (role === ROLES.FACTORY_MANAGER || role === ROLES.FACTORY_EXECUTIVE);
   // Printer late: printing due has passed, the job is still at or before
   // Under Printing, and the printer hasn't marked it printed on /printer.
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -710,7 +712,7 @@ export default function JobEditor({
           <div>
             <label className={labelCls}>Stage</label>
             <select className={inputCls} value={stage} onChange={(e) => setStage(e.target.value)}>
-              {stageOptionsForJob({ ...job, stage, conversionAt, packingAt }).map((s) => <option key={s} value={s}>{s}</option>)}
+              {stageOptionsForJob({ ...job, stage, conversionAt, packingAt }).filter((s) => floorOnly ? !["Dispatched", "Delivered"].includes(s) || s === job.stage : true).map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>
@@ -781,6 +783,7 @@ export default function JobEditor({
         </div>
       </div>
 
+      {!floorOnly && (
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Tracking details</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -872,6 +875,7 @@ export default function JobEditor({
         <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">PDF / JPG / PNG, max 5 MB. Customer can download.</p>
         {lrErr && <p className="text-xs text-red-500 mt-2">{lrErr}</p>}
       </div>
+      )}
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Timeline</h2>
