@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputCls, labelCls, ButtonGroup } from "@/app/factoryos/_components/ui";
-import { RM_FORMS, PRINTING_TYPES as PRINT_TYPES, PAPER_TYPES, normRmForm, normPrintingType } from "@/lib/factoryos/jobOptions";
+import { RM_FORMS, PRINTING_TYPES as PRINT_TYPES, PAPER_TYPES, MILLS, millFromPaperName, normRmForm, normPrintingType } from "@/lib/factoryos/jobOptions";
 import { STAGES, LEGACY_CATEGORIES } from "@/lib/factoryos/constants";
 import { LINES, lineForCategory } from "@/lib/factoryos/lines";
 import { ROUTE_AT, defaultRoute, describeRoute } from "@/lib/factoryos/routes";
@@ -115,6 +115,7 @@ export default function NewJobForm({
     masterPaperId: "",
     rmType: "",
     rmSupplier: "",
+    rmMill: "",
     paperType: "",
     gsm: "",
     rmSizeMm: "",
@@ -242,9 +243,16 @@ export default function NewJobForm({
     const set = new Set();
     for (const mp of masterPapers) if (mp.supplier) set.add(mp.supplier.trim());
     for (const rm of rmStock) if (rm.supplier) set.add(rm.supplier.trim());
-    for (const x of ["KC Paper", "BILT", "Jodhani Mill", "Janta Paper", "ITC", "Ajit Paper", "Kesari Paper"]) set.add(x);
+    for (const x of ["KC Paper", "Janta Paper", "Kesari Paper", "Unisource", "Wikas"]) set.add(x);
+    // Anything that resolves to a mill belongs in the Mill picker, not here.
+    for (const x of [...set]) if (millFromPaperName(x)) set.delete(x);
     return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }, [masterPapers, rmStock]);
+  const millOptions = useMemo(() => {
+    const set = new Set(MILLS);
+    for (const rm of rmStock) if (rm.mill) set.add(rm.mill.trim());
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [rmStock]);
 
   const linkedRm = useMemo(() => rmStock.find((x) => x.id === form.rmStockLineId) || null, [rmStock, form.rmStockLineId]);
 
@@ -256,6 +264,7 @@ export default function NewJobForm({
       rmStockLineId: id,
       rmType: normRmForm(rm.form) || f.rmType,
       rmSupplier: rm.supplier || f.rmSupplier,
+      rmMill: rm.mill || millFromPaperName(rm.name) || f.rmMill,
       paperType: rm.paperType || f.paperType,
       gsm: rm.gsm != null ? String(rm.gsm) : f.gsm,
       rmSizeMm: rm.widthMm != null ? String(rm.widthMm) : f.rmSizeMm,
@@ -271,6 +280,7 @@ export default function NewJobForm({
       masterPaperId: id,
       paperType: mp.type || f.paperType,
       rmSupplier: mp.supplier || f.rmSupplier,
+      rmMill: millFromPaperName(mp.materialName) || f.rmMill,
       gsm: mp.gsm != null ? String(mp.gsm) : f.gsm,
       rmType: normRmForm(mp.form) || f.rmType,
     }));
@@ -600,6 +610,13 @@ export default function NewJobForm({
           <input className={inputCls} list="rm-supplier-options" autoComplete="off" value={form.rmSupplier} onChange={(e) => set("rmSupplier", e.target.value)} placeholder="pick or type" />
           <datalist id="rm-supplier-options">
             {supplierOptions.map((x) => <option key={x} value={x} />)}
+          </datalist>
+        </div>
+        <div>
+          <label className={labelCls}>Mill (manufacturer)</label>
+          <input className={inputCls} list="rm-mill-options" autoComplete="off" value={form.rmMill} onChange={(e) => set("rmMill", e.target.value)} placeholder="e.g. ITC, BILT, JK" />
+          <datalist id="rm-mill-options">
+            {millOptions.map((x) => <option key={x} value={x} />)}
           </datalist>
         </div>
         <div>

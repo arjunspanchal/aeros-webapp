@@ -115,6 +115,7 @@ export async function PATCH(req, { params }) {
     // RM + production updates
     if (body.rmType !== undefined) patch.rmType = body.rmType;
     if (body.rmSupplier !== undefined) patch.rmSupplier = body.rmSupplier;
+    if (body.rmMill !== undefined) patch.rmMill = body.rmMill;
     if (body.paperType !== undefined) patch.paperType = body.paperType;
     if (body.gsm !== undefined) patch.gsm = body.gsm;
     if (body.rmSizeMm !== undefined) patch.rmSizeMm = body.rmSizeMm;

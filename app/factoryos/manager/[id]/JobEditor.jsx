@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StageBadge, StageTimeline, ButtonGroup, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
-import { RM_FORMS, PRINTING_TYPES, PAPER_TYPES, normRmForm, normPrintingType } from "@/lib/factoryos/jobOptions";
+import { RM_FORMS, PRINTING_TYPES, PAPER_TYPES, MILLS, millFromPaperName, normRmForm, normPrintingType } from "@/lib/factoryos/jobOptions";
 import { ROLES } from "@/lib/factoryos/constants";
 import { ROUTE_AT, stagesForJob, stageOptionsForJob, describeRoute } from "@/lib/factoryos/routes";
 import { rmStockLabel, rmStockFree } from "@/lib/factoryos/rmStock";
@@ -38,6 +38,7 @@ export default function JobEditor({
   // RM + production editable fields
   const [rmStockLineId, setRmStockLineId] = useState(initialJob.rmStockLineId || "");
   const [rmSupplier, setRmSupplier] = useState(initialJob.rmSupplier);
+  const [rmMill, setRmMill] = useState(initialJob.rmMill || "");
   const [rmType, setRmType] = useState(normRmForm(initialJob.rmType));
   const [printingType, setPrintingType] = useState(normPrintingType(initialJob.printingType));
   const [paperType, setPaperType] = useState(initialJob.paperType);
@@ -65,9 +66,10 @@ export default function JobEditor({
   // Master-product mapping (admin + factory manager can edit; others see read-only).
   const canEditMasterProduct = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
   const supplierOptions = useMemo(() => {
-    const set = new Set(["KC Paper", "BILT", "Jodhani Mill", "Janta Paper", "ITC", "Ajit Paper", "Kesari Paper"]);
+    const set = new Set(["KC Paper", "Janta Paper", "Kesari Paper", "Unisource", "Wikas"]);
     for (const rm of rmStock) if (rm.supplier) set.add(rm.supplier.trim());
     if (job.rmSupplier) set.add(job.rmSupplier);
+    for (const x of [...set]) if (millFromPaperName(x)) set.delete(x);
     return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }, [rmStock, job.rmSupplier]);
   // Live dimensions from the catalogue for the mapped SKU; older jobs that
@@ -160,6 +162,7 @@ export default function JobEditor({
     if (norm(estimatedDeliveryDate) !== norm(job.estimatedDeliveryDate)) return true;
     if ((rmStockLineId || "") !== (job.rmStockLineId || "")) return true;
     if (norm(rmSupplier) !== norm(job.rmSupplier)) return true;
+    if (norm(rmMill) !== norm(job.rmMill)) return true;
     if (rmType !== normRmForm(job.rmType)) return true;
     if (printingType !== normPrintingType(job.printingType)) return true;
     if (norm(paperType) !== norm(job.paperType)) return true;
@@ -178,7 +181,7 @@ export default function JobEditor({
     job, note, stage, internalStatus, actionPoints,
     expectedDispatchDate, estimatedDeliveryDate,
     rmSupplier, paperType, gsm, rmSizeMm, rmQtySheets, rmQtyKgs,
-    rmDeliveryDate, printingVendor, printingDueDate, productionDueDate, conversionAt, packingAt, rmStockLineId, rmType, printingType,
+    rmDeliveryDate, printingVendor, printingDueDate, productionDueDate, conversionAt, packingAt, rmStockLineId, rmType, printingType, rmMill,
   ]);
 
   useEffect(() => {
@@ -286,6 +289,7 @@ export default function JobEditor({
         rmType: rmType || null,
         printingType: printingType || null,
         rmSupplier,
+        rmMill: rmMill || null,
         paperType,
         gsm: gsm === "" ? null : Number(gsm),
         rmSizeMm: rmSizeMm === "" ? null : Number(rmSizeMm),
@@ -513,6 +517,8 @@ export default function JobEditor({
                 const rm = rmStock.find((x) => x.id === id);
                 if (rm) {
                   if (rm.supplier) setRmSupplier(rm.supplier);
+                  const mill = rm.mill || millFromPaperName(rm.name);
+                  if (mill) setRmMill(mill);
                   if (rm.paperType) setPaperType(rm.paperType);
                   if (rm.gsm != null) setGsm(String(rm.gsm));
                   if (rm.widthMm != null) setRmSizeMm(String(rm.widthMm));
@@ -551,6 +557,13 @@ export default function JobEditor({
             <input className={inputCls} list="rm-supplier-options" autoComplete="off" value={rmSupplier} onChange={(e) => setRmSupplier(e.target.value)} />
             <datalist id="rm-supplier-options">
               {supplierOptions.map((x) => <option key={x} value={x} />)}
+            </datalist>
+          </div>
+          <div>
+            <label className={labelCls}>Mill (manufacturer)</label>
+            <input className={inputCls} list="rm-mill-options" autoComplete="off" value={rmMill} onChange={(e) => setRmMill(e.target.value)} placeholder="e.g. ITC, BILT, JK" />
+            <datalist id="rm-mill-options">
+              {[...new Set([...MILLS, ...rmStock.map((r) => r.mill).filter(Boolean), job.rmMill].filter(Boolean))].sort().map((x) => <option key={x} value={x} />)}
             </datalist>
           </div>
           <div>
