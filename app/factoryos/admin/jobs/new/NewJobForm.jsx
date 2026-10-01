@@ -121,7 +121,8 @@ export default function NewJobForm({
   // category is small enough to list in full (largest is Paper Bags).
   const filteredProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
-    let list = products;
+    // FactoryOS doesn't record traded items — only what the factory makes.
+    let list = products.filter((p) => p.inHouse);
     if (productCategory === "line:any") {
       list = list.filter((p) => lineForCategory(p.category) !== null);
     } else if (productCategory.startsWith("line:")) {
@@ -245,35 +246,7 @@ export default function NewJobForm({
 
   return (
     <form onSubmit={submit} className="mt-6 bg-white border border-gray-200 rounded-xl p-5 space-y-5 dark:bg-gray-900 dark:border-gray-800">
-      <div>
-        <label className={labelCls}>Item type</label>
-        <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          {[
-            { v: "in_house", label: "In-house (manufactured)" },
-            { v: "traded", label: "Traded (bought-in, e.g. foils)" },
-          ].map((o) => (
-            <button
-              type="button"
-              key={o.v}
-              onClick={() => { set("sourcing", o.v); setProductCategory(o.v === "traded" ? "" : "line:any"); }}
-              className={`px-3 py-1.5 text-sm ${
-                form.sourcing === o.v
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-              }`}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-        {isTraded && (
-          <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-            Traded items skip raw-material and printing — but still pick the bought-in product from the
-            catalogue so it maps to a DB SKU. The customer sees a Confirmed → Procuring → Dispatched →
-            Delivered flow.
-          </p>
-        )}
-      </div>
+      {/* Item type toggle removed 01-Oct-2026: FactoryOS records in-house jobs only. */}
 
       <Section title="Basics">
         <div>
@@ -334,20 +307,10 @@ export default function NewJobForm({
               onChange={(e) => setProductCategory(e.target.value)}
               aria-label="Category"
             >
-              {!isTraded && (
-                <optgroup label="Factory lines">
-                  <option value="line:any">All factory lines</option>
-                  {LINES.map((l) => (
-                    <option key={l.key} value={`line:${l.key}`}>{l.label}</option>
-                  ))}
-                </optgroup>
-              )}
-              <optgroup label={isTraded ? "Categories" : "Whole catalogue"}>
-                <option value="">All categories</option>
-                {productCategories.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </optgroup>
+              <option value="line:any">All in-house products</option>
+              {LINES.map((l) => (
+                <option key={l.key} value={`line:${l.key}`}>{l.label}</option>
+              ))}
             </select>
             <input
               className={`${inputCls} sm:col-span-2`}
