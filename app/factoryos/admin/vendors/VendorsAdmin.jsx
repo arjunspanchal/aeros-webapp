@@ -195,7 +195,7 @@ export default function VendorsAdmin({ initialVendors }) {
               className={`${inputCls} text-base`}
               value={portalPassword}
               onChange={(e) => setPortalPassword(e.target.value)}
-              placeholder="min 6 characters"
+              placeholder="min 4 characters"
               autoComplete="off"
             />
             {portalMsg && <p className="text-xs text-gray-500 mt-1">{portalMsg}</p>}
