@@ -77,6 +77,7 @@ export async function POST(req) {
       ...rest,
       sourcing: isTraded ? "traded" : "in_house",
       conversionAt: routeAt(body.conversionAt),
+      rmStockLineId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(body.rmStockLineId || "")) ? body.rmStockLineId : null,
       packingAt: routeAt(body.packingAt),
     });
     // order_rate lives on a PG column outside the Airtable shim — set it after

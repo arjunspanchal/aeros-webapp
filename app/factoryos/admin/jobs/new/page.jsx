@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { listClients, listUsers, listVendors, getNextJobNumber } from "@/lib/factoryos/repo";
 import { listMasterPapers } from "@/lib/paper-rm";
 import { listBrandsByClient } from "@/lib/factoryos/brands";
+import { listRmStockOptions } from "@/lib/factoryos/rmStock";
 import { ROLES } from "@/lib/factoryos/constants";
 import { fetchCatalogLite } from "@/lib/catalog";
 import NewJobForm from "./NewJobForm";
@@ -24,7 +25,7 @@ export default async function NewJobPage() {
   ) {
     redirect("/factoryos");
   }
-  const [clients, users, catalogResult, masterPapers, printingVendors, nextJNumber, brands] = await Promise.all([
+  const [clients, users, catalogResult, masterPapers, printingVendors, nextJNumber, brands, rmStock] = await Promise.all([
     listClients(),
     listUsers(),
     // Lite fetch: the picker needs 7 text fields, not photos/pricing —
@@ -39,6 +40,7 @@ export default async function NewJobPage() {
     listVendors({ type: "Printing", activeOnly: true }).catch((e) => { console.error("Vendor fetch failed:", e); return []; }),
     getNextJobNumber(),
     listBrandsByClient(),
+    listRmStockOptions(),
   ]);
   // fetchCatalogLite already returns the slim picker shape the form uses.
   const products = catalogResult.products;
@@ -60,6 +62,7 @@ export default async function NewJobPage() {
           printingVendors={printingVendors.map((v) => v.name)}
           initialJNumber={nextJNumber}
           brands={brands}
+          rmStock={rmStock}
         />
       </main>
     </div>

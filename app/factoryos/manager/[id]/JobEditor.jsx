@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { StageBadge, StageTimeline, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
 import { ROLES } from "@/lib/factoryos/constants";
 import { ROUTE_AT, stagesForJob, stageOptionsForJob, describeRoute } from "@/lib/factoryos/routes";
+import { rmStockLabel } from "@/lib/factoryos/rmStock";
 import PushToWarehouseCard from "./PushToWarehouseCard";
 import JobThread from "@/app/factoryos/_components/JobThread";
 
@@ -21,6 +22,8 @@ export default function JobEditor({
   pushCount = 0,
   // Active printing-vendor names for the editable Printing Vendor dropdown.
   printingVendors = [],
+  // RM stock lines the job can be linked to (slim raw_materials rows).
+  rmStock = [],
 }) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
@@ -32,6 +35,7 @@ export default function JobEditor({
   const [expectedDispatchDate, setExpectedDispatchDate] = useState(initialJob.expectedDispatchDate || "");
   const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState(initialJob.estimatedDeliveryDate || "");
   // RM + production editable fields
+  const [rmStockLineId, setRmStockLineId] = useState(initialJob.rmStockLineId || "");
   const [rmSupplier, setRmSupplier] = useState(initialJob.rmSupplier);
   const [paperType, setPaperType] = useState(initialJob.paperType);
   const [gsm, setGsm] = useState(initialJob.gsm ?? "");
@@ -138,6 +142,7 @@ export default function JobEditor({
     if (norm(actionPoints) !== norm(job.actionPoints)) return true;
     if (norm(expectedDispatchDate) !== norm(job.expectedDispatchDate)) return true;
     if (norm(estimatedDeliveryDate) !== norm(job.estimatedDeliveryDate)) return true;
+    if ((rmStockLineId || "") !== (job.rmStockLineId || "")) return true;
     if (norm(rmSupplier) !== norm(job.rmSupplier)) return true;
     if (norm(paperType) !== norm(job.paperType)) return true;
     if (norm(gsm) !== norm(job.gsm)) return true;
@@ -155,7 +160,7 @@ export default function JobEditor({
     job, note, stage, internalStatus, actionPoints,
     expectedDispatchDate, estimatedDeliveryDate,
     rmSupplier, paperType, gsm, rmSizeMm, rmQtySheets, rmQtyKgs,
-    rmDeliveryDate, printingVendor, printingDueDate, productionDueDate, conversionAt, packingAt,
+    rmDeliveryDate, printingVendor, printingDueDate, productionDueDate, conversionAt, packingAt, rmStockLineId,
   ]);
 
   useEffect(() => {
@@ -259,6 +264,7 @@ export default function JobEditor({
         actionPoints,
         expectedDispatchDate: expectedDispatchDate || null,
         estimatedDeliveryDate: estimatedDeliveryDate || null,
+        rmStockLineId: rmStockLineId || null,
         rmSupplier,
         paperType,
         gsm: gsm === "" ? null : Number(gsm),
@@ -476,6 +482,30 @@ export default function JobEditor({
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">RM details</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="sm:col-span-3">
+            <label className={labelCls}>Paper from RM stock</label>
+            <select
+              className={inputCls}
+              value={rmStockLineId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setRmStockLineId(id);
+                const rm = rmStock.find((x) => x.id === id);
+                if (rm) {
+                  if (rm.supplier) setRmSupplier(rm.supplier);
+                  if (rm.paperType) setPaperType(rm.paperType);
+                  if (rm.gsm != null) setGsm(String(rm.gsm));
+                  if (rm.widthMm != null) setRmSizeMm(String(rm.widthMm));
+                }
+              }}
+            >
+              <option value="">— Not linked to stock —</option>
+              {rmStockLineId && !rmStock.some((x) => x.id === rmStockLineId) && (
+                <option value={rmStockLineId}>Linked stock line (no longer active)</option>
+              )}
+              {rmStock.map((rm) => <option key={rm.id} value={rm.id}>{rmStockLabel(rm)}</option>)}
+            </select>
+          </div>
           <div>
             <label className={labelCls}>RM supplier</label>
             <input className={inputCls} value={rmSupplier} onChange={(e) => setRmSupplier(e.target.value)} />

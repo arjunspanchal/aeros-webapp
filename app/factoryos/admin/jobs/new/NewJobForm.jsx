@@ -5,6 +5,7 @@ import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 import { STAGES, LEGACY_CATEGORIES } from "@/lib/factoryos/constants";
 import { LINES, lineForCategory } from "@/lib/factoryos/lines";
 import { ROUTE_AT, defaultRoute, describeRoute } from "@/lib/factoryos/routes";
+import { rmStockLabel } from "@/lib/factoryos/rmStock";
 
 // Fallback if the server didn't pass a precomputed J#. Returns "YYMM001"
 // (just the prefix + first-of-month seq) so the form never starts blank.
@@ -79,6 +80,8 @@ export default function NewJobForm({
   initialJNumber,
   // { byClient: { clientId: [brand] }, all: [brand] } — past brands for the datalist.
   brands = { byClient: {}, all: [] },
+  // RM stock lines (raw_materials) the job can draw paper from.
+  rmStock = [],
 }) {
   const router = useRouter();
   const [clients, setClients] = useState(initialClients);
@@ -109,6 +112,7 @@ export default function NewJobForm({
     stage: STAGES[0],
     poNumber: "",
     // RM
+    rmStockLineId: "",
     masterPaperId: "",
     rmType: "",
     rmSupplier: "",
@@ -231,6 +235,24 @@ export default function NewJobForm({
       .filter((mp) => `${mp.materialName} ${mp.supplier} ${mp.type} ${mp.gsm ?? ""} ${mp.bf ?? ""}`.toLowerCase().includes(q))
       .slice(0, 200);
   }, [masterPapers, masterPaperQuery]);
+
+  // Paper from stock: fill the RM fields from the stock line, and since the
+  // paper is already here the job can start at Under Printing instead of
+  // RM Pending (operator can still change the starting stage below).
+  function onPickRmStock(id) {
+    const rm = rmStock.find((x) => x.id === id);
+    if (!rm) { set("rmStockLineId", ""); return; }
+    setForm((f) => ({
+      ...f,
+      rmStockLineId: id,
+      rmType: rm.form || f.rmType,
+      rmSupplier: rm.supplier || f.rmSupplier,
+      paperType: rm.paperType || f.paperType,
+      gsm: rm.gsm != null ? String(rm.gsm) : f.gsm,
+      rmSizeMm: rm.widthMm != null ? String(rm.widthMm) : f.rmSizeMm,
+      stage: f.stage === "RM Pending" ? "Under Printing" : f.stage,
+    }));
+  }
 
   function onPickMasterPaper(id) {
     const mp = masterPapers.find((x) => x.id === id);
@@ -476,7 +498,17 @@ export default function NewJobForm({
       {!isTraded && (
       <Section title="Raw material">
         <div className="sm:col-span-2">
-          <label className={labelCls}>Pick from Paper RM Database (auto-fills paper type, GSM, supplier)</label>
+          <label className={labelCls}>Paper from RM stock (what we're holding right now)</label>
+          <select className={inputCls} value={form.rmStockLineId} onChange={(e) => onPickRmStock(e.target.value)}>
+            <option value="">— Not from stock / paper to be ordered —</option>
+            {rmStock.map((rm) => <option key={rm.id} value={rm.id}>{rmStockLabel(rm)}</option>)}
+          </select>
+          <p className="text-[11px] text-gray-400 mt-1 dark:text-gray-500">
+            Picking a stock line fills the paper details below and starts the job at Under Printing. Leave blank if the paper still has to be bought.
+          </p>
+        </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Or pick from the Paper RM Database (paper to order — auto-fills type, GSM, supplier)</label>
           <input
             className={`${inputCls} mb-2`}
             placeholder={`Search ${masterPapers.length} master papers by name / supplier / type / GSM…`}

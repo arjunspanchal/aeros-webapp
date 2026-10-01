@@ -123,6 +123,10 @@ export async function PATCH(req, { params }) {
     if (body.rmDeliveryDate !== undefined) patch.rmDeliveryDate = body.rmDeliveryDate;
     if (body.printingType !== undefined) patch.printingType = body.printingType;
     if (body.conversionAt !== undefined) patch.conversionAt = routeAt(body.conversionAt);
+    if (body.rmStockLineId !== undefined) {
+      const v = String(body.rmStockLineId || "");
+      patch.rmStockLineId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v : null;
+    }
     if (body.packingAt !== undefined) patch.packingAt = routeAt(body.packingAt);
     if (body.printingVendor !== undefined) patch.printingVendor = body.printingVendor;
     if (body.printingDueDate !== undefined) patch.printingDueDate = body.printingDueDate;

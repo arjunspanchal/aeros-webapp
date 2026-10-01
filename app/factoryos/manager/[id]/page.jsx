@@ -5,6 +5,7 @@ import { getJob, listJobUpdates, listClients, listVendors } from "@/lib/factoryo
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { ROLES } from "@/lib/factoryos/constants";
 import JobEditor from "./JobEditor";
+import { listRmStockOptions } from "@/lib/factoryos/rmStock";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function ManagerJobDetail({ params }) {
   // Either way, the lock state needs to reflect whether warehouse pushes
   // have happened. If the fetch fails, fall back to unlocked — server-side
   // PATCH guard re-checks anyway.
-  const [updates, clients, pushStatus, printingVendors] = await Promise.all([
+  const [updates, clients, pushStatus, printingVendors, rmStock] = await Promise.all([
     listJobUpdates(job.id),
     listClients(),
     getJobPushStatus(job.id).catch((e) => {
@@ -38,6 +39,7 @@ export default async function ManagerJobDetail({ params }) {
       return { push_count: 0 };
     }),
     listVendors({ type: "Printing", activeOnly: true }).catch(() => []),
+    listRmStockOptions(),
   ]);
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));
   const masterMappingLocked = (pushStatus?.push_count || 0) > 0;
@@ -57,6 +59,7 @@ export default async function ManagerJobDetail({ params }) {
           masterMappingLocked={masterMappingLocked}
           pushCount={pushStatus?.push_count || 0}
           printingVendors={printingVendorNames}
+          rmStock={rmStock}
         />
       </main>
     </div>

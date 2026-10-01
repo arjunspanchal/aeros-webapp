@@ -5,6 +5,7 @@ import { getJob, listJobUpdates, listClients, listVendors } from "@/lib/factoryo
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { fetchCatalogLite } from "@/lib/catalog";
 import JobEditor from "@/app/factoryos/manager/[id]/JobEditor";
+import { listRmStockOptions } from "@/lib/factoryos/rmStock";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export default async function AdminJobDetail({ params }) {
   if (!requireManager(session)) redirect("/factoryos");
   const job = await getJob(params.id);
   if (!job) notFound();
-  const [updates, clients, catalogResult, pushStatus, printingVendors] = await Promise.all([
+  const [updates, clients, catalogResult, pushStatus, printingVendors, rmStock] = await Promise.all([
     listJobUpdates(job.id),
     listClients(),
     // Catalog is optional on edit — if it fails we still let the page load read-only.
@@ -35,6 +36,7 @@ export default async function AdminJobDetail({ params }) {
       return { push_count: 0 };
     }),
     listVendors({ type: "Printing", activeOnly: true }).catch(() => []),
+    listRmStockOptions(),
   ]);
   const printingVendorNames = printingVendors.map((v) => v.name);
   // fetchCatalogLite already returns the slim picker shape NewJobForm uses.
@@ -59,6 +61,7 @@ export default async function AdminJobDetail({ params }) {
           masterMappingLocked={masterMappingLocked}
           pushCount={pushStatus?.push_count || 0}
           printingVendors={printingVendorNames}
+          rmStock={rmStock}
         />
       </main>
     </div>
