@@ -81,7 +81,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
       }
       if (!term) return true;
       const clientName = j.clientIds.map((c) => clientMap[c]?.name || "").join(" ");
-      const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.poNumber} ${clientName} ${j.internalStatus}`.toLowerCase();
+      const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.printingVendor} ${j.poNumber} ${clientName} ${j.internalStatus}`.toLowerCase();
       return hay.includes(term);
     });
   }, [jobs, q, stage, clientId, urgentOnly, dueFilter, today, clientMap, line, myLines]);
@@ -163,7 +163,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input
           className={`${inputCls} flex-1`}
-          placeholder="Search J#, brand, item, city, PO…"
+          placeholder="Search J#, brand, item, printer, PO…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -199,7 +199,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
                 <th className="text-left px-4 py-2 font-medium">Customer / Brand</th>
                 <th className="text-left px-4 py-2 font-medium">Item</th>
                 <th className="text-right px-4 py-2 font-medium">Qty</th>
-                <th className="text-left px-4 py-2 font-medium">City</th>
+                <th className="text-left px-4 py-2 font-medium">Printer</th>
                 <th className="text-left px-4 py-2 font-medium">Stage</th>
                 <th className="text-left px-4 py-2 font-medium">Internal</th>
                 <th className="text-left px-4 py-2 font-medium">Dispatch</th>
@@ -226,7 +226,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
                     <td className="px-4 py-2 text-right text-gray-900 dark:text-white">
                       {j.qty != null ? j.qty.toLocaleString("en-IN") : "—"}
                     </td>
-                    <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{j.city || "—"}</td>
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{j.printingVendor || "—"}</td>
                     <td className="px-4 py-2"><StageBadge stage={j.stage} /></td>
                     <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 max-w-xs truncate">
                       {j.internalStatus || "—"}

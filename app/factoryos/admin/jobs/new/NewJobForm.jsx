@@ -376,8 +376,8 @@ export default function NewJobForm({
           <input className={inputCls} value={form.itemSize} onChange={(e) => set("itemSize", e.target.value)} placeholder="e.g. 80 x 56 x 93 mm or 250 mL" />
         </div>
         <div>
-          <label className={labelCls}>City (destination)</label>
-          <input className={inputCls} value={form.city} onChange={(e) => set("city", e.target.value)} />
+          <label className={labelCls}>Delivery city</label>
+          <input className={inputCls} placeholder="e.g. Mumbai — the printer goes in Printing vendor below" value={form.city} onChange={(e) => set("city", e.target.value)} />
         </div>
         <div>
           <label className={labelCls}>Quantity</label>
