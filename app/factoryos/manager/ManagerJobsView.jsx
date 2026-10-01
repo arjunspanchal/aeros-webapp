@@ -14,10 +14,10 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Printer late = printing due passed, vendor hasn't marked printing complete.
+// Printer late = printing due passed and the job still sits at or before
+// Under Printing. Our stage only — printers don't use the portal.
 function isPrinterLate(j, today) {
   return !!j.printingDueDate && j.printingDueDate.slice(0, 10) < today
-    && !["printing_completed", "dispatched"].includes(j.vendorStatus || "")
     && ["RM Pending", "Under Printing"].includes(j.stage);
 }
 
@@ -203,7 +203,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
             type="button"
             onClick={() => setLateOnly((v) => !v)}
             className={`shrink-0 px-3 py-2 text-sm rounded-lg border whitespace-nowrap ${lateOnly ? "bg-red-700 text-white border-red-700" : "bg-white text-red-700 border-red-200 hover:border-red-300 dark:bg-gray-900 dark:border-red-900"}`}
-            title="Printing due date passed and the printer hasn't marked printing complete"
+            title="Printing due date passed and the job is still under printing"
           >
             {lateOnly ? "Printer late ✓" : `Printer late (${printerLateCount})`}
           </button>

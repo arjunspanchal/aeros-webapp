@@ -7,6 +7,7 @@ import {
   PUNCHING, QTY_UOMS, WIND_DIRECTIONS, COLOUR_TYPES, COLOUR_SIDES, qtyBand,
   processFromPrintingType,
 } from "@/lib/factoryos/jobOrderConstants";
+import { V1 } from "@/lib/factoryos/v1";
 
 const CMYK = [
   { name: "Process Cyan", swatchHex: "#00a0e4" },
@@ -189,7 +190,7 @@ export default function JobOrderEditor({ job, clientName, vendor, initialSpec, i
     setBusy("issue"); setMsg(null);
     try {
       absorb(await call("POST", { action: "issue" }));
-      setMsg({ ok: true, text: `Issued to ${job.printingVendor}. It is now visible in their portal.` });
+      setMsg({ ok: true, text: V1.vendorPortal ? `Issued to ${job.printingVendor}. It is now visible in their portal.` : `Issued. Print / PDF and send it to ${job.printingVendor}.` });
     } catch (e) { setMsg({ ok: false, text: e.message }); }
     finally { setBusy(""); }
   }
@@ -238,17 +239,17 @@ export default function JobOrderEditor({ job, clientName, vendor, initialSpec, i
                 : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}>
               {isIssued ? `Issued · rev ${spec.rev}` : `Draft · rev ${spec?.rev ?? 1}`}
             </span>
-            {spec?.vendorAckAt && !spec.ackStale && (
+            {V1.vendorPortal && spec?.vendorAckAt && !spec.ackStale && (
               <span className="text-xs text-green-700 dark:text-green-400">
                 ✓ Accepted by vendor · rev {spec.vendorAckRev}
               </span>
             )}
-            {spec?.ackStale && (
+            {V1.vendorPortal && spec?.ackStale && (
               <span className="text-xs text-amber-700 dark:text-amber-400">
                 Vendor accepted rev {spec.vendorAckRev} — current is rev {spec.rev}
               </span>
             )}
-            {isIssued && !spec?.vendorAckAt && (
+            {V1.vendorPortal && isIssued && !spec?.vendorAckAt && (
               <span className="text-xs text-gray-500 dark:text-gray-400">Awaiting vendor acceptance</span>
             )}
           </div>
