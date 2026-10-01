@@ -242,7 +242,7 @@ export default function NewJobForm({
     const set = new Set();
     for (const mp of masterPapers) if (mp.supplier) set.add(mp.supplier.trim());
     for (const rm of rmStock) if (rm.supplier) set.add(rm.supplier.trim());
-    for (const x of ["TPC", "KC Paper", "BILT", "Jodhani Mill", "Janta Paper", "ITC", "Ajit Paper", "Kesari Paper"]) set.add(x);
+    for (const x of ["KC Paper", "BILT", "Jodhani Mill", "Janta Paper", "ITC", "Ajit Paper", "Kesari Paper"]) set.add(x);
     return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }, [masterPapers, rmStock]);
 

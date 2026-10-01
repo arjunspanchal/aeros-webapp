@@ -65,7 +65,7 @@ export default function JobEditor({
   // Master-product mapping (admin + factory manager can edit; others see read-only).
   const canEditMasterProduct = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
   const supplierOptions = useMemo(() => {
-    const set = new Set(["TPC", "KC Paper", "BILT", "Jodhani Mill", "Janta Paper", "ITC", "Ajit Paper", "Kesari Paper"]);
+    const set = new Set(["KC Paper", "BILT", "Jodhani Mill", "Janta Paper", "ITC", "Ajit Paper", "Kesari Paper"]);
     for (const rm of rmStock) if (rm.supplier) set.add(rm.supplier.trim());
     if (job.rmSupplier) set.add(job.rmSupplier);
     return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
