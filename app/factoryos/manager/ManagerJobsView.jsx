@@ -66,7 +66,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
     const term = q.trim().toLowerCase();
     return jobs.filter((j) => {
       if (line !== "all") {
-        const jl = lineForCategory(j.category);
+        const jl = lineForCategory(j.category, j.item);
         if (line === "mine" ? !(myLines || []).includes(jl) : jl !== line) return false;
       }
       if (urgentOnly && !j.urgent) return false;
@@ -95,7 +95,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
     for (const j of jobs) {
       if (j.stage === "Dispatched" || j.stage === "Delivered") continue;
       c.all++;
-      const jl = lineForCategory(j.category);
+      const jl = lineForCategory(j.category, j.item);
       if (jl) c[jl]++;
       if (jl && (myLines || []).includes(jl)) c.mine++;
     }

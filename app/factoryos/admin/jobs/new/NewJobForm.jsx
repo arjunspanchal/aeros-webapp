@@ -15,6 +15,48 @@ function fallbackJNumber() {
 }
 
 const NEW_CLIENT = "__new";
+
+// Size key for the Line → Size → Product cascade. The catalogue's size_volume
+// starts with the size ("10oz / 290ml | 90 x 60 x 96 mm …", "105 x 65 x 165 mm
+// (W x G x H)", "1000ml | …", "2-cup | …"); take that first segment and
+// normalise spelling variants ("10 x 10 x 2.5 in (254 x …)" → "10x10x2.5 in").
+// Falls back to the leading size token of the product name.
+function sizeKeyOf(p) {
+  let seg = String(p.sizeVolume || "").split("|")[0].trim();
+  if (!seg) {
+    const m = /^(\d+(?:\.\d+)?\s*(?:ml|mL|oz)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:ml|mL|oz))?|\d+\s*x\s*\d+\s*x\s*\d+(?:\.\d+)?\s*(?:mm|in)?)/i.exec(p.productName || "");
+    seg = m ? m[1] : "";
+  }
+  seg = seg.replace(/\s*\([^)]*\)\s*/g, " ").replace(/\s+/g, " ").trim();
+  // Volumes: the catalogue writes "8oz / 250ml", "250 ml / 8 oz", "500 mL / 17 oz"
+  // interchangeably — canonicalise to "<oz>oz / <ml>ml" so they merge.
+  const oz = /(\d+(?:\.\d+)?)\s*oz\b/i.exec(seg);
+  const ml = /(\d+(?:\.\d+)?)\s*ml\b/i.exec(seg);
+  if (oz && ml) return `${oz[1]}oz / ${ml[1]}ml`;
+  if (ml) return `${ml[1]}ml`;
+  if (oz) return `${oz[1]}oz`;
+  return seg
+    .replace(/\s*x\s*/gi, "x")
+    .replace(/(\d+)[\s-]+cup\b/i, "$1-cup")
+    .trim();
+}
+// Sort volumes by ml (oz-only ≈ 30 ml/oz), dimensions numerically, else alpha.
+function sizeVolumeMl(k) {
+  const ml = /(\d+(?:\.\d+)?)\s*ml\b/i.exec(k);
+  if (ml) return parseFloat(ml[1]);
+  const oz = /(\d+(?:\.\d+)?)\s*oz\b/i.exec(k);
+  if (oz) return parseFloat(oz[1]) * 30;
+  return null;
+}
+// Volumes first by ml, then dimensions / counts in natural order.
+function sizeSort(a, b) {
+  const va = sizeVolumeMl(a), vb = sizeVolumeMl(b);
+  if (va != null && vb != null) return va - vb || a.localeCompare(b);
+  if (va != null) return -1;
+  if (vb != null) return 1;
+  return a.localeCompare(b, undefined, { numeric: true });
+}
+
 const PRINTING_TYPES = ["", "Flexo", "Offset", "NA"];
 
 function Section({ title, children }) {
@@ -92,6 +134,7 @@ export default function NewJobForm({
   // opens on those ("line:any") instead of the 19-category catalogue.
   // Values: "line:any" | "line:<key>" | "" (whole catalogue) | a category name.
   const [productCategory, setProductCategory] = useState("line:any");
+  const [productSize, setProductSize] = useState("");
   const [masterPaperQuery, setMasterPaperQuery] = useState("");
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
@@ -130,16 +173,30 @@ export default function NewJobForm({
     // FactoryOS doesn't record traded items — only what the factory makes.
     let list = products.filter((p) => p.inHouse);
     if (productCategory === "line:any") {
-      list = list.filter((p) => lineForCategory(p.category) !== null);
+      list = list.filter((p) => lineForCategory(p.category, p.subCategory) !== null);
     } else if (productCategory.startsWith("line:")) {
       const key = productCategory.slice(5);
-      list = list.filter((p) => lineForCategory(p.category) === key);
+      list = list.filter((p) => lineForCategory(p.category, p.subCategory) === key);
     } else if (productCategory) {
       list = list.filter((p) => p.category === productCategory);
     }
+    if (productSize) list = list.filter((p) => sizeKeyOf(p) === productSize);
     if (q) list = list.filter((p) => `${p.productName} ${p.sku} ${p.category} ${p.sizeVolume}`.toLowerCase().includes(q));
     return productCategory || q ? list : list.slice(0, 200);
-  }, [products, productQuery, productCategory]);
+  }, [products, productQuery, productCategory, productSize]);
+
+  // Sizes available in the chosen line (before the size / search filters).
+  const sizeOptions = useMemo(() => {
+    let list = products.filter((p) => p.inHouse);
+    if (productCategory === "line:any") list = list.filter((p) => lineForCategory(p.category, p.subCategory) !== null);
+    else if (productCategory.startsWith("line:")) {
+      const key = productCategory.slice(5);
+      list = list.filter((p) => lineForCategory(p.category, p.subCategory) === key);
+    } else if (productCategory) list = list.filter((p) => p.category === productCategory);
+    const set = new Set();
+    for (const p of list) { const k = sizeKeyOf(p); if (k) set.add(k); }
+    return [...set].sort(sizeSort);
+  }, [products, productCategory]);
 
   function onPickProduct(id) {
     const p = products.find((x) => x.id === id);
@@ -323,7 +380,7 @@ export default function NewJobForm({
             <select
               className={inputCls}
               value={productCategory}
-              onChange={(e) => setProductCategory(e.target.value)}
+              onChange={(e) => { setProductCategory(e.target.value); setProductSize(""); }}
               aria-label="Category"
             >
               <option value="line:any">All in-house products</option>
@@ -331,8 +388,17 @@ export default function NewJobForm({
                 <option key={l.key} value={`line:${l.key}`}>{l.label}</option>
               ))}
             </select>
+            <select
+              className={inputCls}
+              value={productSize}
+              onChange={(e) => setProductSize(e.target.value)}
+              aria-label="Size"
+            >
+              <option value="">All sizes ({sizeOptions.length})</option>
+              {sizeOptions.map((sz) => <option key={sz} value={sz}>{sz}</option>)}
+            </select>
             <input
-              className={`${inputCls} sm:col-span-2`}
+              className={inputCls}
               placeholder={`Search ${filteredProducts.length === products.length ? products.length : `${filteredProducts.length} of ${products.length}`} products by name / SKU / size…`}
               value={productQuery}
               onChange={(e) => setProductQuery(e.target.value)}
