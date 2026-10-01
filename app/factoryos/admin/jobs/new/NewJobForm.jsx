@@ -34,6 +34,8 @@ export default function NewJobForm({
   masterPapers = [],
   printingVendors = [],
   initialJNumber,
+  // { byClient: { clientId: [brand] }, all: [brand] } — past brands for the datalist.
+  brands = { byClient: {}, all: [] },
 }) {
   const router = useRouter();
   const [clients, setClients] = useState(initialClients);
@@ -95,6 +97,10 @@ export default function NewJobForm({
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
   const isNewClient = form.clientId === NEW_CLIENT;
+  const brandOptions = useMemo(() => {
+    if (form.clientId && !isNewClient) return brands.byClient?.[form.clientId] || [];
+    return brands.all || [];
+  }, [brands, form.clientId, isNewClient]);
   const isTraded = form.sourcing === "traded";
 
   // Unique categories derived from the loaded catalog. Sourcing them from the
@@ -277,7 +283,20 @@ export default function NewJobForm({
         </div>
         <div>
           <label className={labelCls}>Brand</label>
-          <input className={inputCls} value={form.brand} onChange={(e) => set("brand", e.target.value)} placeholder="e.g. aB Coffee" />
+          {/* datalist = dropdown of brands already recorded for this customer
+              (all customers' brands until one is picked), but free text still
+              works for a brand we haven't seen. */}
+          <input
+            className={inputCls}
+            list="brand-options"
+            value={form.brand}
+            onChange={(e) => set("brand", e.target.value)}
+            placeholder={brandOptions.length ? "Pick a past brand or type a new one" : "e.g. aB Coffee"}
+            autoComplete="off"
+          />
+          <datalist id="brand-options">
+            {brandOptions.map((b) => <option key={b} value={b} />)}
+          </datalist>
         </div>
         <div>
           <label className={labelCls}>Account manager</label>
