@@ -5,7 +5,7 @@ import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 import { STAGES, LEGACY_CATEGORIES } from "@/lib/factoryos/constants";
 import { LINES, lineForCategory } from "@/lib/factoryos/lines";
 import { ROUTE_AT, defaultRoute, describeRoute } from "@/lib/factoryos/routes";
-import { rmStockLabel } from "@/lib/factoryos/rmStock";
+import { rmStockLabel, rmStockFree } from "@/lib/factoryos/rmStock";
 
 // Fallback if the server didn't pass a precomputed J#. Returns "YYMM001"
 // (just the prefix + first-of-month seq) so the form never starts blank.
@@ -239,6 +239,8 @@ export default function NewJobForm({
   // Paper from stock: fill the RM fields from the stock line, and since the
   // paper is already here the job can start at Under Printing instead of
   // RM Pending (operator can still change the starting stage below).
+  const linkedRm = useMemo(() => rmStock.find((x) => x.id === form.rmStockLineId) || null, [rmStock, form.rmStockLineId]);
+
   function onPickRmStock(id) {
     const rm = rmStock.find((x) => x.id === id);
     if (!rm) { set("rmStockLineId", ""); return; }
@@ -279,6 +281,15 @@ export default function NewJobForm({
       setErr("Pick a product from the master catalogue — required so this job maps to an SKU.");
       setBusy(false);
       return;
+    }
+
+    if (linkedRm) {
+      const need = Number(/sheet/i.test(linkedRm.form) ? form.rmQtySheets : form.rmQtyKgs) || 0;
+      if (!(need > 0)) {
+        setErr(`Enter the ${/sheet/i.test(linkedRm.form) ? "sheets" : "kg"} this job needs from the stock line you picked.`);
+        setBusy(false);
+        return;
+      }
     }
 
     let clientId = form.clientId;
@@ -507,6 +518,39 @@ export default function NewJobForm({
             Picking a stock line fills the paper details below and starts the job at Under Printing. Leave blank if the paper still has to be bought.
           </p>
         </div>
+        {linkedRm && (() => {
+          const free = rmStockFree(linkedRm);
+          const isSheets = /sheet/i.test(linkedRm.form);
+          const need = Number(isSheets ? form.rmQtySheets : form.rmQtyKgs) || 0;
+          const short = free && need > free.free;
+          return (
+            <div className={`sm:col-span-2 rounded-lg border px-3 py-3 ${short ? "border-amber-400 bg-amber-50 dark:bg-amber-900/20" : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/40"}`}>
+              <label className={labelCls}>
+                RM required for this job <span className="text-red-500">*</span>
+                <span className="ml-1 font-normal normal-case">({isSheets ? "sheets" : "kg"})</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step={isSheets ? "1" : "0.1"}
+                className={`${inputCls} sm:max-w-xs`}
+                value={isSheets ? form.rmQtySheets : form.rmQtyKgs}
+                onChange={(e) => set(isSheets ? "rmQtySheets" : "rmQtyKgs", e.target.value)}
+                placeholder={isSheets ? "e.g. 1200" : "e.g. 350"}
+              />
+              {free ? (
+                <p className={`mt-1.5 text-xs ${short ? "text-amber-800 dark:text-amber-300" : "text-gray-600 dark:text-gray-300"}`}>
+                  In stock {free.onHand.toLocaleString("en-IN")} {free.unit}
+                  {free.reserved > 0 && <> · already claimed by open jobs {free.reserved.toLocaleString("en-IN")} {free.unit}</>}
+                  {" "}· <span className="font-semibold">free {free.free.toLocaleString("en-IN")} {free.unit}</span>
+                  {short && <> — short by {(need - free.free).toLocaleString("en-IN")} {free.unit}. You can still raise the job; RM will need topping up.</>}
+                </p>
+              ) : (
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Stock quantity not recorded for this line yet.</p>
+              )}
+            </div>
+          );
+        })()}
         <div className="sm:col-span-2">
           <label className={labelCls}>Or pick from the Paper RM Database (paper to order — auto-fills type, GSM, supplier)</label>
           <input
@@ -546,14 +590,23 @@ export default function NewJobForm({
           <label className={labelCls}>RM size (mm)</label>
           <input type="number" className={inputCls} value={form.rmSizeMm} onChange={(e) => set("rmSizeMm", e.target.value)} placeholder="e.g. 890" />
         </div>
-        <div>
-          <label className={labelCls}>RM qty (sheets)</label>
-          <input type="number" className={inputCls} value={form.rmQtySheets} onChange={(e) => set("rmQtySheets", e.target.value)} />
-        </div>
-        <div>
-          <label className={labelCls}>RM qty (kgs)</label>
-          <input type="number" step="0.01" className={inputCls} value={form.rmQtyKgs} onChange={(e) => set("rmQtyKgs", e.target.value)} />
-        </div>
+        {!linkedRm && (
+          <>
+            {/* Paper not in stock yet: the quantity still goes on the job so
+                purchasing knows what to order, and the job sits at RM Pending. */}
+            <div>
+              <label className={labelCls}>RM to order — sheets</label>
+              <input type="number" className={inputCls} value={form.rmQtySheets} onChange={(e) => set("rmQtySheets", e.target.value)} placeholder="if sheet stock" />
+            </div>
+            <div>
+              <label className={labelCls}>RM to order — kg</label>
+              <input type="number" step="0.01" className={inputCls} value={form.rmQtyKgs} onChange={(e) => set("rmQtyKgs", e.target.value)} placeholder="if roll stock" />
+            </div>
+            <p className="sm:col-span-2 -mt-2 text-[11px] text-gray-400 dark:text-gray-500">
+              No stock line picked, so this job starts at RM Pending. Enter what has to be ordered; once it arrives, link the job to the new stock line on the job page.
+            </p>
+          </>
+        )}
         <div>
           <label className={labelCls}>RM delivery date</label>
           <input type="date" className={inputCls} value={form.rmDeliveryDate} onChange={(e) => set("rmDeliveryDate", e.target.value)} />

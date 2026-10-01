@@ -54,6 +54,11 @@ export async function POST(req) {
         { status: 400 },
       );
     }
+    // A job drawing from a stock line must say how much it needs — that is
+    // the number the stock "free" figure is computed from.
+    if (body.rmStockLineId && !(Number(body.rmQtySheets) > 0 || Number(body.rmQtyKgs) > 0)) {
+      return Response.json({ error: "Enter the sheets or kg this job needs from the RM stock line." }, { status: 400 });
+    }
     if (body.stage && !STAGES.includes(body.stage)) {
       return Response.json({ error: "Invalid stage" }, { status: 400 });
     }

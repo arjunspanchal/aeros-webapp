@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { StageBadge, StageTimeline, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
 import { ROLES } from "@/lib/factoryos/constants";
 import { ROUTE_AT, stagesForJob, stageOptionsForJob, describeRoute } from "@/lib/factoryos/routes";
-import { rmStockLabel } from "@/lib/factoryos/rmStock";
+import { rmStockLabel, rmStockFree } from "@/lib/factoryos/rmStock";
 import PushToWarehouseCard from "./PushToWarehouseCard";
 import JobThread from "@/app/factoryos/_components/JobThread";
 
@@ -505,6 +505,22 @@ export default function JobEditor({
               )}
               {rmStock.map((rm) => <option key={rm.id} value={rm.id}>{rmStockLabel(rm)}</option>)}
             </select>
+            {(() => {
+              const rm = rmStock.find((x) => x.id === rmStockLineId);
+              const free = rmStockFree(rm);
+              if (!rm || !free) return null;
+              const isSheets = free.unit === "sheets";
+              const need = Number(isSheets ? rmQtySheets : rmQtyKgs) || 0;
+              // This job's own claim is inside `reserved`; show free excluding it.
+              const freeExcl = free.free + (job.rmStockLineId === rm.id ? (Number(isSheets ? job.rmQtySheets : job.rmQtyKgs) || 0) : 0);
+              const short = need > freeExcl;
+              return (
+                <p className={`mt-1.5 text-xs ${short ? "text-amber-700 dark:text-amber-400" : "text-gray-500 dark:text-gray-400"}`}>
+                  This job needs {need.toLocaleString("en-IN")} {free.unit} · in stock {free.onHand.toLocaleString("en-IN")} · free for this job {freeExcl.toLocaleString("en-IN")} {free.unit}
+                  {short && " — short"}
+                </p>
+              );
+            })()}
           </div>
           <div>
             <label className={labelCls}>RM supplier</label>
