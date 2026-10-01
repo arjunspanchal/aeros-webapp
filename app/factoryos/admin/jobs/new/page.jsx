@@ -54,6 +54,7 @@ export default async function NewJobPage() {
         <NewJobForm
           clients={clients}
           accountManagers={accountManagers}
+          canOverrideRm={role === ROLES.ADMIN}
           products={products}
           catalogError={catalogError}
           masterPapers={masterPapers}

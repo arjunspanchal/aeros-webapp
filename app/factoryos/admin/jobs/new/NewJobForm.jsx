@@ -81,7 +81,11 @@ export default function NewJobForm({
   brands = { byClient: {}, all: [] },
   // RM stock lines (raw_materials) the job can draw paper from.
   rmStock = [],
+  // Admin may raise a job that over-claims a stock line (with a note); factory
+  // managers are blocked so stock isn't promised twice.
+  canOverrideRm = false,
 }) {
+  const [overrideShortRm, setOverrideShortRm] = useState(false);
   const router = useRouter();
   const [clients, setClients] = useState(initialClients);
   const [form, setForm] = useState({
@@ -307,6 +311,12 @@ export default function NewJobForm({
         setBusy(false);
         return;
       }
+      const free = rmStockFree(linkedRm);
+      if (free && need > free.free && !(canOverrideRm && overrideShortRm)) {
+        setErr(`Only ${free.free.toLocaleString("en-IN")} ${free.unit} of this stock line are free (${(need - free.free).toLocaleString("en-IN")} short). Reduce the quantity, pick another line, or leave the stock line blank and order paper.${canOverrideRm ? " Or tick the admin override below." : ""}`);
+        setBusy(false);
+        return;
+      }
     }
 
     let clientId = form.clientId;
@@ -329,6 +339,7 @@ export default function NewJobForm({
       clientId,
       // Snapshot the master SKU + name at creation time. Master catalogue can change later;
       // the job-level record keeps the original mapping so FG ledger stays consistent.
+      overrideShortRm: canOverrideRm && overrideShortRm,
       masterSku: pickedProduct.sku || "",
       masterProductName: pickedProduct.productName || "",
       orderRate: form.orderRate ? Number(form.orderRate) : undefined,
@@ -509,8 +520,8 @@ export default function NewJobForm({
           <input className={inputCls} value={form.item} onChange={(e) => set("item", e.target.value)} placeholder="e.g. 250 ml DW Paper Cup" required />
         </div>
         <div>
-          <label className={labelCls}>Item size</label>
-          <input className={inputCls} value={form.itemSize} onChange={(e) => set("itemSize", e.target.value)} placeholder="e.g. 80 x 56 x 93 mm or 250 mL" />
+          <label className={labelCls}>Item size <span className="font-normal normal-case text-gray-400">(from the product)</span></label>
+          <input className={`${inputCls} bg-gray-50 text-gray-600 dark:bg-gray-800/60`} value={form.itemSize} readOnly tabIndex={-1} placeholder="fills in when you pick a product" />
         </div>
         <div>
           <label className={labelCls}>Delivery city</label>
@@ -574,8 +585,14 @@ export default function NewJobForm({
                   In stock {free.onHand.toLocaleString("en-IN")} {free.unit}
                   {free.reserved > 0 && <> · already claimed by open jobs {free.reserved.toLocaleString("en-IN")} {free.unit}</>}
                   {" "}· <span className="font-semibold">free {free.free.toLocaleString("en-IN")} {free.unit}</span>
-                  {short && <> — short by {(need - free.free).toLocaleString("en-IN")} {free.unit}. You can still raise the job; RM will need topping up.</>}
+                  {short && <> — short by {(need - free.free).toLocaleString("en-IN")} {free.unit}. {canOverrideRm ? "Admin can override below; otherwise reduce or order paper." : "Reduce the quantity, pick another line, or leave the stock line blank and order paper."}</>}
                 </p>
+              ) : null}
+              {short && canOverrideRm ? (
+                <label className="mt-2 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
+                  <input type="checkbox" checked={overrideShortRm} onChange={(e) => setOverrideShortRm(e.target.checked)} />
+                  Admin override — raise the job anyway; RM will be topped up
+                </label>
               ) : (
                 <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">Stock quantity not recorded for this line yet.</p>
               )}

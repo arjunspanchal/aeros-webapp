@@ -1,5 +1,6 @@
 import { getSession, requireInternal, requireManager, requireRole } from "@/lib/auth/session";
 import { routeAt } from "@/lib/factoryos/routes";
+import { listRmStockOptions, rmStockFree } from "@/lib/factoryos/rmStock";
 import { listJobsForSession, createJob, setJobDelivery } from "@/lib/factoryos/repo";
 import { STAGES } from "@/lib/factoryos/constants";
 
@@ -59,6 +60,21 @@ export async function POST(req) {
     // the number the stock "free" figure is computed from.
     if (body.rmStockLineId && !(Number(body.rmQtySheets) > 0 || Number(body.rmQtyKgs) > 0)) {
       return Response.json({ error: "Enter the sheets or kg this job needs from the RM stock line." }, { status: 400 });
+    }
+    // Hard block on over-claiming a stock line (Arjun, 01-Oct-2026) so the
+    // same paper isn't promised to two jobs. Admin may override explicitly.
+    if (body.rmStockLineId) {
+      const line = (await listRmStockOptions()).find((x) => x.id === body.rmStockLineId);
+      const free = rmStockFree(line);
+      if (free) {
+        const need = Number(free.unit === "sheets" ? body.rmQtySheets : body.rmQtyKgs) || 0;
+        const isAdmin = session.isAdmin || session.modules?.factoryos === "admin";
+        if (need > free.free && !(isAdmin && body.overrideShortRm === true)) {
+          return Response.json({
+            error: `Only ${free.free.toLocaleString("en-IN")} ${free.unit} of this stock line are free — ${(need - free.free).toLocaleString("en-IN")} short. Reduce the quantity, pick another line, or order paper.`,
+          }, { status: 409 });
+        }
+      }
     }
     if (body.stage && !STAGES.includes(body.stage)) {
       return Response.json({ error: "Invalid stage" }, { status: 400 });
