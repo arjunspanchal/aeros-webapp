@@ -29,6 +29,11 @@ export default function VendorsAdmin({ initialVendors }) {
     return vendors.filter((v) => v.type === filter);
   }, [vendors, filter]);
 
+  // /printer one-pager password (printing vendors only). Set on save; blank
+  // = leave unchanged; the API never returns the hash.
+  const [portalPassword, setPortalPassword] = useState("");
+  const [portalMsg, setPortalMsg] = useState("");
+
   function startEdit(v) {
     setEditingId(v.id);
     setForm({
@@ -69,6 +74,13 @@ export default function VendorsAdmin({ initialVendors }) {
       return;
     }
     const data = await res.json();
+    if (isEditing && portalPassword) {
+      const pr = await fetch(`/api/factoryos/vendors/${editingId}/portal-password`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: portalPassword }),
+      });
+      setPortalMsg(pr.ok ? "Portal password set." : ((await pr.json().catch(() => ({}))).error || "Password not set"));
+      setPortalPassword("");
+    }
     if (isEditing) {
       setVendors((prev) =>
         prev.map((v) => (v.id === editingId ? data.vendor : v)).sort((a, b) => a.name.localeCompare(b.name))
@@ -175,6 +187,20 @@ export default function VendorsAdmin({ initialVendors }) {
             placeholder="Rates, specialties, payment terms — anything useful"
           />
         </div>
+        {isEditing && form.type === "Printing" && (
+          <div>
+            <label className={labelCls}>Printer portal password <span className="font-normal normal-case text-gray-400">(/printer login — leave blank to keep current)</span></label>
+            <input
+              type="text"
+              className={`${inputCls} text-base`}
+              value={portalPassword}
+              onChange={(e) => setPortalPassword(e.target.value)}
+              placeholder="min 6 characters"
+              autoComplete="off"
+            />
+            {portalMsg && <p className="text-xs text-gray-500 mt-1">{portalMsg}</p>}
+          </div>
+        )}
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
           <input
             type="checkbox"
