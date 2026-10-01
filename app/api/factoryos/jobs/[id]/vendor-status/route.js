@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
-import { setVendorStatus, postJobMessage, VENDOR_STATUSES } from "@/lib/factoryos/repo";
+import { setVendorStatus, postJobMessage, VENDOR_STATUSES, vendorSafeJob } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +40,7 @@ export async function PATCH(req, { params }) {
       authorRole: who,
       kind: "system",
     }).catch(() => {});
-    return Response.json({ job: updated });
+    return Response.json({ job: access === "vendor" ? vendorSafeJob(updated) : updated });
   } catch (e) {
     if (e?.code === "STATUS_REGRESSION") {
       return Response.json({ error: "Can't undo now — more than 30 minutes have passed. Call Aeros." }, { status: 409 });

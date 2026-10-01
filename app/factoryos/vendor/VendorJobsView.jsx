@@ -64,7 +64,7 @@ export default function VendorJobsView({ jobs, vendorName, linked, unreadIds = [
       if (filter === "open" && done) return false;
       if (filter === "done" && !done) return false;
       if (!term) return true;
-      const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.printingType} ${j.poNumber}`.toLowerCase();
+      const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.printingType}`.toLowerCase();
       return hay.includes(term);
     });
     // Surface what needs attention first: overdue, then urgent, then by the

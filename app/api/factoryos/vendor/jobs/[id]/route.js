@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
-import { updateJob } from "@/lib/factoryos/repo";
+import { updateJob, vendorSafeJob } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +36,7 @@ export async function PATCH(req, { params }) {
 
   try {
     const updated = await updateJob(job.id, { printingDueDate });
-    return Response.json({ job: updated });
+    return Response.json({ job: vendorSafeJob(updated) });
   } catch (e) {
     console.error("vendor due-date update failed:", e);
     return Response.json({ error: "Could not save date" }, { status: 500 });

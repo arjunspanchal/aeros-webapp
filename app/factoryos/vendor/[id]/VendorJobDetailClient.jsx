@@ -61,14 +61,7 @@ export default function VendorJobDetailClient({ initialJob, initialThread, jobOr
           <Spec label="Size" value={job.itemSize} />
           <Spec label="Paper / GSM" value={[job.paperType, job.gsm ? `${job.gsm} GSM` : null].filter(Boolean).join(" · ")} />
           <Spec label="RM size (mm)" value={job.rmSizeMm} />
-          <Spec label="Order date" value={job.orderDate ? formatDate(job.orderDate) : null} />
         </dl>
-        {job.actionPoints && (
-          <div className="mt-4 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-900 dark:bg-blue-900/20 dark:border-blue-900 dark:text-blue-200">
-            <span className="font-semibold">Note from Aeros: </span>
-            {job.actionPoints}
-          </div>
-        )}
       </div>
 
       {/* Print job order — what to print and how */}
