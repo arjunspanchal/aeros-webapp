@@ -14,6 +14,13 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Printer late = printing due passed, vendor hasn't marked printing complete.
+function isPrinterLate(j, today) {
+  return !!j.printingDueDate && j.printingDueDate.slice(0, 10) < today
+    && !["printing_completed", "dispatched"].includes(j.vendorStatus || "")
+    && ["RM Pending", "Under Printing"].includes(j.stage);
+}
+
 function LinePill({ active, onClick, label, count }) {
   return (
     <button
@@ -50,6 +57,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
   // production due date; account managers manage the customer promise
   // (expected dispatch).
   const factoryView = role !== "account_manager" && role !== "customer";
+  const [lateOnly, setLateOnly] = useState(searchParams.get("late") === "printer");
   const [q, setQ] = useState("");
   const [stage, setStage] = useState(initialStage);
   const [clientId, setClientId] = useState("all");
@@ -74,6 +82,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
         if (line === "mine" ? !(myLines || []).includes(jl) : jl !== line) return false;
       }
       if (urgentOnly && !j.urgent) return false;
+      if (lateOnly && !isPrinterLate(j, today)) return false;
       if (stage !== "all" && j.stage !== stage) return false;
       if (clientId !== "all" && !j.clientIds.includes(clientId)) return false;
       // Overdue dispatch: scheduled for before today AND not already in the
@@ -93,8 +102,11 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
       const clientName = j.clientIds.map((c) => clientMap[c]?.name || "").join(" ");
       const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.printingVendor} ${j.poNumber} ${clientName} ${j.internalStatus}`.toLowerCase();
       return hay.includes(term);
-    });
-  }, [jobs, q, stage, clientId, urgentOnly, dueFilter, today, clientMap, line, myLines, factoryView]);
+    })
+    // Urgent jobs float to the top; otherwise keep the list's J# order.
+    .sort((a, b) => (b.urgent === true) - (a.urgent === true));
+  }, [jobs, q, stage, clientId, urgentOnly, lateOnly, dueFilter, today, clientMap, line, myLines, factoryView]);
+  const printerLateCount = useMemo(() => jobs.filter((j) => isPrinterLate(j, today)).length, [jobs, today]);
 
   const urgentCount = useMemo(() => jobs.filter((j) => j.urgent).length, [jobs]);
 
@@ -186,6 +198,16 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
         >
           {urgentOnly ? "Urgent only ✓" : `Urgent (${urgentCount})`}
         </button>
+        {(printerLateCount > 0 || lateOnly) && (
+          <button
+            type="button"
+            onClick={() => setLateOnly((v) => !v)}
+            className={`shrink-0 px-3 py-2 text-sm rounded-lg border whitespace-nowrap ${lateOnly ? "bg-red-700 text-white border-red-700" : "bg-white text-red-700 border-red-200 hover:border-red-300 dark:bg-gray-900 dark:border-red-900"}`}
+            title="Printing due date passed and the printer hasn't marked printing complete"
+          >
+            {lateOnly ? "Printer late ✓" : `Printer late (${printerLateCount})`}
+          </button>
+        )}
         {dueFilter === "overdue" && (
           <button
             type="button"
@@ -234,7 +256,12 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
                     <td className="px-4 py-2 text-right text-gray-900 dark:text-white">
                       {j.qty != null ? j.qty.toLocaleString("en-IN") : "—"}
                     </td>
-                    <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{j.printingVendor || "—"}</td>
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-300">
+                      {j.printingVendor || "—"}
+                      {isPrinterLate(j, today) && (
+                        <span className="ml-1.5 inline-flex items-center text-[10px] font-semibold bg-red-100 text-red-800 px-1.5 py-0.5 rounded align-middle dark:bg-red-900/40 dark:text-red-200">LATE</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2"><StageBadge stage={j.stage} /></td>
                     <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 max-w-xs truncate">
                       {j.internalStatus || "—"}

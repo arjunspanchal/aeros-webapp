@@ -8,6 +8,7 @@ import { ROUTE_AT, stagesForJob, stageOptionsForJob, describeRoute } from "@/lib
 import { rmStockLabel, rmStockFree } from "@/lib/factoryos/rmStock";
 import PushToWarehouseCard from "./PushToWarehouseCard";
 import JobThread from "@/app/factoryos/_components/JobThread";
+import InwardPanel from "./InwardPanel";
 
 export default function JobEditor({
   job: initialJob,
@@ -65,6 +66,17 @@ export default function JobEditor({
   const [trackingSaved, setTrackingSaved] = useState(false);
   // Master-product mapping (admin + factory manager can edit; others see read-only).
   const canEditMasterProduct = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
+  // Printer late: printing due has passed, vendor hasn't reported printing
+  // complete / dispatched, and the job is still at or before Under Printing.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const printerLate =
+    !!job.printingDueDate &&
+    job.printingDueDate.slice(0, 10) < todayIso &&
+    !["printing_completed", "dispatched"].includes(job.vendorStatus || "") &&
+    ["RM Pending", "Under Printing"].includes(job.stage);
+  const printerLateDays = printerLate
+    ? Math.max(1, Math.round((new Date(todayIso) - new Date(job.printingDueDate.slice(0, 10))) / 86400000))
+    : 0;
   const supplierOptions = useMemo(() => {
     const set = new Set(["KC Paper", "Janta Paper", "Kesari Paper", "Unisource", "Wikas"]);
     for (const rm of rmStock) if (rm.supplier) set.add(rm.supplier.trim());
@@ -357,6 +369,26 @@ export default function JobEditor({
         <div className="mt-4">
           <StageTimeline stage={job.stage} stages={stagesForJob({ ...job, conversionAt, packingAt })} />
         </div>
+        {printerLate && (
+          <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-3 py-3 dark:border-red-800 dark:bg-red-900/20">
+            <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+              {job.printingVendor || "Printer"} is {printerLateDays} day{printerLateDays === 1 ? "" : "s"} past the printing due date and hasn't marked printing complete.
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-300 mt-0.5">Check with them and put in the new date they've committed to.</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                className={`${inputCls} sm:max-w-xs`}
+                value={printingDueDate ? printingDueDate.slice(0, 10) : ""}
+                onChange={(e) => setPrintingDueDate(e.target.value)}
+              />
+              <button type="button" onClick={save} disabled={busy || !printingDueDate || printingDueDate.slice(0, 10) === (job.printingDueDate || "").slice(0, 10)}
+                className="rounded-lg bg-red-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {busy ? "Saving…" : "Save new printing date"}
+              </button>
+            </div>
+          </div>
+        )}
 
         <dl className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 text-sm">
           <Col label="Quantity" value={job.qty != null ? job.qty.toLocaleString("en-IN") : "—"} />
@@ -653,6 +685,15 @@ export default function JobEditor({
       {/* Audit C2: ledger writes (FG stock + unit cost) are admin/FM only.
           FE keeps full production-floor access (RM, stage, runs) but no
           longer authors financial movements. */}
+      {job.sourcing !== "traded" && (
+        <InwardPanel
+          jobId={job.id}
+          orderedQty={job.qty}
+          vendor={job.printingVendor}
+          canEdit={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER || role === ROLES.FACTORY_EXECUTIVE}
+        />
+      )}
+
       <PushToWarehouseCard
         job={job}
         canPush={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER}
