@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 import { STAGES, LEGACY_CATEGORIES } from "@/lib/factoryos/constants";
+import { LINES, lineForCategory } from "@/lib/factoryos/lines";
 
 // Fallback if the server didn't pass a precomputed J#. Returns "YYMM001"
 // (just the prefix + first-of-month seq) so the form never starts blank.
@@ -85,7 +86,10 @@ export default function NewJobForm({
   // Category narrows the product list before the search filter applies —
   // 600+ rows in a single dropdown is unworkable, this scopes it to a
   // handful before the operator even types.
-  const [productCategory, setProductCategory] = useState("");
+  // In-house jobs only ever produce the four factory lines, so the picker
+  // opens on those ("line:any") instead of the 19-category catalogue.
+  // Values: "line:any" | "line:<key>" | "" (whole catalogue) | a category name.
+  const [productCategory, setProductCategory] = useState("line:any");
   const [masterPaperQuery, setMasterPaperQuery] = useState("");
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
@@ -112,13 +116,22 @@ export default function NewJobForm({
     return Array.from(set).sort();
   }, [productCategories, form.category]);
 
-  // Filter pipeline: category (if set) → text search → cap at 200 options.
+  // Filter pipeline: line / category (if set) → text search. The 200 cap
+  // only applies to the whole unfiltered catalogue; a chosen line or
+  // category is small enough to list in full (largest is Paper Bags).
   const filteredProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
     let list = products;
-    if (productCategory) list = list.filter((p) => p.category === productCategory);
+    if (productCategory === "line:any") {
+      list = list.filter((p) => lineForCategory(p.category) !== null);
+    } else if (productCategory.startsWith("line:")) {
+      const key = productCategory.slice(5);
+      list = list.filter((p) => lineForCategory(p.category) === key);
+    } else if (productCategory) {
+      list = list.filter((p) => p.category === productCategory);
+    }
     if (q) list = list.filter((p) => `${p.productName} ${p.sku} ${p.category} ${p.sizeVolume}`.toLowerCase().includes(q));
-    return list.slice(0, 200);
+    return productCategory || q ? list : list.slice(0, 200);
   }, [products, productQuery, productCategory]);
 
   function onPickProduct(id) {
@@ -242,7 +255,7 @@ export default function NewJobForm({
             <button
               type="button"
               key={o.v}
-              onClick={() => set("sourcing", o.v)}
+              onClick={() => { set("sourcing", o.v); setProductCategory(o.v === "traded" ? "" : "line:any"); }}
               className={`px-3 py-1.5 text-sm ${
                 form.sourcing === o.v
                   ? "bg-blue-600 text-white"
@@ -321,10 +334,20 @@ export default function NewJobForm({
               onChange={(e) => setProductCategory(e.target.value)}
               aria-label="Category"
             >
-              <option value="">All categories</option>
-              {productCategories.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
+              {!isTraded && (
+                <optgroup label="Factory lines">
+                  <option value="line:any">All factory lines</option>
+                  {LINES.map((l) => (
+                    <option key={l.key} value={`line:${l.key}`}>{l.label}</option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label={isTraded ? "Categories" : "Whole catalogue"}>
+                <option value="">All categories</option>
+                {productCategories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </optgroup>
             </select>
             <input
               className={`${inputCls} sm:col-span-2`}
