@@ -193,7 +193,7 @@ const STYLES = {
     allowZeroH: true,
     depthLabel: "Lens",
     note:
-      "Pillow / wrap (burrito) box calibrated to the WILDBEAN production die (die-exact at 230 \u00d7 89.5, depth 35): faces W\u22120.5 | W+0.5, 12 mm glue flap (15 mm end drops, mid relief with a rounded tab), each end a lens \u2014 cut arc out and crease arc in by the same height (depth/2) through the side-fold points \u2014 and an R5 thumb notch on the glue-side face's top flap. Other sizes scale the die's curves; prototype the first cut.",
+      "Pillow / wrap (burrito) box calibrated to the WILDBEAN production die (die-exact at 230 \u00d7 89.5, depth 35): faces W\u22120.5 | W+0.5, 12 mm glue flap (15 mm end drops, mid relief with a rounded tab), each end a lens \u2014 cut arc out and crease arc in by the same height (depth/2) through the side-fold points \u2014 and an R5 thumb notch on the glue-side face's top flap. The glue-flap mid relief marks the TEAR-OFF PERFORATION across both faces (3 mm cut / 1 mm tie, assumed) so the top half tears away for eating. Other sizes scale the die's curves; prototype the first cut.",
   },
   tray: {
     label: "Tray (ear-lock, 0421)",
