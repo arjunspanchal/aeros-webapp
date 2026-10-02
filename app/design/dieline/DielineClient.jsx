@@ -184,15 +184,16 @@ const STYLES = {
     build: buildPillowboxDieline,
     defaultUnits: "mm",
     defaults: { L: "150", W: "90", H: "0" },
-    hints: { L: "box length", W: "face width (flat)", H: "not used — depth comes from the curve" },
+    hints: { L: "length at the side folds", W: "face width (flat)", H: "erected depth at centre (0 = auto 0.36\u00d7W)" },
     presets: [
-      { label: "150×90", dims: [150, 90, 0], unit: "mm" },
-      { label: "200×110", dims: [200, 110, 0], unit: "mm" },
+      { label: "150\u00d790", dims: [150, 90, 0], unit: "mm" },
+      { label: "200\u00d7110", dims: [200, 110, 0], unit: "mm" },
+      { label: "Wrap / burrito box 220\u00d795\u00d745 (EST from photo)", dims: [220, 95, 45], unit: "mm" },
     ],
     allowZeroH: true,
     depthLabel: "Tuck flap",
     note:
-      "Two curved faces with curved tuck-in ends and a glued side seam; pillow depth emerges from the 0.18×W end curve. Standard construction — prototype the first cut.",
+      "Wrap / burrito pillow box: two faces + 15 mm glue seam (15\u00b0 slant ends); each end is a crease arc and a crescent cut arc through the same side-fold points, so the flaps come to a point at the folds and tuck in. Erected depth \u2248 2 \u00d7 the end-curve height (H sets it). Standard construction \u2014 prototype the first cut.",
   },
   tray: {
     label: "Tray (ear-lock, 0421)",
