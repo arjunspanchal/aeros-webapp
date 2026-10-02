@@ -180,20 +180,20 @@ const STYLES = {
       "Annular-sector unwrap for conical cups (same maths family as a cup fan) with a 12 mm glued overlap seam. Pull cup Ø from the master before cutting.",
   },
   pillowbox: {
-    label: "Pillow Box",
+    label: "Pillow / Wrap Box",
     build: buildPillowboxDieline,
     defaultUnits: "mm",
-    defaults: { L: "150", W: "90", H: "0" },
-    hints: { L: "length at the side folds", W: "face width (flat)", H: "erected depth at centre (0 = auto 0.36\u00d7W)" },
+    defaults: { L: "230", W: "89.5", H: "35.1" },
+    hints: { L: "length at the side folds", W: "face width (mean of the two faces)", H: "erected depth at centre (0 = auto 0.39\u00d7W)" },
     presets: [
+      { label: "Wrap box 9\u00d71.5 in \u00b7 WILDBEAN die (230\u00d789.5\u00d735)", dims: [230, 89.5, 35.1], unit: "mm" },
       { label: "150\u00d790", dims: [150, 90, 0], unit: "mm" },
       { label: "200\u00d7110", dims: [200, 110, 0], unit: "mm" },
-      { label: "Wrap / burrito box 220\u00d795\u00d745 (EST from photo)", dims: [220, 95, 45], unit: "mm" },
     ],
     allowZeroH: true,
-    depthLabel: "Tuck flap",
+    depthLabel: "Lens",
     note:
-      "Wrap / burrito pillow box: two faces + 15 mm glue seam (15\u00b0 slant ends); each end is a crease arc and a crescent cut arc through the same side-fold points, so the flaps come to a point at the folds and tuck in. Erected depth \u2248 2 \u00d7 the end-curve height (H sets it). Standard construction \u2014 prototype the first cut.",
+      "Pillow / wrap (burrito) box calibrated to the WILDBEAN production die (die-exact at 230 \u00d7 89.5, depth 35): faces W\u22120.5 | W+0.5, 12 mm glue flap (15 mm end drops, mid relief with a rounded tab), each end a lens \u2014 cut arc out and crease arc in by the same height (depth/2) through the side-fold points \u2014 and an R5 thumb notch on the glue-side face's top flap. Other sizes scale the die's curves; prototype the first cut.",
   },
   tray: {
     label: "Tray (ear-lock, 0421)",
