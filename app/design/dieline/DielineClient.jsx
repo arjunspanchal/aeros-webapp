@@ -208,7 +208,7 @@ const STYLES = {
     usesThickness: true,
     depthLabel: "Wall height",
     note:
-      "Glue-free open tray: side-wall ears wrap the ends, end-wall fold-over lips lock into base slots (same lock as the mailer). For a telescope set, generate a cover at L+3 × W+3 with the cover height. Standard construction — prototype the first cut.",
+      "Glue-free open tray: side-wall ears wrap the ends, end-wall fold-over lips lock into base slots (same lock as the mailer). For a top + bottom (telescope) set, make the cover at L + 4t + 2 × W + 4t + 2 (walls are double board, plus 1 mm play per side) with the cover height. Standard construction — prototype the first cut.",
   },
   carrier4: {
     label: "4-Cup Carrier (carry box)",
