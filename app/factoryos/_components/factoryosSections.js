@@ -33,6 +33,15 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
     ],
   });
 
+  // QC — documents that go out with the goods. COA first; factory managers
+  // write them, the rest of the team can open and print.
+  sections.push({
+    label: "QC",
+    items: [
+      { href: "/factoryos/qc", label: "COA generator", exact: false },
+    ],
+  });
+
   // Admin tree — FM + Admin only.
   if (adminish) {
     sections.push({

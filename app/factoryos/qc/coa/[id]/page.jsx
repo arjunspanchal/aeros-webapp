@@ -1,0 +1,38 @@
+import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
+import { getSession, requireManager } from "@/lib/auth/session";
+import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
+import { getCoa, coaDefaults, COA_FIELDS } from "@/lib/factoryos/coa";
+import CoaEditor from "./CoaEditor";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "COA — FactoryOS" };
+
+export default async function CoaPage({ params }) {
+  const session = getSession();
+  if (!session) redirect("/login");
+  const { job, access } = await resolveJobAccess(session, params.id);
+  if (!job || access !== "internal") notFound();
+
+  const saved = await getCoa(job.id);
+  const initial = saved || (await coaDefaults(job));
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Link href="/factoryos/qc" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400">← QC</Link>
+        <h1 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Certificate of Analysis</h1>
+        <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
+          J# {job.jNumber} · {[job.brand, job.item].filter(Boolean).join(" — ")}
+        </p>
+        <CoaEditor
+          jobId={job.id}
+          initial={initial}
+          isNew={!saved}
+          canEdit={requireManager(session)}
+          fields={COA_FIELDS.map(({ key, label }) => ({ key, label }))}
+        />
+      </main>
+    </div>
+  );
+}
