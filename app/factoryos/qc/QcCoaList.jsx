@@ -5,7 +5,7 @@ import Link from "next/link";
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "");
 
-export default function QcCoaList({ rows = [], canEdit = false }) {
+export default function QcCoaList({ rows = [], standalone = [], canEdit = false }) {
   const [q, setQ] = useState("");
   const [only, setOnly] = useState("all");
   const shown = useMemo(() => {
@@ -28,6 +28,37 @@ export default function QcCoaList({ rows = [], canEdit = false }) {
 
   return (
     <div className="mt-5">
+      {(canEdit || standalone.length > 0) && (
+        <div className="mb-5 bg-white border border-gray-200 rounded-xl p-4 dark:bg-gray-900 dark:border-gray-800">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">COA without a job</h2>
+              <p className="text-xs text-gray-500 mt-0.5 dark:text-gray-400">For samples, stock items, or an order that isn&apos;t in FactoryOS.</p>
+            </div>
+            {canEdit && (
+              <Link href="/factoryos/qc/coa/new" className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-gray-900">+ New COA</Link>
+            )}
+          </div>
+          {standalone.length > 0 && (
+            <ul className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
+              {standalone.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                  <span className="min-w-0">
+                    <span className="text-gray-900 dark:text-white">{c.productName || "Untitled"}</span>
+                    <span className="ml-2 text-xs text-gray-500">{fmt(c.date)}</span>
+                  </span>
+                  <span className="whitespace-nowrap">
+                    <a href={`/print/coa/s/${c.id}`} target="_blank" rel="noopener noreferrer" className="mr-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 dark:border-gray-700 dark:text-gray-200">PDF</a>
+                    <Link href={`/factoryos/qc/coa/s/${c.id}`} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 dark:border-gray-700 dark:text-gray-200">Open</Link>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">COA for a job</h2>
       <div className="flex flex-wrap items-center gap-2">
         <input
           value={q}

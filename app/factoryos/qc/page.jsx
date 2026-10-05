@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession, requireInternal, requireManager } from "@/lib/auth/session";
 import { listJobsForSession } from "@/lib/factoryos/repo";
-import { listCoaIndex } from "@/lib/factoryos/coa";
+import { listCoaIndex, listStandaloneCoas } from "@/lib/factoryos/coa";
 import QcCoaList from "./QcCoaList";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +14,10 @@ export default async function QcPage() {
   if (!requireInternal(session)) redirect("/factoryos");
   const role = session.isAdmin ? "admin" : session.modules?.factoryos;
 
-  const [jobs, coaIndex] = await Promise.all([
+  const [jobs, coaIndex, standalone] = await Promise.all([
     listJobsForSession({ role, userId: session.factoryosUserId, clientIds: session.factoryosClientIds }),
     listCoaIndex().catch(() => ({})),
+    listStandaloneCoas().catch(() => []),
   ]);
   const rows = jobs
     .filter((j) => j.sourcing !== "traded")
@@ -30,9 +31,9 @@ export default async function QcPage() {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">QC</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-          Certificate of Analysis (COA) — pick a job, check the details, print. One COA per job.
+          Certificate of Analysis (COA) — pick a job, check the details, print. No job for it? Use &ldquo;COA without a job&rdquo;.
         </p>
-        <QcCoaList rows={rows} canEdit={requireManager(session)} />
+        <QcCoaList rows={rows} standalone={standalone} canEdit={requireManager(session)} />
       </main>
     </div>
   );

@@ -1,31 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const input = "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700 dark:text-white disabled:bg-gray-50 disabled:text-gray-500";
 
-export default function CoaEditor({ jobId, initial, isNew, canEdit, fields }) {
+// One editor for both kinds of COA: tied to a job (jobId), or standalone
+// (no job — coaId once it has been saved the first time).
+export default function CoaEditor({ jobId = null, coaId: initialCoaId = null, standalone = false, initial, isNew, canEdit, fields }) {
+  const router = useRouter();
   const [form, setForm] = useState(initial);
+  const [coaId, setCoaId] = useState(initialCoaId);
   const [saved, setSaved] = useState(!isNew);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setDirty(true); setMsg(""); };
 
+  const printUrl = standalone ? (coaId ? `/print/coa/s/${coaId}` : null) : `/print/coa/${jobId}`;
+
   async function save(thenPrint = false) {
     setBusy(true); setMsg("");
-    const res = await fetch(`/api/factoryos/jobs/${jobId}/coa`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+    const creating = standalone && !coaId;
+    const url = standalone ? (creating ? "/api/factoryos/coa" : `/api/factoryos/coa/${coaId}`) : `/api/factoryos/jobs/${jobId}/coa`;
+    const res = await fetch(url, {
+      method: creating ? "POST" : "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
     });
     setBusy(false);
-    if (!res.ok) { setMsg((await res.json().catch(() => ({}))).error || "Could not save"); return; }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { setMsg(data.error || "Could not save"); return; }
     setSaved(true); setDirty(false); setMsg("Saved");
-    if (thenPrint) window.open(`/print/coa/${jobId}`, "_blank", "noopener");
+    const id = standalone ? data.coa?.id : null;
+    if (creating && id) setCoaId(id);
+    if (thenPrint) window.open(standalone ? `/print/coa/s/${id || coaId}` : printUrl, "_blank", "noopener");
+    // First save of a no-job COA: move to its own address so a refresh
+    // re-opens this COA instead of a blank one.
+    if (creating && id) router.replace(`/factoryos/qc/coa/s/${id}`);
   }
 
   return (
     <div className="mt-5 bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
-      {isNew && !saved && (
+      {standalone && canEdit && !saved && (
+        <ProductPicker onPick={(d) => { setForm((f) => ({ ...d, date: f.date || d.date })); setDirty(true); setMsg(""); }} />
+      )}
+      {isNew && !saved && !standalone && (
         <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900 dark:bg-amber-900/20 dark:border-amber-900 dark:text-amber-200">
           Filled in from the job and the product master. Check every line against the actual goods — especially weight and colours — then save.
         </p>
@@ -59,11 +77,54 @@ export default function CoaEditor({ jobId, initial, isNew, canEdit, fields }) {
             </button>
           </>
         )}
-        {saved && !dirty && (
-          <a href={`/print/coa/${jobId}`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-800 dark:border-gray-700 dark:text-gray-200">PDF</a>
+        {saved && !dirty && printUrl && (
+          <a href={printUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-800 dark:border-gray-700 dark:text-gray-200">PDF</a>
         )}
         {msg && <span className={`text-sm ${msg === "Saved" ? "text-green-700" : "text-red-600"}`}>{msg}</span>}
       </div>
+    </div>
+  );
+}
+
+// Optional: search the catalogue and fill the sheet from that product.
+function ProductPicker({ onPick }) {
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
+  const [picked, setPicked] = useState("");
+
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2 || term === picked) { setResults([]); return; }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/factoryos/coa?q=${encodeURIComponent(term)}`);
+      if (res.ok) setResults((await res.json()).products || []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q, picked]);
+
+  async function pick(p) {
+    setPicked(p.sku); setQ(p.sku); setResults([]);
+    const res = await fetch(`/api/factoryos/coa?sku=${encodeURIComponent(p.sku)}`);
+    if (res.ok) onPick((await res.json()).defaults);
+  }
+
+  return (
+    <div className="mb-5 pb-5 border-b border-gray-200 dark:border-gray-800">
+      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Fill from a product <span className="font-normal text-gray-400">(optional)</span></label>
+      <input className={`${input} mt-1`} placeholder="Search product name or SKU" value={q} onChange={(e) => setQ(e.target.value)} />
+      {results.length > 0 && (
+        <ul className="mt-1 max-h-64 overflow-auto rounded-lg border border-gray-200 divide-y divide-gray-100 dark:border-gray-700 dark:divide-gray-800">
+          {results.map((p) => (
+            <li key={p.sku}>
+              <button type="button" onClick={() => pick(p)} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
+                <span className="text-gray-900 dark:text-white">{p.name}</span>
+                <span className="block text-xs text-gray-500">{[p.sku, p.size].filter(Boolean).join(" · ")}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {picked && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Filled from {picked}. Check every line against the actual goods before saving.</p>}
     </div>
   );
 }
