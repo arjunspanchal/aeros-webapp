@@ -200,10 +200,11 @@ const STYLES = {
     label: "Tamper Header Card (bag topper)",
     build: (a) => buildHeaderCardDieline({ L: a.L, W: a.W, fold: +a.H > 0 ? a.H : undefined, units: a.units }),
     defaultUnits: "mm",
-    defaults: { L: "300", W: "157", H: "81" },
+    defaults: { L: "300", W: "111", H: "81" },
     fieldLabels: ["Length (along fold)", "Flat width", "Fold from tear edge"],
     hints: { L: "card length along the fold", W: "flat width across the fold", H: "fold position from the tear-strip edge (0 = auto)" },
     presets: [
+      { label: "300\u00d7111 \u00b7 plain side 30 (current spec)", dims: [300, 111, 81], unit: "mm" },
       { label: "300\u00d7157 \u00b7 sample (fold 81, slot 12\u00d7110, tear strip 9 @ 20)", dims: [300, 157, 81], unit: "mm" },
     ],
     note:
