@@ -24,6 +24,7 @@ import { buildPieboxDieline } from "@/lib/dieline/piebox";
 import { buildCartonDieline, CARTON_TYPES } from "@/lib/dieline/carton";
 import { buildSleeveDieline, buildCupSleeveDieline } from "@/lib/dieline/sleeves";
 import { buildPillowboxDieline } from "@/lib/dieline/pillowbox";
+import { buildHeaderCardDieline } from "@/lib/dieline/headercard";
 import { buildGableboxDieline } from "@/lib/dieline/gablebox";
 import { buildPizzaboxDieline } from "@/lib/dieline/pizzabox";
 import { buildSnackboxDieline } from "@/lib/dieline/snackbox";
@@ -194,6 +195,19 @@ const STYLES = {
     depthLabel: "Lens",
     note:
       "Pillow / wrap (burrito) box calibrated to the WILDBEAN production die (die-exact at 230 \u00d7 89.5, depth 35): faces W\u22120.5 | W+0.5, 12 mm glue flap (15 mm end drops, mid relief with a rounded tab), each end a lens \u2014 cut arc out and crease arc in by the same height (depth/2) through the side-fold points \u2014 and an R5 thumb notch on the glue-side face's top flap. The glue-flap mid relief marks the TEAR-OFF PERFORATION across both faces (3 mm cut / 1 mm tie, assumed) so the top half tears away for eating. Other sizes scale the die's curves; prototype the first cut.",
+  },
+  headercard: {
+    label: "Tamper Header Card (bag topper)",
+    build: (a) => buildHeaderCardDieline({ L: a.L, W: a.W, fold: +a.H > 0 ? a.H : undefined, units: a.units }),
+    defaultUnits: "mm",
+    defaults: { L: "300", W: "157", H: "81" },
+    fieldLabels: ["Length (along fold)", "Flat width", "Fold from tear edge"],
+    hints: { L: "card length along the fold", W: "flat width across the fold", H: "fold position from the tear-strip edge (0 = auto)" },
+    presets: [
+      { label: "300\u00d7157 \u00b7 sample (fold 81, slot 12\u00d7110, tear strip 9 @ 20)", dims: [300, 157, 81], unit: "mm" },
+    ],
+    note:
+      "Flat card folded lengthwise over a bag mouth and stapled/sealed through both layers. Round-ended slot on the fold (carry/hang slot once folded); tear strip = two PERFORATE 1:1 lines (20 and 29 mm from the strip edge) with V-notches at both ends to start the tear. Photo-measured from a sample \u2014 prototype first.",
   },
   tray: {
     label: "Tray (ear-lock, 0421)",
