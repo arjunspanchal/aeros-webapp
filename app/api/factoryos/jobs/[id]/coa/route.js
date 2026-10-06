@@ -25,7 +25,7 @@ export async function POST(req, { params }) {
   const body = await req.json().catch(() => null);
   if (!body) return Response.json({ error: "Invalid body" }, { status: 400 });
   try {
-    return Response.json({ coa: await createJobCoa(job.id, body, { email: session.email || null }) });
+    return Response.json({ coa: await createJobCoa(job.id, body, { email: session.email || session.name || null }) });
   } catch (e) {
     return Response.json({ error: e?.message || "Could not save COA" }, { status: 400 });
   }

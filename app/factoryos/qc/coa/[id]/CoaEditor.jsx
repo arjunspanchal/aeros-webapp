@@ -38,6 +38,16 @@ export default function CoaEditor({ createUrl = null, coaId: initialCoaId = null
     if (creating) router.replace(`/factoryos/qc/coa/s/${id}`);
   }
 
+  async function remove() {
+    if (!window.confirm("Delete this COA? This cannot be undone.")) return;
+    setBusy(true); setMsg("");
+    const res = await fetch(`/api/factoryos/coa/${coaId}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { setMsg(data.error || "Could not delete"); return; }
+    router.replace(data.jobId ? `/factoryos/qc/coa/${data.jobId}` : "/factoryos/qc");
+  }
+
   return (
     <div className="mt-5 bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
       {standalone && canEdit && !saved && (
@@ -57,7 +67,14 @@ export default function CoaEditor({ createUrl = null, coaId: initialCoaId = null
         </div>
         {fields.map((f) => (
           <FieldRow key={f.key} label={f.label} hint={f.optional ? "Prints only when filled" : null}>
-            <input className={input} disabled={!canEdit} value={form[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} />
+            {f.select ? (
+              <select className={input} disabled={!canEdit} value={form[f.key] || ""} onChange={(e) => set(f.key, e.target.value)}>
+                <option value="">— Not checked —</option>
+                {f.select.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            ) : (
+              <input className={input} disabled={!canEdit} value={form[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} />
+            )}
           </FieldRow>
         ))}
         <FieldRow label="Inspection result" hint="Leave blank to sign by hand">
@@ -83,7 +100,15 @@ export default function CoaEditor({ createUrl = null, coaId: initialCoaId = null
           <a href={printUrl} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-800 dark:border-gray-700 dark:text-gray-200">PDF</a>
         )}
         {msg && <span className={`text-sm ${msg === "Saved" ? "text-green-700" : "text-red-600"}`}>{msg}</span>}
+        {canEdit && coaId && (
+          <button type="button" disabled={busy} onClick={remove} className="ml-auto text-sm text-red-600 hover:underline disabled:opacity-50">Delete this COA</button>
+        )}
       </div>
+      {initial.updatedAt && (
+        <p className="mt-3 text-xs text-gray-400">
+          Last saved {new Date(initial.updatedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}{initial.updatedByEmail ? ` by ${initial.updatedByEmail}` : ""}
+        </p>
+      )}
     </div>
   );
 }

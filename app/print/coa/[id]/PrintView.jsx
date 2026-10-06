@@ -27,13 +27,17 @@ export default function PrintView({ coa, fields, autoPrint = true }) {
   );
 
   return (
-    <div className="bg-white mx-auto" style={{ maxWidth: "800px", padding: "32px", color: INK, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div className="bg-white mx-auto coa-sheet" style={{ maxWidth: "800px", padding: "32px", color: INK, minHeight: "100vh", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
       <style>{`
         @page { size: A4; margin: 14mm; }
         @media print {
           .no-print { display: none !important; }
           body { background: white !important; }
           tr { page-break-inside: avoid; }
+          /* Fill the page so the footer sits at the bottom, but never spill
+             onto a second sheet: padding is inside the 100vh (border-box). */
+          .coa-sheet { min-height: 100vh; max-width: none; padding: 0; }
+          html, body { margin: 0; padding: 0; }
         }
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       `}</style>

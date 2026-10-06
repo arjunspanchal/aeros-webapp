@@ -2,7 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
-import { listJobCoas } from "@/lib/factoryos/coa";
+import { listJobCoas, coaQtyNumber } from "@/lib/factoryos/coa";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "COA — FactoryOS" };
@@ -19,6 +19,9 @@ export default async function JobCoasPage({ params }) {
   const coas = await listJobCoas(job.id);
   // First COA: go straight to the sheet, nothing to list yet.
   if (!coas.length && canEdit) redirect(`/factoryos/qc/coa/${job.id}/new`);
+  const covered = coas.reduce((t, c) => t + coaQtyNumber(c.dispatchQty), 0);
+  const ordered = Number(job.qty) || 0;
+  const over = ordered > 0 && covered > ordered;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -39,6 +42,12 @@ export default async function JobCoasPage({ params }) {
               <Link href={`/factoryos/qc/coa/${job.id}/new`} className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-gray-900">+ New COA for a dispatch</Link>
             )}
           </div>
+          {covered > 0 && (
+            <p className={`mt-3 text-sm ${over ? "text-red-600" : "text-gray-700 dark:text-gray-300"}`}>
+              Covered by COAs so far: <strong>{covered.toLocaleString("en-IN")}</strong>{ordered ? ` of ${ordered.toLocaleString("en-IN")} pcs ordered` : " pcs"}
+              {over && " — more than the order quantity, check the lots"}
+            </p>
+          )}
           {coas.length ? (
             <ul className="mt-4 divide-y divide-gray-100 dark:divide-gray-800">
               {coas.map((c, i) => (
