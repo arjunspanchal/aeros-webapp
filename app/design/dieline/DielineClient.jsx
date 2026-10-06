@@ -200,15 +200,15 @@ const STYLES = {
     label: "Tamper Header Card (bag topper)",
     build: (a) => buildHeaderCardDieline({ L: a.L, W: a.W, fold: +a.H > 0 ? a.H : undefined, units: a.units }),
     defaultUnits: "mm",
-    defaults: { L: "300", W: "106", H: "30" },
+    defaults: { L: "300", W: "105", H: "75" },
     fieldLabels: ["Length (along fold)", "Flat width", "Fold from tear edge"],
     hints: { L: "card length along the fold", W: "flat width across the fold", H: "fold position from the tear-strip edge (0 = auto)" },
     presets: [
-      { label: "300\u00d7106 \u00b7 tear-strip side 30 (current spec)", dims: [300, 106, 30], unit: "mm" },
-      { label: "300\u00d7151 \u00b7 original sample (tear side 75)", dims: [300, 151, 75], unit: "mm" },
+      { label: "300\u00d7105 \u00b7 tear side 75 / plain side 30 (current spec)", dims: [300, 105, 75], unit: "mm" },
+      { label: "300\u00d7151 \u00b7 original sample (75 / 76)", dims: [300, 151, 75], unit: "mm" },
     ],
     note:
-      "Flat card folded lengthwise over a bag mouth and stapled/sealed through both layers. Round-ended slot on the fold (carry/hang slot once folded); tear strip 9 mm = two PERFORATE 1:1 lines (at 10 mm from the strip edge on the 30 mm spec, 20 mm on a full-height side) with V-notches at both ends to start the tear. Photo-measured from a sample \u2014 prototype first.",
+      "Flat card folded lengthwise over a bag mouth and stapled/sealed through both layers. Round-ended slot on the fold (carry/hang slot once folded); tear strip 9 mm = two PERFORATE 1:1 lines (20 and 29 mm from the strip edge; 10 mm if the strip side is ever cut under 40) with V-notches at both ends to start the tear. Photo-measured from a sample \u2014 prototype first.",
   },
   tray: {
     label: "Tray (ear-lock, 0421)",
