@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession, requireManager } from "@/lib/auth/session";
-import { coaDefaultsForSku, COA_PRINT_FIELDS } from "@/lib/factoryos/coa";
+import { coaDefaultsForSku, COA_PRINT_FIELDS, COA_APPROVERS } from "@/lib/factoryos/coa";
 import CoaEditor from "../[id]/CoaEditor";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +27,7 @@ export default async function NewCoaPage() {
           canEdit
           standalone
           fields={COA_PRINT_FIELDS}
+          approvers={COA_APPROVERS}
         />
       </main>
     </div>

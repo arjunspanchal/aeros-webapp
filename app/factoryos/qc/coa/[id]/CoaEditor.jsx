@@ -8,7 +8,7 @@ const input = "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:b
 // One editor for every COA. `createUrl` = where the first save POSTs (a
 // job's COA endpoint, or the no-job endpoint); after that the sheet has its
 // own id and saves PUT to /api/factoryos/coa/[coaId].
-export default function CoaEditor({ createUrl = null, coaId: initialCoaId = null, standalone = false, fromPrevious = false, initial, isNew, canEdit, fields }) {
+export default function CoaEditor({ createUrl = null, coaId: initialCoaId = null, standalone = false, fromPrevious = false, initial, isNew, canEdit, fields, approvers = [] }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
   const [coaId, setCoaId] = useState(initialCoaId);
@@ -64,7 +64,7 @@ export default function CoaEditor({ createUrl = null, coaId: initialCoaId = null
           <input className={input} disabled={!canEdit} placeholder="e.g. Passed" value={form.inspectionResult || ""} onChange={(e) => set("inspectionResult", e.target.value)} />
         </FieldRow>
         <FieldRow label="Approved by" hint="Leave blank to sign by hand">
-          <input className={input} disabled={!canEdit} value={form.approvedBy || ""} onChange={(e) => set("approvedBy", e.target.value)} />
+          <ApprovedBy value={form.approvedBy || ""} disabled={!canEdit} options={approvers} onChange={(v) => set("approvedBy", v)} />
         </FieldRow>
       </div>
 
@@ -127,6 +127,32 @@ function ProductPicker({ onPick }) {
         </ul>
       )}
       {picked && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Filled from {picked}. Check every line against the actual goods before saving.</p>}
+    </div>
+  );
+}
+
+// Dropdown of the usual signatories; "Other" opens a text box.
+function ApprovedBy({ value, disabled, options, onChange }) {
+  const [other, setOther] = useState(!!value && !options.includes(value));
+  const sel = other ? "__other" : value;
+  return (
+    <div className="flex gap-2">
+      <select
+        className={`${input} ${other ? "sm:w-40 w-1/2" : ""}`}
+        disabled={disabled}
+        value={sel}
+        onChange={(e) => {
+          if (e.target.value === "__other") { setOther(true); onChange(""); }
+          else { setOther(false); onChange(e.target.value); }
+        }}
+      >
+        <option value="">— Sign by hand —</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        <option value="__other">Other…</option>
+      </select>
+      {other && (
+        <input className={input} disabled={disabled} autoFocus placeholder="Name" value={value} onChange={(e) => onChange(e.target.value)} />
+      )}
     </div>
   );
 }

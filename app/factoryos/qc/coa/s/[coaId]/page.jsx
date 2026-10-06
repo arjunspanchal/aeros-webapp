@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession, requireInternal, requireManager } from "@/lib/auth/session";
-import { getCoaById, COA_PRINT_FIELDS } from "@/lib/factoryos/coa";
+import { getCoaById, COA_PRINT_FIELDS, COA_APPROVERS } from "@/lib/factoryos/coa";
 import CoaEditor from "../../[id]/CoaEditor";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +31,7 @@ export default async function CoaByIdPage({ params }) {
           canEdit={requireManager(session)}
           standalone={!coa.job}
           fields={COA_PRINT_FIELDS}
+          approvers={COA_APPROVERS}
         />
       </main>
     </div>

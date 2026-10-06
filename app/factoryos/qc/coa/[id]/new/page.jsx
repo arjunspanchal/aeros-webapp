@@ -2,7 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession, requireManager } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
-import { coaDefaults, listJobCoas, COA_PRINT_FIELDS } from "@/lib/factoryos/coa";
+import { coaDefaults, listJobCoas, COA_PRINT_FIELDS, COA_APPROVERS } from "@/lib/factoryos/coa";
 import CoaEditor from "../CoaEditor";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +32,7 @@ export default async function NewJobCoaPage({ params }) {
           canEdit
           fromPrevious={existing.length > 0}
           fields={COA_PRINT_FIELDS}
+          approvers={COA_APPROVERS}
         />
       </main>
     </div>
