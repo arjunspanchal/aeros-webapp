@@ -23,7 +23,7 @@ export default async function QcPage() {
     .filter((j) => j.sourcing !== "traded")
     .map((j) => ({
       id: j.id, jNumber: j.jNumber, brand: j.brand, item: j.item, qty: j.qty, stage: j.stage,
-      coaDate: coaIndex[j.id]?.date || null,
+      coaCount: coaIndex[j.id]?.count || 0, coaDate: coaIndex[j.id]?.last || null,
     }));
 
   return (
@@ -31,7 +31,7 @@ export default async function QcPage() {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">QC</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-          Certificate of Analysis (COA) — pick a job, check the details, print. No job for it? Use &ldquo;COA without a job&rdquo;.
+          Certificate of Analysis (COA) — pick a job, check the details, print — one COA per dispatch lot. No job for it? Use &ldquo;COA without a job&rdquo;.
         </p>
         <QcCoaList rows={rows} standalone={standalone} canEdit={requireManager(session)} />
       </main>

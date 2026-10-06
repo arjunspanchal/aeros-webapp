@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession, requireManager } from "@/lib/auth/session";
-import { coaDefaultsForSku, COA_FIELDS } from "@/lib/factoryos/coa";
+import { coaDefaultsForSku, COA_PRINT_FIELDS } from "@/lib/factoryos/coa";
 import CoaEditor from "../[id]/CoaEditor";
 
 export const dynamic = "force-dynamic";
@@ -21,11 +21,12 @@ export default async function NewCoaPage() {
         <h1 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Certificate of Analysis</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">Not linked to a job. Pick a product to fill the sheet, or type everything in.</p>
         <CoaEditor
+          createUrl="/api/factoryos/coa"
           initial={await coaDefaultsForSku(null)}
           isNew
           canEdit
           standalone
-          fields={COA_FIELDS.map(({ key, label }) => ({ key, label }))}
+          fields={COA_PRINT_FIELDS}
         />
       </main>
     </div>

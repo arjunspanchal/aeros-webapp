@@ -21,7 +21,7 @@ export default function PrintView({ coa, fields, autoPrint = true }) {
     return () => clearTimeout(t);
   }, [autoPrint]);
 
-  const rows = [{ label: "Date", value: fmtDate(coa.date) }, ...fields.map((f) => ({ label: f.label, value: coa[f.key] }))];
+  const rows = [{ label: "Date", value: fmtDate(coa.date) }, ...fields.filter((f) => !f.optional || coa[f.key]).map((f) => ({ label: f.label, value: coa[f.key] }))];
   const line = (v) => (
     <span style={{ display: "inline-block", minWidth: "260px", borderBottom: `1px solid ${INK}`, padding: "0 6px 2px", fontWeight: 600 }}>{v || " "}</span>
   );

@@ -1,26 +1,17 @@
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
-import { getCoa, COA_FIELDS } from "@/lib/factoryos/coa";
-import PrintView from "./PrintView";
+import { listJobCoas } from "@/lib/factoryos/coa";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Certificate of Analysis" };
 
-export default async function CoaPrintPage({ params, searchParams }) {
+// Old link shape (/print/coa/<job id>): send to the job's latest COA.
+export default async function JobCoaPrintRedirect({ params, searchParams }) {
   const session = getSession();
   if (!session) redirect("/login");
   const { job, access } = await resolveJobAccess(session, params.id);
   if (!job || access !== "internal") notFound();
-  const coa = await getCoa(job.id);
-  if (!coa) redirect(`/factoryos/qc/coa/${job.id}`);
-
-  return (
-    <PrintView
-      coa={coa}
-      fields={COA_FIELDS.map(({ key, label }) => ({ key, label }))}
-      // ?print=0 previews without popping the print dialog.
-      autoPrint={searchParams?.print !== "0"}
-    />
-  );
+  const latest = (await listJobCoas(job.id))[0];
+  if (!latest) redirect(`/factoryos/qc/coa/${job.id}`);
+  redirect(`/print/coa/s/${latest.id}${searchParams?.print === "0" ? "?print=0" : ""}`);
 }

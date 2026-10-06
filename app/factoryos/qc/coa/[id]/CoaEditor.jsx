@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 
 const input = "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:bg-gray-900 dark:border-gray-700 dark:text-white disabled:bg-gray-50 disabled:text-gray-500";
 
-// One editor for both kinds of COA: tied to a job (jobId), or standalone
-// (no job — coaId once it has been saved the first time).
-export default function CoaEditor({ jobId = null, coaId: initialCoaId = null, standalone = false, initial, isNew, canEdit, fields }) {
+// One editor for every COA. `createUrl` = where the first save POSTs (a
+// job's COA endpoint, or the no-job endpoint); after that the sheet has its
+// own id and saves PUT to /api/factoryos/coa/[coaId].
+export default function CoaEditor({ createUrl = null, coaId: initialCoaId = null, standalone = false, fromPrevious = false, initial, isNew, canEdit, fields }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
   const [coaId, setCoaId] = useState(initialCoaId);
@@ -17,25 +18,24 @@ export default function CoaEditor({ jobId = null, coaId: initialCoaId = null, st
   const [msg, setMsg] = useState("");
   const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setDirty(true); setMsg(""); };
 
-  const printUrl = standalone ? (coaId ? `/print/coa/s/${coaId}` : null) : `/print/coa/${jobId}`;
+  const printUrl = coaId ? `/print/coa/s/${coaId}` : null;
 
   async function save(thenPrint = false) {
     setBusy(true); setMsg("");
-    const creating = standalone && !coaId;
-    const url = standalone ? (creating ? "/api/factoryos/coa" : `/api/factoryos/coa/${coaId}`) : `/api/factoryos/jobs/${jobId}/coa`;
-    const res = await fetch(url, {
+    const creating = !coaId;
+    const res = await fetch(creating ? createUrl : `/api/factoryos/coa/${coaId}`, {
       method: creating ? "POST" : "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
     });
     setBusy(false);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { setMsg(data.error || "Could not save"); return; }
+    const id = data.coa?.id || coaId;
     setSaved(true); setDirty(false); setMsg("Saved");
-    const id = standalone ? data.coa?.id : null;
-    if (creating && id) setCoaId(id);
-    if (thenPrint) window.open(standalone ? `/print/coa/s/${id || coaId}` : printUrl, "_blank", "noopener");
-    // First save of a no-job COA: move to its own address so a refresh
-    // re-opens this COA instead of a blank one.
-    if (creating && id) router.replace(`/factoryos/qc/coa/s/${id}`);
+    if (creating) setCoaId(id);
+    if (thenPrint) window.open(`/print/coa/s/${id}`, "_blank", "noopener");
+    // First save: move to the sheet's own address so a refresh re-opens this
+    // COA instead of a blank one.
+    if (creating) router.replace(`/factoryos/qc/coa/s/${id}`);
   }
 
   return (
@@ -45,7 +45,9 @@ export default function CoaEditor({ jobId = null, coaId: initialCoaId = null, st
       )}
       {isNew && !saved && !standalone && (
         <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900 dark:bg-amber-900/20 dark:border-amber-900 dark:text-amber-200">
-          Filled in from the job and the product master. Check every line against the actual goods — especially weight and colours — then save.
+          {fromPrevious
+            ? "Copied from this job's last COA. Enter this lot's dispatch quantity and invoice / challan number, re-check weight and colours, then save."
+            : "Filled in from the job and the product master. Check every line against the actual goods — especially weight and colours — then save."}
         </p>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3 items-center">
@@ -54,7 +56,7 @@ export default function CoaEditor({ jobId = null, coaId: initialCoaId = null, st
           <input type="date" className={input} disabled={!canEdit} value={form.date || ""} onChange={(e) => set("date", e.target.value)} />
         </div>
         {fields.map((f) => (
-          <FieldRow key={f.key} label={f.label}>
+          <FieldRow key={f.key} label={f.label} hint={f.optional ? "Prints only when filled" : null}>
             <input className={input} disabled={!canEdit} value={form[f.key] || ""} onChange={(e) => set(f.key, e.target.value)} />
           </FieldRow>
         ))}

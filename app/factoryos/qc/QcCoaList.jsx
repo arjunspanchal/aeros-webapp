@@ -45,7 +45,7 @@ export default function QcCoaList({ rows = [], standalone = [], canEdit = false 
                 <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                   <span className="min-w-0">
                     <span className="text-gray-900 dark:text-white">{c.productName || "Untitled"}</span>
-                    <span className="ml-2 text-xs text-gray-500">{fmt(c.date)}</span>
+                    <span className="ml-2 text-xs text-gray-500">{fmt(c.date)}{c.dispatchQty ? ` · ${c.dispatchQty} pcs` : ""}</span>
                   </span>
                   <span className="whitespace-nowrap">
                     <a href={`/print/coa/s/${c.id}`} target="_blank" rel="noopener noreferrer" className="mr-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 dark:border-gray-700 dark:text-gray-200">PDF</a>
@@ -95,12 +95,12 @@ export default function QcCoaList({ rows = [], standalone = [], canEdit = false 
                 <td className="px-3 py-2 whitespace-nowrap text-gray-600 dark:text-gray-300">{r.stage}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   {r.coaDate
-                    ? <span className="text-green-700 dark:text-green-400">Made · {fmt(r.coaDate)}</span>
+                    ? <span className="text-green-700 dark:text-green-400">{r.coaCount > 1 ? `${r.coaCount} made` : "Made"} · last {fmt(r.coaDate)}</span>
                     : <span className="text-gray-400">—</span>}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap text-right">
-                  {r.coaDate && (
-                    <a href={`/print/coa/${r.id}`} target="_blank" rel="noopener noreferrer" className="mr-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 dark:border-gray-700 dark:text-gray-200">PDF</a>
+                  {r.coaDate && canEdit && (
+                    <Link href={`/factoryos/qc/coa/${r.id}/new`} className="mr-2 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-800 dark:border-gray-700 dark:text-gray-200">+ Next lot</Link>
                   )}
                   {(canEdit || r.coaDate) && (
                     <Link href={`/factoryos/qc/coa/${r.id}`} className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-gray-900">
