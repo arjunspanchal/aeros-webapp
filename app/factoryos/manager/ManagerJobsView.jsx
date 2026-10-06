@@ -75,13 +75,21 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
     return list.sort((a, b) => a.name.localeCompare(b.name));
   }, [jobs, clientMap]);
 
+  // The line pill is the outer filter: every tile and count below it
+  // (stages, urgent, printer late, "total") is counted within that line, so
+  // Sachin never clicks "In Conversion · 3" and gets an empty list because
+  // those three are cups (06-Oct-2026).
+  const lineJobs = useMemo(() => {
+    if (line === "all") return jobs;
+    return jobs.filter((j) => {
+      const jl = lineForCategory(j.category, j.item);
+      return line === "mine" ? (myLines || []).includes(jl) : jl === line;
+    });
+  }, [jobs, line, myLines]);
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return jobs.filter((j) => {
-      if (line !== "all") {
-        const jl = lineForCategory(j.category, j.item);
-        if (line === "mine" ? !(myLines || []).includes(jl) : jl !== line) return false;
-      }
+    return lineJobs.filter((j) => {
       if (urgentOnly && !j.urgent) return false;
       if (lateOnly && !isPrinterLate(j, today)) return false;
       if (stage !== "all" && j.stage !== stage) return false;
@@ -106,10 +114,10 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
     })
     // Urgent jobs float to the top; otherwise keep the list's J# order.
     .sort((a, b) => (b.urgent === true) - (a.urgent === true));
-  }, [jobs, q, stage, clientId, urgentOnly, lateOnly, dueFilter, today, clientMap, line, myLines, factoryView]);
-  const printerLateCount = useMemo(() => jobs.filter((j) => isPrinterLate(j, today)).length, [jobs, today]);
+  }, [lineJobs, q, stage, clientId, urgentOnly, lateOnly, dueFilter, today, clientMap, factoryView]);
+  const printerLateCount = useMemo(() => lineJobs.filter((j) => isPrinterLate(j, today)).length, [lineJobs, today]);
 
-  const urgentCount = useMemo(() => jobs.filter((j) => j.urgent).length, [jobs]);
+  const urgentCount = useMemo(() => lineJobs.filter((j) => j.urgent).length, [lineJobs]);
 
   // Open-job count per line for the pills (closed jobs aren't work).
   const lineCount = useMemo(() => {
@@ -127,9 +135,12 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
 
   const stageCount = useMemo(() => {
     const c = Object.fromEntries(STAGES.map((s) => [s, 0]));
-    for (const j of jobs) if (c[j.stage] !== undefined) c[j.stage]++;
+    for (const j of lineJobs) if (c[j.stage] !== undefined) c[j.stage]++;
     return c;
-  }, [jobs]);
+  }, [lineJobs]);
+  // Same stage across every line — so the empty state can say where the
+  // jobs actually are.
+  const stageCountAll = useMemo(() => (stage === "all" ? 0 : jobs.filter((j) => j.stage === stage).length), [jobs, stage]);
 
   return (
     <div>
@@ -137,7 +148,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Jobs</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-            {role === "account_manager" ? "Jobs for your customers" : line === "mine" ? describeLines(myLines) : line === "all" ? "All jobs" : LINE_LABEL[line]} · {filtered.length} shown · {jobs.length} total
+            {role === "account_manager" ? "Jobs for your customers" : line === "mine" ? describeLines(myLines) : line === "all" ? "All jobs" : LINE_LABEL[line]} · {filtered.length} shown · {lineJobs.length} total
           </p>
         </div>
         {/* Mirrors the create-job allow-list: admin / factory manager only. */}
@@ -167,7 +178,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
           className={`p-3 rounded-lg text-left transition-colors ${stage === "all" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800"}`}
         >
           <div className="text-xs opacity-75">All</div>
-          <div className="text-lg font-bold">{jobs.length}</div>
+          <div className="text-lg font-bold">{lineJobs.length}</div>
         </button>
         {STAGES.map((s) => (
           <button
@@ -280,7 +291,17 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">No jobs match.</td></tr>
+                <tr>
+                  <td colSpan={8} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">
+                    No jobs match.
+                    {line !== "all" && stage !== "all" && stageCountAll > 0 && (
+                      <>
+                        {" "}{stageCountAll} {stage} {stageCountAll === 1 ? "job is" : "jobs are"} in other lines —{" "}
+                        <button type="button" onClick={() => setLine("all")} className="underline text-blue-700 dark:text-blue-400">show all lines</button>
+                      </>
+                    )}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
