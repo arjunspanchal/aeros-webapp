@@ -369,7 +369,11 @@ const STYLES = {
     hints: { L: "bag face width", W: "side gusset", H: "bag height (hem to bottom fold)" },
     presets: [
       { label: "Drink bag (die-exact 291\u00d7195\u00d7270)", dims: [291.3, 194.8, 270], unit: "mm" },
+      { label: "Small carry 220\u00d7120\u00d7260", dims: [220, 120, 260], unit: "mm" },
+      { label: "Large carry 280\u00d7150\u00d7320", dims: [280, 150, 320], unit: "mm" },
+      { label: "Delivery 360\u00d7220\u00d7350 (set handle = strap)", dims: [360, 220, 350], unit: "mm" },
     ],
+    hasRopeHandle: true,
     defaultMaterial: { family: "kraft", idx: 2 },
     depthLabel: "Bottom flap",
     note:
@@ -544,6 +548,9 @@ export default function DielineClient() {
   const [tuckD, setTuckD] = useState(""); // carton: tuck depth (blank = auto ~20 mm)
   const [bagSeam, setBagSeam] = useState(""); // pouch: pasting seam override (blank = machine rule)
   const [bagBackTab, setBagBackTab] = useState(""); // pouch: deeper bottom tab on the back panel
+  const [ropeHandle, setRopeHandle] = useState("rope"); // rope bag: rope holes or flat webbing straps
+  const [ropeSpacing, setRopeSpacing] = useState(""); // rope bag: handle centres (blank = die 105)
+  const [strapW, setStrapW] = useState(""); // rope bag: strap width (blank = 40)
   const [winW, setWinW] = useState("");
   const [winH, setWinH] = useState("");
   const [cups, setCups] = useState(2);
@@ -571,8 +578,8 @@ export default function DielineClient() {
   const boardMm = materialThicknessMm(matFamily, matIdx, matCustomMm);
   const taperMm = style.hasTaper ? parseFloat(taper) || 7 : undefined;
   const result = useMemo(
-    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, thickness: boardMm, units }) : null),
-    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
+    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), thickness: boardMm, units }) : null),
+    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, ropeHandle, ropeSpacing, strapW, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
   );
 
   const title = `${style.label} KLD ${L} x ${W} x ${H} ${units} - ${matLabel}`;
@@ -922,6 +929,27 @@ export default function DielineClient() {
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Back-panel bottom tab ({units})</span>
                 <input type="number" min="0" step="0.1" placeholder="= bottom fold" value={bagBackTab} onChange={(e) => setBagBackTab(e.target.value)} className={inputCls} />
               </label>
+            </div>
+          )}
+          {style.hasRopeHandle && (
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Handle</span>
+                <select value={ropeHandle} onChange={(e) => setRopeHandle(e.target.value)} className={inputCls}>
+                  <option value="rope">Rope (Ø5 holes)</option>
+                  <option value="strap">Flat strap (no holes)</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Handle centres ({units})</span>
+                <input type="number" min="0" step="1" placeholder="die 105 mm" value={ropeSpacing} onChange={(e) => setRopeSpacing(e.target.value)} className={inputCls} />
+              </label>
+              {ropeHandle === "strap" && (
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Strap width ({units})</span>
+                  <input type="number" min="0" step="1" placeholder="40 mm" value={strapW} onChange={(e) => setStrapW(e.target.value)} className={inputCls} />
+                </label>
+              )}
             </div>
           )}
           {style.hasCartonType && (
