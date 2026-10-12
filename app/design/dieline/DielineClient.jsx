@@ -285,7 +285,9 @@ const STYLES = {
       { label: '6×4×2" (die-exact)', dims: [6, 4, 2], unit: "in" },
       { label: '6×2×2" (die-exact)', dims: [6, 2, 2], unit: "in" },
       { label: "315×202×62 mm", dims: [315, 202, 62], unit: "mm" },
+      { label: "165×125×55 mm · 3 vents + finger notch", dims: [165, 125, 55], unit: "mm", vents: 3, fingerNotch: 40 },
     ],
+    hasMailerExtras: true,
     defaultMaterial: { family: "corrugated", idx: 2 },
     depthLabel: "Wall height",
     note:
@@ -551,6 +553,8 @@ export default function DielineClient() {
   const [ropeHandle, setRopeHandle] = useState("rope"); // rope bag: rope holes or flat webbing straps
   const [ropeSpacing, setRopeSpacing] = useState(""); // rope bag: handle centres (blank = die 105)
   const [strapW, setStrapW] = useState(""); // rope bag: strap width (blank = 40)
+  const [mailerVents, setMailerVents] = useState(""); // 0427: rear vent slots (blank = none)
+  const [mailerNotch, setMailerNotch] = useState(""); // 0427: front-wall finger notch width (blank = none)
   const [winW, setWinW] = useState("");
   const [winH, setWinH] = useState("");
   const [cups, setCups] = useState(2);
@@ -578,8 +582,8 @@ export default function DielineClient() {
   const boardMm = materialThicknessMm(matFamily, matIdx, matCustomMm);
   const taperMm = style.hasTaper ? parseFloat(taper) || 7 : undefined;
   const result = useMemo(
-    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), thickness: boardMm, units }) : null),
-    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, ropeHandle, ropeSpacing, strapW, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
+    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), ...(style.hasMailerExtras ? { vents: +mailerVents || 0, fingerNotch: +mailerNotch || 0 } : {}), thickness: boardMm, units }) : null),
+    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, ropeHandle, ropeSpacing, strapW, mailerVents, mailerNotch, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
   );
 
   const title = `${style.label} KLD ${L} x ${W} x ${H} ${units} - ${matLabel}`;
@@ -606,6 +610,8 @@ export default function DielineClient() {
     setHoleNotch(false);
     setThumbNotch(true);
     setTuckD("");
+    setMailerVents("");
+    setMailerNotch("");
     setBagSeam("");
     setBagBackTab("");
     if (s.defaultMaterial) {
@@ -683,6 +689,8 @@ export default function DielineClient() {
     setTuckD(p.tuck != null ? conv(p.tuck) : "");
     setBagSeam(p.seam != null ? conv(p.seam) : "");
     setBagBackTab(p.bottomBack != null ? conv(p.bottomBack) : "");
+    setMailerVents(p.vents ? String(p.vents) : "");
+    setMailerNotch(p.fingerNotch != null ? conv(p.fingerNotch) : "");
   }
 
   function onArtworkFile(e) {
@@ -928,6 +936,18 @@ export default function DielineClient() {
               <label className="block">
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Back-panel bottom tab ({units})</span>
                 <input type="number" min="0" step="0.1" placeholder="= bottom fold" value={bagBackTab} onChange={(e) => setBagBackTab(e.target.value)} className={inputCls} />
+              </label>
+            </div>
+          )}
+          {style.hasMailerExtras && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Rear vents (count)</span>
+                <input type="number" min="0" max="7" step="1" placeholder="none" value={mailerVents} onChange={(e) => setMailerVents(e.target.value)} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Finger notch width ({units})</span>
+                <input type="number" min="0" step="1" placeholder="none" value={mailerNotch} onChange={(e) => setMailerNotch(e.target.value)} className={inputCls} />
               </label>
             </div>
           )}
