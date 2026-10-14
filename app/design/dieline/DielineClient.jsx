@@ -286,7 +286,7 @@ const STYLES = {
       { label: '6×2×2" (die-exact)', dims: [6, 2, 2], unit: "in" },
       { label: "315×202×62 mm", dims: [315, 202, 62], unit: "mm" },
       { label: "165×125×55 mm · 3 vents + finger notch", dims: [165, 125, 55], unit: "mm", vents: 3, fingerNotch: 40 },
-      { label: "180×125×50 mm · 3 round vents + U notch", dims: [180, 125, 50], unit: "mm", vents: 3, ventShape: "round", fingerNotch: 30, notchShape: "round" },
+      { label: "180×125×50 mm · 3 round steam vents", dims: [180, 125, 50], unit: "mm", vents: 3, ventShape: "round" },
     ],
     hasMailerExtras: true,
     defaultMaterial: { family: "corrugated", idx: 2 },
@@ -431,8 +431,8 @@ const STYLES = {
       { label: "3-burger · 6×4×2\" box (3 col × 1 row)", dims: [6, 4, 2], unit: "in", cellsX: 3, cellsY: 1 },
       { label: "6 cells · 6×4×2\" (3 × 2)", dims: [6, 4, 2], unit: "in", cellsX: 3, cellsY: 2 },
       { label: "4 cells · square box (2 × 2)", dims: [6, 6, 2], unit: "in", cellsX: 2, cellsY: 2 },
-      { label: "8 cells + accessory column · 175×120.5×30 mm", dims: [175, 120.5, 30], unit: "mm", cellsY: 2, colsMm: "33.25,33.25,33.25,33.25,42", rowSpan: 4 },
-      { label: "4 cells + accessory column · 175×120.5×30 mm", dims: [175, 120.5, 30], unit: "mm", cellsY: 2, colsMm: "66.5,66.5,42", rowSpan: 2 },
+      { label: "8 cells + 2 dip cells + chopstick lane · 175×120.5×30 mm", dims: [175, 120.5, 30], unit: "mm", colsMm: "31.25,31.25,31.25,31.25,50", rowsMm: "51.25,51.25,18", colSpan: 2 },
+      { label: "4 cells + 2 dip cells + chopstick lane · 175×120.5×30 mm", dims: [175, 120.5, 30], unit: "mm", colsMm: "62.5,62.5,50", rowsMm: "51.25,51.25,18", colSpan: 2 },
     ],
     hasColWidths: true,
     hasCells: true,
@@ -563,6 +563,8 @@ export default function DielineClient() {
   const [mailerNotchShape, setMailerNotchShape] = useState("trap"); // 0427: trap | round (U)
   const [partCols, setPartCols] = useState(""); // partition: unequal column widths, comma list (blank = equal)
   const [partSpan, setPartSpan] = useState(""); // partition: leading columns the row walls cover
+  const [partRows, setPartRows] = useState(""); // partition: unequal row widths, comma list (blank = equal)
+  const [partColSpan, setPartColSpan] = useState(""); // partition: leading rows the column walls cover
   const [winW, setWinW] = useState("");
   const [winH, setWinH] = useState("");
   const [cups, setCups] = useState(2);
@@ -590,8 +592,8 @@ export default function DielineClient() {
   const boardMm = materialThicknessMm(matFamily, matIdx, matCustomMm);
   const taperMm = style.hasTaper ? parseFloat(taper) || 7 : undefined;
   const result = useMemo(
-    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), ...(style.hasMailerExtras ? { vents: +mailerVents || 0, ventShape: mailerVentShape, fingerNotch: +mailerNotch || 0, notchShape: mailerNotchShape } : {}), ...(style.hasColWidths && partCols.trim() ? { colsMm: partCols.split(/[,\s]+/).filter(Boolean).map(Number), rowSpan: +partSpan || undefined } : {}), thickness: boardMm, units }) : null),
-    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, ropeHandle, ropeSpacing, strapW, mailerVents, mailerNotch, mailerVentShape, mailerNotchShape, partCols, partSpan, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
+    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), ...(style.hasMailerExtras ? { vents: +mailerVents || 0, ventShape: mailerVentShape, fingerNotch: +mailerNotch || 0, notchShape: mailerNotchShape } : {}), ...(style.hasColWidths && partCols.trim() ? { colsMm: partCols.split(/[,\s]+/).filter(Boolean).map(Number), rowSpan: +partSpan || undefined } : {}), ...(style.hasColWidths && partRows.trim() ? { rowsMm: partRows.split(/[,\s]+/).filter(Boolean).map(Number), colSpan: +partColSpan || undefined } : {}), thickness: boardMm, units }) : null),
+    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, ropeHandle, ropeSpacing, strapW, mailerVents, mailerNotch, mailerVentShape, mailerNotchShape, partCols, partSpan, partRows, partColSpan, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
   );
 
   const title = `${style.label} KLD ${L} x ${W} x ${H} ${units} - ${matLabel}`;
@@ -624,6 +626,8 @@ export default function DielineClient() {
     setMailerNotchShape("trap");
     setPartCols("");
     setPartSpan("");
+    setPartRows("");
+    setPartColSpan("");
     setBagSeam("");
     setBagBackTab("");
     if (s.defaultMaterial) {
@@ -707,6 +711,8 @@ export default function DielineClient() {
     setMailerNotchShape(p.notchShape || "trap");
     setPartCols(p.colsMm || "");
     setPartSpan(p.rowSpan != null ? String(p.rowSpan) : "");
+    setPartRows(p.rowsMm || "");
+    setPartColSpan(p.colSpan != null ? String(p.colSpan) : "");
   }
 
   function onArtworkFile(e) {
@@ -990,6 +996,14 @@ export default function DielineClient() {
               <label className="block">
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Row walls span (first N columns)</span>
                 <input type="number" min="1" step="1" placeholder="all" value={partSpan} onChange={(e) => setPartSpan(e.target.value)} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Row widths ({units}, comma list)</span>
+                <input type="text" placeholder="equal (use rows)" value={partRows} onChange={(e) => setPartRows(e.target.value)} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Column walls span (first N rows)</span>
+                <input type="number" min="1" step="1" placeholder="all" value={partColSpan} onChange={(e) => setPartColSpan(e.target.value)} className={inputCls} />
               </label>
             </div>
           )}
