@@ -286,6 +286,7 @@ const STYLES = {
       { label: '6×2×2" (die-exact)', dims: [6, 2, 2], unit: "in" },
       { label: "315×202×62 mm", dims: [315, 202, 62], unit: "mm" },
       { label: "165×125×55 mm · 3 vents + finger notch", dims: [165, 125, 55], unit: "mm", vents: 3, fingerNotch: 40 },
+      { label: "180×125×50 mm · 3 round vents + U notch", dims: [180, 125, 50], unit: "mm", vents: 3, ventShape: "round", fingerNotch: 30, notchShape: "round" },
     ],
     hasMailerExtras: true,
     defaultMaterial: { family: "corrugated", idx: 2 },
@@ -430,7 +431,10 @@ const STYLES = {
       { label: "3-burger · 6×4×2\" box (3 col × 1 row)", dims: [6, 4, 2], unit: "in", cellsX: 3, cellsY: 1 },
       { label: "6 cells · 6×4×2\" (3 × 2)", dims: [6, 4, 2], unit: "in", cellsX: 3, cellsY: 2 },
       { label: "4 cells · square box (2 × 2)", dims: [6, 6, 2], unit: "in", cellsX: 2, cellsY: 2 },
+      { label: "8 cells + accessory column · 175×120.5×30 mm", dims: [175, 120.5, 30], unit: "mm", cellsY: 2, colsMm: "33.25,33.25,33.25,33.25,42", rowSpan: 4 },
+      { label: "4 cells + accessory column · 175×120.5×30 mm", dims: [175, 120.5, 30], unit: "mm", cellsY: 2, colsMm: "66.5,66.5,42", rowSpan: 2 },
     ],
+    hasColWidths: true,
     hasCells: true,
     usesThickness: true,
     defaultMaterial: { family: "kraft", idx: 2 },
@@ -555,6 +559,10 @@ export default function DielineClient() {
   const [strapW, setStrapW] = useState(""); // rope bag: strap width (blank = 40)
   const [mailerVents, setMailerVents] = useState(""); // 0427: rear vent slots (blank = none)
   const [mailerNotch, setMailerNotch] = useState(""); // 0427: front-wall finger notch width (blank = none)
+  const [mailerVentShape, setMailerVentShape] = useState("slot"); // 0427: slot | round
+  const [mailerNotchShape, setMailerNotchShape] = useState("trap"); // 0427: trap | round (U)
+  const [partCols, setPartCols] = useState(""); // partition: unequal column widths, comma list (blank = equal)
+  const [partSpan, setPartSpan] = useState(""); // partition: leading columns the row walls cover
   const [winW, setWinW] = useState("");
   const [winH, setWinH] = useState("");
   const [cups, setCups] = useState(2);
@@ -582,8 +590,8 @@ export default function DielineClient() {
   const boardMm = materialThicknessMm(matFamily, matIdx, matCustomMm);
   const taperMm = style.hasTaper ? parseFloat(taper) || 7 : undefined;
   const result = useMemo(
-    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), ...(style.hasMailerExtras ? { vents: +mailerVents || 0, fingerNotch: +mailerNotch || 0 } : {}), thickness: boardMm, units }) : null),
-    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, ropeHandle, ropeSpacing, strapW, mailerVents, mailerNotch, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
+    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), ...(style.hasMailerExtras ? { vents: +mailerVents || 0, ventShape: mailerVentShape, fingerNotch: +mailerNotch || 0, notchShape: mailerNotchShape } : {}), ...(style.hasColWidths && partCols.trim() ? { colsMm: partCols.split(/[,\s]+/).filter(Boolean).map(Number), rowSpan: +partSpan || undefined } : {}), thickness: boardMm, units }) : null),
+    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, ropeHandle, ropeSpacing, strapW, mailerVents, mailerNotch, mailerVentShape, mailerNotchShape, partCols, partSpan, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
   );
 
   const title = `${style.label} KLD ${L} x ${W} x ${H} ${units} - ${matLabel}`;
@@ -612,6 +620,10 @@ export default function DielineClient() {
     setTuckD("");
     setMailerVents("");
     setMailerNotch("");
+    setMailerVentShape("slot");
+    setMailerNotchShape("trap");
+    setPartCols("");
+    setPartSpan("");
     setBagSeam("");
     setBagBackTab("");
     if (s.defaultMaterial) {
@@ -691,6 +703,10 @@ export default function DielineClient() {
     setBagBackTab(p.bottomBack != null ? conv(p.bottomBack) : "");
     setMailerVents(p.vents ? String(p.vents) : "");
     setMailerNotch(p.fingerNotch != null ? conv(p.fingerNotch) : "");
+    setMailerVentShape(p.ventShape || "slot");
+    setMailerNotchShape(p.notchShape || "trap");
+    setPartCols(p.colsMm || "");
+    setPartSpan(p.rowSpan != null ? String(p.rowSpan) : "");
   }
 
   function onArtworkFile(e) {
@@ -948,6 +964,32 @@ export default function DielineClient() {
               <label className="block">
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Finger notch width ({units})</span>
                 <input type="number" min="0" step="1" placeholder="none" value={mailerNotch} onChange={(e) => setMailerNotch(e.target.value)} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Vent shape</span>
+                <select value={mailerVentShape} onChange={(e) => setMailerVentShape(e.target.value)} className={inputCls}>
+                  <option value="slot">Slots 4 × 16</option>
+                  <option value="round">Round Ø6</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Notch shape</span>
+                <select value={mailerNotchShape} onChange={(e) => setMailerNotchShape(e.target.value)} className={inputCls}>
+                  <option value="trap">Trapezoid</option>
+                  <option value="round">U (semicircle)</option>
+                </select>
+              </label>
+            </div>
+          )}
+          {style.hasColWidths && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Column widths ({units}, comma list)</span>
+                <input type="text" placeholder="equal (use columns)" value={partCols} onChange={(e) => setPartCols(e.target.value)} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Row walls span (first N columns)</span>
+                <input type="number" min="1" step="1" placeholder="all" value={partSpan} onChange={(e) => setPartSpan(e.target.value)} className={inputCls} />
               </label>
             </div>
           )}
