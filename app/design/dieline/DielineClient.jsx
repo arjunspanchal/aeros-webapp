@@ -94,6 +94,7 @@ const STYLES = {
       { label: "100×50×140", dims: [100, 50, 140], unit: "mm" },
       { label: "Single cup holder 90×45×80 STE (Ø70 petal hole)", dims: [90, 45, 80], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 1, thumbNotch: false, tuck: 10 },
       { label: "Double cup holder 90×48×180 STE (2× Ø70 petal holes)", dims: [90, 48, 180], unit: "mm", winW: 70, winH: 42, cartonType: "ste", glueSide: "right", glue: 10, holes: 2, notch: true, thumbNotch: false, tuck: 10 },
+      { label: "Crash-lock bottom 205×115×100 (Papierus production die)", dims: [205, 115, 100], unit: "mm", cartonType: "crashlock", glueSide: "right", glue: 15, tuck: 21 },
     ],
     hasWindow: true,
     windowLabels: ["Cup hole ring Ø (mm, 0 = none)", "Cup hole cut Ø (mm)"],
