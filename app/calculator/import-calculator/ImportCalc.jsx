@@ -11,7 +11,28 @@ const inr = (n, d = 2) =>
 const num = (n, d = 2) =>
   Number.isFinite(n) ? n.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—";
 
-const blankItem = () => ({ name: "", qty: "", fobUnit: "", marginPctOverride: "" });
+const blankItem = () => ({
+  name: "",
+  qty: "",
+  fobUnit: "",
+  marginPctOverride: "",
+  cartonL: "",
+  cartonW: "",
+  cartonH: "",
+  unitsPerCarton: "",
+});
+
+// CBM = (L × W × H in cm × number of cartons) / 1,000,000
+// Number of cartons = qty / unitsPerCarton (allows fractional — supplier consolidates).
+function itemCBM(it) {
+  const qty = Number(it.qty);
+  const cL = Number(it.cartonL);
+  const cW = Number(it.cartonW);
+  const cH = Number(it.cartonH);
+  const upc = Number(it.unitsPerCarton);
+  if (!(qty > 0 && cL > 0 && cW > 0 && cH > 0 && upc > 0)) return 0;
+  return (qty / upc) * (cL * cW * cH) / 1_000_000;
+}
 
 export default function ImportCalc() {
   const [vendors, setVendors] = useState([]);
@@ -61,9 +82,28 @@ export default function ImportCalc() {
   const [handling, setHandling] = useState({ amount: "", mode: "total" });
 
   const [items, setItems] = useState([
-    { name: "Cups", qty: "", fobUnit: "", marginPctOverride: "" },
-    { name: "Lids", qty: "", fobUnit: "", marginPctOverride: "" },
+    { ...blankItem(), name: "Cups" },
+    { ...blankItem(), name: "Lids" },
   ]);
+
+  // Sum CBM across all items that have carton dimensions filled in. Used to
+  // auto-populate the LCL Total CBM field below.
+  const totalCBMFromItems = useMemo(
+    () => items.reduce((sum, it) => sum + itemCBM(it), 0),
+    [items],
+  );
+
+  // Auto-populate the LCL Total CBM field as soon as items have carton
+  // dimensions. The user can still type to override; the next dimension
+  // change will re-overwrite, which is the same trade-off as the LCL rate ×
+  // CBM helper below. Suppress the auto-fill when the items contribute zero
+  // CBM (so a partially-filled form doesn't keep blanking a manual entry).
+  useEffect(() => {
+    if (shipmentType !== "lcl") return;
+    if (totalCBMFromItems <= 0) return;
+    const next = totalCBMFromItems.toFixed(2);
+    setLclCbm((prev) => (prev === next ? prev : next));
+  }, [shipmentType, totalCBMFromItems]);
 
   // LCL helper: when user enters rate × CBM, mirror the product into the freight
   // total amount. We only auto-fill when both are present so we don't clobber
@@ -114,6 +154,10 @@ export default function ImportCalc() {
           qty: it.qty != null ? String(it.qty) : "",
           fobUnit: it.fobUnit != null ? String(it.fobUnit) : "",
           marginPctOverride: it.marginPctOverride != null ? String(it.marginPctOverride) : "",
+          cartonL: it.cartonL != null ? String(it.cartonL) : "",
+          cartonW: it.cartonW != null ? String(it.cartonW) : "",
+          cartonH: it.cartonH != null ? String(it.cartonH) : "",
+          unitsPerCarton: it.unitsPerCarton != null ? String(it.unitsPerCarton) : "",
         })),
       );
     }
@@ -183,6 +227,10 @@ export default function ImportCalc() {
         qty: Number(it.qty) || 0,
         fobUnit: Number(it.fobUnit) || 0,
         marginPctOverride: it.marginPctOverride === "" || it.marginPctOverride == null ? null : Number(it.marginPctOverride),
+        cartonL: Number(it.cartonL) || 0,
+        cartonW: Number(it.cartonW) || 0,
+        cartonH: Number(it.cartonH) || 0,
+        unitsPerCarton: Number(it.unitsPerCarton) || 0,
       })),
       itemsCount: items.filter((i) => Number(i.qty) > 0).length,
       totalLandedINR: result.totals.landed || 0,
@@ -395,65 +443,126 @@ export default function ImportCalc() {
 
         <Card title="Items in shipment">
           <div className="space-y-3">
-            {items.map((it, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-end">
-                <div className="col-span-4">
-                  <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Item</label>
-                  <input
-                    className={inputCls}
-                    value={it.name}
-                    onChange={(e) => setItem(i, { name: e.target.value })}
-                    placeholder="e.g. Cups"
-                  />
+            {items.map((it, i) => {
+              const cbm = itemCBM(it);
+              return (
+                <div
+                  key={i}
+                  className="rounded-lg border border-gray-100 dark:border-gray-800 p-3 space-y-2"
+                >
+                  <div className="grid grid-cols-12 gap-2 items-end">
+                    <div className="col-span-4">
+                      <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Item</label>
+                      <input
+                        className={inputCls}
+                        value={it.name}
+                        onChange={(e) => setItem(i, { name: e.target.value })}
+                        placeholder="e.g. Cups"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Qty</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        className={inputCls}
+                        value={it.qty}
+                        onChange={(e) => setItem(i, { qty: e.target.value })}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">
+                        FOB / unit ({symbol || currency})
+                      </label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        className={inputCls}
+                        value={it.fobUnit}
+                        onChange={(e) => setItem(i, { fobUnit: e.target.value })}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Margin %</label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        className={inputCls}
+                        value={it.marginPctOverride}
+                        onChange={(e) => setItem(i, { marginPctOverride: e.target.value })}
+                        placeholder={String(marginPct)}
+                      />
+                    </div>
+                    <div className="col-span-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => removeItem(i)}
+                        disabled={items.length <= 1}
+                        className="text-gray-400 hover:text-red-600 disabled:opacity-30 px-2 py-2 text-sm"
+                        title="Remove line"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                  {/* Carton dimensions — feed the LCL Total CBM auto-fill. Optional;
+                      leave blank if you don't have carton specs. */}
+                  <div className="grid grid-cols-12 gap-2 items-end">
+                    <div className="col-span-3">
+                      <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Carton L (cm)</label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        className={inputCls}
+                        value={it.cartonL}
+                        onChange={(e) => setItem(i, { cartonL: e.target.value })}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Carton W (cm)</label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        className={inputCls}
+                        value={it.cartonW}
+                        onChange={(e) => setItem(i, { cartonW: e.target.value })}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Carton H (cm)</label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        className={inputCls}
+                        value={it.cartonH}
+                        onChange={(e) => setItem(i, { cartonH: e.target.value })}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Units / carton</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        className={inputCls}
+                        value={it.unitsPerCarton}
+                        onChange={(e) => setItem(i, { unitsPerCarton: e.target.value })}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  {cbm > 0 && (
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                      ≈ {cbm.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CBM for this line
+                    </p>
+                  )}
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Qty</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    className={inputCls}
-                    value={it.qty}
-                    onChange={(e) => setItem(i, { qty: e.target.value })}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="col-span-3">
-                  <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">
-                    FOB / unit ({symbol || currency})
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    className={inputCls}
-                    value={it.fobUnit}
-                    onChange={(e) => setItem(i, { fobUnit: e.target.value })}
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Margin %</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    className={inputCls}
-                    value={it.marginPctOverride}
-                    onChange={(e) => setItem(i, { marginPctOverride: e.target.value })}
-                    placeholder={String(marginPct)}
-                  />
-                </div>
-                <div className="col-span-1 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => removeItem(i)}
-                    disabled={items.length <= 1}
-                    className="text-gray-400 hover:text-red-600 disabled:opacity-30 px-2 py-2 text-sm"
-                    title="Remove line"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             <button
               type="button"
               onClick={addItem}
@@ -484,7 +593,12 @@ export default function ImportCalc() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-500 mb-1 dark:text-gray-400">Total CBM</label>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1 dark:text-gray-400">
+                      Total CBM
+                      {totalCBMFromItems > 0 && (
+                        <span className="ml-1 text-[10px] font-normal text-blue-600 dark:text-blue-400">(auto)</span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       inputMode="decimal"
@@ -496,7 +610,9 @@ export default function ImportCalc() {
                   </div>
                 </div>
                 <p className="text-[11px] text-gray-500 mt-1.5 dark:text-gray-400">
-                  Auto-fills the Ocean Freight total below as rate × CBM.
+                  {totalCBMFromItems > 0
+                    ? "Total CBM is summed from per-item carton dimensions; you can still type to override."
+                    : "Auto-fills the Ocean Freight total below as rate × CBM."}
                 </p>
               </div>
             )}
@@ -664,17 +780,20 @@ function ShipmentCostRow({ label, hint, value, onChange, currency, setCurrency, 
         </div>
       </div>
       <div className="flex gap-2">
+        {/* min-w-0 lets the input shrink past its intrinsic content size in
+            a flex row, otherwise the number-spinner forces it down to ~24px
+            wide when the sibling select is present. */}
         <input
           type="number"
           inputMode="decimal"
-          className={inputCls}
+          className={`${inputCls} flex-1 min-w-0`}
           value={value.amount}
           onChange={(e) => onChange({ ...value, amount: e.target.value })}
           placeholder={value.mode === "total" ? "Total for shipment" : "Per unit (across all items)"}
         />
         {currencyToggle && (
           <select
-            className={`${inputCls} w-24 shrink-0`}
+            className={`${inputCls} !w-24 shrink-0`}
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
           >
