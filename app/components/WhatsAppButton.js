@@ -1,7 +1,7 @@
 // Floating WhatsApp chat icon. Icon-only circle so it stays unobtrusive.
 // Used on the welcome page only; other pages opt out.
 
-const NUMBER = "917977007497"; // +91 79770 07497
+const NUMBER = "917977077571"; // +91 79770 77571
 const PREFILL = "Hi Aeros, I have a question about";
 
 export default function WhatsAppButton() {
