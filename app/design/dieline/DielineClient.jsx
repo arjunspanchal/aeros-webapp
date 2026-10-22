@@ -288,6 +288,7 @@ const STYLES = {
       { label: "315×202×62 mm", dims: [315, 202, 62], unit: "mm" },
       { label: "165×125×55 mm · 3 vents + finger notch", dims: [165, 125, 55], unit: "mm", vents: 3, fingerNotch: 40 },
       { label: "180×125×50 mm · 3 round steam vents", dims: [180, 125, 50], unit: "mm", vents: 3, ventShape: "round" },
+      { label: "Mog Mog 230×185×55 mm · FBB 400 · 3 vents @ L/4, 15 below top + Ø25 U notch", dims: [230, 185, 55], unit: "mm", vents: 3, ventShape: "round", ventPitch: 57.5, ventDrop: 15, fingerNotch: 25, notchShape: "round" },
     ],
     hasMailerExtras: true,
     defaultMaterial: { family: "corrugated", idx: 2 },
@@ -560,6 +561,8 @@ export default function DielineClient() {
   const [strapW, setStrapW] = useState(""); // rope bag: strap width (blank = 40)
   const [mailerVents, setMailerVents] = useState(""); // 0427: rear vent slots (blank = none)
   const [mailerNotch, setMailerNotch] = useState(""); // 0427: front-wall finger notch width (blank = none)
+  const [mailerVentPitch, setMailerVentPitch] = useState(""); // 0427: round-vent pitch (blank = 20)
+  const [mailerVentDrop, setMailerVentDrop] = useState(""); // 0427: vent row below the back-wall top edge (blank = centred)
   const [mailerVentShape, setMailerVentShape] = useState("slot"); // 0427: slot | round
   const [mailerNotchShape, setMailerNotchShape] = useState("trap"); // 0427: trap | round (U)
   const [partCols, setPartCols] = useState(""); // partition: unequal column widths, comma list (blank = equal)
@@ -593,7 +596,7 @@ export default function DielineClient() {
   const boardMm = materialThicknessMm(matFamily, matIdx, matCustomMm);
   const taperMm = style.hasTaper ? parseFloat(taper) || 7 : undefined;
   const result = useMemo(
-    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), ...(style.hasMailerExtras ? { vents: +mailerVents || 0, ventShape: mailerVentShape, fingerNotch: +mailerNotch || 0, notchShape: mailerNotchShape } : {}), ...(style.hasColWidths && partCols.trim() ? { colsMm: partCols.split(/[,\s]+/).filter(Boolean).map(Number), rowSpan: +partSpan || undefined } : {}), ...(style.hasColWidths && partRows.trim() ? { rowsMm: partRows.split(/[,\s]+/).filter(Boolean).map(Number), colSpan: +partColSpan || undefined } : {}), thickness: boardMm, units }) : null),
+    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), ...(style.hasMailerExtras ? { vents: +mailerVents || 0, ventShape: mailerVentShape, ventPitch: mailerVentPitch === "" ? undefined : +mailerVentPitch, ventDrop: mailerVentDrop === "" ? undefined : +mailerVentDrop, fingerNotch: +mailerNotch || 0, notchShape: mailerNotchShape } : {}), ...(style.hasColWidths && partCols.trim() ? { colsMm: partCols.split(/[,\s]+/).filter(Boolean).map(Number), rowSpan: +partSpan || undefined } : {}), ...(style.hasColWidths && partRows.trim() ? { rowsMm: partRows.split(/[,\s]+/).filter(Boolean).map(Number), colSpan: +partColSpan || undefined } : {}), thickness: boardMm, units }) : null),
     [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, ropeHandle, ropeSpacing, strapW, mailerVents, mailerNotch, mailerVentShape, mailerNotchShape, partCols, partSpan, partRows, partColSpan, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
   );
 
@@ -709,6 +712,8 @@ export default function DielineClient() {
     setMailerVents(p.vents ? String(p.vents) : "");
     setMailerNotch(p.fingerNotch != null ? conv(p.fingerNotch) : "");
     setMailerVentShape(p.ventShape || "slot");
+    setMailerVentPitch(p.ventPitch != null ? conv(p.ventPitch) : "");
+    setMailerVentDrop(p.ventDrop != null ? conv(p.ventDrop) : "");
     setMailerNotchShape(p.notchShape || "trap");
     setPartCols(p.colsMm || "");
     setPartSpan(p.rowSpan != null ? String(p.rowSpan) : "");
@@ -985,6 +990,14 @@ export default function DielineClient() {
                   <option value="trap">Trapezoid</option>
                   <option value="round">U (semicircle)</option>
                 </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Round-vent pitch ({units})</span>
+                <input type="number" min="0" step="0.5" placeholder="20" value={mailerVentPitch} onChange={(e) => setMailerVentPitch(e.target.value)} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Vents below top edge ({units})</span>
+                <input type="number" min="0" step="0.5" placeholder="centred" value={mailerVentDrop} onChange={(e) => setMailerVentDrop(e.target.value)} className={inputCls} />
               </label>
             </div>
           )}
