@@ -7,8 +7,9 @@ import { dbUpdate } from "@/lib/db/supabase";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // A turn runs in the background after the 202; the runner parks itself
-// (continue_pending) before this limit and the client's poll resumes it.
-export const maxDuration = 800;
+// (continue_pending) between API calls once past its budget and the
+// client's poll resumes it. 300 s is the Hobby-plan ceiling.
+export const maxDuration = 300;
 
 // POST { message? } — start the first run, send a change request, or resume
 // a parked run ({ resume: true }).
@@ -48,7 +49,7 @@ export async function POST(request, { params }) {
   }, { returning: "minimal" });
 
   waitUntil(
-    runTurn(job.id, { userText: message || null, resume, budgetMs: (maxDuration - 120) * 1000 })
+    runTurn(job.id, { userText: message || null, resume, budgetMs: 150_000 })
       .catch((e) => console.error("artwork-studio run", job.id, e)),
   );
   return NextResponse.json({ ok: true, status: "running" }, { status: 202 });
