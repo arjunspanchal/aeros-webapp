@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { buildWhatsAppUrl, buildEmailUrl } from '@/lib/catalog/inquiry-links';
 
 // Category icon map — fallback placeholder for products with no uploaded
 // photos. When a product has at least one entry in `images` we render that
@@ -185,7 +186,7 @@ export default function ProductCard({ product }) {
         {/* CTA buttons */}
         <div className="flex gap-2">
           <a
-            href={product.whatsappUrl}
+            href={product.whatsappUrl || buildWhatsAppUrl(product)}
             target="_blank"
             rel="noopener noreferrer"
             className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700"
@@ -197,7 +198,7 @@ export default function ProductCard({ product }) {
             WhatsApp
           </a>
           <a
-            href={product.emailUrl}
+            href={product.emailUrl || buildEmailUrl(product)}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-gray-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600"
             aria-label={`Inquire about ${product.productName} by email`}
           >

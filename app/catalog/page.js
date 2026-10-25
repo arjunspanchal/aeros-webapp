@@ -8,19 +8,6 @@ import Footer from '../components/Footer';
 
 export const revalidate = 300; // refresh every 5 minutes
 
-// The page itself is dynamic (it reads the session cookie to render the
-// header), so the page-level `revalidate` never caches anything — fetchCatalog
-// re-ran its full DB read + enrichment on every request, which was the bulk of
-// the /catalog TTFB. Memoise just the catalog DATA (cookie-independent) in the
-// Next data cache for 5 min, so only the first request per window pays the
-// fetch; the rest get it instantly. Tagged 'catalog' so a future revalidateTag
-// on product edits can bust it.
-const getCachedCatalog = unstable_cache(
-  async () => fetchCatalog(),
-  ['catalog-products-v1'],
-  { revalidate: 300, tags: ['catalog'] },
-);
-
 export const metadata = {
   title: 'Aeros Product Catalog',
   description: 'Browse our full range of packaging products — paper cups, tubs, lids, food boxes, bags, straws, and salad bowls.',
@@ -32,20 +19,37 @@ export const metadata = {
 // notes) — most of which the grid + card never read, bloating the payload to
 // several MB and slowing TTFB. Project to exactly the fields the grid/facets
 // and the card use. This also drops `notes` for everyone, so no session-based
-// masking is needed.
+// masking is needed. whatsappUrl / emailUrl are NOT shipped — at ~1,700 cards
+// they were 1.5 MB of the payload; ProductCard builds them on render.
 const GRID_FIELDS = [
   "id", "productName", "sku", "category", "subCategory",
   "sizeVolume", "sizeLabel", "material", "gsm", "colour",
   "wallType", "coating", "lidProcess", "wrapping",
   "unitsPerCase", "casesPerPallet", "cartonDimensions",
-  "images", "landed", "compatibleWith", "whatsappUrl", "emailUrl",
+  "images", "landed", "compatibleWith",
 ];
 
 function slimForGrid(p) {
   const out = {};
   for (const k of GRID_FIELDS) if (p[k] !== undefined) out[k] = p[k];
+  // The card only shows the compatible product's name.
+  if (out.compatibleWith) out.compatibleWith = out.compatibleWith.map((c) => ({ id: c.id, productName: c.productName }));
   return out;
 }
+
+// The page itself is dynamic (it reads the session cookie to render the
+// header), so the page-level `revalidate` never caches anything. Memoise the
+// cookie-independent catalog DATA in the Next data cache for 5 min, so only
+// the first request per window pays the fetch. The cache holds the SLIM
+// grid rows, not the full fetchCatalog() result: the data cache refuses
+// entries over 2 MB, and the full catalog (~4.8 MB) was silently never
+// cached, so every request re-ran the whole read. Tagged 'catalog' so a
+// future revalidateTag on product edits can bust it.
+const getCachedCatalog = unstable_cache(
+  async () => (await fetchCatalog()).map(slimForGrid),
+  ['catalog-grid-v2'],
+  { revalidate: 300, tags: ['catalog'] },
+);
 
 export default async function CatalogPage() {
   let products = [];
@@ -59,9 +63,6 @@ export default async function CatalogPage() {
 
   const categories = getCatalogCategories(products);
   const session = getSession();
-  // Slim the payload to grid-only fields (drops pricing tiers, unused specs,
-  // and internal notes) before handing it to the client component.
-  const slimProducts = products.map(slimForGrid);
 
   return (
     <>
@@ -84,7 +85,7 @@ export default async function CatalogPage() {
             </p>
           </div>
         ) : (
-          <ProductGrid products={slimProducts} categories={categories} />
+          <ProductGrid products={products} categories={categories} />
         )}
       </main>
       <Footer />
