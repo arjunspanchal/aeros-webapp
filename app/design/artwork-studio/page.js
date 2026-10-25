@@ -8,6 +8,7 @@ import {
   getLiveRules,
   PRODUCTS,
   spentTodayInr,
+  userKey,
 } from "@/lib/design/artwork-studio";
 import AppHeader from "../../components/AppHeader";
 import Header from "../../components/Header";
@@ -30,7 +31,7 @@ export default async function ArtworkStudioPage() {
   let spent = 0;
   let error = null;
   try {
-    [live, spent] = await Promise.all([getLiveRules(), spentTodayInr(session.email)]);
+    [live, spent] = await Promise.all([getLiveRules(), spentTodayInr(userKey(session))]);
   } catch (e) {
     error = e.message;
   }
@@ -52,7 +53,7 @@ export default async function ArtworkStudioPage() {
             products={PRODUCTS}
             liveRules={live ? { version: live.version_no, publishedAt: live.published_at } : null}
             me={{
-              email: session.email,
+              email: userKey(session),
               isAdmin: canAdminStudio(session),
               canApprove: canApprove(session),
               spentTodayInr: spent,

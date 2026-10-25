@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { studioGuard } from "../../../_access";
 import { dbInsert } from "@/lib/db/supabase";
+import { userKey } from "@/lib/design/artwork-studio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +16,8 @@ export async function POST(request, { params }) {
   if (!text) return NextResponse.json({ error: "Say what went wrong" }, { status: 400 });
   await dbInsert("artwork_studio_flags", [{
     job_id: job.id,
-    created_by_email: session.email,
-    created_by_name: session.name || session.email,
+    created_by_email: userKey(session),
+    created_by_name: session.name || userKey(session),
     note: text.slice(0, 2000),
   }], { returning: "minimal" });
   return NextResponse.json({ ok: true });

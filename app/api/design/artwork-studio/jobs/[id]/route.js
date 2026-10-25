@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { studioGuard } from "../../_access";
 import {
-  canApprove, canDownload, chatView, DAILY_CAP_INR, PRODUCTS, spentTodayInr,
+  canApprove, canDownload, chatView, DAILY_CAP_INR, PRODUCTS, spentTodayInr, userKey,
 } from "@/lib/design/artwork-studio";
 import { dbUpdate } from "@/lib/db/supabase";
 
@@ -31,14 +31,14 @@ export async function GET(_request, { params }) {
     createdAt: o.created_at,
     locked: !canDownload(session, j, o),
   }));
-  const spent = await spentTodayInr(session.email);
+  const spent = await spentTodayInr(userKey(session));
   return NextResponse.json({
     job: {
       id: j.id,
       createdAt: j.created_at,
       updatedAt: j.updated_at,
       createdBy: j.created_by_name || j.created_by_email,
-      isOwner: j.created_by_email === session.email,
+      isOwner: j.created_by_email === userKey(session),
       product: PRODUCTS.find((p) => p.key === j.product_key)?.label || j.product_key,
       productKey: j.product_key,
       brand: j.brand,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { studioGuard } from "../../../_access";
-import { DAILY_CAP_INR, getLiveRules, runTurn, spentTodayInr } from "@/lib/design/artwork-studio";
+import { DAILY_CAP_INR, getLiveRules, runTurn, spentTodayInr, userKey } from "@/lib/design/artwork-studio";
 import { dbUpdate } from "@/lib/db/supabase";
 
 export const runtime = "nodejs";
@@ -30,7 +30,7 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: "The Studio rules haven't been published yet — ask Arjun." }, { status: 409 });
     }
     if (!session.isAdmin) {
-      const spent = await spentTodayInr(session.email);
+      const spent = await spentTodayInr(userKey(session));
       if (spent >= DAILY_CAP_INR) {
         return NextResponse.json(
           { error: `Today's limit of ₹${DAILY_CAP_INR} is used up (₹${spent.toFixed(0)} spent). It resets at midnight, or ask Arjun.` },

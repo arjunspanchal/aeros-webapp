@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { studioGuard } from "../../../_access";
-import { canApprove } from "@/lib/design/artwork-studio";
+import { canApprove, userKey } from "@/lib/design/artwork-studio";
 import { dbUpdate } from "@/lib/db/supabase";
 
 export const runtime = "nodejs";
@@ -16,7 +16,7 @@ export async function POST(_request, { params }) {
   const approved_version = Math.max(...versions);
   await dbUpdate("artwork_studio_jobs", "id", job.id, {
     approved_version,
-    approved_by: session.name || session.email,
+    approved_by: session.name || userKey(session),
     approved_at: new Date().toISOString(),
   }, { returning: "minimal" });
   return NextResponse.json({ ok: true, approvedVersion: approved_version });

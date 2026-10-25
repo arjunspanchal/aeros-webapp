@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/hub/session";
-import { canAdminStudio, listRuleVersions, spendSummary } from "@/lib/design/artwork-studio";
+import { canAdminStudio, listRuleVersions, spendSummary, userKey } from "@/lib/design/artwork-studio";
 import { dbSelect, dbUpdate } from "@/lib/db/supabase";
 
 export const runtime = "nodejs";
@@ -31,7 +31,7 @@ export async function POST(request) {
   const session = getSession();
   if (!canAdminStudio(session)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const b = await request.json().catch(() => ({}));
-  const who = session.name || session.email;
+  const who = session.name || userKey(session);
   const now = new Date().toISOString();
 
   if (b.action === "publish") {
