@@ -113,3 +113,14 @@ begin
   if not found then raise exception 'rules version % not found', p_version_id; end if;
 end $$;
 revoke all on function publish_artwork_studio_rules(uuid, text) from public, anon, authenticated;
+
+-- Jobs run as Anthropic Managed Agents sessions: one agent version per rules
+-- version (system = the rules, skills = toolkit + wheels), one session per job.
+alter table artwork_studio_rule_versions
+  add column if not exists agent_id text,
+  add column if not exists agent_version int,
+  add column if not exists environment_id text;
+alter table artwork_studio_jobs
+  add column if not exists session_id text,
+  add column if not exists events_seen_at text,
+  add column if not exists session_cost_usd numeric not null default 0;

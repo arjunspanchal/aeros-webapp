@@ -131,10 +131,48 @@ async function main() {
     console.log(`  ${pymupdf.id} @ ${pymupdf.version} (${(pymupdf.bytes / 1e6).toFixed(1)} MB)`);
   } else console.log("PyMuPDF unchanged — reusing", pymupdf.id, pymupdf.version);
 
-  if (prev && prev.rules_sha === rulesSha && prev.toolkit_skill_version === toolkit.version) {
+  if (prev && prev.rules_sha === rulesSha && prev.toolkit_skill_version === toolkit.version && prev.agent_id) {
     console.log(`Nothing changed since v${prev.version_no} — no new version staged.`);
     return;
   }
+
+  // Managed Agents: one sandbox environment (no internet; the wheels ship in a
+  // skill) and one agent whose every version = one rules version.
+  const ENV_NAME = "aeros-artwork-studio";
+  let environmentId = prev?.environment_id;
+  if (!environmentId) {
+    for await (const e of client.beta.environments.list()) {
+      if (e.name === ENV_NAME && !e.archived_at) { environmentId = e.id; break; }
+    }
+  }
+  if (!environmentId) {
+    const env = await client.beta.environments.create({
+      name: ENV_NAME,
+      config: { type: "cloud", networking: { type: "limited", allow_package_managers: true, allow_mcp_servers: false } },
+    });
+    environmentId = env.id;
+    console.log("Created environment", environmentId);
+  }
+  const agentConfig = {
+    name: "Aeros Artwork Studio",
+    model: { id: "claude-opus-5-5", effort: "high" },
+    system: rules.map((r) => r.content).join("\n\n---\n\n"),
+    skills: [
+      { type: "custom", skill_id: toolkit.id, version: String(toolkit.version) },
+      { type: "custom", skill_id: pymupdf.id, version: String(pymupdf.version) },
+    ],
+    tools: [{
+      type: "agent_toolset_20260401",
+      // the sandbox has no network and holds only this job's files: run unattended
+      default_config: { enabled: true, permission_policy: { type: "always_allow" } },
+      configs: [{ name: "web_fetch", enabled: false }, { name: "web_search", enabled: false }],
+    }],
+  };
+  let agent;
+  const agentId = prev?.agent_id;
+  if (agentId) agent = await client.beta.agents.update(agentId, agentConfig);
+  else agent = await client.beta.agents.create(agentConfig);
+  console.log(`Agent ${agent.id} @ v${agent.version}`);
 
   const { url, headers } = SUPA();
   const res = await fetch(`${url}/rest/v1/artwork_studio_rule_versions`, {
@@ -150,6 +188,9 @@ async function main() {
       pymupdf_skill_id: pymupdf.id,
       pymupdf_skill_version: String(pymupdf.version),
       notes,
+      agent_id: agent.id,
+      agent_version: agent.version,
+      environment_id: environmentId,
       staged_by: process.env.USER || "script",
     }),
   });

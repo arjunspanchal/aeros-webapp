@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { studioGuard } from "../../_access";
 import {
-  canApprove, canDownload, chatView, DAILY_CAP_INR, PRODUCTS, spentTodayInr, userKey,
+  canApprove, canDownload, chatView, DAILY_CAP_INR, PRODUCTS, spentTodayInr, syncJob, userKey,
 } from "@/lib/design/artwork-studio";
 import { dbUpdate } from "@/lib/db/supabase";
 
@@ -16,9 +16,9 @@ export async function GET(_request, { params }) {
   const { session, job, error } = await studioGuard(params.id);
   if (error) return error;
 
-  let j = job;
-  // A run killed mid-way (deploy, timeout) leaves the job "running" forever.
-  if (j.status === "running" && !j.continue_pending && Date.now() - Date.parse(j.updated_at) > STALE_MS) {
+  // a running job is brought up to date from its hosted session on every poll
+  let j = await syncJob(job);
+  if (j.status === "running" && !j.session_id && Date.now() - Date.parse(j.updated_at) > STALE_MS) {
     j = { ...j, status: "failed", error: "The run stopped unexpectedly. Press Retry.", progress: null };
     await dbUpdate("artwork_studio_jobs", "id", j.id, { status: j.status, error: j.error, progress: null }, { returning: "minimal" });
   }
