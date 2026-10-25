@@ -2,7 +2,7 @@ import { getSession, requireInternal, requireManager, requireRole } from "@/lib/
 import { routeAt } from "@/lib/factoryos/routes";
 import { listRmStockOptions, rmStockFree } from "@/lib/factoryos/rmStock";
 import { copyJobOrder } from "@/lib/factoryos/jobOrder";
-import { listJobsForSession, createJob, setJobDelivery } from "@/lib/factoryos/repo";
+import { listJobsForSession, createJob, setJobDelivery, getNextJobNumber } from "@/lib/factoryos/repo";
 import { STAGES } from "@/lib/factoryos/constants";
 
 export const runtime = "nodejs";
@@ -46,6 +46,8 @@ export async function POST(req) {
     if (body.sourcing !== undefined && body.sourcing !== "traded" && body.sourcing !== "in_house") {
       return Response.json({ error: "Invalid sourcing" }, { status: 400 });
     }
+    // No J# given (e.g. the assistant) → take the next free one.
+    if (!body.jNumber) body.jNumber = await getNextJobNumber();
     if (!body.jNumber || !body.clientId || !body.item) {
       return Response.json({ error: "J#, client, and item are required" }, { status: 400 });
     }

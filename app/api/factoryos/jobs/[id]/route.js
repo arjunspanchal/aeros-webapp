@@ -99,6 +99,18 @@ export async function PATCH(req, { params }) {
       }
       return Response.json({ job: updated });
     }
+    // Order basics (qty, brand, item, PO, city) — managers only; the forms
+    // fix these at creation, the assistant may correct them (25-Oct-2026).
+    const basics = ["qty", "brand", "item", "poNumber", "city"].filter((k) => body[k] !== undefined);
+    if (basics.length) {
+      if (!requireManager(session)) return Response.json({ error: "Not allowed to change order basics" }, { status: 403 });
+      if (body.qty !== undefined) {
+        const q = Number(body.qty);
+        if (!Number.isFinite(q) || q < 0) return Response.json({ error: "Invalid quantity" }, { status: 400 });
+        patch.qty = q;
+      }
+      for (const k of ["brand", "item", "poNumber", "city"]) if (body[k] !== undefined) patch[k] = String(body[k] ?? "").slice(0, 300);
+    }
     if (body.internalStatus !== undefined) patch.internalStatus = body.internalStatus;
     if (body.actionPoints !== undefined) patch.actionPoints = body.actionPoints;
     if (body.notes !== undefined) patch.notes = body.notes;

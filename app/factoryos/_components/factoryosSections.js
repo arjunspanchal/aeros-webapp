@@ -30,6 +30,8 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
       { href: "/factoryos/delivery",    label: "Delivery Plan", exact: false },
       { href: "/factoryos/manager/pos", label: "Customer POs",  exact: false },
       { href: "/factoryos/how-to",      label: "How to use",    exact: true },
+      // Chat assistant — raises / changes jobs, so the same audience as + New job.
+      ...(adminish ? [{ href: "/factoryos/assistant", label: "Assistant", exact: true }] : []),
     ],
   });
 
