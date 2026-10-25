@@ -102,3 +102,14 @@ alter table artwork_studio_rule_versions add column if not exists shas jsonb not
 alter table artwork_studio_jobs
   add column if not exists continue_pending boolean not null default false,
   add column if not exists turn_started_at timestamptz;
+
+-- Publish = retire the live version + make the new one live, in ONE
+-- transaction, so a job starting mid-publish never sees zero live versions.
+create or replace function publish_artwork_studio_rules(p_version_id uuid, p_who text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update artwork_studio_rule_versions set status = 'retired' where status = 'live' and id <> p_version_id;
+  update artwork_studio_rule_versions set status = 'live', published_by = p_who, published_at = now() where id = p_version_id;
+  if not found then raise exception 'rules version % not found', p_version_id; end if;
+end $$;
+revoke all on function publish_artwork_studio_rules(uuid, text) from public, anon, authenticated;

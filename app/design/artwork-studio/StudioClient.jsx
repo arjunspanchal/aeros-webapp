@@ -96,6 +96,7 @@ function NewJobForm({ products, liveRules, me }) {
     lid: "none",
     inkMode: "cmyk",
     pantones: "",
+    pantoneGuide: "U",
     digitalSample: false,
     brief: "",
   });
@@ -120,7 +121,7 @@ function NewJobForm({ products, liveRules, me }) {
   async function submit(e) {
     e.preventDefault();
     setError(null);
-    const inks = f.inkMode === "cmyk" ? "CMYK (full colour)" : `Pantone: ${f.pantones}`;
+    const inks = f.inkMode === "cmyk" ? "CMYK (full colour)" : `Pantone (${f.pantoneGuide}): ${f.pantones}`;
     try {
       setBusy("Creating job…");
       const res = await fetch("/api/design/artwork-studio/jobs", {
@@ -208,7 +209,13 @@ function NewJobForm({ products, liveRules, me }) {
         {f.inkMode === "pantone" && (
           <div>
             <label className={labelCls}>Pantone numbers</label>
-            <input className={inputCls} value={f.pantones} onChange={set("pantones")} placeholder="e.g. 7408 C, Black C" />
+            <div className="flex gap-2">
+              <input className={inputCls} value={f.pantones} onChange={set("pantones")} placeholder="e.g. 7408, Black" />
+              <select className={`${inputCls} w-auto`} value={f.pantoneGuide} onChange={set("pantoneGuide")} aria-label="Pantone guide">
+                <option value="U">U (uncoated)</option>
+                <option value="C">C (coated)</option>
+              </select>
+            </div>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Don't know them? Switch to CMYK, or write "match the logo" and Claude will suggest the closest.
             </p>

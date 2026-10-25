@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/hub/session";
 import { canAdminStudio, listRuleVersions, spendSummary, userKey } from "@/lib/design/artwork-studio";
-import { dbSelect, dbUpdate } from "@/lib/db/supabase";
+import { dbRPC, dbSelect, dbUpdate } from "@/lib/db/supabase";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,14 +35,13 @@ export async function POST(request) {
   const now = new Date().toISOString();
 
   if (b.action === "publish") {
-    const [v] = await dbSelect("artwork_studio_rule_versions", { filter: { id: `eq.${b.versionId}` }, limit: 1 });
-    if (!v) return NextResponse.json({ error: "Version not found" }, { status: 404 });
-    // Retire the current live version first — the unique index allows one.
-    const live = await dbSelect("artwork_studio_rule_versions", { select: "id", filter: { status: "eq.live" } });
-    for (const l of live) {
-      if (l.id !== v.id) await dbUpdate("artwork_studio_rule_versions", "id", l.id, { status: "retired" }, { returning: "minimal" });
+    // Retire + publish in one transaction (DB function) so a job starting
+    // mid-publish never finds no live rules.
+    try {
+      await dbRPC("publish_artwork_studio_rules", { p_version_id: b.versionId, p_who: who });
+    } catch (e) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
     }
-    await dbUpdate("artwork_studio_rule_versions", "id", v.id, { status: "live", published_by: who, published_at: now }, { returning: "minimal" });
     return NextResponse.json({ ok: true });
   }
   if (b.action === "resolveFlag") {
