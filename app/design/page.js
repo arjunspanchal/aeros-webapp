@@ -41,7 +41,7 @@ export default function DesignPage() {
             <div>
               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Artwork Studio</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Make customer artwork for 8 / 12 / 16 oz paper cups and U-shape PP / PET cups — upload the logo, get a proof on the real keyline.
+                Make customer artwork for 8 / 12 / 16 oz paper cups, U-shape PP / PET cups and deli wrap sheets — upload the logo, get a proof on the real keyline.
               </p>
             </div>
             <span aria-hidden className="text-gray-400">→</span>

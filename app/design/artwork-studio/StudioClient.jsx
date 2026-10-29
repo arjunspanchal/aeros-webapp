@@ -107,6 +107,7 @@ function NewJobForm({ products, liveRules, me }) {
   const [error, setError] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
 
+  const isSheet = !!products.find((p) => p.key === f.productKey)?.noLid;
   const families = useMemo(() => {
     const m = new Map();
     for (const p of products) m.set(p.family, [...(m.get(p.family) || []), p]);
@@ -165,7 +166,7 @@ function NewJobForm({ products, liveRules, me }) {
         <div>
           <label className={labelCls}>Product</label>
           <select className={inputCls} value={f.productKey} onChange={set("productKey")} required>
-            <option value="">Choose the cup…</option>
+            <option value="">Choose the product…</option>
             {families.map(([fam, list]) => (
               <optgroup key={fam} label={fam}>
                 {list.map((p) => (
@@ -193,6 +194,7 @@ function NewJobForm({ products, liveRules, me }) {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
+          {!isSheet && (
           <div>
             <label className={labelCls}>Lid</label>
             <select className={inputCls} value={f.lid} onChange={set("lid")}>
@@ -202,6 +204,15 @@ function NewJobForm({ products, liveRules, me }) {
               <option value="PP">PP lid</option>
             </select>
           </div>
+          )}
+          {isSheet && (
+          <div>
+            <label className={labelCls}>Pattern</label>
+            <p className="rounded-md border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-400">
+              Deli wraps print as an all-over repeat: the logo in every tile, a small mark between the rows. Say in the brief if you want a second mark or a background colour.
+            </p>
+          </div>
+          )}
           <div>
             <label className={labelCls}>Colours</label>
             <select className={inputCls} value={f.inkMode} onChange={set("inkMode")}>
@@ -232,7 +243,7 @@ function NewJobForm({ products, liveRules, me }) {
             className={`${inputCls} min-h-[120px]`}
             value={f.brief}
             onChange={set("brief")}
-            placeholder="What should the cup look like? e.g. Kraft look, logo centred on the front, Instagram handle small at the bottom, background colour from the logo."
+            placeholder={isSheet ? "e.g. Logo about 45 mm, small leaf mark between the rows, one colour navy. Any background colour?" : "What should the cup look like? e.g. Kraft look, logo centred on the front, Instagram handle small at the bottom, background colour from the logo."}
           />
         </div>
 

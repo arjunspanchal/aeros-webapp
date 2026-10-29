@@ -32,6 +32,8 @@ const KIND_LABEL = {
   proof: "Customer proof",
   check: "Curve / gate check",
   print: "Print file",
+  print4up: "Press sheet (4-up)",
+  sample: "Digital sample (13 × 19 in)",
   preview: "Preview image",
   result: "Result data",
   wrap: "Unrolled artwork (texture)",
@@ -208,6 +210,7 @@ export default function JobClient({ jobId }) {
   const latest = versions[0];
   const preview = job.outputs.findLast((o) => o.kind === "preview");
   const hasPrint = job.outputs.some((o) => o.kind === "print");
+  const shownView = job.cup3d ? view : "proof";   // flat sheets have no 3D cup
   const firstRun = job.chat.length === 0;
   const pendingFiles = job.inputs.filter((i) => i.pending);
 
@@ -236,23 +239,23 @@ export default function JobClient({ jobId }) {
           <section className={cardCls}>
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="flex gap-1">
-                {["proof", "3d"].map((v) => (
+                {(job.cup3d ? ["proof", "3d"] : ["proof"]).map((v) => (
                   <button
                     key={v}
                     onClick={() => setView(v)}
                     className={`rounded-md px-2.5 py-1 text-xs font-medium ${
-                      view === v ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                      shownView === v ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
                     }`}
                   >
                     {v === "proof" ? "Proof" : "3D cup"}
                   </button>
                 ))}
               </div>
-              {view === "3d" && job.wrap && (
+              {shownView === "3d" && job.wrap && (
                 <button className={btnGhost} onClick={download3d}>Download PNG</button>
               )}
             </div>
-            {view === "3d" ? (
+            {shownView === "3d" ? (
               job.cup3d ? (
                 <div>
                   <Cup3DViewer ref={viewer} wrapUrl={job.wrap ? fileUrl(jobId, job.wrap) : null} cup={job.cup3d} />

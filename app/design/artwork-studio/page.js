@@ -41,7 +41,7 @@ export default async function ArtworkStudioPage() {
       <AppHeader session={session} />
       <Header
         title="Artwork Studio"
-        subtitle="Upload the customer's logo, describe the design, and get a customer proof on the real Aeros keyline. Paper cups 8 / 12 / 16 oz and U-shape PP / PET cups only."
+        subtitle="Upload the customer's logo, describe the design, and get a customer proof on the real Aeros keyline. Paper cups 8 / 12 / 16 oz, U-shape PP / PET cups and deli wrap sheets (10 × 10, 12 × 12, 12 × 14 in)."
       />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {error ? (
