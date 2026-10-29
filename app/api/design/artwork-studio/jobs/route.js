@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { studioGuard } from "../_access";
-import { canApprove, createJob, listJobs, PRODUCT_KEYS, LIDS } from "@/lib/design/artwork-studio";
+import { canApprove, createJob, listJobs, listNeedsApproval, PRODUCT_KEYS, LIDS } from "@/lib/design/artwork-studio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,8 +9,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request) {
   const { session, error } = await studioGuard();
   if (error) return error;
-  const all = new URL(request.url).searchParams.get("all") === "1" && canApprove(session);
+  const q = new URL(request.url).searchParams;
+  const all = q.get("all") === "1" && canApprove(session);
   try {
+    if (q.get("queue") === "approval" && canApprove(session)) return NextResponse.json({ jobs: await listNeedsApproval() });
     return NextResponse.json({ jobs: await listJobs(session, { all }) });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });

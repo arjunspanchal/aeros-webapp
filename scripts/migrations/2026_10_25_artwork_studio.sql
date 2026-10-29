@@ -124,3 +124,6 @@ alter table artwork_studio_jobs
   add column if not exists session_id text,
   add column if not exists events_seen_at text,
   add column if not exists session_cost_usd numeric not null default 0;
+
+-- Proofs emailed to the customer from the job page: [{to, cc, version, by, at}]
+alter table artwork_studio_jobs add column if not exists sends jsonb not null default '[]';

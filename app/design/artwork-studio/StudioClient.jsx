@@ -53,6 +53,7 @@ export default function StudioClient({ products, liveRules, me }) {
   const tabs = [
     { key: "new", label: "New artwork" },
     { key: "jobs", label: me.canApprove ? "All jobs" : "My jobs" },
+    ...(me.canApprove ? [{ key: "approve", label: "Needs approval" }] : []),
     ...(me.isAdmin ? [{ key: "admin", label: "Rules & spend" }] : []),
   ];
 
@@ -82,6 +83,7 @@ export default function StudioClient({ products, liveRules, me }) {
 
       {tab === "new" && <NewJobForm products={products} liveRules={liveRules} me={me} />}
       {tab === "jobs" && <JobList all={me.canApprove} />}
+      {tab === "approve" && me.canApprove && <JobList all queue="approval" />}
       {tab === "admin" && me.isAdmin && <AdminPanel />}
     </div>
   );
@@ -100,7 +102,7 @@ function NewJobForm({ products, liveRules, me }) {
     digitalSample: false,
     brief: "",
   });
-  const [files, setFiles] = useState([]);
+  const [files, setFiles] = useState([]);          // [{file, role}]
   const [busy, setBusy] = useState("");
   const [error, setError] = useState(null);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
@@ -112,11 +114,13 @@ function NewJobForm({ products, liveRules, me }) {
   }, [products]);
 
   const overCap = me.capInr != null && me.spentTodayInr >= me.capInr;
-  const tooBig = files.find((x) => x.size > MAX_FILE_BYTES);
+  const tooBig = files.map((x) => x.file).find((x) => x.size > MAX_FILE_BYTES);
 
-  function addFiles(list) {
-    setFiles((prev) => [...prev, ...Array.from(list || [])].slice(0, 8));
+  function addFiles(list, role) {
+    setFiles((prev) => [...prev, ...Array.from(list || []).map((file) => ({ file, role }))].slice(0, 8));
   }
+  const logos = files.filter((x) => x.role === "logo");
+  const isVector = (name) => /\.(pdf|ai|svg|eps)$/i.test(name);
 
   async function submit(e) {
     e.preventDefault();
@@ -132,12 +136,12 @@ function NewJobForm({ products, liveRules, me }) {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Could not create job");
       const id = body.job.id;
-      for (const [i, file] of files.entries()) {
+      for (const [i, { file, role }] of files.entries()) {
         setBusy(`Uploading ${i + 1} of ${files.length}: ${file.name}`);
         const up = await fetch(`/api/design/artwork-studio/jobs/${id}/inputs`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename: file.name, contentType: file.type, fileBase64: await readAsBase64(file) }),
+          body: JSON.stringify({ filename: file.name, contentType: file.type, fileBase64: await readAsBase64(file), role }),
         });
         if (!up.ok) throw new Error((await up.json().catch(() => ({}))).error || `Upload failed: ${file.name}`);
       }
@@ -239,31 +243,21 @@ function NewJobForm({ products, liveRules, me }) {
       </div>
 
       <div className="space-y-4">
-        <div
-          className={`${cardCls} border-dashed`}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
-        >
-          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Logo &amp; reference files</p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Vector (PDF, AI, SVG, EPS) gives the sharpest print. PNG / JPG work for references. Max 3 MB each, 8 files.
-          </p>
-          <input type="file" multiple accept={ACCEPT} onChange={(e) => addFiles(e.target.files)} className="mt-3 block w-full text-xs" />
-          {files.length > 0 && (
-            <ul className="mt-3 space-y-1">
-              {files.map((x, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 text-xs">
-                  <span className={`truncate ${x.size > MAX_FILE_BYTES ? "text-red-600" : "text-gray-700 dark:text-gray-300"}`}>
-                    {x.name} · {(x.size / 1024 / 1024).toFixed(1)} MB
-                  </span>
-                  <button type="button" className="text-gray-400 hover:text-gray-700" onClick={() => setFiles(files.filter((_, j) => j !== i))}>
-                    ✕
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <UploadSlot
+          title="Customer's logo"
+          hint="The artwork that gets printed. A vector file (PDF, AI, SVG, EPS) prints sharp at any size; a PNG / JPG only makes a proof - the print file will wait for the vector."
+          files={files.filter((x) => x.role === "logo")}
+          onAdd={(l) => addFiles(l, "logo")}
+          onRemove={(x) => setFiles(files.filter((y) => y !== x))}
+          warn={logos.length > 0 && !logos.some((x) => isVector(x.file.name)) ? "No vector logo yet - the proof is fine, but ask the customer for the PDF / AI / SVG before print." : null}
+        />
+        <UploadSlot
+          title="Reference (optional)"
+          hint="A mockup, photo, old proof or brand guide - for layout and colours. Claude won't cut the logo out of it when a logo file is given."
+          files={files.filter((x) => x.role === "reference")}
+          onAdd={(l) => addFiles(l, "reference")}
+          onRemove={(x) => setFiles(files.filter((y) => y !== x))}
+        />
 
         <div className={cardCls}>
           {!liveRules && <p className="mb-3 text-xs text-red-600">Arjun hasn't published the Studio rules yet.</p>}
@@ -282,19 +276,46 @@ function NewJobForm({ products, liveRules, me }) {
   );
 }
 
-function JobList({ all }) {
+function UploadSlot({ title, hint, files, onAdd, onRemove, warn }) {
+  return (
+    <div
+      className={`${cardCls} border-dashed`}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => { e.preventDefault(); onAdd(e.dataTransfer.files); }}
+    >
+      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</p>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{hint} Max 3 MB each.</p>
+      <input type="file" multiple accept={ACCEPT} onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} className="mt-3 block w-full text-xs" />
+      {files.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {files.map((x, i) => (
+            <li key={i} className="flex items-center justify-between gap-2 text-xs">
+              <span className={`truncate ${x.file.size > MAX_FILE_BYTES ? "text-red-600" : "text-gray-700 dark:text-gray-300"}`}>
+                {x.file.name} · {(x.file.size / 1024 / 1024).toFixed(1)} MB
+              </span>
+              <button type="button" className="text-gray-400 hover:text-gray-700" onClick={() => onRemove(x)}>✕</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {warn && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{warn}</p>}
+    </div>
+  );
+}
+
+function JobList({ all, queue }) {
   const [jobs, setJobs] = useState(null);
   const [error, setError] = useState(null);
   useEffect(() => {
-    fetch(`/api/design/artwork-studio/jobs${all ? "?all=1" : ""}`)
+    fetch(`/api/design/artwork-studio/jobs?${all ? "all=1" : ""}${queue ? `&queue=${queue}` : ""}`)
       .then((r) => r.json())
       .then((b) => (b.error ? setError(b.error) : setJobs(b.jobs)))
       .catch((e) => setError(e.message));
-  }, [all]);
+  }, [all, queue]);
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
   if (!jobs) return <p className="text-sm text-gray-500">Loading…</p>;
-  if (!jobs.length) return <p className="text-sm text-gray-500 dark:text-gray-400">No jobs yet.</p>;
+  if (!jobs.length) return <p className="text-sm text-gray-500 dark:text-gray-400">{queue ? "Nothing waiting for approval." : "No jobs yet."}</p>;
   return (
     <div className="space-y-2">
       {jobs.map((j) => (

@@ -48,6 +48,10 @@ export default function JobClient({ jobId }) {
   const [sending, setSending] = useState(false);
   const [flagOpen, setFlagOpen] = useState(false);
   const [flagNote, setFlagNote] = useState("");
+  const [sendTo, setSendTo] = useState("");
+  const [sendCc, setSendCc] = useState("");
+  const [sendNote, setSendNote] = useState("");
+  const [sending2, setSending2] = useState(false);
   const [notice, setNotice] = useState(null);
   const [uploading, setUploading] = useState("");
   const resuming = useRef(false);
@@ -99,6 +103,7 @@ export default function JobClient({ jobId }) {
     setMessage((m) => (m.trim() ? `${m.trimEnd()}\n- ${text}` : `- ${text}`));
   }
 
+  const attachRole = useRef("logo");
   async function attach(list) {
     setNotice(null);
     for (const file of Array.from(list || [])) {
@@ -108,7 +113,7 @@ export default function JobClient({ jobId }) {
       }
       setUploading(`Uploading ${file.name}…`);
       try {
-        await post("inputs", { filename: file.name, contentType: file.type, fileBase64: await readAsBase64(file) });
+        await post("inputs", { filename: file.name, contentType: file.type, fileBase64: await readAsBase64(file), role: attachRole.current });
       } catch (err) {
         setNotice(err.message);
       }
@@ -160,6 +165,27 @@ export default function JobClient({ jobId }) {
     } catch (err) {
       setNotice(err.message);
     }
+  }
+
+  async function sendProof(e) {
+    e.preventDefault();
+    setSending2(true);
+    setNotice(null);
+    try {
+      await post("send", { to: sendTo, cc: sendCc, note: sendNote });
+      setNotice(`Proof v${latest} emailed to ${sendTo}.`);
+      setSendNote("");
+      await load();
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setSending2(false);
+    }
+  }
+
+  function copyVectorRequest() {
+    const msg = `Hi, this is ${me.name || "Aeros"} from Aeros. To print your ${job.brand} cups sharp we need the original logo as a vector file - a PDF, AI, SVG or EPS exported from the design software (not a JPG/PNG/screenshot). Could you send it over, or ask your designer to? Thank you!`;
+    navigator.clipboard?.writeText(msg).then(() => setNotice("Message copied - paste it into WhatsApp or email."), () => setNotice(msg));
   }
 
   async function flag(e) {
@@ -258,6 +284,12 @@ export default function JobClient({ jobId }) {
               </div>
             )}
             {job.result?.summary && <p className="mt-3 text-sm text-gray-800 dark:text-gray-200">{job.result.summary}</p>}
+            {job.needsVectorLogo && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+                <span><strong>Vector logo needed before print.</strong> This proof is fine to share; the print file waits for the customer's PDF / AI / SVG. Attach it here when it arrives.</span>
+                <button type="button" className={btnGhost} onClick={copyVectorRequest}>Copy request to customer</button>
+              </div>
+            )}
             {job.result?.warnings?.length > 0 && (
               <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-800 dark:text-amber-300">
                 {job.result.warnings.map((w, i) => <li key={i}>{w}</li>)}
@@ -316,8 +348,11 @@ export default function JobClient({ jobId }) {
                 )}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex gap-2">
-                    <button type="button" className={btnGhost} onClick={() => fileInput.current?.click()} disabled={running || !!uploading}>
-                      Attach file
+                    <button type="button" className={btnGhost} onClick={() => { attachRole.current = "logo"; fileInput.current?.click(); }} disabled={running || !!uploading}>
+                      Attach logo
+                    </button>
+                    <button type="button" className={btnGhost} onClick={() => { attachRole.current = "reference"; fileInput.current?.click(); }} disabled={running || !!uploading}>
+                      Attach reference
                     </button>
                     <input ref={fileInput} type="file" multiple accept={ACCEPT} className="hidden" onChange={(e) => attach(e.target.files)} />
                     <button type="button" className={btnGhost} onClick={() => setFlagOpen(!flagOpen)}>Flag a problem</button>
@@ -384,12 +419,39 @@ export default function JobClient({ jobId }) {
             </section>
           )}
 
+          {job.outputs.some((o) => o.kind === "proof") && (
+            <section className={cardCls}>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Send proof to customer</h3>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Emails the customer proof v{latest} only (never the print file), from Aeros, with your note.
+              </p>
+              <form onSubmit={sendProof} className="mt-3 space-y-2">
+                <input className={inputCls} type="text" value={sendTo} onChange={(e) => setSendTo(e.target.value)} placeholder="customer@email.com" required />
+                <input className={inputCls} type="text" value={sendCc} onChange={(e) => setSendCc(e.target.value)} placeholder="cc (optional, e.g. yourself)" />
+                <textarea className={`${inputCls} min-h-[60px]`} value={sendNote} onChange={(e) => setSendNote(e.target.value)} placeholder="Short note (optional) - e.g. Please confirm the logo size and the green." />
+                <button type="submit" className={`${btnPrimary} w-full`} disabled={sending2 || running || !sendTo.trim()}>
+                  {sending2 ? "Sending…" : `Email proof v${latest}`}
+                </button>
+              </form>
+              {job.sends?.length > 0 && (
+                <ul className="mt-3 space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                  {job.sends.map((x, i) => (
+                    <li key={i}>v{x.version} sent to {x.to.join(", ")} by {x.by} · {new Date(x.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
           <section className={cardCls}>
             <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Uploaded</h3>
             <ul className="mt-2 space-y-1 text-xs text-gray-700 dark:text-gray-300">
               {job.inputs.length === 0 && <li className="text-gray-500">No files.</li>}
               {job.inputs.map((i, k) => (
-                <li key={k} className="truncate">{i.name}{i.pending ? " · not sent yet" : ""}</li>
+                <li key={k} className="truncate">
+                  <span className="mr-1 rounded bg-gray-100 px-1 text-[10px] uppercase text-gray-500 dark:bg-gray-800">{i.role === "reference" ? "ref" : "logo"}</span>
+                  {i.name}{i.pending ? " · not sent yet" : ""}
+                </li>
               ))}
             </ul>
             {me.capInr != null && (

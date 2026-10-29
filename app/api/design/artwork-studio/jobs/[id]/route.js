@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { studioGuard } from "../../_access";
 import {
-  canApprove, canDownload, chatView, DAILY_CAP_INR, PRODUCTS, spentTodayInr, syncJob, userKey,
+  canApprove, canDownload, chatView, DAILY_CAP_INR, needsVectorLogo, PRODUCTS, spentTodayInr, syncJob, userKey,
 } from "@/lib/design/artwork-studio";
 import { dbUpdate } from "@/lib/db/supabase";
 
@@ -51,7 +51,9 @@ export async function GET(_request, { params }) {
       progress: j.progress,
       continuePending: !!j.continue_pending,
       error: j.error,
-      inputs: (j.inputs || []).map((i) => ({ name: i.name, size: i.size, pending: !!i.pending })),
+      inputs: (j.inputs || []).map((i) => ({ name: i.name, size: i.size, role: i.role || "logo", pending: !!i.pending })),
+      needsVectorLogo: needsVectorLogo(j),
+      sends: j.sends || [],
       outputs,
       result: j.result,
       // 3D preview: latest unrolled wrap + the formed-cup shape.
@@ -65,6 +67,7 @@ export async function GET(_request, { params }) {
       approvedAt: j.approved_at,
     },
     me: {
+      name: session.name || null,
       canApprove: canApprove(session),
       isAdmin: !!session.isAdmin,
       spentTodayInr: spent,
