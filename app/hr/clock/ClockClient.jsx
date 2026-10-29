@@ -61,6 +61,12 @@ const STR = {
     errCouldNotPunch: "Could not record punch.",
     errNeedLocation:
       "Location required. Turn on GPS/location and allow it, then try again.",
+    errLocBlocked:
+      "Location is BLOCKED for this site in your browser. Tap the icon next to the web address (🔒 or ⚙), open Permissions → Location → Allow, then reload this page and try again.",
+    errLocOff:
+      "Your phone's Location/GPS is switched off. Swipe down from the top of the screen, turn Location ON, then try again.",
+    errLocTimeout:
+      "Couldn't get a GPS fix. Step outside or near a window, wait a few seconds, then try again.",
     errPoorAccuracy: (m) =>
       `Location too imprecise (±${fmtDist(m, "km", "m")}). Turn on precise GPS, step near a window, then try again.`,
     errOutside: (m) =>
@@ -133,6 +139,12 @@ const STR = {
     errCouldNotPunch: "पंच दर्ज नहीं हो सका।",
     errNeedLocation:
       "लोकेशन ज़रूरी है। GPS/लोकेशन चालू करके अनुमति दें, फिर कोशिश करें।",
+    errLocBlocked:
+      "इस साइट के लिए लोकेशन ब्राउज़र में बंद (Block) है। वेब एड्रेस के बगल वाले आइकन (🔒 या ⚙) पर टैप करें, Permissions → Location → Allow चुनें, फिर पेज रीलोड करके दोबारा कोशिश करें।",
+    errLocOff:
+      "फ़ोन की लोकेशन/GPS बंद है। स्क्रीन के ऊपर से नीचे स्वाइप करके Location चालू करें, फिर कोशिश करें।",
+    errLocTimeout:
+      "GPS लोकेशन नहीं मिल पाई। बाहर या खिड़की के पास जाएँ, कुछ सेकंड रुकें, फिर कोशिश करें।",
     errPoorAccuracy: (m) =>
       `लोकेशन सटीक नहीं है (±${fmtDist(m, "किमी", "मीटर")})। सटीक GPS चालू करें, खिड़की के पास जाएँ, फिर कोशिश करें।`,
     errOutside: (m) =>
@@ -177,26 +189,36 @@ async function postJson(url, body) {
   return { ok: res.ok, status: res.status, data };
 }
 
-// Best-effort device location for a punch. Resolves null (never rejects) if the
-// browser has no geolocation, the worker denies it, or it doesn't fix within
-// the timeout — the punch then goes through without coordinates.
+// Device location for a punch. Never rejects: resolves { pos } on a fix, or
+// { pos: null, code } with the GeolocationPositionError code so the UI can say
+// exactly what to fix (1 = permission denied, 2 = GPS off/unavailable,
+// 3 = timeout; 0 = no geolocation API at all). Location is mandatory
+// server-side, so a precise instruction here beats a generic server 422.
 function getPosition() {
   return new Promise((resolve) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      resolve(null);
+      resolve({ pos: null, code: 0 });
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) =>
+      (p) =>
         resolve({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
+          pos: { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy },
         }),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+      (e) => resolve({ pos: null, code: e?.code ?? 0 }),
+      // 15 s: cheap Android GPS chips cold-starting inside the factory shed
+      // regularly need more than the old 8 s to first fix.
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
     );
   });
+}
+
+// Which instruction to show for a failed location grab.
+function geoFailMsg(code, t) {
+  if (code === 1) return t.errLocBlocked;
+  if (code === 2) return t.errLocOff;
+  if (code === 3) return t.errLocTimeout;
+  return t.errNeedLocation;
 }
 
 function prettyDate(ymd, locale) {
@@ -282,11 +304,17 @@ export default function ClockClient({ initialSignedIn }) {
 
   async function punch(action) {
     setErr(""); setFlash(""); setBusy(true);
-    // Grab location first (best-effort). The punch still records if it's null.
     setLocating(true);
-    const pos = await getPosition();
+    const { pos, code } = await getPosition();
     setLocating(false);
-    const { ok, data } = await postJson("/api/hr/clock/punch", { action, ...(pos || {}) });
+    if (!pos) {
+      // Location is mandatory for every punch — don't bother the server,
+      // tell the worker exactly what to switch on.
+      setBusy(false);
+      setErr(geoFailMsg(code, t));
+      return;
+    }
+    const { ok, data } = await postJson("/api/hr/clock/punch", { action, ...pos });
     setBusy(false);
     if (!ok) {
       // 409 = already in/out — refresh so the UI reflects reality, surface msg.
