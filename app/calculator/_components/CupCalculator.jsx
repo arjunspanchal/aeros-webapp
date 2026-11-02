@@ -1593,7 +1593,10 @@ export default function CupCalculator({ scope = "default" }) {
             return (
               <div style={{ marginTop: 10 }}>
                 <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 8, lineHeight: 1.7 }}>
-                  Cost / cup = <strong>Σ monthly overheads ÷ (machines × hours × 60 × cpm)</strong>. Overheads are pooled across the fleet ({nSw} SW + {nDw} DW = {totalMachines} machines). Double Wall / Ripple runs at {Math.round(DW_SPEED_FACTOR * 100)}% of single-wall speed.
+                  {cupType === "Double Wall"
+                    ? <>Double wall = <strong>₹0.20 / cup</strong> at these default overheads: a single wall is formed, then jacketed, and one former feeds both jacketing machines (21 lakh cups / month). It scales with the overheads and hours below; the machine counts and cpm don't change it. </>
+                    : null}
+                  Cost / cup = <strong>Σ monthly overheads ÷ (machines × hours × 60 × cpm)</strong>{cupType === "Double Wall" ? " applies to single wall and ripple" : ""}. Overheads are pooled across the fleet ({nSw} SW + {nDw} DW = {totalMachines} machines). Double Wall / Ripple runs at {Math.round(DW_SPEED_FACTOR * 100)}% of single-wall speed.
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 500, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: ".06em", margin: "8px 0 6px" }}>Monthly overheads</div>
                 <div className="two-col" style={{ marginBottom: 8 }}>
