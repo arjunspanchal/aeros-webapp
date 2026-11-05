@@ -153,6 +153,10 @@ export default function JobEditor({
   // Pre-seed from the job's existing category if it matches a real catalog
   // category — keeps the picker scoped to the right slice on first open.
   const [productCategory, setProductCategory] = useState(initialJob.category || "");
+  // Picked at creation since 01-Oct-2026, so the pickers stay folded unless
+  // the job is unmapped or someone clicks Change (Arjun, 05-Nov-2026: "why
+  // do we have to select the item twice?").
+  const [showMapping, setShowMapping] = useState(!initialJob.masterSku);
   const [masterBusy, setMasterBusy] = useState(false);
   const [masterSaved, setMasterSaved] = useState(false);
   const [masterErr, setMasterErr] = useState("");
@@ -255,6 +259,7 @@ export default function JobEditor({
     const data = await res.json();
     setJob(data.job);
     setMasterSaved(true);
+    setShowMapping(false);
     setTimeout(() => setMasterSaved(false), 2000);
     router.refresh();
   }
@@ -465,11 +470,14 @@ export default function JobEditor({
       {canEditMasterProduct && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
           <div className="flex items-baseline justify-between gap-3 mb-3">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Master product mapping</h2>
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Catalogue product</h2>
             {job.masterSku ? (
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                Currently: <span className="font-mono text-gray-900 dark:text-white">{job.masterSku}</span>
+                <span className="font-mono text-gray-900 dark:text-white">{job.masterSku}</span>
                 {job.masterProductName && <> · {job.masterProductName}</>}
+                {!masterMappingLocked && !showMapping && (
+                  <button type="button" onClick={() => setShowMapping(true)} className="ml-2 text-blue-700 hover:underline dark:text-blue-400">Change</button>
+                )}
               </span>
             ) : (
               <span className="text-xs text-amber-600 dark:text-amber-400">Unmapped — pick a master product so FG inventory can track this job.</span>
@@ -490,7 +498,7 @@ export default function JobEditor({
                 If the mapping is wrong, delete the job and create a new one — or contact an admin if a controlled fix is needed.
               </p>
             </div>
-          ) : products.length === 0 ? (
+          ) : !showMapping ? null : products.length === 0 ? (
             <div className="text-xs text-red-600 dark:text-red-400 space-y-1">
               <p>No master products loaded.</p>
               {catalogError ? (
@@ -542,8 +550,11 @@ export default function JobEditor({
                   disabled={masterBusy || !masterSku.trim()}
                   className="bg-blue-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-blue-700 disabled:opacity-60"
                 >
-                  {masterBusy ? "Saving…" : "Save mapping"}
+                  {masterBusy ? "Saving…" : "Save product"}
                 </button>
+                {job.masterSku && (
+                  <button type="button" onClick={() => setShowMapping(false)} disabled={masterBusy} className="text-sm text-gray-600 hover:underline dark:text-gray-300">Cancel</button>
+                )}
                 {masterSaved && <span className="text-xs text-green-600 dark:text-green-400">Saved</span>}
                 {masterErr && <span className="text-xs text-red-500">{masterErr}</span>}
               </div>
