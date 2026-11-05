@@ -10,6 +10,7 @@ import PushToWarehouseCard from "./PushToWarehouseCard";
 import JobThread from "@/app/factoryos/_components/JobThread";
 import InwardPanel from "./InwardPanel";
 import CloseJobCard from "./CloseJobCard";
+import OrderBasicsCard from "./OrderBasicsCard";
 import { V1 } from "@/lib/factoryos/v1";
 
 export default function JobEditor({
@@ -429,6 +430,7 @@ export default function JobEditor({
           <Col label="Production due" value={formatDate(job.productionDueDate)} />
           <Col label="RM delivery" value={formatDate(job.rmDeliveryDate)} />
         </dl>
+        <OrderBasicsCard job={job} canEdit={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER} onSaved={setJob} />
       </div>
 
       {canManageJobOrder && job.sourcing !== "traded" && (
