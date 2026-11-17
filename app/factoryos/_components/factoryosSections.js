@@ -27,7 +27,8 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
     items: [
       { href: "/factoryos/manager",     label: "Jobs",          exact: false },
       { href: "/factoryos/inbox",       label: "Inbox",         exact: false },
-      { href: "/factoryos/delivery",    label: "Delivery Plan", exact: false },
+      { href: "/factoryos/delivery",    label: "Delivery Plan", exact: true },
+      { href: "/factoryos/delivery/calendar", label: "Delivery Calendar", exact: true },
       { href: "/factoryos/manager/pos", label: "Customer POs",  exact: false },
       { href: "/factoryos/how-to",      label: "How to use",    exact: true },
       // Chat assistant — raises / changes jobs, so the same audience as + New job.
