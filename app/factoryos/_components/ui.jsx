@@ -6,6 +6,7 @@ import { STAGES, STAGE_INDEX } from "@/lib/factoryos/constants";
 
 const STAGE_COLORS = {
   "RM Pending": "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  "Coating": "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200",
   "Under Printing": "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
   "In Conversion": "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
   "Packing": "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200",
@@ -23,11 +24,14 @@ export function StageBadge({ stage }) {
   );
 }
 
-export function StageTimeline({ stage }) {
-  const current = STAGE_INDEX[stage] ?? 0;
+export function StageTimeline({ stage, stages = STAGES }) {
+  // `stages` = this job's own flow (vendor-converted / vendor-packed jobs
+  // skip steps); falls back to the full list.
+  const idx = stages.indexOf(stage);
+  const current = idx >= 0 ? idx : (STAGE_INDEX[stage] ?? 0);
   return (
     <div className="flex items-center gap-1 w-full">
-      {STAGES.map((s, i) => {
+      {stages.map((s, i) => {
         const done = i <= current;
         const isCurrent = i === current;
         return (
@@ -37,7 +41,7 @@ export function StageTimeline({ stage }) {
                 done ? (isCurrent ? "bg-blue-600" : "bg-blue-400") : "bg-gray-200 dark:bg-gray-700"
               }`}
             />
-            {i < STAGES.length - 1 && <div className="w-1" />}
+            {i < stages.length - 1 && <div className="w-1" />}
           </div>
         );
       })}
@@ -65,4 +69,27 @@ export function formatDateTime(isoOrNull) {
   } catch {
     return "—";
   }
+}
+
+// Segmented buttons for a small fixed choice (Rolls | Sheets, Flexo | Offset).
+// `options` = [{ value, label }]; `value` may be "" for a "none" option.
+export function ButtonGroup({ value, onChange, options, className = "" }) {
+  return (
+    <div className={`inline-flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden ${className}`}>
+      {options.map((o) => (
+        <button
+          type="button"
+          key={String(o.value)}
+          onClick={() => onChange(o.value)}
+          className={`px-3 py-1.5 text-sm ${
+            value === o.value
+              ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+              : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
 }

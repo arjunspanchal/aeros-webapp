@@ -6,13 +6,11 @@
 
 import { canManageInventory } from "@/lib/warehouse/inventory";
 import { canManageClearance } from "@/lib/clearance/admin";
-import { canManageSampleDispatch } from "@/lib/warehouse/sampleDispatches";
 import { canManageVehicleDispatch } from "@/lib/warehouse/vehicleDispatches";
 
 export function warehouseSections(session) {
   const canInventory = canManageInventory(session);
   const canClearance = canManageClearance(session);
-  const canDispatch  = canManageSampleDispatch(session);
   const canVehicle   = canManageVehicleDispatch(session);
 
   const sections = [
@@ -22,12 +20,19 @@ export function warehouseSections(session) {
     },
   ];
 
-  // Clearance: public stock is open to anyone with the shell; Manage gates on FM/FE/Admin.
-  const clearanceItems = [
-    { href: "/warehouse/clearance", label: "Public stock", exact: true },
-  ];
-  if (canClearance) clearanceItems.push({ href: "/warehouse/clearance/manage", label: "Manage stock" });
-  sections.push({ label: "Clearance", items: clearanceItems });
+  // The public clearance stock site was removed on 18-Nov-2026.
+  // canManageClearance is still the WarehouseOS staff check.
+
+  // Handover from FactoryOS (ready jobs → warehouse). Staff only.
+  if (canClearance) {
+    sections.push({
+      label: "Dispatch",
+      items: [
+        { href: "/warehouse/invoices", label: "Invoices to load", exact: true },
+        { href: "/warehouse/dispatch", label: "Ready to go and in transit", exact: true },
+      ],
+    });
+  }
 
   if (canInventory) {
     sections.push({
@@ -40,17 +45,6 @@ export function warehouseSections(session) {
         { href: "/warehouse/inventory/outward",   label: "Outward" },
         { href: "/warehouse/inventory/movements", label: "Movement history" },
         { href: "/warehouse/inventory/audits",    label: "Stock audits" },
-      ],
-    });
-  }
-
-  if (canDispatch) {
-    sections.push({
-      label: "Sample Dispatch",
-      items: [
-        { href: "/warehouse/sample-dispatch",     label: "Queue", exact: true },
-        { href: "/warehouse/sample-dispatch/new", label: "New dispatch" },
-        { href: "/warehouse/sample-kits",         label: "Kit Manager" },
       ],
     });
   }

@@ -17,7 +17,6 @@ export default async function DeliveryBoardPage() {
   const session = getSession();
   const role = session?.isAdmin ? ROLES.ADMIN : session?.modules?.factoryos;
   if (!session || !role) redirect("/login");
-  if (role === ROLES.CUSTOMER) redirect("/factoryos/customer");
   if (role === ROLES.VENDOR) redirect("/factoryos/vendor");
 
   const lines = await listDeliveryLines({

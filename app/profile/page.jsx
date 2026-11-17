@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import AppHeader from "../components/AppHeader";
-import { getSession, hasAnyAccess, ROLES } from "@/lib/auth/session";
+import { getSession, hasAnyAccess } from "@/lib/auth/session";
 import { findUserByEmail } from "@/lib/factoryos/repo";
 import ProfileForm from "./ProfileForm";
 
@@ -12,9 +12,6 @@ export const metadata = {
 };
 
 // Top-level profile entry from the IdentityMenu dropdown.
-// - FactoryOS customers already have a fully-featured editor at
-//   /factoryos/customer/profile, so we hand them off there to avoid
-//   duplicating UX.
 // - Master-password admins (no email on the session) can't be looked up in
 //   the user table, so they get a read-only account view.
 // - Everyone else (staff, FactoryOS internal roles, AMs) gets the editor:
@@ -23,16 +20,13 @@ export const metadata = {
 export default async function ProfilePage() {
   const session = getSession();
   if (!hasAnyAccess(session)) redirect("/login");
-  if (session?.modules?.factoryos === ROLES.CUSTOMER) {
-    redirect("/factoryos/customer/profile");
-  }
 
   const editable = !!session?.email;
   const user = editable ? await findUserByEmail(session.email) : null;
 
   const fallbackName = session?.name || (session?.isAdmin ? "Admin" : session?.email) || "—";
   const email = session?.isAdmin ? null : session?.email;
-  const modules = Object.entries(session?.modules || {}).filter(([, role]) => !!role);
+  const modules = Object.entries(session?.modules || {}).filter(([key, role]) => !!role && key !== "rate_cards");
 
   return (
     <div className="min-h-screen bg-ink-50">
@@ -99,10 +93,11 @@ function Field({ label, value, mono = false }) {
 function labelForModule(key) {
   switch (key) {
     case "calculator": return "Calculator";
-    case "rate_cards": return "RFQs / Rate cards";
     case "factoryos":  return "FactoryOS";
     case "catalogue":  return "Catalogue";
     case "clearance":  return "WarehouseOS";
+    case "hr":         return "HR";
+    case "payouts":    return "Payouts";
     default:           return key;
   }
 }

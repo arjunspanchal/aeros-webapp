@@ -1,30 +1,14 @@
 import Link from "next/link";
 import { getSession } from "@/lib/hub/session";
 import { canManageClearance } from "@/lib/clearance/admin";
-import { canManageSampleDispatch } from "@/lib/warehouse/sampleDispatches";
-import { canManageSampleKits } from "@/lib/warehouse/sampleKits";
 
 export const metadata = {
   title: "WarehouseOS — Aeros",
-  description: "Clearance stock, master inventory, inward/outward, and stock audits.",
+  description: "Dispatch, master inventory, inward/outward, and stock audits.",
 };
 
-const PUBLIC_TILE = {
-  key: "clearance",
-  href: "/warehouse/clearance",
-  title: "Clearance Stock",
-  description: "Ready-to-ship overstock and slow-moving SKUs at sharper rates.",
-  accent: "from-amber-500 to-orange-600",
-};
-
+// The public clearance stock site was removed on 18-Nov-2026.
 const STAFF_TILES = [
-  {
-    key: "clearance-manage",
-    href: "/warehouse/clearance/manage",
-    title: "Manage Clearance",
-    description: "Edit clearance items and upload photos. Restricted to Admin / FM / FE.",
-    accent: "from-rose-500 to-red-600",
-  },
   {
     key: "inventory",
     href: "/warehouse/inventory",
@@ -42,33 +26,29 @@ const STAFF_TILES = [
   },
 ];
 
-const SAMPLE_DISPATCH_TILE = {
-  key: "sample-dispatch",
-  href: "/warehouse/sample-dispatch",
-  title: "Sample Dispatch",
-  description: "CMs raise sample dispatches; warehouse staff work the queue, capture AWB, and print the dispatch note.",
-  accent: "from-sky-500 to-blue-600",
+// Handover register from FactoryOS: jobs the factory has closed, with the
+// finished qty; warehouse marks them dispatched.
+const FACTORY_FG_TILE = {
+  key: "factory-fg",
+  href: "/warehouse/dispatch",
+  title: "Dispatch",
+  description: "Jobs the factory has handed over and are ready to go, and jobs dispatched but not yet confirmed delivered.",
+  accent: "from-gray-700 to-gray-900",
 };
 
-const SAMPLE_KITS_TILE = {
-  key: "sample-kits",
-  href: "/warehouse/sample-kits",
-  title: "Kit Manager",
-  description: "Pre-defined sample kits CMs can pick from when raising a dispatch — saves typing line-by-line.",
-  accent: "from-violet-500 to-purple-600",
+// Zoho invoices the warehouse has not yet recorded as loaded (18-Nov-2026).
+const INVOICES_TILE = {
+  key: "invoices",
+  href: "/warehouse/invoices",
+  title: "Invoices to load",
+  description: "Every Zoho invoice waiting to leave. Mark it loaded with the vehicle or LR, and stock comes off the racks.",
+  accent: "from-gray-700 to-gray-900",
 };
 
 export default function WarehouseHubPage() {
   const session = getSession();
   const showStaff = canManageClearance(session);
-  const showSampleDispatch = canManageSampleDispatch(session);
-  const showSampleKits = canManageSampleKits(session);
-  const tiles = [
-    PUBLIC_TILE,
-    ...(showStaff ? STAFF_TILES : []),
-    ...(showSampleDispatch ? [SAMPLE_DISPATCH_TILE] : []),
-    ...(showSampleKits ? [SAMPLE_KITS_TILE] : []),
-  ];
+  const tiles = showStaff ? [INVOICES_TILE, FACTORY_FG_TILE, ...STAFF_TILES] : [];
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
@@ -77,7 +57,7 @@ export default function WarehouseHubPage() {
           WarehouseOS
         </h1>
         <p className="mt-3 sm:mt-4 text-base sm:text-lg max-w-2xl mx-auto text-gray-600 dark:text-gray-400">
-          Bhiwandi warehouse — stock position, dead-stock listing, inward/outward, and audits.
+          Bhiwandi warehouse — dispatch, stock position, inward/outward, and audits.
         </p>
       </div>
 

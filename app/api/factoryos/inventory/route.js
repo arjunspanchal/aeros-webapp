@@ -1,4 +1,4 @@
-import { getSession, requireManager } from "@/lib/auth/session";
+import { getSession, requireManager, requireInternal } from "@/lib/auth/session";
 import { listRawMaterials, createRawMaterial } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
@@ -10,6 +10,8 @@ export const runtime = "nodejs";
 export async function GET(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
+  // Internal staff only: customers and vendors hold a FactoryOS role too.
+  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
   try {
     const url = new URL(req.url);
     const activeOnly = url.searchParams.get("activeOnly") === "1";

@@ -46,34 +46,16 @@ const TILES = [
     key: "clearance",
     href: "/warehouse",
     title: "WarehouseOS",
-    blurb: "Clearance stock, master inventory, audits",
+    blurb: "Dispatch, master inventory, audits",
     size: "lg",
     accent: "from-amber-500 via-orange-500 to-rose-600",
     sparkColor: "#F97316",
     moduleKey: "clearance",
     metric: (s) => ({
-      number: s?.clearance?.items ?? 0,
-      label: "SKUs in clearance",
-      sub: s?.catalogue
-        ? `${(s.catalogue.products ?? 0).toLocaleString("en-IN")} master SKUs catalogued`
-        : "",
-      spark: s?.clearance?.spark || [],
-    }),
-  },
-  {
-    key: "rate_cards",
-    href: "/rfq-manager",
-    title: "RFQs",
-    blurb: "Rate cards, past quotes, RFQ manager",
-    size: "md",
-    accent: "from-sky-600 to-cyan-700",
-    sparkColor: "#0891B2",
-    moduleKey: "rate_cards",
-    metric: (s) => ({
-      number: s?.rate_cards?.quotes ?? 0,
-      label: "quotes",
-      sub: s?.rate_cards ? `${s.rate_cards.cards ?? 0} cards · ${s.rate_cards.rfqs ?? 0} RFQs` : "",
-      spark: s?.rate_cards?.spark || [],
+      number: s?.catalogue?.products ?? 0,
+      label: "master SKUs",
+      sub: "",
+      spark: [],
     }),
   },
   {
@@ -157,6 +139,17 @@ const TILES = [
     }),
   },
   {
+    key: "sheets",
+    href: "/sheets",
+    title: "Sheets",
+    blurb: "Shared team spreadsheets — edit anywhere, saves online",
+    size: "md",
+    accent: "from-lime-600 to-green-700",
+    sparkColor: "#65A30D",
+    internalOnly: true, // internal team only — never customers / vendors
+    cta: "Open sheets",
+  },
+  {
     key: "ratecards",
     href: "/ratecards",
     title: "Rate Sheets",
@@ -171,132 +164,45 @@ const TILES = [
 
 const QUICK_ACTIONS = [
   { label: "Dieline generator", href: "/design/dieline",              always: true },
-  { label: "New job",           href: "/factoryos/admin/jobs/new",    module: "factoryos" },
-  { label: "Quote a customer",  href: "/calculator/admin",            module: "calculator" },
-  { label: "Mark inward",       href: "/warehouse/inventory/inward",  module: "clearance" },
-  { label: "Sample dispatch",   href: "/warehouse/sample-dispatch",   module: "clearance" },
+  { label: "New job",           href: "/factoryos/admin/jobs/new",    module: "factoryos", roles: ["admin", "factory_manager"] },
+  { label: "My jobs",           href: "/factoryos/manager",           module: "factoryos", roles: ["account_manager", "factory_executive"] },
+  { label: "Dispatch",          href: "/warehouse/dispatch",          module: "factoryos", roles: ["admin", "warehouse"] },
+  { label: "Quote a customer",  href: "/calculator",                  module: "calculator" },
+  { label: "Mark inward",       href: "/warehouse/inventory/inward",  module: "factoryos", roles: ["admin", "factory_manager", "factory_executive", "warehouse"] },
   { label: "Punch clock",       href: "/hr/clock",                    always: true },
   { label: "Add payout",        href: "/payouts",                     module: "payouts" },
-  { label: "View past quotes",  href: "/rate-cards/quotes",           module: "rate_cards" },
 ];
 
-// ─── Customer-only command center ────────────────────────────────────────
-//
-// A customer session also lands on /hub, but the internal modules / KPIs /
-// activity feed are not for them. We swap in a customer-shaped tile set +
-// quick actions so the page keeps its hero feel while only exposing their
-// own portal surfaces.
-const CUSTOMER_TILES = [
-  {
-    key: "my_orders",
-    href: "/factoryos/customer",
-    title: "Your orders",
-    blurb: "Live status, ETAs, and a chat thread per order",
-    size: "lg",
-    accent: "from-royal-600 via-indigo-600 to-purple-700",
-    sparkColor: "#6366F1",
-    customerOnly: true,
-    cta: "Open dashboard",
-  },
-  {
-    key: "documents",
-    href: "/factoryos/customer/documents",
-    title: "Documents",
-    blurb: "Every artwork, proof, challan and LR copy across your orders",
-    size: "lg",
-    accent: "from-fuchsia-600 to-purple-700",
-    sparkColor: "#A855F7",
-    customerOnly: true,
-    cta: "Browse files",
-  },
-  {
-    key: "pos",
-    href: "/factoryos/customer/pos",
-    title: "Purchase orders",
-    blurb: "Upload POs so they stay tied to your jobs",
-    size: "md",
-    accent: "from-sky-600 to-cyan-700",
-    sparkColor: "#0891B2",
-    customerOnly: true,
-    cta: "Manage POs",
-  },
-  {
-    key: "catalogue_c",
-    href: "/catalog",
-    title: "Catalogue",
-    blurb: "Browse Aeros' full SKU range — cups, bags, boxes, tubs",
-    size: "md",
-    accent: "from-amber-500 via-orange-500 to-rose-600",
-    sparkColor: "#F97316",
-    customerOnly: true,
-    cta: "Browse SKUs",
-  },
-  {
-    key: "design_c",
-    href: "/design",
-    title: "Design",
-    blurb: "Keylines, KLDs and mockups for our product range",
-    size: "md",
-    accent: "from-violet-600 to-indigo-700",
-    sparkColor: "#8B5CF6",
-    customerOnly: true,
-    cta: "Open library",
-  },
-  {
-    key: "ratecards_c",
-    href: "/ratecards",
-    title: "Rate Sheets",
-    blurb: "Public rate cards for the full Aeros range — quoted in INR, FCL",
-    size: "md",
-    accent: "from-teal-600 to-emerald-700",
-    sparkColor: "#0D9488",
-    customerOnly: true,
-    cta: "View rate sheets",
-  },
-  {
-    key: "profile_c",
-    href: "/factoryos/customer/profile",
-    title: "Your profile",
-    blurb: "Name, phone, photo. Sign in details.",
-    size: "md",
-    accent: "from-emerald-500 to-teal-700",
-    sparkColor: "#10B981",
-    customerOnly: true,
-    cta: "Edit profile",
-  },
-];
-
-const CUSTOMER_QUICK_ACTIONS = [
-  { label: "Open your orders",   href: "/factoryos/customer" },
-  { label: "Browse documents",   href: "/factoryos/customer/documents" },
-  { label: "Upload a PO",        href: "/factoryos/customer/pos" },
-  { label: "Browse catalogue",   href: "/catalog" },
-];
-
-// True when this session is a "pure customer" — has the factoryos customer
-// role and is not also an admin. Admins always see the full internal home
-// even if their record is also linked as a customer.
-function isCustomerOnly(session) {
-  if (!session) return false;
-  if (session.isAdmin) return false;
-  return session?.modules?.factoryos === "customer";
-}
+// The customer portal was removed on 17-Nov-2026 (FactoryOS is not given to
+// customers), so there is no customer-shaped home any more.
 
 function quickActionsFor(session) {
   if (!session) return [];
-  if (isCustomerOnly(session)) return CUSTOMER_QUICK_ACTIONS;
   const modules = session.modules || {};
-  return QUICK_ACTIONS.filter((a) => a.always || !!modules[a.module] || session.isAdmin);
+  const fosRole = session.isAdmin ? "admin" : modules.factoryos;
+  return QUICK_ACTIONS.filter((a) => {
+    if (a.always) return true;
+    // A shortcut tied to FactoryOS roles shows only for the roles that can open it.
+    if (a.roles) return a.roles.includes(fosRole);
+    return !!modules[a.module] || session.isAdmin;
+  });
 }
 
 function tilesFor(session) {
   if (!session) {
-    return TILES.filter((t) => t.key === "clearance" || t.key === "catalogue");
+    return TILES.filter((t) => t.key === "catalogue");
   }
-  if (isCustomerOnly(session)) return CUSTOMER_TILES;
   const modules = session.modules || {};
   const isAdmin = !!session.isAdmin;
-  return TILES.filter((t) => t.always || isAdmin || !!modules[t.moduleKey]);
+  // "Internal" mirrors lib/auth/policy.js#requireInternal — Aeros staff roles
+  // only, so internalOnly tiles (Sheets) never surface for vendor sessions.
+  const isInternal =
+    isAdmin ||
+    ["admin", "factory_manager", "factory_executive", "warehouse", "account_manager"].includes(modules.factoryos);
+  return TILES.filter((t) => {
+    if (t.internalOnly) return isInternal;
+    return t.always || isAdmin || !!modules[t.moduleKey];
+  });
 }
 
 function timeSince(iso) {
@@ -364,7 +270,7 @@ export default function HomeClient({ session, footer }) {
   // Global ⌘K + Vim-style "G then X" navigation shortcuts.
   // After pressing G, the next keypress within 1.2s maps to a module:
   //   F → /factoryos · W → /warehouse · H → /hr · K → /calculator
-  //   R → /rfq-manager · C → /catalog · D → /design
+  //   C → /catalog · D → /design
   useEffect(() => {
     let pendingG = false;
     let resetTimer = null;
@@ -373,10 +279,10 @@ export default function HomeClient({ session, footer }) {
       w: "/warehouse",
       h: "/hr",
       k: "/calculator",
-      r: "/rfq-manager",
       c: "/catalog",
       d: "/design",
       p: "/payouts",
+      s: "/sheets",
     };
     function onKey(e) {
       const tag = (e.target?.tagName || "").toLowerCase();
@@ -411,25 +317,12 @@ export default function HomeClient({ session, footer }) {
 
   const tiles  = useMemo(() => tilesFor(session), [session]);
   const quicks = useMemo(() => quickActionsFor(session), [session]);
-  const customerMode = isCustomerOnly(session);
 
   const tickerItems = useMemo(() => {
-    // Customer-only ticker — neutral / brand-flavour items. Avoids leaking
-    // internal aggregates like "57 clients" or "open jobs" to a customer.
-    if (customerMode) {
-      return [
-        { value: "Mumbai", label: "India · manufacturing" },
-        { value: "INR ₹",  label: "all rates in INR" },
-        { value: "FCL",    label: "full-container quotes" },
-        { value: "Live",   label: "order status updates" },
-      ];
-    }
     if (!stats) return [];
     const xs = [];
     if (stats.factoryos)  xs.push({ value: (stats.factoryos.open ?? 0).toLocaleString("en-IN"),     label: "open jobs" });
-    if (stats.clearance)  xs.push({ value: (stats.clearance.items ?? 0).toLocaleString("en-IN"),    label: "clearance SKUs" });
     if (stats.catalogue)  xs.push({ value: (stats.catalogue.products ?? 0).toLocaleString("en-IN"), label: "catalogue SKUs" });
-    if (stats.rate_cards) xs.push({ value: (stats.rate_cards.quotes ?? 0).toLocaleString("en-IN"),  label: "quotes drafted" });
     if (stats.hr)         xs.push({ value: (stats.hr.presentToday ?? 0).toLocaleString("en-IN"),    label: "present today" });
     if (stats.hr)         xs.push({ value: (stats.hr.employees ?? 0).toLocaleString("en-IN"),       label: "on payroll" });
     if (stats.clients)    xs.push({ value: (stats.clients.count ?? 0).toLocaleString("en-IN"),      label: "clients" });
@@ -438,7 +331,7 @@ export default function HomeClient({ session, footer }) {
     xs.push({ value: "INR ₹",  label: "all rates in INR" });
     xs.push({ value: "FCL",    label: "full-container quotes" });
     return xs;
-  }, [stats, customerMode]);
+  }, [stats]);
 
   return (
     <div className="min-h-screen flex flex-col bg-ink-50">
@@ -495,12 +388,6 @@ export default function HomeClient({ session, footer }) {
                     className="inline-flex items-center gap-2 rounded-md bg-white text-ink-900 hover:bg-ink-100 px-4 py-2 text-sm font-semibold transition-colors"
                   >
                     Sign in <span aria-hidden>→</span>
-                  </Link>
-                  <Link
-                    href="/warehouse/clearance"
-                    className="inline-flex items-center gap-2 rounded-md border border-white/20 hover:bg-white/10 px-4 py-2 text-sm font-medium text-white/90 transition-colors"
-                  >
-                    Browse clearance stock
                   </Link>
                 </div>
               )}
@@ -571,34 +458,7 @@ export default function HomeClient({ session, footer }) {
 
         {isAuthed && (
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {customerMode ? (
-              // Customers don't see the cross-floor activity feed (it surfaces
-              // other customers' jobs). Instead we point them at their order
-              // dashboard with a one-line nudge.
-              <div className="lg:col-span-2 rounded-md border border-ink-200 bg-white overflow-hidden p-6 flex flex-col justify-between gap-4">
-                <div>
-                  <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-ink-400">Your portal</div>
-                  <h3 className="mt-1 text-xl font-bold tracking-tight text-ink-900">Everything about your orders, in one place.</h3>
-                  <p className="mt-1.5 text-sm text-ink-600">
-                    Live stage updates, ETAs, artwork sign-off, and a chat thread with the Aeros team — per order.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Link
-                    href="/factoryos/customer"
-                    className="inline-flex items-center gap-1.5 rounded-md bg-ink-900 text-white hover:bg-black px-3 py-1.5 text-xs font-medium transition-colors"
-                  >
-                    Open your dashboard <span aria-hidden>→</span>
-                  </Link>
-                  <Link
-                    href="/factoryos/customer/documents"
-                    className="inline-flex items-center gap-1.5 rounded-md border border-ink-200 hover:border-ink-400 px-3 py-1.5 text-xs font-medium text-ink-900 transition-colors"
-                  >
-                    Browse documents
-                  </Link>
-                </div>
-              </div>
-            ) : (
+            {(
               <div className="lg:col-span-2 rounded-md border border-ink-200 bg-white overflow-hidden">
                 <div className="px-5 py-3 border-b border-ink-200 flex items-center justify-between">
                   <div>

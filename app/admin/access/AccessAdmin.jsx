@@ -1,4 +1,5 @@
 "use client";
+import { LINES } from "@/lib/factoryos/lines";
 // One-row-per-user editor for the unified access page. Click a row to
 // expand into an inline edit form — every access knob (FactoryOS role,
 // Calculator role, client links, pricing, active flag) is in one place.
@@ -17,8 +18,8 @@ const FACTORYOS_ROLES = [
   { value: "admin", label: "Admin" },
   { value: "factory_manager", label: "Factory Manager" },
   { value: "factory_executive", label: "Factory Executive" },
-  { value: "account_manager", label: "Customer Manager" },
-  { value: "customer", label: "Customer" },
+  { value: "warehouse", label: "Warehouse" },
+  { value: "account_manager", label: "Sales" },
   { value: "vendor", label: "Vendor (Printing)" },
 ];
 
@@ -69,6 +70,7 @@ function pickFormFromUser(u) {
     phone: u.phone || "",
     company: u.company || "",
     factoryosRole: u.factoryosRole || "",
+    factoryosLines: [...(u.factoryosLines || [])],
     calculatorRole: u.calculatorRole || "",
     rateCardsRole: u.rateCardsRole || "",
     hrRole: u.hrRole || "",
@@ -191,7 +193,7 @@ function UserRow({ user, clients, vendors, onSaved }) {
               {/* Per-module access. Three checkboxes that map onto the role
                   columns:
                     Calculator    ↔ calculator_role  (toggle: client / null)
-                    FactoryOS     ↔ factoryos_role   (toggle: customer / null)
+                    FactoryOS     ↔ factoryos_role   (toggle: Sales / null)
                     WarehouseOS   ↔ derived from factoryos_role being staff
                                     (admin / FM / FE). Read-only — flip the
                                     FactoryOS role below to grant.
@@ -213,35 +215,38 @@ function UserRow({ user, clients, vendors, onSaved }) {
                     )}
                   </ModuleAccessCell>
 
-                  {/* RFQs (rate_cards). "On" = no override OR explicit
-                      admin/client; "Off" = stored as 'disabled' so the
-                      entitlement skips the derive fallback. The form's
-                      rateCardsRole stores either '', 'admin', 'client',
-                      or 'disabled'. Empty string maps to NULL on save. */}
-                  <ModuleAccessCell
-                    label="RFQs"
-                    description="Quote PDFs + saved Rate Cards. Admin sees firm-wide; customer sees their own."
-                    checked={form.rateCardsRole !== "disabled"}
-                    onToggle={(on) => set("rateCardsRole", on ? "client" : "disabled")}
-                    hint={form.rateCardsRole === "" ? "No override — derived from Calculator / FactoryOS roles." : null}
-                  >
-                    {form.rateCardsRole && form.rateCardsRole !== "disabled" && (
-                      <select className={inputCls} value={form.rateCardsRole} onChange={(e) => set("rateCardsRole", e.target.value)}>
-                        {RFQ_ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                      </select>
-                    )}
-                  </ModuleAccessCell>
-
                   <ModuleAccessCell
                     label="FactoryOS"
-                    description="Orders, jobs, RM inventory. Customer view shows only their own orders."
+                    description="Orders, jobs, RM inventory. Staff and printing vendors only."
                     checked={!!form.factoryosRole}
-                    onToggle={(on) => set("factoryosRole", on ? "customer" : "")}
+                    onToggle={(on) => set("factoryosRole", on ? "account_manager" : "")}
                   >
                     {form.factoryosRole && (
                       <select className={inputCls} value={form.factoryosRole} onChange={(e) => set("factoryosRole", e.target.value)}>
                         {FACTORYOS_ROLES.filter((r) => r.value).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                       </select>
+                    )}
+                    {["factory_manager", "factory_executive", "admin"].includes(form.factoryosRole) && (
+                      <div className="mt-2">
+                        <label className={labelCls}>Production lines</label>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1">
+                          {LINES.map((l) => (
+                            <label key={l.key} className="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300">
+                              <input
+                                type="checkbox"
+                                checked={form.factoryosLines.includes(l.key)}
+                                onChange={(e) => set("factoryosLines", e.target.checked
+                                  ? [...form.factoryosLines, l.key]
+                                  : form.factoryosLines.filter((k) => k !== l.key))}
+                              />
+                              {l.label}
+                            </label>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
+                          Jobs opens on these lines by default for this user. None ticked = all lines.
+                        </p>
+                      </div>
                     )}
                     {form.factoryosRole === "vendor" && (
                       <div className="mt-2">
@@ -290,7 +295,7 @@ function UserRow({ user, clients, vendors, onSaved }) {
                   <ModuleAccessCell
                     label="WarehouseOS staff"
                     description="Manage clearance stock + master inventory. Granted automatically when FactoryOS role is admin / FM / FE."
-                    checked={["admin", "factory_manager", "factory_executive"].includes(form.factoryosRole)}
+                    checked={["admin", "factory_manager", "factory_executive", "warehouse"].includes(form.factoryosRole)}
                     readOnly
                     hint="Toggle FactoryOS to a staff role to grant."
                   />
@@ -339,7 +344,7 @@ function UserRow({ user, clients, vendors, onSaved }) {
                 <label className={labelCls}>
                   Linked customers ({form.clientIds.length} selected)
                   <span className="ml-2 text-[11px] font-normal text-gray-400 dark:text-gray-500">
-                    Companies this user works for. Customer-role users should have at least one.
+                    Companies this user works for (calculator and rate-card clients).
                   </span>
                 </label>
                 <input
@@ -409,8 +414,7 @@ export default function AccessAdmin({ initialUsers, clients, vendors = [] }) {
     return users.filter((u) => {
       if (roleFilter === "factoryos" && !u.factoryosRole) return false;
       if (roleFilter === "calculator" && !u.calculatorRole) return false;
-      if (roleFilter === "customer" && u.factoryosRole !== "customer") return false;
-      if (roleFilter === "staff" && (u.factoryosRole === "customer" || !u.factoryosRole)) return false;
+      if (roleFilter === "staff" && !u.factoryosRole) return false;
       if (roleFilter === "inactive" && u.active) return false;
       if (!q) return true;
       const hay = `${u.email} ${u.name} ${u.company} ${u.factoryosRole} ${u.calculatorRole} ${u.clients.map((c) => c.name).join(" ")}`.toLowerCase();
@@ -434,7 +438,6 @@ export default function AccessAdmin({ initialUsers, clients, vendors = [] }) {
         <select className={`${inputCls} sm:w-56`} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
           <option value="">All users</option>
           <option value="staff">Staff (FactoryOS, non-customer)</option>
-          <option value="customer">Customers (factoryos = customer)</option>
           <option value="calculator">With Calculator role</option>
           <option value="factoryos">With FactoryOS role</option>
           <option value="inactive">Inactive</option>

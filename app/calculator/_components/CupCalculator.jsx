@@ -13,7 +13,23 @@ import {
   ORDER_RUN_SETUP_DEFAULT,
   STANDARD_CUP_DIMS,
   getOuterFanCount, getSidewallDims,
+  CUP_CARTON_SPECS,
 } from "@/lib/calc/cup-calculator";
+
+// Resolve the outer-carton dimensions to show on any export: prefer what the
+// user typed, else fall back to the measured DW carton spec so box dims appear
+// on EVERY export, not only when hand-entered.
+function resolveBoxDims({ isDW, size, boxL, boxW, boxH }) {
+  const spec = CUP_CARTON_SPECS[isDW ? "Double Wall" : "Single Wall"]?.[size] || null;
+  const od = spec?.od_mm || [];
+  return {
+    L: boxL || (od[0] != null ? String(od[0]) : ""),
+    W: boxW || (od[1] != null ? String(od[1]) : ""),
+    H: boxH || (od[2] != null ? String(od[2]) : ""),
+    fromSpec: !boxL && !!spec,
+    spec: spec || null,
+  };
+}
 import { USD_RATE } from "@/lib/calc/calculator";
 import { tierFromMargin } from "@/lib/calc/pricing-tiers";
 import {
@@ -58,7 +74,8 @@ function csvEscape(v) {
 
 function downloadAdminCsv({ cupVariant, size, sku, qty, casePack, td, bd, h, boxL, boxW, boxH, swGSM, ofGSM, isDW, result }) {
   const totalCases = qty && casePack ? Math.ceil(parseInt(qty) / parseInt(casePack)) : 0;
-  const m = cartonMetrics(boxL, boxW, boxH, totalCases);
+  const box = resolveBoxDims({ isDW, size, boxL, boxW, boxH });
+  const m = cartonMetrics(box.L, box.W, box.H, totalCases);
   const rows = [
     ["Aeros Paper Cup — Admin Quote"],
     [],
@@ -73,7 +90,8 @@ function downloadAdminCsv({ cupVariant, size, sku, qty, casePack, td, bd, h, box
       const isStd = !td && std;
       return ["Cup dimensions (mm)" + (isStd ? " (standard)" : ""), dTd && dBd && dH ? `${dTd} × ${dBd} × ${dH}` : "—"];
     })(),
-    ["Box dimensions (mm)", boxL && boxW && boxH ? `${boxL} × ${boxW} × ${boxH}` : "—"],
+    ["Box dimensions (mm)", box.L && box.W && box.H ? `${box.L} × ${box.W} × ${box.H}` : "—"],
+    ["Box spec", box.fromSpec && box.spec ? `${box.spec.ply}-ply, ${box.spec.weightKg} kg, ${box.spec.spec}` : "—"],
     ["Sidewall GSM", swGSM || "—"],
     ["Outer fan GSM", isDW ? (ofGSM || "—") : "—"],
     ["Order qty", qty || "—"],
@@ -128,7 +146,8 @@ function escapeHtml(s) {
 
 function openAdminPrintView({ cupVariant, size, sku, qty, casePack, td, bd, h, boxL, boxW, boxH, swGSM, ofGSM, isDW, result, quoteRef }) {
   const totalCases = qty && casePack ? Math.ceil(parseInt(qty) / parseInt(casePack)) : 0;
-  const m = cartonMetrics(boxL, boxW, boxH, totalCases);
+  const box = resolveBoxDims({ isDW, size, boxL, boxW, boxH });
+  const m = cartonMetrics(box.L, box.W, box.H, totalCases);
   const today = new Date().toISOString().slice(0, 10);
   const refLabel = (quoteRef || "").trim() || `${size || ""} ${cupVariant || "Cup"}`.trim();
   const title = `Aeros Cup Quote — ${refLabel}`;
@@ -217,14 +236,14 @@ function openAdminPrintView({ cupVariant, size, sku, qty, casePack, td, bd, h, b
     ${specRow("Cup weight", `${result.cupWeightG.toFixed(2)} g`)}
   </table>
 
-  ${boxL && boxW && boxH ? `
-    <h2>Approx box dimensions</h2>
+  ${box.L && box.W && box.H ? `
+    <h2>${box.fromSpec ? "Box dimensions" : "Approx box dimensions"}</h2>
     <div class="stat-row">
-      <div><div class="stat-lbl">Length</div><div class="stat-val">${boxL} mm</div></div>
-      <div><div class="stat-lbl">Width</div><div class="stat-val">${boxW} mm</div></div>
-      <div><div class="stat-lbl">Depth</div><div class="stat-val">${boxH} mm</div></div>
+      <div><div class="stat-lbl">Length</div><div class="stat-val">${box.L} mm</div></div>
+      <div><div class="stat-lbl">Width</div><div class="stat-val">${box.W} mm</div></div>
+      <div><div class="stat-lbl">Depth</div><div class="stat-val">${box.H} mm</div></div>
     </div>
-    <div class="note">${casePack || "—"} cups per case · ${totalCases.toLocaleString()} cases for this order</div>
+    <div class="note">${casePack || "—"} cups per case · ${totalCases.toLocaleString()} cases for this order${box.fromSpec && box.spec ? ` · ${box.spec.ply}-ply${box.spec.weightKg ? `, ${box.spec.weightKg} kg/box` : ""}${box.spec.spec ? ` (${escapeHtml(box.spec.spec)})` : ""}` : ""}</div>
     ${m && m.boxesPerPallet > 0 ? `
       <div class="stat-row">
         <div><div class="stat-lbl">CBM per box</div><div class="stat-val">${m.cbm.toFixed(3)} m³</div></div>
@@ -262,7 +281,8 @@ function openClientCupPrintView({ cupVariant, size, sku, qty, casePack, td, bd, 
   const cpNum = parseInt(casePack) || 0;
   const qtyNum = qty ? parseInt(qty) : 0;
   const totalCases = cpNum && qtyNum ? Math.ceil(qtyNum / cpNum) : 0;
-  const m = cartonMetrics(boxL, boxW, boxH, totalCases);
+  const box = resolveBoxDims({ isDW, size, boxL, boxW, boxH });
+  const m = cartonMetrics(box.L, box.W, box.H, totalCases);
   const isPrinted = swPrint && swPrint !== "No printing";
 
   // Build qty-tier cost ladder. Setup + plate/die amortise across qty so the
@@ -354,14 +374,14 @@ function openClientCupPrintView({ cupVariant, size, sku, qty, casePack, td, bd, 
     ${specRow("Case pack", `${cpNum || "—"} cups`)}
   </table>
 
-  ${boxL && boxW && boxH ? `
-    <h2>Approx box dimensions</h2>
+  ${box.L && box.W && box.H ? `
+    <h2>${box.fromSpec ? "Box dimensions" : "Approx box dimensions"}</h2>
     <div class="stat-row">
-      <div><div class="stat-lbl">Length</div><div class="stat-val">${boxL} mm</div></div>
-      <div><div class="stat-lbl">Width</div><div class="stat-val">${boxW} mm</div></div>
-      <div><div class="stat-lbl">Depth</div><div class="stat-val">${boxH} mm</div></div>
+      <div><div class="stat-lbl">Length</div><div class="stat-val">${box.L} mm</div></div>
+      <div><div class="stat-lbl">Width</div><div class="stat-val">${box.W} mm</div></div>
+      <div><div class="stat-lbl">Depth</div><div class="stat-val">${box.H} mm</div></div>
     </div>
-    <div class="note">${cpNum || "—"} cups per case · ${totalCases ? totalCases.toLocaleString() : "—"} cases for this order</div>
+    <div class="note">${cpNum || "—"} cups per case · ${totalCases ? totalCases.toLocaleString() : "—"} cases for this order${box.fromSpec && box.spec ? ` · ${box.spec.ply}-ply${box.spec.weightKg ? `, ${box.spec.weightKg} kg/box` : ""}${box.spec.spec ? ` (${escapeHtml(box.spec.spec)})` : ""}` : ""}</div>
     ${m && m.boxesPerPallet > 0 ? `
       <div class="stat-row">
         <div><div class="stat-lbl">CBM per box</div><div class="stat-val">${m.cbm.toFixed(3)} m³</div></div>
@@ -1420,7 +1440,7 @@ export default function CupCalculator({ scope = "default" }) {
               swGSM && swPaperOpts.length === 0
                 ? `No paper at ${swGSM} GSM in RM Master — enter rate manually`
                 : swPaperId && masterPapers.find((x) => x.id === swPaperId)?.effectiveRate == null
-                ? "Rate not set in RM Master — enter manually or update on the Master RM Rates admin"
+                ? "Rate not set in RM Master — enter manually or update on the Paper rates page"
                 : ""
             }
           >
@@ -1474,7 +1494,7 @@ export default function CupCalculator({ scope = "default" }) {
               btPaperOpts.length === 0
                 ? "No 230 GSM paper in RM Master — enter rate manually"
                 : btPaperId && masterPapers.find((x) => x.id === btPaperId)?.effectiveRate == null
-                ? "Rate not set in RM Master — enter manually or update on the Master RM Rates admin"
+                ? "Rate not set in RM Master — enter manually or update on the Paper rates page"
                 : ""
             }
           >
@@ -1512,7 +1532,7 @@ export default function CupCalculator({ scope = "default" }) {
                 ofGSM && ofPaperOpts.length === 0
                   ? `No paper at ${ofGSM} GSM in RM Master — enter rate manually`
                   : ofPaperId && masterPapers.find((x) => x.id === ofPaperId)?.effectiveRate == null
-                  ? "Rate not set in RM Master — enter manually or update on the Master RM Rates admin"
+                  ? "Rate not set in RM Master — enter manually or update on the Paper rates page"
                   : ""
               }
             >

@@ -9,7 +9,6 @@ const TARGETS = [
   { key: "poDate", label: "PO Date", required: false, hints: ["po date", "date", "order date"] },
   { key: "ordered", label: "Ordered", required: true, hints: ["ordered", "order qty", "qty", "quantity"] },
   { key: "received", label: "Received", required: false, hints: ["received", "grn", "delivered"] },
-  { key: "rate", label: "Rate", required: false, hints: ["rate", "price", "₹", "unit price"] },
 ];
 
 function detectDelimiter(text) {
@@ -148,7 +147,6 @@ export default function ImportClient({ clients }) {
         poDate: toIsoDate(val(r, "poDate")),
         ordered: toNum(val(r, "ordered")),
         received: toNum(val(r, "received")) ?? 0,
-        rate: toNum(val(r, "rate")),
       }))
       .filter((r) => r.poNumber || r.sku);
   }, [parsed, map]);
@@ -205,7 +203,7 @@ export default function ImportClient({ clients }) {
         <textarea
           rows={6}
           className={`${inputCls} font-mono text-xs`}
-          placeholder={"PO #\tPO Date\tSKU\tOrdered\tReceived\tRate\n132537\t17 Feb 26\tab.Sealing Foil\t32000\t0\t0.72"}
+          placeholder={"PO #\tPO Date\tSKU\tOrdered\tReceived\n132537\t17 Feb 26\tab.Sealing Foil\t32000\t0"}
           value={raw}
           onChange={(e) => setRaw(e.target.value)}
           onBlur={() => raw.trim() && doParse(raw)}
@@ -259,7 +257,6 @@ export default function ImportClient({ clients }) {
                   <th className="py-1 pr-3 text-right">Ordered</th>
                   <th className="py-1 pr-3 text-right">Received</th>
                   <th className="py-1 pr-3 text-right">Balance</th>
-                  <th className="py-1 pr-3 text-right">Rate</th>
                 </tr>
               </thead>
               <tbody>
@@ -271,7 +268,6 @@ export default function ImportClient({ clients }) {
                     <td className="py-1 pr-3 text-right">{r.ordered ?? "—"}</td>
                     <td className="py-1 pr-3 text-right">{r.received ?? 0}</td>
                     <td className="py-1 pr-3 text-right">{r.ordered != null ? Math.max(0, r.ordered - (r.received || 0)) : "—"}</td>
-                    <td className="py-1 pr-3 text-right">{r.rate ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

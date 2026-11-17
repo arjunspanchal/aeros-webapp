@@ -32,8 +32,10 @@ export default function ImportCalculatorPage() {
         <p className="text-sm text-gray-500 mt-1 mb-6 dark:text-gray-400">
           Per-unit landed cost using the Aeros quotation breakdown — FOB, ocean freight,
           import duty + GST, inland transport, unofficial clearance, handling. Add a margin
-          and output GST to get the final selling price. Numbers are estimates; verify with
-          your CHA before quoting.
+          and output GST to get the final selling price. Give each line its outer-carton spec
+          and shipment costs are split by volume (or chargeable W/M) rather than by value, so
+          cheap bulky lines carry their own freight. Numbers are estimates; verify with your
+          CHA before quoting.
         </p>
         <ImportCalc />
       </div>

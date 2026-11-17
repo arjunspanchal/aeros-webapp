@@ -106,21 +106,23 @@ export async function middleware(req) {
   const hrLegacy = legacyHrRedirect(req);
   if (hrLegacy) return hrLegacy;
 
+  // The public clearance stock site was removed on 18-Nov-2026; old links
+  // (/clearance, /warehouse/clearance and their manage pages) go home.
+  if (pathname === "/clearance" || pathname.startsWith("/clearance/") || pathname === "/warehouse/clearance" || pathname.startsWith("/warehouse/clearance/")) {
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
   // --- Hub: landing, dashboard, catalog, WarehouseOS ---
   // Public read access (no gate):
   //   • `/`                              — public marketing landing page
-  //   • `/clearance`                     — legacy URL, redirects to /warehouse/clearance
   //   • `/warehouse`                     — WarehouseOS hub (tiles render based on session)
-  //   • `/warehouse/clearance`           — read-only stock list, open to prospects
   //   • `/catalog`                       — public product catalogue
   // Auth required:
   //   • `/hub`                           — authed module-picker (replaces old `/`)
-  //   • `/warehouse/clearance/manage`    — staff backend (also has its own session guard)
   //   • `/catalog/manage`                — staff backend (also has its own session guard)
   if (
     pathname === "/hub" ||
     pathname.startsWith("/catalog/manage") ||
-    pathname.startsWith("/warehouse/clearance/manage") ||
     pathname.startsWith("/warehouse/inventory") ||
     pathname.startsWith("/api/warehouse/") ||
     pathname === "/brand" ||
@@ -142,10 +144,7 @@ export async function middleware(req) {
   // Public + legacy fall through — page renders based on session (or 308 redirects).
   if (
     pathname === "/" ||
-    pathname === "/clearance" ||
-    pathname === "/clearance/manage" ||
     pathname === "/warehouse" ||
-    pathname === "/warehouse/clearance" ||
     pathname === "/catalog"
   ) {
     return NextResponse.next();
@@ -207,6 +206,29 @@ export async function middleware(req) {
     return NextResponse.next();
   }
 
+  // --- Sheets module (internal team spreadsheets) ---
+  // Aeros staff only: hub admin, or an internal factoryos role. Customers
+  // and vendors never see sheets. Route handlers re-check with
+  // requireInternal(); middleware adds the stale-cookie defence.
+  if (pathname.startsWith("/api/sheets") || pathname.startsWith("/sheets")) {
+    const token = req.cookies.get("aeros_hub_session")?.value;
+    const payload = secret ? await verify(token, secret) : null;
+    const internal =
+      payload &&
+      (payload.isAdmin ||
+        ["admin", "factory_manager", "factory_executive", "warehouse", "account_manager"].includes(
+          payload.modules?.factoryos
+        ));
+    if (!internal) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      return redirectToLogin(req);
+    }
+    if (await isSessionStale(payload)) return redirectStaleSession(req);
+    return NextResponse.next();
+  }
+
   // --- FactoryOS module ---
   if (pathname.startsWith("/api/factoryos/") || pathname.startsWith("/factoryos")) {
     const token = req.cookies.get("aeros_hub_session")?.value;
@@ -221,29 +243,28 @@ export async function middleware(req) {
 
     const role = payload.modules.factoryos;
 
+    // FactoryOS is not given to customers (17-Nov-2026). A cookie still
+    // carrying the old customer role gets nothing here.
+    if (role === "customer") {
+      if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.redirect(new URL("/hub", req.url));
+    }
+
     // Role guards for page routes. Each portal tree is fenced to its role(s);
     // mismatches bounce to /factoryos, whose landing page re-routes by role.
     //
-    // Carve-out (audit H1): /factoryos/admin/jobs/new is reachable by
-    // account managers too — they're allowed to create jobs (mirrors
-    // /api/factoryos/jobs POST policy) and AMs are usually the people
-    // taking a brief from the customer and turning it into a job. The
-    // page itself re-checks roles and the API enforces auth anyway.
-    const isAmCreatingJob =
-      pathname === "/factoryos/admin/jobs/new" &&
-      role === "account_manager";
     if (pathname.startsWith("/factoryos/vendor")) {
       if (role !== "vendor") return NextResponse.redirect(new URL("/factoryos", req.url));
     } else if (
       pathname.startsWith("/factoryos/admin") &&
       role !== "admin" &&
-      role !== "factory_manager" &&
-      !isAmCreatingJob
+      role !== "factory_manager"
     ) {
       return NextResponse.redirect(new URL("/factoryos", req.url));
     } else if (pathname.startsWith("/factoryos/manager") && (role === "customer" || role === "vendor")) {
       return NextResponse.redirect(new URL("/factoryos", req.url));
-    } else if (pathname.startsWith("/factoryos/customer") && role !== "customer") {
+    } else if (pathname.startsWith("/factoryos/customer")) {
+      // The customer portal was removed on 17-Nov-2026; old links go home.
       return NextResponse.redirect(new URL("/factoryos", req.url));
     }
   }
@@ -293,6 +314,10 @@ export const config = {
     "/api/hr/:path*",
     "/payouts/:path*",
     "/api/payouts/:path*",
+    "/sheets",
+    "/sheets/:path*",
+    "/api/sheets",
+    "/api/sheets/:path*",
     "/orders/:path*",
     "/api/orders/:path*",
     "/admin/:path*",

@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
 import { bodyTooLarge } from "@/lib/factoryos/requestLimits";
-import { listJobThread, postJobMessage, deleteJobMessage, markThreadRead } from "@/lib/factoryos/repo";
+import { listJobThread, postJobMessage, deleteJobMessage, markThreadRead, threadForViewer } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export async function GET(_req, { params }) {
 
   const thread = await listJobThread(job.id);
   await markThreadRead(job.id, access).catch(() => {});
-  return Response.json({ thread });
+  return Response.json({ thread: threadForViewer(thread, access) });
 }
 
 // POST — add a message (text and/or a single file attachment).
@@ -86,7 +86,7 @@ export async function POST(req, { params }) {
     // Posting counts as reading everything before it.
     await markThreadRead(job.id, authorRole).catch(() => {});
     const thread = await listJobThread(job.id);
-    return Response.json({ thread });
+    return Response.json({ thread: threadForViewer(thread, access) });
   } catch (e) {
     console.error("thread post failed:", e);
     return Response.json({ error: "Could not send message" }, { status: 500 });
@@ -117,7 +117,7 @@ export async function DELETE(req, { params }) {
   try {
     await deleteJobMessage(messageId);
     const refreshed = await listJobThread(job.id);
-    return Response.json({ thread: refreshed });
+    return Response.json({ thread: threadForViewer(refreshed, access) });
   } catch (e) {
     console.error("thread delete failed:", e);
     return Response.json({ error: "Could not delete message" }, { status: 500 });

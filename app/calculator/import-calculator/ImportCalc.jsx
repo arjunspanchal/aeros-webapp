@@ -1,7 +1,16 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { Card, Field, inputCls, PillBtn, Row, SectionHeader } from "@/app/calculator/_components/ui";
-import { calcImport, CURRENCIES, DEFAULTS, SHIPMENT_TYPES, getShipmentType } from "@/lib/factoryos/import-calc";
+import {
+  ALLOC_BASES,
+  calcImport,
+  cartonMetrics,
+  CURRENCIES,
+  DEFAULTS,
+  getAllocBasis,
+  getShipmentType,
+  SHIPMENT_TYPES,
+} from "@/lib/factoryos/import-calc";
 
 const inr = (n, d = 2) =>
   Number.isFinite(n)
@@ -11,7 +20,26 @@ const inr = (n, d = 2) =>
 const num = (n, d = 2) =>
   Number.isFinite(n) ? n.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d }) : "—";
 
-const blankItem = () => ({ name: "", qty: "", fobUnit: "", marginPctOverride: "" });
+const cbm = (n, d = 4) => (Number.isFinite(n) && n > 0 ? n.toFixed(d) : "—");
+const kg = (n) =>
+  Number.isFinite(n) && n > 0 ? n.toLocaleString("en-IN", { maximumFractionDigits: 0 }) + " kg" : "—";
+
+// Carton spec travels with every line: ocean freight is bought by volume, so a
+// line without its carton dims can't carry its own share of it.
+const blankItem = () => ({
+  name: "",
+  qty: "",
+  fobUnit: "",
+  marginPctOverride: "",
+  cartonL: "",
+  cartonW: "",
+  cartonH: "",
+  pcsPerCtn: "",
+  kgPerCtn: "",
+  cbmPerCtnStated: "",
+});
+
+const CARTON_KEYS = ["cartonL", "cartonW", "cartonH", "pcsPerCtn", "kgPerCtn", "cbmPerCtnStated"];
 
 export default function ImportCalc() {
   const [vendors, setVendors] = useState([]);
@@ -50,6 +78,7 @@ export default function ImportCalc() {
   const [dutyPct, setDutyPct] = useState(String(DEFAULTS.dutyPct));
   const [marginPct, setMarginPct] = useState(String(DEFAULTS.marginPct));
   const [outputGstPct, setOutputGstPct] = useState(String(DEFAULTS.outputGstPct));
+  const [allocBasis, setAllocBasis] = useState(DEFAULTS.allocBasis);
 
   const [freightCurrency, setFreightCurrency] = useState("INR");
   const [freight, setFreight] = useState({ amount: "", mode: "total" });
@@ -61,22 +90,9 @@ export default function ImportCalc() {
   const [handling, setHandling] = useState({ amount: "", mode: "total" });
 
   const [items, setItems] = useState([
-    { name: "Cups", qty: "", fobUnit: "", marginPctOverride: "" },
-    { name: "Lids", qty: "", fobUnit: "", marginPctOverride: "" },
+    { ...blankItem(), name: "Cups" },
+    { ...blankItem(), name: "Lids" },
   ]);
-
-  // LCL helper: when user enters rate × CBM, mirror the product into the freight
-  // total amount. We only auto-fill when both are present so we don't clobber
-  // a manually-entered freight figure.
-  useEffect(() => {
-    if (shipmentType !== "lcl") return;
-    const rate = Number(lclRate);
-    const cbm = Number(lclCbm);
-    if (rate > 0 && cbm > 0) {
-      const total = (rate * cbm).toFixed(2);
-      setFreight((f) => (f.mode === "total" && f.amount === total ? f : { mode: "total", amount: total }));
-    }
-  }, [shipmentType, lclRate, lclCbm]);
 
   // ----- Saved-quote load / save helpers -----
   async function refreshQuotes() {
@@ -101,7 +117,12 @@ export default function ImportCalc() {
     if (q.dutyPct != null) setDutyPct(String(q.dutyPct));
     if (q.marginPct != null) setMarginPct(String(q.marginPct));
     if (q.outputGstPct != null) setOutputGstPct(String(q.outputGstPct));
-    setFreight({ amount: q.freightAmount != null ? String(q.freightAmount) : "", mode: q.freightMode || "total" });
+    if (q.allocBasis) setAllocBasis(q.allocBasis);
+    setFreight({
+      amount: q.freightAmount != null ? String(q.freightAmount) : "",
+      mode: q.freightMode || "total",
+      basis: q.freightBasis || "",
+    });
     setInland({ amount: q.inlandAmount != null ? String(q.inlandAmount) : "", mode: q.inlandMode || "total" });
     setUnofficial({ amount: q.unofficialAmount != null ? String(q.unofficialAmount) : "", mode: q.unofficialMode || "total" });
     setHandling({ amount: q.handlingAmount != null ? String(q.handlingAmount) : "", mode: q.handlingMode || "total" });
@@ -110,10 +131,20 @@ export default function ImportCalc() {
     if (Array.isArray(q.items) && q.items.length > 0) {
       setItems(
         q.items.map((it) => ({
+          ...blankItem(),
           name: it.name || "",
           qty: it.qty != null ? String(it.qty) : "",
           fobUnit: it.fobUnit != null ? String(it.fobUnit) : "",
           marginPctOverride: it.marginPctOverride != null ? String(it.marginPctOverride) : "",
+          // Quotes saved before the carton model existed simply have no carton
+          // keys — they stay blank and the calc falls back to a FOB-value split.
+          ...Object.fromEntries(
+            CARTON_KEYS.map((k) => {
+              // `unitsPerCarton` is an alias in a few early saved payloads.
+              const v = k === "pcsPerCtn" ? (it.pcsPerCtn ?? it.unitsPerCarton) : it[k];
+              return [k, v != null && v !== "" ? String(v) : ""];
+            }),
+          ),
         })),
       );
     }
@@ -142,6 +173,8 @@ export default function ImportCalc() {
         dutyPct,
         marginPct,
         outputGstPct,
+        allocBasis,
+        shipmentType,
         freightCurrency,
         freight,
         inland,
@@ -149,8 +182,25 @@ export default function ImportCalc() {
         handling,
         items,
       }),
-    [fxRate, currency, dutyPct, marginPct, outputGstPct, freightCurrency, freight, inland, unofficial, handling, items],
+    [fxRate, currency, dutyPct, marginPct, outputGstPct, allocBasis, shipmentType, freightCurrency, freight, inland, unofficial, handling, items],
   );
+
+  // LCL is billed on chargeable W/M — the greater of total CBM and total metric
+  // tons. Once the lines carry carton specs we know that figure, so the helper
+  // derives it and the manual box is only an override.
+  const autoWM = result.shipment.chargeableUnits;
+  const effectiveWM = Number(lclCbm) > 0 ? Number(lclCbm) : autoWM;
+
+  // Mirror rate × W/M into the freight total. Only fires when both are known so
+  // it never clobbers a manually-entered freight figure.
+  useEffect(() => {
+    if (shipmentType !== "lcl") return;
+    const rate = Number(lclRate);
+    if (rate > 0 && effectiveWM > 0) {
+      const total = (rate * effectiveWM).toFixed(2);
+      setFreight((f) => (f.mode === "total" && f.amount === total ? f : { ...f, mode: "total", amount: total }));
+    }
+  }, [shipmentType, lclRate, effectiveWM]);
 
   async function saveQuote({ asNew }) {
     setSaving(true);
@@ -168,8 +218,10 @@ export default function ImportCalc() {
       dutyPct: Number(dutyPct) || 0,
       marginPct: Number(marginPct) || 0,
       outputGstPct: Number(outputGstPct) || 0,
+      allocBasis,
       freightAmount: Number(freight.amount) || 0,
       freightMode: freight.mode,
+      freightBasis: freight.basis || "",
       inlandAmount: Number(inland.amount) || 0,
       inlandMode: inland.mode,
       unofficialAmount: Number(unofficial.amount) || 0,
@@ -183,10 +235,18 @@ export default function ImportCalc() {
         qty: Number(it.qty) || 0,
         fobUnit: Number(it.fobUnit) || 0,
         marginPctOverride: it.marginPctOverride === "" || it.marginPctOverride == null ? null : Number(it.marginPctOverride),
+        // Blank carton fields persist as null, not 0, so a reloaded quote can
+        // tell "not measured" apart from "measured as zero".
+        ...Object.fromEntries(
+          CARTON_KEYS.map((k) => [k, it[k] === "" || it[k] == null ? null : Number(it[k])]),
+        ),
       })),
       itemsCount: items.filter((i) => Number(i.qty) > 0).length,
       totalLandedINR: result.totals.landed || 0,
       totalFinalSellingINR: result.totals.finalSelling || 0,
+      totalCbm: result.shipment.cbm || 0,
+      totalWeightKg: result.shipment.weightKg || 0,
+      totalCartons: result.shipment.cartons || 0,
     };
     const method = loadedQuoteId && !asNew ? "PATCH" : "POST";
     if (method === "PATCH") payload.id = loadedQuoteId;
@@ -393,66 +453,50 @@ export default function ImportCalc() {
           </div>
         </Card>
 
+        <Card title="Cost allocation">
+          <Field
+            label="Split shipment-wide costs by"
+            hint={getAllocBasis(allocBasis).hint}
+          >
+            <div className="flex flex-wrap gap-2">
+              {ALLOC_BASES.map((b) => (
+                <PillBtn key={b.id} active={allocBasis === b.id} onClick={() => setAllocBasis(b.id)}>
+                  {b.label}
+                </PillBtn>
+              ))}
+            </div>
+          </Field>
+          <p className="text-[11px] text-gray-500 mt-2 dark:text-gray-400">
+            Freight is bought by volume, not value. Splitting it by FOB share makes cheap bulky
+            lines (lids, containers) look cheaper than they can be sold for, and the expensive
+            line carries their freight. Volume bases need carton dims + pcs/carton on every line
+            — without them the calc falls back to FOB value and says so.
+          </p>
+          {allocBasis !== "fob" && result.shipment.cartons > 0 && (
+            <p className="text-[11px] text-gray-500 mt-2 dark:text-gray-400">
+              Chargeable W/M for this shipment:{" "}
+              <strong>
+                {cbm(result.shipment.chargeableUnits, 3)}{" "}
+                {result.shipment.chargeableWinner === "weight" ? "t (weight rules)" : "CBM (volume rules)"}
+              </strong>
+            </p>
+          )}
+        </Card>
+
         <Card title="Items in shipment">
           <div className="space-y-3">
             {items.map((it, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-end">
-                <div className="col-span-4">
-                  <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Item</label>
-                  <input
-                    className={inputCls}
-                    value={it.name}
-                    onChange={(e) => setItem(i, { name: e.target.value })}
-                    placeholder="e.g. Cups"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Qty</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    className={inputCls}
-                    value={it.qty}
-                    onChange={(e) => setItem(i, { qty: e.target.value })}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="col-span-3">
-                  <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">
-                    FOB / unit ({symbol || currency})
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    className={inputCls}
-                    value={it.fobUnit}
-                    onChange={(e) => setItem(i, { fobUnit: e.target.value })}
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1 dark:text-gray-400">Margin %</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    className={inputCls}
-                    value={it.marginPctOverride}
-                    onChange={(e) => setItem(i, { marginPctOverride: e.target.value })}
-                    placeholder={String(marginPct)}
-                  />
-                </div>
-                <div className="col-span-1 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => removeItem(i)}
-                    disabled={items.length <= 1}
-                    className="text-gray-400 hover:text-red-600 disabled:opacity-30 px-2 py-2 text-sm"
-                    title="Remove line"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
+              <ItemRow
+                key={i}
+                item={it}
+                index={i}
+                symbol={symbol}
+                currency={currency}
+                marginPct={marginPct}
+                canRemove={items.length > 1}
+                onChange={(patch) => setItem(i, patch)}
+                onRemove={() => removeItem(i)}
+              />
             ))}
             <button
               type="button"
@@ -484,19 +528,32 @@ export default function ImportCalc() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-medium text-gray-500 mb-1 dark:text-gray-400">Total CBM</label>
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1 dark:text-gray-400">
+                      Chargeable W/M {autoWM > 0 && <span className="font-normal text-gray-400">(auto)</span>}
+                    </label>
                     <input
                       type="number"
                       inputMode="decimal"
                       className={inputCls}
                       value={lclCbm}
                       onChange={(e) => setLclCbm(e.target.value)}
-                      placeholder="e.g. 12.5"
+                      placeholder={autoWM > 0 ? cbm(autoWM, 3) : "e.g. 12.5"}
                     />
                   </div>
                 </div>
                 <p className="text-[11px] text-gray-500 mt-1.5 dark:text-gray-400">
-                  Auto-fills the Ocean Freight total below as rate × CBM.
+                  {autoWM > 0 ? (
+                    <>
+                      Computed from your carton specs:{" "}
+                      <strong>{cbm(result.shipment.cbm, 3)} CBM</strong> vs{" "}
+                      <strong>{(result.shipment.tonnes || 0).toFixed(3)} t</strong> →{" "}
+                      billed on {result.shipment.chargeableWinner === "weight" ? "weight" : "volume"} at{" "}
+                      <strong>{cbm(autoWM, 3)}</strong> W/M. Leave the box blank to use it, or
+                      type a figure to override with the forwarder&apos;s.
+                    </>
+                  ) : (
+                    "Enter carton specs on the lines above and this fills itself. Auto-fills Ocean Freight as rate × W/M."
+                  )}
                 </p>
               </div>
             )}
@@ -504,32 +561,36 @@ export default function ImportCalc() {
               label="Ocean Freight (China → Port)"
               hint={
                 shipmentType === "lcl"
-                  ? "Total LCL freight. Use the helper above or enter manually. Allocated by FOB share."
-                  : `Flat ${getShipmentType(shipmentType).label} container freight. Allocated by FOB share.`
+                  ? `Total LCL freight. Use the helper above or enter manually. Split by ${getAllocBasis(freight.basis || allocBasis).label}.`
+                  : `Flat ${getShipmentType(shipmentType).label} container freight. Split by ${getAllocBasis(freight.basis || allocBasis).label}.`
               }
               value={freight}
               onChange={setFreight}
               currency={freightCurrency}
               setCurrency={setFreightCurrency}
               currencyToggle
+              defaultBasis={allocBasis}
             />
             <ShipmentCostRow
               label="Inland Transport (port → destination)"
               hint="Trucking from the port of clearance to your warehouse / factory."
               value={inland}
               onChange={setInland}
+              defaultBasis={allocBasis}
             />
             <ShipmentCostRow
               label="Unofficial Clearance Cost"
               hint="Off-book port clearance / facilitation."
               value={unofficial}
               onChange={setUnofficial}
+              defaultBasis={allocBasis}
             />
             <ShipmentCostRow
               label="Handling + Storage + Cargo"
               hint="Port handling, demurrage, CFS, last-mile cargo handling."
               value={handling}
               onChange={setHandling}
+              defaultBasis={allocBasis}
             />
           </div>
         </Card>
@@ -537,6 +598,50 @@ export default function ImportCalc() {
 
       {/* ---------------- RESULTS ---------------- */}
       <div className="space-y-4">
+        {hasInput && result.shipment.warnings.length > 0 && (
+          <Card title="Check before you quote">
+            <ul className="space-y-2">
+              {result.shipment.warnings.map((w, i) => (
+                <li key={i} className="text-xs text-gray-600 dark:text-gray-300">
+                  {w.kind === "cbm_mismatch" && (
+                    <>
+                      <span className="text-amber-600 dark:text-amber-400">⚠ CBM mismatch</span> —{" "}
+                      <strong>{w.line}</strong>: vendor states {cbm(w.statedCbm)} but{" "}
+                      {cbm(w.geomCbm)} is what the dims compute to (
+                      {Math.abs(w.variancePct).toFixed(1)}%{" "}
+                      {w.variancePct < 0 ? "understated" : "overstated"}). Freight is charged on
+                      the measured carton, so the quote uses the geometry. Push back on the spec
+                      sheet, or confirm the dims.
+                    </>
+                  )}
+                  {w.kind === "over_cbm" && (
+                    <>
+                      <span className="text-red-600 dark:text-red-400">✕ Over capacity</span> —{" "}
+                      {cbm(w.cbm, 2)} CBM won&apos;t fit a {w.label} ({w.cap} usable CBM). Split
+                      the order or move up a container size.
+                    </>
+                  )}
+                  {w.kind === "over_weight" && (
+                    <>
+                      <span className="text-red-600 dark:text-red-400">✕ Over payload</span> —{" "}
+                      {kg(w.kg)} exceeds the {(w.cap / 1000).toFixed(0)} t payload for a {w.label}.
+                    </>
+                  )}
+                  {w.kind === "basis_fallback" && (
+                    <>
+                      <span className="text-amber-600 dark:text-amber-400">⚠ Fell back to FOB split</span> —{" "}
+                      <strong>{w.row}</strong> was set to split by{" "}
+                      {getAllocBasis(w.requested).label}, but {w.reason}
+                      {w.missingNames.length > 0 && <> on: {w.missingNames.join(", ")}</>}. It is
+                      being split by value instead, which under-charges bulky lines.
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
         {!hasInput ? (
           <Card title="Per-item landed cost">
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -548,11 +653,29 @@ export default function ImportCalc() {
             <Card key={i} title={l.name || `Item ${i + 1}`} className="overflow-hidden">
               <div className="text-xs text-gray-500 mb-2 dark:text-gray-400">
                 {num(l.qty, 0)} units · FOB {symbol}{num(l.fobUnitFx, 2)} / unit
+                {l.cartons > 0 && (
+                  <>
+                    {" · "}
+                    {l.cartons.toLocaleString("en-IN")} ctns · {cbm(l.cbmTotal, 3)} CBM
+                    {l.weightTotalKg > 0 ? ` · ${kg(l.weightTotalKg)}` : ""}
+                  </>
+                )}
               </div>
+              {l.cartons > 0 && (
+                <div className="text-[11px] text-gray-400 mb-2 dark:text-gray-500">
+                  Share of shipment — volume {num(l.cbmShare * 100, 1)}%
+                  {l.weightShare > 0 ? ` · weight ${num(l.weightShare * 100, 1)}%` : ""} · value{" "}
+                  {num(l.fobShare * 100, 1)}%
+                </div>
+              )}
               <table className="w-full">
                 <tbody>
                   <Row label="FOB" value={inr(l.fobUnit)} sub={`${inr(l.fobTotal, 0)} for ${num(l.qty, 0)} ${l.qty === 1 ? "unit" : "units"}`} />
-                  <Row label="Ocean Freight" value={inr(l.freightUnit)} sub={inr(l.freightTotal, 0)} />
+                  <Row
+                    label={`Ocean Freight (split by ${getAllocBasis(result.shipment.freightBasis.basis).label})`}
+                    value={inr(l.freightUnit)}
+                    sub={inr(l.freightTotal, 0)}
+                  />
                   <SectionHeader label="CIF (assessable value)" />
                   <Row label="CIF / unit" value={inr(l.cifUnit)} sub={inr(l.cifTotal, 0)} />
                   <Row label={`Import Duty + GST (${num(l.dutyPct, 0)}% of CIF)`} value={inr(l.dutyUnit)} sub={inr(l.dutyTotal, 0)} />
@@ -576,10 +699,44 @@ export default function ImportCalc() {
             <p className="text-xs text-gray-500 mb-2 dark:text-gray-400">
               {vendor ? `${vendor.name} · ` : ""}
               {getShipmentType(shipmentType).label}
-              {shipmentType === "lcl" && Number(lclCbm) > 0 ? ` · ${lclCbm} CBM` : ""}
+              {result.shipment.cbm > 0 ? ` · ${cbm(result.shipment.cbm, 3)} CBM` : ""}
+              {result.shipment.cartons > 0 ? ` · ${result.shipment.cartons.toLocaleString("en-IN")} ctns` : ""}
             </p>
             <table className="w-full">
               <tbody>
+                {result.shipment.cartons > 0 && (
+                  <>
+                    <SectionHeader label="Volume & weight" />
+                    <Row
+                      label="Total Cartons"
+                      value={result.shipment.cartons.toLocaleString("en-IN")}
+                    />
+                    <Row
+                      label="Total Volume"
+                      value={`${cbm(result.shipment.cbm, 3)} CBM`}
+                      sub={
+                        result.shipment.capCBM
+                          ? `${num(result.shipment.cbmUtilPct, 0)}% of ${result.shipment.capCBM} usable CBM`
+                          : undefined
+                      }
+                    />
+                    <Row
+                      label="Total Gross Weight"
+                      value={kg(result.shipment.weightKg)}
+                      sub={
+                        result.shipment.capKg
+                          ? `${num(result.shipment.weightUtilPct, 0)}% of ${(result.shipment.capKg / 1000).toFixed(0)} t payload`
+                          : undefined
+                      }
+                    />
+                    <Row
+                      label="Chargeable W/M"
+                      value={cbm(result.shipment.chargeableUnits, 3)}
+                      sub={result.shipment.chargeableWinner === "weight" ? "weight rules" : "volume rules"}
+                    />
+                    <SectionHeader label="Cost" />
+                  </>
+                )}
                 <Row label="Total FOB" value={inr(result.totals.fob, 0)} />
                 <Row label="Total Ocean Freight" value={inr(result.totals.freight, 0)} />
                 <Row label="Total CIF" value={inr(result.totals.cif, 0)} />
@@ -637,7 +794,195 @@ export default function ImportCalc() {
   );
 }
 
-function ShipmentCostRow({ label, hint, value, onChange, currency, setCurrency, currencyToggle }) {
+// One shipment line: commercial terms on top, outer-carton spec underneath.
+// Carton dims are in CM because that is the unit every Chinese spec sheet uses.
+function ItemRow({ item, index, symbol, currency, marginPct, canRemove, onChange, onRemove }) {
+  const m = cartonMetrics(item);
+  const lbl = "block text-[11px] font-medium text-gray-500 mb-1 dark:text-gray-400";
+
+  return (
+    <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+      <div className="grid grid-cols-12 gap-2 items-end">
+        <div className="col-span-4">
+          <label className={lbl}>Item</label>
+          <input
+            className={inputCls}
+            value={item.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+            placeholder="e.g. Cups"
+          />
+        </div>
+        <div className="col-span-2">
+          <label className={lbl}>Qty</label>
+          <input
+            type="number"
+            inputMode="numeric"
+            className={inputCls}
+            value={item.qty}
+            onChange={(e) => onChange({ qty: e.target.value })}
+            placeholder="0"
+          />
+        </div>
+        <div className="col-span-3">
+          <label className={lbl}>FOB / unit ({symbol || currency})</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            className={inputCls}
+            value={item.fobUnit}
+            onChange={(e) => onChange({ fobUnit: e.target.value })}
+            placeholder="0.00"
+          />
+        </div>
+        <div className="col-span-2">
+          <label className={lbl}>Margin %</label>
+          <input
+            type="number"
+            inputMode="decimal"
+            className={inputCls}
+            value={item.marginPctOverride}
+            onChange={(e) => onChange({ marginPctOverride: e.target.value })}
+            placeholder={String(marginPct)}
+          />
+        </div>
+        <div className="col-span-1 flex justify-end">
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={!canRemove}
+            className="text-gray-400 hover:text-red-600 disabled:opacity-30 px-2 py-2 text-sm"
+            title="Remove line"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-dashed border-gray-200 dark:border-gray-700">
+        <p className="text-[11px] font-medium text-gray-500 mb-2 dark:text-gray-400">
+          Outer carton <span className="font-normal text-gray-400 dark:text-gray-500">— drives the freight split</span>
+        </p>
+        {/* Six fields never fit a phone: 3 across on mobile, all 6 from sm up. */}
+        <div className="grid grid-cols-3 gap-2 items-end sm:grid-cols-6">
+          <div>
+            <label className={lbl}>L (cm)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              className={inputCls}
+              value={item.cartonL}
+              onChange={(e) => onChange({ cartonL: e.target.value })}
+              placeholder="48"
+            />
+          </div>
+          <div>
+            <label className={lbl}>W (cm)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              className={inputCls}
+              value={item.cartonW}
+              onChange={(e) => onChange({ cartonW: e.target.value })}
+              placeholder="38.5"
+            />
+          </div>
+          <div>
+            <label className={lbl}>H (cm)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              className={inputCls}
+              value={item.cartonH}
+              onChange={(e) => onChange({ cartonH: e.target.value })}
+              placeholder="40.5"
+            />
+          </div>
+          <div>
+            <label className={lbl}>pcs / ctn</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              className={inputCls}
+              value={item.pcsPerCtn}
+              onChange={(e) => onChange({ pcsPerCtn: e.target.value })}
+              placeholder="1000"
+            />
+          </div>
+          <div>
+            <label className={lbl}>kg / ctn</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              className={inputCls}
+              value={item.kgPerCtn}
+              onChange={(e) => onChange({ kgPerCtn: e.target.value })}
+              placeholder="11.0"
+            />
+          </div>
+          <div>
+            <label className={lbl}>CBM stated</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              className={inputCls}
+              value={item.cbmPerCtnStated}
+              onChange={(e) => onChange({ cbmPerCtnStated: e.target.value })}
+              placeholder="optional"
+            />
+          </div>
+        </div>
+
+        {/* Live readout — what the allocator will actually use for this line. */}
+        <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+          {m.cbmPerCtn > 0 ? (
+            <span>
+              <strong className="text-gray-700 dark:text-gray-200">{cbm(m.cbmPerCtn)} CBM/ctn</strong>
+              {m.cbmBasis === "geometry" ? " from geometry" : " from vendor figure (no dims entered)"}
+              {m.cartons > 0 && (
+                <>
+                  {" · "}
+                  {m.cartons.toLocaleString("en-IN")} ctn{m.cartons === 1 ? "" : "s"}
+                  {m.partialCarton && (
+                    <span className="text-gray-400 dark:text-gray-500">
+                      {" "}(rounded up from {m.cartonsExact.toFixed(2)})
+                    </span>
+                  )}
+                  {" · "}
+                  {cbm(m.cbmTotal, 3)} CBM
+                  {m.weightTotalKg > 0 ? ` · ${kg(m.weightTotalKg)}` : ""}
+                </>
+              )}
+            </span>
+          ) : (
+            <span className="text-gray-400 dark:text-gray-500">
+              Enter L × W × H and pcs/ctn so this line can carry its own freight.
+            </span>
+          )}
+        </div>
+
+        {m.cbmMismatch && (
+          <p className="mt-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+            ⚠ Vendor states {cbm(m.cbmPerCtnStated)} CBM — that is{" "}
+            {Math.abs(m.cbmVariancePct).toFixed(1)}%{" "}
+            {m.cbmVariancePct < 0 ? "under" : "over"} the {cbm(m.cbmPerCtnGeom)} the dims compute to.
+            Using the geometry: the forwarder measures cartons, not spec sheets.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ShipmentCostRow({
+  label,
+  hint,
+  value,
+  onChange,
+  currency,
+  setCurrency,
+  currencyToggle,
+  defaultBasis,
+}) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3 mb-1">
@@ -663,25 +1008,49 @@ function ShipmentCostRow({ label, hint, value, onChange, currency, setCurrency, 
           </button>
         </div>
       </div>
-      <div className="flex gap-2">
-        <input
-          type="number"
-          inputMode="decimal"
-          className={inputCls}
-          value={value.amount}
-          onChange={(e) => onChange({ ...value, amount: e.target.value })}
-          placeholder={value.mode === "total" ? "Total for shipment" : "Per unit (across all items)"}
-        />
+      {/* Wraps rather than squeezing: with a currency toggle AND a split
+          override this row carries three controls, and the amount must stay
+          wide enough to read a seven-figure freight bill. */}
+      <div className="flex flex-wrap gap-2">
+        <div className="flex-1 min-w-[10rem]">
+          <input
+            type="number"
+            inputMode="decimal"
+            className={inputCls}
+            value={value.amount}
+            onChange={(e) => onChange({ ...value, amount: e.target.value })}
+            placeholder={value.mode === "total" ? "Total for shipment" : "Per unit (across all items)"}
+          />
+        </div>
+        {/* Widths live on the wrappers: inputCls already carries w-full, and a
+            w-20 alongside it is a coin-flip on Tailwind's class order. */}
         {currencyToggle && (
-          <select
-            className={`${inputCls} w-24 shrink-0`}
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
-          >
-            {CURRENCIES.map((c) => (
-              <option key={c.id} value={c.id}>{c.id}</option>
-            ))}
-          </select>
+          <div className="w-20 shrink-0">
+            <select className={inputCls} value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              {CURRENCIES.map((c) => (
+                <option key={c.id} value={c.id}>{c.id}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {/* Per-row basis override. Blank inherits the shipment-wide choice —
+            most rows should, but e.g. an agent fee charged on value can differ. */}
+        {value.mode === "total" && (
+          <div className="w-44 shrink-0">
+            <select
+              className={inputCls}
+              value={value.basis || ""}
+              onChange={(e) => onChange({ ...value, basis: e.target.value })}
+              title="How this cost is split across lines"
+            >
+              <option value="">
+                Split: default{defaultBasis ? ` (${getAllocBasis(defaultBasis).label})` : ""}
+              </option>
+              {ALLOC_BASES.map((b) => (
+                <option key={b.id} value={b.id}>Split: {b.label}</option>
+              ))}
+            </select>
+          </div>
         )}
       </div>
       {hint && <p className="text-[11px] text-gray-400 mt-1 dark:text-gray-500">{hint}</p>}

@@ -3,7 +3,7 @@
 // manager, so this endpoint avoids a parallel table and keeps the Users
 // directory the single source of truth.
 
-import { getSession, requireManager } from "@/lib/auth/session";
+import { getSession, requireManager, requireInternal } from "@/lib/auth/session";
 import { airtableList, airtableCreate, escapeFormula, TABLES } from "@/lib/factoryos/airtable";
 import { normalizeEmail } from "@/lib/hub/auth";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -13,6 +13,8 @@ export const runtime = "nodejs";
 export async function GET() {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
+  // Internal staff only: customers and vendors hold a FactoryOS role too.
+  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
   try {
     const rows = await airtableList(TABLES.users(), {
       filterByFormula: `AND(LOWER({Role})='${ROLES.ACCOUNT_MANAGER}', {Active})`,

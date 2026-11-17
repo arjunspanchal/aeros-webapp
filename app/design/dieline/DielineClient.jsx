@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildCakeboxDieline } from "@/lib/dieline/cakebox";
 import { buildFoodboxDieline } from "@/lib/dieline/foodbox";
+import { buildBoattrayDieline } from "@/lib/dieline/boattray";
 import { buildBurgerboxDieline } from "@/lib/dieline/burgerbox";
 import { buildPaperbagKeyline, BAG_TYPES } from "@/lib/dieline/paperbag";
 import { buildDcutbagDieline } from "@/lib/dieline/dcutbag";
@@ -26,6 +27,9 @@ import { buildSleeveDieline, buildCupSleeveDieline } from "@/lib/dieline/sleeves
 import { buildPillowboxDieline } from "@/lib/dieline/pillowbox";
 import { buildHeaderCardDieline } from "@/lib/dieline/headercard";
 import { buildGableboxDieline } from "@/lib/dieline/gablebox";
+import { buildGablelockDieline } from "@/lib/dieline/gablelock";
+import { buildCupholderboxDieline } from "@/lib/dieline/cupholderbox";
+import { buildCupdeckDieline } from "@/lib/dieline/cupdeck";
 import { buildPizzaboxDieline } from "@/lib/dieline/pizzabox";
 import { buildSnackboxDieline } from "@/lib/dieline/snackbox";
 import { buildTrayDieline } from "@/lib/dieline/tray";
@@ -65,6 +69,20 @@ const STYLES = {
     depthLabel: "End-flap depth",
     note:
       "One-piece lock-corner die, no glue — tuck flap closes the wrap, base-flap slit locks the lid tab on both ends. Feed the blank size straight into the box calculator for sheet nesting.",
+  },
+  boattray: {
+    label: "Boat Tray",
+    build: buildBoattrayDieline,
+    defaultUnits: "mm",
+    defaults: { L: "206", W: "149", H: "54" },
+    fieldLabels: ["Top L", "Top W", "Height"],
+    hints: { L: "top opening, long side", W: "top opening, short side", H: "vertical height" },
+    presets: [
+      { label: "3 lb BT-001 (top 206×149, bottom 133×83, H 54)", dims: [206, 149, 54], unit: "mm", bottomL: 133, bottomW: 83 },
+      { label: "5 lb BT-002 (top 241×162, bottom 171×92, H 54)", dims: [241, 162, 54], unit: "mm", bottomL: 171, bottomW: 92 },
+    ],
+    hasBottom: true,
+    note: "The front-lock food box without the lid: base, four flared walls, corner flaps hinged on the long walls and pasted inside the end walls. Walls are true slants, so the blank is bottom + 2 × slant each way.",
   },
   foodbox: {
     label: "Food Box (leakproof)",
@@ -117,6 +135,40 @@ const STYLES = {
     depthLabel: "Roof + handle",
     note:
       "Carry-out gable box: roof creases to a carry handle with hand hole, fold-in gussets, crash-lock style bottom. Standard construction — prototype the first cut.",
+  },
+  gablelock: {
+    label: "Gable Box (handle-lock)",
+    build: buildGablelockDieline,
+    defaultUnits: "mm",
+    defaults: { L: "300", W: "200", H: "120" },
+    hints: { L: "long side", W: "short side", H: "wall height to the rim" },
+    presets: [{ label: "300×200×120", dims: [300, 200, 120], unit: "mm" }],
+    note: "One-piece carry-out box: handle ears lock through a slot in each end flap, half-cut hand hole, 1-2-3 snap-lock base, no base glue. Read off a flat sample; prototype first.",
+  },
+  cupholderbox: {
+    label: "Single Cup Holder Box (handle)",
+    build: buildCupholderboxDieline,
+    hasEarLock: true,
+    defaultUnits: "mm",
+    defaults: { L: "100", W: "100", H: "165" },
+    hints: { L: "handle panel width", W: "gusset panel width (= depth)", H: "body height, floor to lid" },
+    presets: [
+      { label: "CHB 100×100×165 (12-16 oz Ø90 + lid)", dims: [100, 100, 165], unit: "mm" },
+      { label: "CHB 100×100×165 · ear lock", dims: [100, 100, 165], unit: "mm", lock: "ear" },
+      { label: "Reference 100×100×145", dims: [100, 100, 145], unit: "mm" },
+    ],
+    note: "One-cup carry box: flat lid halves fold in, rounded handle caps stand back to back, slotted side triangles thread over the caps, 1-2-3 snap-lock base. Traced from a reference print layout; prototype first.",
+  },
+  cupdeck: {
+    label: "Cup Deck Insert",
+    build: ({ L, W, H, thickness, units }) => buildCupdeckDieline({ W: L, D: W, H, holeD: units === "in" ? 64 / 25.4 : 64, thickness, units }),
+    defaultUnits: "mm",
+    defaults: { L: "149", W: "76", H: "64" },
+    fieldLabels: ["Insert W", "Deck depth", "Box wall H"],
+    hints: { L: "box inside width - 3 mm", W: "along the box length", H: "box wall height; legs come out 1 mm under" },
+    presets: [{ label: "Fish and chips 8×6×2.5 in (149×76, H 64)", dims: [149, 76, 64], unit: "mm" }],
+    usesThickness: true,
+    note: "Drop-in, no-glue insert for an open tray: end leg, deck with 2 Ø64 cup holes, inner leg, foot. The foot butts the end leg to lock the tube. Read off a customer photo; prototype the first cut.",
   },
   pizzabox: {
     label: "Pizza Box (production)",
@@ -251,6 +303,7 @@ const STYLES = {
     hints: { L: "cup RIM Ø minus 10 mm", W: "2-cup: centre-to-centre · 1-cup: strip width", H: "handle panel height" },
     presets: [
       { label: "Two cup · STANDARD (Ø75 × 115 × 135)", dims: [75, 115, 135], unit: "mm", cups: 2 },
+      { label: "Two cup · STANDARD, one handle half-cut (bag D-cut)", dims: [75, 115, 135], unit: "mm", cups: 2, halfCutHandle: true, handHole: "dcb" },
       { label: "Single cup · Ø60 × 120 strip", dims: [60, 120, 130], unit: "mm", cups: 1 },
       { label: "Single cup · Ø82 × 130 strip", dims: [82, 130, 135], unit: "mm", cups: 1 },
     ],
@@ -541,6 +594,8 @@ export default function DielineClient() {
   const [W, setW] = useState(style.defaults.W);
   const [H, setH] = useState(style.defaults.H);
   const [taper, setTaper] = useState("7");
+  const [bottomL, setBottomL] = useState("133"); // boat tray base
+  const [bottomW, setBottomW] = useState("83");
   const [showDims, setShowDims] = useState(true);
   const [matFamily, setMatFamily] = useState("white");
   const [matIdx, setMatIdx] = useState(3); // 280 gsm FBB default
@@ -561,6 +616,7 @@ export default function DielineClient() {
   const [strapW, setStrapW] = useState(""); // rope bag: strap width (blank = 40)
   const [mailerVents, setMailerVents] = useState(""); // 0427: rear vent slots (blank = none)
   const [mailerNotch, setMailerNotch] = useState(""); // 0427: front-wall finger notch width (blank = none)
+  const [mailerNoLid, setMailerNoLid] = useState(false); // 0427: locked tray only, lid + tuck removed
   const [mailerVentPitch, setMailerVentPitch] = useState(""); // 0427: round-vent pitch (blank = 20)
   const [mailerVentDrop, setMailerVentDrop] = useState(""); // 0427: vent row below the back-wall top edge (blank = centred)
   const [mailerVentShape, setMailerVentShape] = useState("slot"); // 0427: slot | round
@@ -572,6 +628,9 @@ export default function DielineClient() {
   const [winW, setWinW] = useState("");
   const [winH, setWinH] = useState("");
   const [cups, setCups] = useState(2);
+  const [chbEarLock, setChbEarLock] = useState(false); // cupholderbox: ear lock instead of slotted triangles
+  const [halfCutHandle, setHalfCutHandle] = useState(false); // cupcarrier: one hand hole = D-cut style hinged tab
+  const [dcbHandHole, setDcbHandHole] = useState(false); // cupcarrier: hand holes = bag D-cut 80 x 25.66
   const [cellsX, setCellsX] = useState("3");
   const [cellsY, setCellsY] = useState("1");
   const [cupList, setCupList] = useState(null); // catalog paper cups (lazy)
@@ -596,8 +655,8 @@ export default function DielineClient() {
   const boardMm = materialThicknessMm(matFamily, matIdx, matCustomMm);
   const taperMm = style.hasTaper ? parseFloat(taper) || 7 : undefined;
   const result = useMemo(
-    () => (ready ? style.build({ ...dims, taper: taperMm, bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), ...(style.hasMailerExtras ? { vents: +mailerVents || 0, ventShape: mailerVentShape, ventPitch: mailerVentPitch === "" ? undefined : +mailerVentPitch, ventDrop: mailerVentDrop === "" ? undefined : +mailerVentDrop, fingerNotch: +mailerNotch || 0, notchShape: mailerNotchShape } : {}), ...(style.hasColWidths && partCols.trim() ? { colsMm: partCols.split(/[,\s]+/).filter(Boolean).map(Number), rowSpan: +partSpan || undefined } : {}), ...(style.hasColWidths && partRows.trim() ? { rowsMm: partRows.split(/[,\s]+/).filter(Boolean).map(Number), colSpan: +partColSpan || undefined } : {}), thickness: boardMm, units }) : null),
-    [styleId, dims.L, dims.W, dims.H, taperMm, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, tuckD, bagSeam, bagBackTab, ropeHandle, ropeSpacing, strapW, mailerVents, mailerNotch, mailerVentShape, mailerNotchShape, partCols, partSpan, partRows, partColSpan, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
+    () => (ready ? style.build({ ...dims, taper: taperMm, ...(style.hasBottom ? { bottomL: +bottomL, bottomW: +bottomW } : {}), bagType, cartonType, cups, cellsX: +cellsX || 1, cellsY: +cellsY || 1, hem: hem === "" ? undefined : +hem, windowW: winW === "" ? undefined : +winW, windowH: winH === "" ? undefined : +winH, glue: glueW === "" ? undefined : +glueW, glueSide, holes: holeCount, notch: holeNotch, thumbNotch, halfCutHandle, handHole: dcbHandHole ? "dcb" : "stadium", ...(style.hasEarLock ? { lock: chbEarLock ? "ear" : "slot" } : {}), tuck: tuckD === "" ? undefined : +tuckD, seam: bagSeam === "" ? undefined : +bagSeam, bottomBack: bagBackTab === "" ? undefined : +bagBackTab, ...(style.hasRopeHandle ? { handle: ropeHandle, holeSpacing: ropeSpacing === "" ? undefined : +ropeSpacing, strapW: strapW === "" ? undefined : +strapW } : {}), ...(style.hasMailerExtras ? { vents: +mailerVents || 0, ventShape: mailerVentShape, ventPitch: mailerVentPitch === "" ? undefined : +mailerVentPitch, ventDrop: mailerVentDrop === "" ? undefined : +mailerVentDrop, noLid: mailerNoLid, fingerNotch: +mailerNotch || 0, notchShape: mailerNotchShape } : {}), ...(style.hasColWidths && partCols.trim() ? { colsMm: partCols.split(/[,\s]+/).filter(Boolean).map(Number), rowSpan: +partSpan || undefined } : {}), ...(style.hasColWidths && partRows.trim() ? { rowsMm: partRows.split(/[,\s]+/).filter(Boolean).map(Number), colSpan: +partColSpan || undefined } : {}), thickness: boardMm, units }) : null),
+    [styleId, chbEarLock, mailerNoLid, dims.L, dims.W, dims.H, taperMm, bottomL, bottomW, bagType, cartonType, glueSide, glueW, holeCount, holeNotch, thumbNotch, halfCutHandle, dcbHandHole, tuckD, bagSeam, bagBackTab, ropeHandle, ropeSpacing, strapW, mailerVents, mailerNotch, mailerVentShape, mailerNotchShape, partCols, partSpan, partRows, partColSpan, cups, cellsX, cellsY, hem, winW, winH, boardMm, units, ready],
   );
 
   const title = `${style.label} KLD ${L} x ${W} x ${H} ${units} - ${matLabel}`;
@@ -626,6 +685,7 @@ export default function DielineClient() {
     setTuckD("");
     setMailerVents("");
     setMailerNotch("");
+    setMailerNoLid(false);
     setMailerVentShape("slot");
     setMailerNotchShape("trap");
     setPartCols("");
@@ -695,7 +755,12 @@ export default function DielineClient() {
     setW(conv(p.dims[1]));
     setH(conv(p.dims[2]));
     if (p.taper != null) setTaper(String(p.taper));
+    if (p.bottomL != null) setBottomL(String(p.bottomL));
+    if (p.bottomW != null) setBottomW(String(p.bottomW));
     if (p.cups != null) setCups(p.cups);
+    setHalfCutHandle(p.halfCutHandle ?? false);
+    setChbEarLock(p.lock === "ear");
+    setDcbHandHole(p.handHole === "dcb");
     if (p.cellsX != null) setCellsX(String(p.cellsX));
     if (p.cellsY != null) setCellsY(String(p.cellsY));
     if (p.winW != null) setWinW(conv(p.winW));
@@ -711,6 +776,7 @@ export default function DielineClient() {
     setBagBackTab(p.bottomBack != null ? conv(p.bottomBack) : "");
     setMailerVents(p.vents ? String(p.vents) : "");
     setMailerNotch(p.fingerNotch != null ? conv(p.fingerNotch) : "");
+    setMailerNoLid(!!p.noLid);
     setMailerVentShape(p.ventShape || "slot");
     setMailerVentPitch(p.ventPitch != null ? conv(p.ventPitch) : "");
     setMailerVentDrop(p.ventDrop != null ? conv(p.ventDrop) : "");
@@ -883,6 +949,18 @@ export default function DielineClient() {
                   {label}
                 </button>
               ))}
+              {cups === 2 && (
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={halfCutHandle} onChange={(e) => setHalfCutHandle(e.target.checked)} />
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Half-cut one handle (D-cut style tab)</span>
+                </label>
+              )}
+              {cups === 2 && (
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={dcbHandHole} onChange={(e) => setDcbHandHole(e.target.checked)} />
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Bag D-cut hand holes (80 × 25.66)</span>
+                </label>
+              )}
             </div>
           )}
           {style.hasCupPicker && (
@@ -967,6 +1045,12 @@ export default function DielineClient() {
               </label>
             </div>
           )}
+          {style.hasEarLock && (
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={chbEarLock} onChange={(ev) => setChbEarLock(ev.target.checked)} />
+              <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Ear lock (side flaps tuck under ears at the handle base)</span>
+            </label>
+          )}
           {style.hasMailerExtras && (
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="block">
@@ -976,6 +1060,10 @@ export default function DielineClient() {
               <label className="block">
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Finger notch width ({units})</span>
                 <input type="number" min="0" step="1" placeholder="none" value={mailerNotch} onChange={(e) => setMailerNotch(e.target.value)} className={inputCls} />
+              </label>
+              <label className="flex items-center gap-2 pt-5">
+                <input type="checkbox" checked={mailerNoLid} onChange={(e) => setMailerNoLid(e.target.checked)} />
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">No lid (locked tray only)</span>
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Vent shape</span>
@@ -1120,6 +1208,18 @@ export default function DielineClient() {
               <label className="block">
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{style.windowLabels?.[1] || `Window H (${units}, optional)`}</span>
                 <input type="number" min="0" value={winH} onChange={(e) => setWinH(e.target.value)} className={inputCls} />
+              </label>
+            </div>
+          )}
+          {style.hasBottom && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Bottom L</span>
+                <input type="number" value={bottomL} onChange={(e) => setBottomL(e.target.value)} className={inputCls} />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Bottom W</span>
+                <input type="number" value={bottomW} onChange={(e) => setBottomW(e.target.value)} className={inputCls} />
               </label>
             </div>
           )}

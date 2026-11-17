@@ -10,21 +10,10 @@ const anthropic = createAnthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// All catalog/clearance reads go through the packai_ro restricted client —
+// All catalog reads go through the packai_ro restricted client —
 // the sanitized views are the ONLY data this route (and the model) can see.
 // Cache in module scope so repeated chat messages don't refetch.
-let _clearance = null;
 let _catalog = null;
-
-async function getClearance() {
-  if (!_clearance) {
-    _clearance = await packaiSelect('v_packai_clearance', {
-      select:
-        'id,item_name,sku,brand,category,material,gsm,description,specifications,stock_quantity,unit,case_pack,price,price_unit,status',
-    });
-  }
-  return _clearance;
-}
 
 async function getCatalog() {
   if (!_catalog) {
@@ -48,9 +37,7 @@ function matchesQuery(haystack, query) {
 
 const SYSTEM_PROMPT = `You are PackAI, the AI packaging assistant for Aeros, a packaging products company based in Mumbai, India. Refer to yourself as PackAI.
 
-You help customers find the right packaging products from two ranges:
-1. **Clearance Stock** — discounted end-of-line plain/generic packaging available for immediate dispatch
-2. **Fresh Catalog** — our full range of standard packaging products with regular pricing
+You help customers find the right packaging products from the Aeros catalogue — our full range of standard packaging products.
 
 Your tone is friendly, knowledgeable, and concise. Always respond in the same language the customer uses.
 
@@ -69,7 +56,7 @@ When someone is setting up a venue (café, restaurant, cloud kitchen, hotel), ac
 
 You cannot place orders — direct customers to the WhatsApp or Email buttons on each product card.
 
-Prices are in Indian Rupees (₹); catalog prices assume full-container-load (FCL) terms — part loads cost more. Stock quantities are in the clearance range only.
+Prices are in Indian Rupees (₹); catalog prices assume full-container-load (FCL) terms — part loads cost more.
 
 If asked about suppliers, manufacturers, mills, purchase costs, or dealer/trade pricing: you don't have that information. Say we work with certified manufacturing partners and offer to connect them with the Aeros team.`;
 
@@ -110,35 +97,6 @@ export async function POST(req) {
     messages,
     maxSteps: 5,
     tools: {
-      searchClearanceStock: tool({
-        description: 'Search the Aeros clearance stock inventory for packaging products available at discounted prices for immediate dispatch. Use this when customers ask about clearance, end-of-line, discounted, or available-now stock.',
-        parameters: z.object({
-          query: z.string().describe('Search term — product name, category, material, or description'),
-          category: z.string().optional().describe('Optional category filter, e.g. "Paper Cup", "Paper Bag", "Food Box", "Paper Tub"'),
-        }),
-        execute: async ({ query, category }) => {
-          const items = await getClearance();
-          const results = items.filter((item) => {
-            const haystack = `${item.item_name} ${item.category || ''} ${item.brand || ''} ${item.material || ''} ${item.description || ''}`.toLowerCase();
-            const matchesCategory = !category || (item.category || '').toLowerCase().includes(category.toLowerCase());
-            return matchesQuery(haystack, query) && matchesCategory;
-          }).slice(0, 8);
-
-          if (results.length === 0) return { found: 0, results: [] };
-          return {
-            found: results.length,
-            results: results.map((i) => ({
-              name: i.item_name,
-              category: i.category,
-              material: i.material || null,
-              stock: i.stock_quantity !== null ? `${i.stock_quantity} ${i.unit || ''}`.trim() : 'TBC',
-              price: i.price != null ? `₹${i.price}${i.price_unit ? ` ${i.price_unit}` : ''}` : null,
-              status: i.status,
-            })),
-          };
-        },
-      }),
-
       searchCatalog: tool({
         description: 'Search the Aeros fresh product catalog for standard packaging products with regular pricing. Use this when customers ask about regular products, pricing, specs, materials, or dimensions.',
         parameters: z.object({
@@ -178,13 +136,12 @@ export async function POST(req) {
       }),
 
       listCategories: tool({
-        description: 'List all available product categories from both the clearance stock and fresh catalog. Use this when a customer asks what types of products are available.',
+        description: 'List all available product categories in the catalogue. Use this when a customer asks what types of products are available.',
         parameters: z.object({}),
         execute: async () => {
-          const [items, products] = await Promise.all([getClearance(), getCatalog()]);
-          const clearanceCategories = [...new Set(items.map((i) => i.category).filter(Boolean))].sort();
+          const products = await getCatalog();
           const catalogCategories = [...new Set(products.map((p) => p.category).filter(Boolean))].sort();
-          return { clearanceCategories, catalogCategories };
+          return { catalogCategories };
         },
       }),
     },

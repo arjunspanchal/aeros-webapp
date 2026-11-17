@@ -11,10 +11,9 @@ export default async function ManagerPOsPage() {
   const session = getSession();
   const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
   if (!session || !role) redirect("/login");
-  if (role === ROLES.CUSTOMER) redirect("/factoryos/customer");
 
   let clientIds;
-  if (role === ROLES.ACCOUNT_MANAGER) clientIds = session.factoryosClientIds || [];
+  // Sales see every customer PO, like every job (18-Nov-2026).
   const [pos, clients] = await Promise.all([
     listCustomerPOs(clientIds ? { clientIds } : undefined),
     listClients(),

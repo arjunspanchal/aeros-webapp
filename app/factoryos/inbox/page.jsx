@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
 import { teamInboxItems } from "@/lib/factoryos/repo";
-import { ROLES } from "@/lib/factoryos/constants";
 import { formatDateTime } from "@/app/factoryos/_components/ui";
+import { ROLES } from "@/lib/factoryos/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,6 @@ export default async function TeamInboxPage() {
   const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
   if (!session || !role) redirect("/login");
   // Customers + vendors have their own inboxes; this one is internal only.
-  if (role === ROLES.CUSTOMER) redirect("/factoryos/customer");
   if (role === ROLES.VENDOR) redirect("/factoryos/vendor");
 
   const items = await teamInboxItems();

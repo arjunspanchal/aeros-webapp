@@ -1,4 +1,5 @@
 "use client";
+import { LINES, LINE_KEYS, LINE_LABEL, lineForCategory, describeLines } from "@/lib/factoryos/lines";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -13,7 +14,30 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
+// Printer late = printing due passed, job still at or before Under Printing,
+// and the printer hasn't marked it printed on /printer.
+function isPrinterLate(j, today) {
+  return !!j.printingDueDate && j.printingDueDate.slice(0, 10) < today
+    && ["RM Pending", "Coating", "Under Printing"].includes(j.stage)
+    && !["printing_completed", "dispatched"].includes(j.vendorStatus || "");
+}
+
+function LinePill({ active, onClick, label, count }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-full text-sm border whitespace-nowrap transition-colors ${
+        active
+          ? "bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900 dark:border-white"
+          : "bg-white text-gray-700 border-gray-200 hover:border-gray-400 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700"}`}
+    >
+      {label} <span className={active ? "opacity-75" : "text-gray-400"}>· {count}</span>
+    </button>
+  );
+}
+
+export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLines = null, meId = null }) {
   const searchParams = useSearchParams();
   const initialStage  = (() => {
     const s = searchParams.get("stage");
@@ -22,10 +46,26 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
   const initialUrgent = searchParams.get("urgent") === "1";
   const initialDue    = searchParams.get("due") === "overdue" ? "overdue" : "all";
 
+  // "mine" = the user's own production lines (default when they have any),
+  // "all", or a single line key. URL ?line= overrides so links can deep-link.
+  const initialLine = (() => {
+    const l = searchParams.get("line");
+    if (l === "all" || l === "mine" || LINE_KEYS.has(l)) return l;
+    return myLines?.length ? "mine" : "all";
+  })();
+  const [line, setLine] = useState(initialLine);
+  // Which date this screen manages by. Factory roles run the floor to the
+  // production due date; account managers manage the customer promise
+  // (expected dispatch).
+  const factoryView = role !== "account_manager" && role !== "customer";
+  const [lateOnly, setLateOnly] = useState(searchParams.get("late") === "printer");
   const [q, setQ] = useState("");
   const [stage, setStage] = useState(initialStage);
   const [clientId, setClientId] = useState("all");
   const [urgentOnly, setUrgentOnly] = useState(initialUrgent);
+  // "My jobs" = jobs where I am the sales manager (sales see every job).
+  const [mineOnly, setMineOnly] = useState(false);
+  const myCount = meId ? jobs.filter((j) => j.customerManagerId === meId).length : 0;
   const [dueFilter, setDueFilter] = useState(initialDue);
   const today = useMemo(() => todayIso(), []);
 
@@ -38,33 +78,68 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
     return list.sort((a, b) => a.name.localeCompare(b.name));
   }, [jobs, clientMap]);
 
+  // The line pill is the outer filter: every tile and count below it
+  // (stages, urgent, printer late, "total") is counted within that line, so
+  // Sachin never clicks "In Conversion · 3" and gets an empty list because
+  // those three are cups (06-Oct-2026).
+  const lineJobs = useMemo(() => {
+    if (line === "all") return jobs;
+    return jobs.filter((j) => {
+      const jl = lineForCategory(j.category, j.item);
+      return line === "mine" ? (myLines || []).includes(jl) : jl === line;
+    });
+  }, [jobs, line, myLines]);
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return jobs.filter((j) => {
+    return lineJobs.filter((j) => {
       if (urgentOnly && !j.urgent) return false;
+      if (mineOnly && j.customerManagerId !== meId) return false;
+      if (lateOnly && !isPrinterLate(j, today)) return false;
       if (stage !== "all" && j.stage !== stage) return false;
       if (clientId !== "all" && !j.clientIds.includes(clientId)) return false;
       // Overdue dispatch: scheduled for before today AND not already in the
       // post-dispatch stages. Delivered and Dispatched jobs aren't "overdue"
       // even if their date is in the past.
       if (dueFilter === "overdue") {
-        if (!j.expectedDispatchDate || j.expectedDispatchDate >= today) return false;
-        if (j.stage === "Dispatched" || j.stage === "Delivered") return false;
+        // One date for everyone: late = not ready by the production ready date.
+        if (!j.productionDueDate || j.productionDueDate >= today) return false;
+        if (["Ready for Dispatch", "Dispatched", "Delivered"].includes(j.stage)) return false;
       }
       if (!term) return true;
       const clientName = j.clientIds.map((c) => clientMap[c]?.name || "").join(" ");
-      const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.poNumber} ${clientName} ${j.internalStatus}`.toLowerCase();
+      const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.printingVendor} ${j.poNumber} ${j.zohoSoNo || ""} ${clientName} ${j.internalStatus}`.toLowerCase();
       return hay.includes(term);
-    });
-  }, [jobs, q, stage, clientId, urgentOnly, dueFilter, today, clientMap]);
+    })
+    // Urgent jobs float to the top; otherwise keep the list's J# order.
+    .sort((a, b) => (b.urgent === true) - (a.urgent === true));
+  }, [lineJobs, q, stage, clientId, urgentOnly, lateOnly, dueFilter, today, clientMap, factoryView]);
+  const printerLateCount = useMemo(() => lineJobs.filter((j) => isPrinterLate(j, today)).length, [lineJobs, today]);
 
-  const urgentCount = useMemo(() => jobs.filter((j) => j.urgent).length, [jobs]);
+  const urgentCount = useMemo(() => lineJobs.filter((j) => j.urgent).length, [lineJobs]);
+
+  // Open-job count per line for the pills (closed jobs aren't work).
+  const lineCount = useMemo(() => {
+    const c = { mine: 0, all: 0 };
+    for (const l of LINES) c[l.key] = 0;
+    for (const j of jobs) {
+      if (j.stage === "Dispatched" || j.stage === "Delivered") continue;
+      c.all++;
+      const jl = lineForCategory(j.category, j.item);
+      if (jl) c[jl]++;
+      if (jl && (myLines || []).includes(jl)) c.mine++;
+    }
+    return c;
+  }, [jobs, myLines]);
 
   const stageCount = useMemo(() => {
     const c = Object.fromEntries(STAGES.map((s) => [s, 0]));
-    for (const j of jobs) if (c[j.stage] !== undefined) c[j.stage]++;
+    for (const j of lineJobs) if (c[j.stage] !== undefined) c[j.stage]++;
     return c;
-  }, [jobs]);
+  }, [lineJobs]);
+  // Same stage across every line — so the empty state can say where the
+  // jobs actually are.
+  const stageCountAll = useMemo(() => (stage === "all" ? 0 : jobs.filter((j) => j.stage === stage).length), [jobs, stage]);
 
   return (
     <div>
@@ -72,13 +147,11 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Jobs</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-            {role === "account_manager" ? "Jobs for your customers" : "All jobs"} · {jobs.length} total
+            {role === "account_manager" ? (mineOnly ? "My jobs" : "All jobs") : line === "mine" ? describeLines(myLines) : line === "all" ? "All jobs" : LINE_LABEL[line]} · {filtered.length} shown · {lineJobs.length} total
           </p>
         </div>
-        {/* Mirrors the create-job allow-list: admin / FM / AM. Middleware
-            now lets AM through to /factoryos/admin/jobs/new (audit H1).
-            FE excluded — shop floor doesn't open new jobs. */}
-        {(role === "admin" || role === "factory_manager" || role === "account_manager") && (
+        {/* Mirrors the create-job allow-list: admin / factory manager only. */}
+        {(role === "admin" || role === "factory_manager") && (
           <Link
             href="/factoryos/admin/jobs/new"
             className="shrink-0 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -88,13 +161,23 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
         )}
       </div>
 
+      <div className="flex flex-wrap gap-2 mb-4">
+        {myLines?.length > 0 && (
+          <LinePill active={line === "mine"} onClick={() => setLine("mine")} label={`My lines · ${describeLines(myLines)}`} count={lineCount.mine} />
+        )}
+        <LinePill active={line === "all"} onClick={() => setLine("all")} label="All lines" count={lineCount.all} />
+        {LINES.map((l) => (
+          <LinePill key={l.key} active={line === l.key} onClick={() => setLine(l.key)} label={l.label} count={lineCount[l.key]} />
+        ))}
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-5">
         <button
           onClick={() => setStage("all")}
           className={`p-3 rounded-lg text-left transition-colors ${stage === "all" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800"}`}
         >
           <div className="text-xs opacity-75">All</div>
-          <div className="text-lg font-bold">{jobs.length}</div>
+          <div className="text-lg font-bold">{lineJobs.length}</div>
         </button>
         {STAGES.map((s) => (
           <button
@@ -111,7 +194,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input
           className={`${inputCls} flex-1`}
-          placeholder="Search J#, brand, item, city, PO…"
+          placeholder="Search J#, SO, brand, item, printer, PO…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -126,12 +209,31 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
         >
           {urgentOnly ? "Urgent only ✓" : `Urgent (${urgentCount})`}
         </button>
+        {meId && myCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setMineOnly((v) => !v)}
+            className={`shrink-0 px-3 py-2 text-sm rounded-lg border whitespace-nowrap ${mineOnly ? "bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900" : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700"}`}
+          >
+            {mineOnly ? "My jobs ✓" : `My jobs (${myCount})`}
+          </button>
+        )}
+        {(printerLateCount > 0 || lateOnly) && (
+          <button
+            type="button"
+            onClick={() => setLateOnly((v) => !v)}
+            className={`shrink-0 px-3 py-2 text-sm rounded-lg border whitespace-nowrap ${lateOnly ? "bg-red-700 text-white border-red-700" : "bg-white text-red-700 border-red-200 hover:border-red-300 dark:bg-gray-900 dark:border-red-900"}`}
+            title="Printing due date passed and the printer hasn't marked it printed"
+          >
+            {lateOnly ? "Printer late ✓" : `Printer late (${printerLateCount})`}
+          </button>
+        )}
         {dueFilter === "overdue" && (
           <button
             type="button"
             onClick={() => setDueFilter("all")}
             className="shrink-0 px-3 py-2 text-sm rounded-lg border whitespace-nowrap bg-amber-600 text-white border-amber-600"
-            title="Showing jobs past their expected dispatch date. Click to clear."
+            title={factoryView ? "Showing jobs past their production due date and not yet ready. Click to clear." : "Showing jobs past their expected dispatch date. Click to clear."}
           >
             Overdue only ✓
           </button>
@@ -147,10 +249,10 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
                 <th className="text-left px-4 py-2 font-medium">Customer / Brand</th>
                 <th className="text-left px-4 py-2 font-medium">Item</th>
                 <th className="text-right px-4 py-2 font-medium">Qty</th>
-                <th className="text-left px-4 py-2 font-medium">City</th>
+                <th className="text-left px-4 py-2 font-medium">Printer</th>
                 <th className="text-left px-4 py-2 font-medium">Stage</th>
                 <th className="text-left px-4 py-2 font-medium">Internal</th>
-                <th className="text-left px-4 py-2 font-medium">Dispatch</th>
+                <th className="text-left px-4 py-2 font-medium">Ready date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -162,6 +264,9 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
                       <Link href={`/factoryos/manager/${j.id}`} className="text-blue-600 hover:underline dark:text-blue-400">
                         {j.jNumber}
                       </Link>
+                      <div className={j.zohoSoNo ? "text-[11px] text-gray-500 dark:text-gray-400" : "text-[11px] text-amber-600 dark:text-amber-400"}>
+                        {j.zohoSoNo || "no SO"}
+                      </div>
                     </td>
                     <td className="px-4 py-2">
                       <div className="text-gray-900 dark:text-white">{client || "—"}</div>
@@ -174,19 +279,40 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role }) {
                     <td className="px-4 py-2 text-right text-gray-900 dark:text-white">
                       {j.qty != null ? j.qty.toLocaleString("en-IN") : "—"}
                     </td>
-                    <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{j.city || "—"}</td>
+                    <td className="px-4 py-2 text-gray-600 dark:text-gray-300">
+                      {j.printingVendor || "—"}
+                      {j.vendorStatus === "paper_awaited" && !["Ready for Dispatch", "Dispatched", "Delivered"].includes(j.stage) && (
+                        <span className="ml-1.5 inline-flex items-center text-[10px] font-semibold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded align-middle dark:bg-amber-900/40 dark:text-amber-200" title="Printer says they haven't received the paper">NO PAPER</span>
+                      )}
+                      {isPrinterLate(j, today) && (
+                        <span className="ml-1.5 inline-flex items-center text-[10px] font-semibold bg-red-100 text-red-800 px-1.5 py-0.5 rounded align-middle dark:bg-red-900/40 dark:text-red-200">LATE</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2"><StageBadge stage={j.stage} /></td>
                     <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 max-w-xs truncate">
                       {j.internalStatus || "—"}
                     </td>
-                    <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">
-                      {formatDate(j.expectedDispatchDate)}
+                    <td className={`px-4 py-2 text-xs ${
+                      j.productionDueDate && j.productionDueDate < today && !["Ready for Dispatch", "Dispatched", "Delivered"].includes(j.stage)
+                        ? "text-red-600 font-semibold dark:text-red-400"
+                        : "text-gray-600 dark:text-gray-300"}`}>
+                      {formatDate(j.productionDueDate)}
                     </td>
                   </tr>
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">No jobs match.</td></tr>
+                <tr>
+                  <td colSpan={8} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">
+                    No jobs match.
+                    {line !== "all" && stage !== "all" && stageCountAll > 0 && (
+                      <>
+                        {" "}{stageCountAll} {stage} {stageCountAll === 1 ? "job is" : "jobs are"} in other lines —{" "}
+                        <button type="button" onClick={() => setLine("all")} className="underline text-blue-700 dark:text-blue-400">show all lines</button>
+                      </>
+                    )}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

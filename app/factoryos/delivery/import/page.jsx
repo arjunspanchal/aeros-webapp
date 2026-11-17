@@ -13,7 +13,6 @@ export default async function DeliveryImportPage() {
   const session = getSession();
   const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
   if (!session || !role) redirect("/login");
-  if (role === ROLES.CUSTOMER) redirect("/factoryos/customer");
   if (role === ROLES.VENDOR) redirect("/factoryos/vendor");
 
   const clients = await listClients();

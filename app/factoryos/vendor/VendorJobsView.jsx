@@ -5,7 +5,7 @@ import { StageBadge, formatDate, inputCls } from "@/app/factoryos/_components/ui
 
 // A printing vendor's part is done once they've dispatched it back, or the team
 // has moved the job past the print stages.
-const VENDOR_OPEN_STAGES = new Set(["RM Pending", "Under Printing"]);
+const VENDOR_OPEN_STAGES = new Set(["RM Pending", "Coating", "Under Printing"]);
 const VENDOR_STATUS_LABEL = {
   accepted: "Accepted",
   printing_started: "Printing started",
@@ -64,7 +64,7 @@ export default function VendorJobsView({ jobs, vendorName, linked, unreadIds = [
       if (filter === "open" && done) return false;
       if (filter === "done" && !done) return false;
       if (!term) return true;
-      const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.printingType} ${j.poNumber}`.toLowerCase();
+      const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.printingType}`.toLowerCase();
       return hay.includes(term);
     });
     // Surface what needs attention first: overdue, then urgent, then by the

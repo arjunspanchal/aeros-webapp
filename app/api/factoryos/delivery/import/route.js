@@ -1,16 +1,18 @@
-import { getSession, requireInternal } from "@/lib/auth/session";
+import { getSession, requireManager } from "@/lib/auth/session";
 import { importPoLines } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// POST { clientId, rows: [{ poNumber, poDate, sku, ordered, received, rate }] }
+// POST { clientId, rows: [{ poNumber, poDate, sku, ordered, received }] }
 // Reconciles open-PO lines into jobs (update existing by PO#+SKU, create
 // missing). Internal staff only — this writes/creates jobs.
 export async function POST(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!requireInternal(session)) return Response.json({ error: "Forbidden" }, { status: 403 });
+  // This creates jobs, so it follows the same rule as raising one: factory
+  // manager or admin only (was any internal role until 17-Nov-2026).
+  if (!requireManager(session)) return Response.json({ error: "Only a factory manager or admin can import PO lines" }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
   const clientId = body.clientId;

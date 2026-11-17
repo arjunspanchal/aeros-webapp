@@ -16,10 +16,6 @@ const EMPTY = {
   lengthMm: "",
   form: "",
   supplier: "",
-  baseRate: "",
-  discount: "",
-  transport: "",
-  wetStrengthExtra: "",
   qtyRolls: "",
   qtyKgs: "",
   coating: "",
@@ -41,10 +37,6 @@ function toForm(rm) {
     lengthMm: rm.lengthMm != null ? String(rm.lengthMm) : "",
     form: rm.form || "",
     supplier: rm.supplier || "",
-    baseRate: rm.baseRate != null ? String(rm.baseRate) : "",
-    discount: rm.discount != null ? String(rm.discount) : "",
-    transport: rm.transport != null ? String(rm.transport) : "",
-    wetStrengthExtra: rm.wetStrengthExtra != null ? String(rm.wetStrengthExtra) : "",
     qtyRolls: rm.qtyRolls != null ? String(rm.qtyRolls) : "",
     qtyKgs: rm.qtyKgs != null ? String(rm.qtyKgs) : "",
     coating: rm.coating || "",
@@ -68,10 +60,6 @@ function toBody(form) {
     lengthMm: form.form === "Rolls" ? undefined : num(form.lengthMm),
     form: form.form,
     supplier: form.supplier.trim(),
-    baseRate: num(form.baseRate),
-    discount: num(form.discount),
-    transport: num(form.transport),
-    wetStrengthExtra: num(form.wetStrengthExtra),
     qtyRolls: num(form.qtyRolls),
     qtyKgs: num(form.qtyKgs),
     coating: form.coating.trim(),
@@ -80,12 +68,6 @@ function toBody(form) {
     notes: form.notes,
     active: form.active,
   };
-}
-
-function effectiveRate(rm) {
-  if (rm.effectiveRate != null) return rm.effectiveRate;
-  if (rm.baseRate == null) return null;
-  return (rm.baseRate || 0) - (rm.discount || 0) + (rm.transport || 0);
 }
 
 const STATUS_COLORS = {
@@ -230,8 +212,6 @@ export default function InventoryAdmin({ initialInventory, masterPapers = [] }) 
       // Only overwrite coating when the master says so — don't clobber a human-entered
       // value on an uncoated master.
       coating: coatingFromMill || f.coating,
-      baseRate: mp.baseRate != null ? String(mp.baseRate) : f.baseRate,
-      discount: mp.discount != null ? String(mp.discount) : f.discount,
     }));
   }
 
@@ -406,7 +386,6 @@ export default function InventoryAdmin({ initialInventory, masterPapers = [] }) 
                 <option key={mp.id} value={mp.id}>
                   {mp.materialName}
                   {mp.bf != null ? ` · ${mp.bf} BF` : ""}
-                  {mp.effectiveRate != null ? ` · ₹${mp.effectiveRate}/kg` : ""}
                 </option>
               ))}
             </select>
@@ -512,28 +491,6 @@ export default function InventoryAdmin({ initialInventory, masterPapers = [] }) 
             </div>
           </div>
 
-          <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
-            <h3 className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2 dark:text-gray-400">Pricing (optional)</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Base rate (₹/kg)</label>
-                <input type="number" step="0.01" className={inputCls} value={form.baseRate} onChange={(e) => setForm({ ...form, baseRate: e.target.value })} />
-              </div>
-              <div>
-                <label className={labelCls}>Discount (₹/kg)</label>
-                <input type="number" step="0.01" className={inputCls} value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} />
-              </div>
-              <div>
-                <label className={labelCls}>Transport (₹/kg)</label>
-                <input type="number" step="0.01" className={inputCls} value={form.transport} onChange={(e) => setForm({ ...form, transport: e.target.value })} />
-              </div>
-              <div>
-                <label className={labelCls}>Wet strength (₹/kg)</label>
-                <input type="number" step="0.01" className={inputCls} value={form.wetStrengthExtra} onChange={(e) => setForm({ ...form, wetStrengthExtra: e.target.value })} />
-              </div>
-            </div>
-          </div>
-
           <div>
             <label className={labelCls}>Display name (auto-generated if blank)</label>
             <input className={inputCls} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Leave blank to auto-label from supplier/type/GSM" />
@@ -574,13 +531,11 @@ export default function InventoryAdmin({ initialInventory, masterPapers = [] }) 
                   <th className="text-right px-4 py-2 font-medium">Rolls</th>
                   <th className="text-right px-4 py-2 font-medium">Kgs</th>
                   <th className="text-left px-4 py-2 font-medium">Status</th>
-                  <th className="text-right px-4 py-2 font-medium">Rate</th>
                   <th className="text-right px-4 py-2 font-medium">&nbsp;</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {filtered.map((rm) => {
-                  const eff = effectiveRate(rm);
                   return (
                     <tr key={rm.id} className={editingId === rm.id ? "bg-blue-50 dark:bg-blue-900/20" : rm.active ? "" : "opacity-60"}>
                       <td className="px-4 py-2">
@@ -611,18 +566,13 @@ export default function InventoryAdmin({ initialInventory, masterPapers = [] }) 
                         ) : <span className="text-gray-400 dark:text-gray-500 text-xs">—</span>}
                       </td>
                       <td className="px-4 py-2 text-right whitespace-nowrap">
-                        {eff != null ? (
-                          <div className="text-gray-900 dark:text-white">₹{eff.toFixed(2)}</div>
-                        ) : <span className="text-gray-400 dark:text-gray-500">—</span>}
-                      </td>
-                      <td className="px-4 py-2 text-right whitespace-nowrap">
                         <button onClick={() => startEdit(rm)} className="text-xs text-blue-600 hover:underline dark:text-blue-400 mr-3">Edit</button>
                         <button onClick={() => requestDelete(rm)} disabled={busy} className="text-xs text-red-600 hover:underline dark:text-red-400 disabled:opacity-50">Delete</button>
                       </td>
                     </tr>
                   );
                 })}
-                {filtered.length === 0 && <tr><td colSpan={7} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">{inventory.length === 0 ? "No stock lines yet." : "No matches."}</td></tr>}
+                {filtered.length === 0 && <tr><td colSpan={6} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">{inventory.length === 0 ? "No stock lines yet." : "No matches."}</td></tr>}
               </tbody>
             </table>
           </div>

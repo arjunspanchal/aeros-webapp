@@ -13,7 +13,6 @@ const STATUS_OPTIONS = [
 ];
 
 const num = (n) => (typeof n === "number" ? n.toLocaleString("en-IN") : "—");
-const inr = (n) => (typeof n === "number" ? `₹${Math.round(n).toLocaleString("en-IN")}` : "—");
 
 const STATUS_STYLES = {
   cancelled: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
@@ -28,7 +27,7 @@ function AgeingCard({ b }) {
     <div className="bg-white border border-gray-200 rounded-xl p-3 dark:bg-gray-900 dark:border-gray-800">
       <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">{b.label}</div>
       <div className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{b.lines} lines</div>
-      <div className="text-xs text-gray-500 dark:text-gray-400">{num(b.balanceQty)} units · {inr(b.openValue)}</div>
+      <div className="text-xs text-gray-500 dark:text-gray-400">{num(b.balanceQty)} units</div>
     </div>
   );
 }
@@ -101,6 +100,9 @@ export default function DeliveryBoardClient({ lines, ageing, matrix }) {
             <option value="all">All customers</option>
             {clientNames.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
+          <Link href="/factoryos/delivery/calendar" className="px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+            Calendar
+          </Link>
           <Link href="/factoryos/delivery/import" className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
             Import open POs
           </Link>

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { StageBadge, formatDate, inputCls } from "@/app/factoryos/_components/ui";
 import JobThread from "@/app/factoryos/_components/JobThread";
 import VendorProgressStepper from "./VendorProgressStepper";
-import VendorInvoicePanel from "./VendorInvoicePanel";
+import VendorJobOrderPanel from "./VendorJobOrderPanel";
 
 function Spec({ label, value }) {
   if (value == null || value === "") return null;
@@ -15,7 +15,7 @@ function Spec({ label, value }) {
   );
 }
 
-export default function VendorJobDetailClient({ initialJob, initialThread }) {
+export default function VendorJobDetailClient({ initialJob, initialThread, jobOrder = null }) {
   const job = initialJob;
   const [dueDate, setDueDate] = useState(job.printingDueDate || "");
   const [savingDate, setSavingDate] = useState(false);
@@ -60,15 +60,15 @@ export default function VendorJobDetailClient({ initialJob, initialThread }) {
           <Spec label="Size" value={job.itemSize} />
           <Spec label="Paper / GSM" value={[job.paperType, job.gsm ? `${job.gsm} GSM` : null].filter(Boolean).join(" · ")} />
           <Spec label="RM size (mm)" value={job.rmSizeMm} />
-          <Spec label="Order date" value={job.orderDate ? formatDate(job.orderDate) : null} />
         </dl>
-        {job.actionPoints && (
-          <div className="mt-4 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-900 dark:bg-blue-900/20 dark:border-blue-900 dark:text-blue-200">
-            <span className="font-semibold">Note from Aeros: </span>
-            {job.actionPoints}
-          </div>
-        )}
       </div>
+
+      {/* Print job order — what to print and how */}
+      <VendorJobOrderPanel
+        jobId={job.id}
+        initialSpec={jobOrder?.spec || null}
+        initialColours={jobOrder?.colours || []}
+      />
 
       {/* Editable delivery date */}
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
@@ -108,8 +108,6 @@ export default function VendorJobDetailClient({ initialJob, initialThread }) {
       {/* Unified conversation — messages, artwork, proofs, challans */}
       <JobThread jobId={job.id} viewerRole="vendor" initialThread={initialThread} title="Messages & files" />
 
-      {/* Invoices */}
-      <VendorInvoicePanel jobId={job.id} />
     </div>
   );
 }

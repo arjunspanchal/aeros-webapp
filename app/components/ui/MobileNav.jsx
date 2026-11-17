@@ -22,6 +22,7 @@ import Link from "next/link";
 const FACTORYOS_LABEL = {
   factory_manager: "Factory Mgr",
   factory_executive: "Factory Exec",
+  warehouse: "Warehouse",
   account_manager: "Account Mgr",
   customer: null,
 };

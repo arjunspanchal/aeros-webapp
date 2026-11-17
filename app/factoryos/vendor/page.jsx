@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { listJobsForSession, getVendor, vendorUnreadJobIds } from "@/lib/factoryos/repo";
+import { listJobsForSession, getVendor, vendorUnreadJobIds, vendorSafeJob } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import VendorJobsView from "./VendorJobsView";
 
@@ -33,7 +33,7 @@ export default async function VendorPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <VendorJobsView
-          jobs={jobs}
+          jobs={jobs.map(vendorSafeJob)}
           vendorName={vendor?.name || ""}
           linked={!!vendor}
           unreadIds={Array.from(unreadSet)}

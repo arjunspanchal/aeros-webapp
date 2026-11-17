@@ -3,6 +3,7 @@ import { STAGES } from "@/lib/factoryos/constants";
 
 const STAGE_FILL = {
   "RM Pending": "#9ca3af",
+  "Coating": "#fb923c",
   "Under Printing": "#f59e0b",
   "In Conversion": "#3b82f6",
   "Packing": "#6366f1",

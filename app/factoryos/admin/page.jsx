@@ -1,3 +1,4 @@
+import { V1 } from "@/lib/factoryos/v1";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession, requireManager } from "@/lib/auth/session";
@@ -24,8 +25,9 @@ function todayIso() {
 function buildKpis(jobs) {
   const today = todayIso();
   const isOpen   = (j) => j.stage !== "Dispatched" && j.stage !== "Delivered";
+  // Late = not ready by the production ready date.
   const isOverdue = (j) =>
-    j.expectedDispatchDate && j.expectedDispatchDate < today && isOpen(j);
+    j.productionDueDate && j.productionDueDate < today && !["Ready for Dispatch", "Dispatched", "Delivered"].includes(j.stage);
 
   return [
     {
@@ -38,8 +40,8 @@ function buildKpis(jobs) {
     },
     {
       key: "overdue",
-      label: "Overdue dispatch",
-      sub: "past expected date",
+      label: "Late",
+      sub: "past the ready date",
       count: jobs.filter(isOverdue).length,
       href: "/factoryos/manager?due=overdue",
       tone: "amber",
@@ -63,7 +65,7 @@ function buildKpis(jobs) {
     {
       key: "ready",
       label: "Ready for Dispatch",
-      sub: "push pending",
+      sub: V1.warehousePush ? "push pending" : "awaiting dispatch",
       count: jobs.filter((j) => j.stage === "Ready for Dispatch").length,
       href: "/factoryos/manager?stage=Ready%20for%20Dispatch",
       tone: "green",
@@ -180,7 +182,7 @@ export default async function AdminDashboard() {
                   <th className="text-left px-4 py-2 font-medium">Item</th>
                   <th className="text-right px-4 py-2 font-medium">Qty</th>
                   <th className="text-left px-4 py-2 font-medium">Stage</th>
-                  <th className="text-left px-4 py-2 font-medium">Dispatch</th>
+                  <th className="text-left px-4 py-2 font-medium">Ready date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -198,7 +200,7 @@ export default async function AdminDashboard() {
                       {j.qty != null ? j.qty.toLocaleString("en-IN") : "—"}
                     </td>
                     <td className="px-4 py-2"><StageBadge stage={j.stage} /></td>
-                    <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(j.expectedDispatchDate)}</td>
+                    <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(j.productionDueDate)}</td>
                   </tr>
                 ))}
                 {recent.length === 0 && <tr><td colSpan={6} className="text-center text-sm text-gray-500 py-8 dark:text-gray-400">No jobs yet. Create one to get started.</td></tr>}
