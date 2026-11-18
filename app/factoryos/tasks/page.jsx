@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession, requireInternal, requireManager } from "@/lib/auth/session";
-import { listTasks, listTaskPeople, listJobsForTaskPicker, sessionUser } from "@/lib/factoryos/tasks";
+import { listTasks, listTaskPeople, listJobsForTaskPicker, sessionUser, actorName } from "@/lib/factoryos/tasks";
 import TasksClient from "./TasksClient";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export default async function TasksPage() {
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">
       <TasksClient
-        initial={{ tasks, people, jobs, meId: me?.id || "", today }}
+        initial={{ tasks, people, jobs, meId: me?.id || "", meName: actorName(session, me), today }}
         canDeleteAny={requireManager(session)}
         defaultMine={!isAdmin}
       />

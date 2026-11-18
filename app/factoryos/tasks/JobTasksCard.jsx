@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Avatar, DoneTick, TaskMeta, ymd } from "./taskUi";
+import { Avatar, DoneTick, TaskMeta, WhatsAppButton, ymd } from "./taskUi";
 
 const field = "rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white";
 
@@ -10,6 +10,7 @@ const field = "rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm te
 export default function JobTasksCard({ jNumber }) {
   const [tasks, setTasks] = useState(null);
   const [people, setPeople] = useState([]);
+  const [meName, setMeName] = useState("");
   const [draft, setDraft] = useState({ title: "", assigneeId: "", dueDate: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -19,7 +20,7 @@ export default function JobTasksCard({ jNumber }) {
     let alive = true;
     fetch(`/api/factoryos/tasks?job=${encodeURIComponent(jNumber)}`)
       .then((r) => (r.ok ? r.json() : { tasks: [], people: [] }))
-      .then((d) => { if (alive) { setTasks(d.tasks || []); setPeople(d.people || []); } })
+      .then((d) => { if (alive) { setTasks(d.tasks || []); setPeople(d.people || []); setMeName(d.meName || ""); } })
       .catch(() => { if (alive) setTasks([]); });
     return () => { alive = false; };
   }, [jNumber]);
@@ -73,6 +74,7 @@ export default function JobTasksCard({ jNumber }) {
                 <span className={`block text-sm ${t.status === "done" ? "text-gray-400 line-through" : "text-gray-900 hover:text-blue-700 dark:text-white"}`}>{t.title}</span>
                 <TaskMeta task={t} today={today} showJob={false} />
               </Link>
+              {t.status !== "done" && <WhatsAppButton task={t} person={people.find((p) => p.id === t.assigneeId)} fromName={meName} compact />}
               <Avatar person={people.find((p) => p.id === t.assigneeId)} />
             </li>
           ))}

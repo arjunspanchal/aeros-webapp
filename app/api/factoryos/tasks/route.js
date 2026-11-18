@@ -1,5 +1,5 @@
 import { getSession, requireInternal } from "@/lib/auth/session";
-import { listTasks, listTasksForJob, listTaskPeople, listJobsForTaskPicker, createTask, sessionUser } from "@/lib/factoryos/tasks";
+import { listTasks, listTasksForJob, listTaskPeople, listJobsForTaskPicker, createTask, sessionUser, actorName } from "@/lib/factoryos/tasks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,10 +15,10 @@ export async function GET(req) {
     const jobNo = new URL(req.url).searchParams.get("job");
     if (jobNo) {
       const [tasks, people, me] = await Promise.all([listTasksForJob(jobNo), listTaskPeople(), sessionUser(session)]);
-      return Response.json({ tasks, people, meId: me?.id || "" });
+      return Response.json({ tasks, people, meId: me?.id || "", meName: actorName(session, me) });
     }
     const [tasks, people, jobs, me] = await Promise.all([listTasks(), listTaskPeople(), listJobsForTaskPicker(), sessionUser(session)]);
-    return Response.json({ tasks, people, jobs, meId: me?.id || "" });
+    return Response.json({ tasks, people, jobs, meId: me?.id || "", meName: actorName(session, me) });
   } catch (e) {
     console.error("tasks list failed:", e);
     return Response.json({ error: "Couldn't load tasks" }, { status: 500 });

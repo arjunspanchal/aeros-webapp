@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATUSES, PRIORITIES } from "@/lib/factoryos/taskOptions";
-import { STATUS_STYLE, Avatar, ymd, dueInfo } from "./taskUi";
+import { STATUS_STYLE, Avatar, whatsappLink, ymd, dueInfo } from "./taskUi";
 import { BoardView, ListView, CalendarView } from "./TaskViews";
 import TaskPanel from "./TaskPanel";
 
@@ -23,7 +23,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
   const [search, setSearch] = useState("");
   const [showDone, setShowDone] = useState(false);
   const [openId, setOpenId] = useState("");
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState(null); // { msg, action?: { href, label } }
   const [ready, setReady] = useState(false);
   const [draft, setDraft] = useState({ title: "", assigneeId: "", dueDate: "" });
   const [adding, setAdding] = useState(false);
@@ -31,6 +31,8 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
   const seq = useRef({});
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
+  const peopleRef = useRef(people);
+  peopleRef.current = people;
   // Server sends the India date so the first paint matches; then the device's.
   const [today, setToday] = useState(initial.today || ymd());
   useEffect(() => { setToday(ymd()); }, []);
@@ -57,7 +59,13 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
     try { window.localStorage.setItem(PREFS_KEY, JSON.stringify({ view, groupBy, who, showDone })); } catch { /* private window */ }
   }, [ready, view, groupBy, who, showDone]);
 
-  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 4000); };
+  const toastTimer = useRef(null);
+  const flash = (msg, action) => {
+    clearTimeout(toastTimer.current);
+    setToast({ msg, action });
+    toastTimer.current = setTimeout(() => setToast(null), action ? 12000 : 4000);
+  };
+  const meName = initial.meName || "";
 
   const open = useCallback((id) => {
     setOpenId(id);
@@ -123,6 +131,9 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Couldn't save the task");
       setTasks((ts) => [...ts, data.task]);
+      // Given to someone else: offer to tell them on WhatsApp.
+      const person = data.task.assigneeId && data.task.assigneeId !== meId ? peopleRef.current.find((p) => p.id === data.task.assigneeId) : null;
+      if (person) flash(`Task given to ${person.name.split(" ")[0]}.`, { href: whatsappLink(data.task, person, meName), label: "Send on WhatsApp" });
       return data.task;
     } catch (e) {
       flash(e.message);
@@ -130,7 +141,8 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
     } finally {
       busy.current -= 1;
     }
-  }, [who]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [who, meId, meName]);
 
   const remove = useCallback(async (id) => {
     const res = await fetch(`/api/factoryos/tasks/${id}`, { method: "DELETE" });
@@ -285,10 +297,18 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
       )}
 
       {openTask && (
-        <TaskPanel task={openTask} people={people} jobs={jobs} meId={meId} canDeleteAny={canDeleteAny} onPatch={patch} onDelete={remove} onClose={close} />
+        <TaskPanel task={openTask} people={people} jobs={jobs} meId={meId} meName={meName} canDeleteAny={canDeleteAny} onPatch={patch} onDelete={remove} onClose={close} />
       )}
       {toast && (
-        <div role="status" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-white dark:text-gray-900">{toast}</div>
+        <div role="status" className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-white dark:text-gray-900">
+          <span>{toast.msg}</span>
+          {toast.action && (
+            <a href={toast.action.href} target="_blank" rel="noopener noreferrer" onClick={() => setToast(null)} className="rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700">
+              {toast.action.label}
+            </a>
+          )}
+          <button type="button" aria-label="Dismiss" onClick={() => setToast(null)} className="text-xs opacity-60 hover:opacity-100">✕</button>
+        </div>
       )}
     </div>
   );

@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { STATUSES, PRIORITIES, LABELS, RECURRENCES } from "@/lib/factoryos/taskOptions";
-import { STATUS_STYLE, Avatar, ymd, addDays, timeAgo, dueInfo } from "./taskUi";
+import { STATUS_STYLE, Avatar, WhatsAppButton, ymd, addDays, timeAgo, dueInfo } from "./taskUi";
 
 const fieldCls = "w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white";
 
@@ -16,7 +16,7 @@ function Row({ label, children }) {
 }
 
 // Side panel for one task: every field saves as soon as you leave it.
-export default function TaskPanel({ task, people, jobs = [], meId, canDeleteAny, onPatch, onDelete, onClose }) {
+export default function TaskPanel({ task, people, jobs = [], meId, meName, canDeleteAny, onPatch, onDelete, onClose }) {
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes);
   const [items, setItems] = useState(task.checklist);
@@ -60,6 +60,7 @@ export default function TaskPanel({ task, people, jobs = [], meId, canDeleteAny,
   const today = ymd();
   const due = dueInfo(task, today);
   const canDelete = canDeleteAny || (meId && task.createdById === meId);
+  const assignee = people.find((p) => p.id === task.assigneeId);
 
   const jobMatches = useMemo(() => {
     const q = jobQuery.trim().toLowerCase();
@@ -126,12 +127,18 @@ export default function TaskPanel({ task, people, jobs = [], meId, canDeleteAny,
             </Row>
             <Row label="Who">
               <div className="flex items-center gap-2">
-                <Avatar person={people.find((p) => p.id === task.assigneeId)} />
+                <Avatar person={assignee} />
                 <select className={fieldCls} value={task.assigneeId} onChange={(e) => onPatch(task.id, { assigneeId: e.target.value })}>
                   <option value="">Nobody yet</option>
                   {people.map((p) => <option key={p.id} value={p.id}>{p.name}{p.role ? ` (${p.role})` : ""}</option>)}
                 </select>
               </div>
+              {assignee && task.status !== "done" && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <WhatsAppButton task={task} person={assignee} fromName={meName} />
+                  {!assignee.wa && <span className="text-[11px] text-gray-500 dark:text-gray-400">No number saved for {assignee.name.split(" ")[0]}; WhatsApp will ask who to send to.</span>}
+                </div>
+              )}
             </Row>
             <Row label="Due">
               <div className="flex flex-wrap items-center gap-1.5">

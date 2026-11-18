@@ -160,3 +160,38 @@ export function QuickAdd({ onAdd, placeholder = "Task name, then Enter", label =
     />
   );
 }
+
+// "Send on WhatsApp" (Arjun, 18-Nov-2026): opens WhatsApp with the task
+// written out, addressed to the person when their number is saved (Admin →
+// Access → Phone). With no number, WhatsApp asks who to send it to. Nothing is
+// sent until the sender presses send in WhatsApp.
+export function whatsappLink(task, person, fromName) {
+  const first = person?.name ? person.name.trim().split(/\s+/)[0] : "";
+  const lines = [`${first ? `Hi ${first}, a` : "A"} task for you on FactoryOS:`, `*${task.title}*`];
+  if (task.dueDate) lines.push(`Due: ${new Date(`${task.dueDate}T12:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}`);
+  if (task.priority === "urgent" || task.priority === "high") lines.push(`Priority: ${task.priority === "urgent" ? "Urgent" : "High"}`);
+  if (task.job) lines.push(`Job: J# ${task.job.jNumber}${task.job.client ? `, ${task.job.client}` : ""}`);
+  if (task.notes && task.notes.trim()) lines.push(`Notes: ${task.notes.trim().slice(0, 300)}`);
+  if (fromName && fromName !== "Admin") lines.push(`From: ${fromName}`);
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://webapp.aeros-x.com";
+  lines.push(`${origin}/factoryos/tasks?task=${task.id}`);
+  return `https://wa.me/${person?.wa || ""}?text=${encodeURIComponent(lines.join("\n"))}`;
+}
+
+export function WhatsAppButton({ task, person, fromName, compact = false }) {
+  if (!person) return null;
+  return (
+    <a
+      href={whatsappLink(task, person, fromName)}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      title={person.wa ? `Opens WhatsApp with this task written to ${person.name}` : `No number saved for ${person.name}: WhatsApp will ask who to send it to`}
+      className={compact
+        ? "shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30"
+        : "inline-flex items-center gap-1.5 rounded-md bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-green-700"}
+    >
+      {compact ? "WhatsApp" : "Send on WhatsApp"}
+    </a>
+  );
+}
