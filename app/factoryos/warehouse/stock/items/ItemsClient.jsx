@@ -5,7 +5,7 @@ import { PageHead, Card, Empty, ErrorText, Field, Btn, Pill, Segmented, postJson
 const SOURCE_LABEL = { FG: "Made by us", RM: "Raw material", Traded: "Traded", Clearance: "Clearance", Other: "Other" };
 const BLANK = { sku: "", name: "", uom: "pcs", source: "Traded", industry: "", category: "", case_pack: "", brand_customer: "", notes: "" };
 
-function ItemForm({ value, onChange, sources, units, industries, isNew }) {
+function ItemForm({ value, onChange, sources, units, industries, categories, isNew }) {
   const set = (k) => (e) => onChange({ ...value, [k]: e.target.value });
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -20,7 +20,13 @@ function ItemForm({ value, onChange, sources, units, industries, isNew }) {
         <input className={inputCls} list="wh-industries" value={value.industry || ""} onChange={set("industry")} placeholder="Packaging, Bearings, Fasteners…" />
         <datalist id="wh-industries">{industries.map((u) => <option key={u} value={u} />)}</datalist>
       </Field>
-      <Field label="Category"><input className={inputCls} value={value.category || ""} onChange={set("category")} /></Field>
+      <Field label="Category (as in the Aeros Listing)">
+        <select className={inputCls} value={value.category || ""} onChange={set("category")}>
+          <option value="">Choose…</option>
+          {value.category && !categories.includes(value.category) && <option value={value.category}>{value.category} (old, not in the listing)</option>}
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </Field>
       <Field label="Pack size (units per carton)"><input inputMode="numeric" className={inputCls} value={value.case_pack ?? ""} onChange={set("case_pack")} /></Field>
       <Field label="Customer it is kept for (if any)"><input className={inputCls} value={value.brand_customer || ""} onChange={set("brand_customer")} /></Field>
       <Field label="Note" className="sm:col-span-2"><input className={inputCls} value={value.notes || ""} onChange={set("notes")} /></Field>
@@ -28,7 +34,7 @@ function ItemForm({ value, onChange, sources, units, industries, isNew }) {
   );
 }
 
-export default function ItemsClient({ initialItems, sources, units }) {
+export default function ItemsClient({ initialItems, sources, units, categories }) {
   const [items, setItems] = useState(initialItems);
   const [q, setQ] = useState("");
   const [show, setShow] = useState("active");
@@ -70,7 +76,7 @@ export default function ItemsClient({ initialItems, sources, units }) {
         right={<Btn onClick={() => { setAdding((v) => !v); setErr(""); }}>{adding ? "Cancel" : "Add item"}</Btn>} />
       {adding && (
         <Card className="mb-5 space-y-3">
-          <ItemForm value={draft} onChange={setDraft} sources={sources} units={units} industries={industries} isNew />
+          <ItemForm value={draft} onChange={setDraft} sources={sources} units={units} industries={industries} categories={categories} isNew />
           <ErrorText>{err}</ErrorText>
           <Btn onClick={add} disabled={busy || !draft.sku.trim() || !draft.name.trim()}>{busy ? "Saving…" : "Save item"}</Btn>
         </Card>
@@ -86,7 +92,7 @@ export default function ItemsClient({ initialItems, sources, units }) {
             <div key={i.id} className="px-4 py-3">
               {editId === i.id ? (
                 <div className="space-y-3">
-                  <ItemForm value={edit} onChange={setEdit} sources={sources} units={units} industries={industries} />
+                  <ItemForm value={edit} onChange={setEdit} sources={sources} units={units} industries={industries} categories={categories} />
                   <ErrorText>{err}</ErrorText>
                   <div className="flex flex-wrap items-center gap-3">
                     <Btn disabled={busy || !edit.name.trim()} onClick={async () => { if (await save(i.id, { ...edit, needs_review: false })) setEditId(null); }}>{busy ? "Saving…" : "Save"}</Btn>

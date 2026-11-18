@@ -8,7 +8,7 @@ function DeliverControls({ onDeliver, busy, minDate }) {
   const [date, setDate] = useState(today());
   return (
     <div className="flex items-end gap-2">
-      <input type="date" aria-label="Delivery date" className={`${inputCls} w-auto`} value={date} min={minDate || undefined} onChange={(e) => setDate(e.target.value)} />
+      <input type="date" aria-label="Delivery date" className={inputCls.replace("w-full", "w-auto")} value={date} min={minDate || undefined} onChange={(e) => setDate(e.target.value)} />
       <Btn tone="good" onClick={() => onDeliver(date)} disabled={busy || !date} className="shrink-0">{busy ? "Saving…" : "Delivered"}</Btn>
     </div>
   );
