@@ -68,6 +68,7 @@ export default function ManagerPOsView({ pos, clientMap }) {
         Showing {filtered.length} of {pos.length}
       </div>
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden dark:bg-gray-900 dark:border-gray-800">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase dark:bg-gray-800/50 dark:text-gray-400">
             <tr>
@@ -111,6 +112,7 @@ export default function ManagerPOsView({ pos, clientMap }) {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

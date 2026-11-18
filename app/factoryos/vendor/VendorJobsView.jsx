@@ -172,9 +172,10 @@ export default function VendorJobsView({ jobs, vendorName, linked, unreadIds = [
                         URGENT
                       </span>
                     )}
-                    <span className="truncate">{j.item}</span>
-                    {j.brand && <span className="text-gray-500 dark:text-gray-400 shrink-0"> · {j.brand}</span>}
+                    {/* The item name must stay readable on a phone: it wraps, the brand goes underneath. */}
+                    <span className="min-w-0 break-words">{j.item}</span>
                   </div>
+                  {j.brand && <div className="text-xs text-gray-500 mt-0.5 dark:text-gray-400">{j.brand}</div>}
                   <div className="text-xs text-gray-500 mt-0.5 dark:text-gray-400">
                     J# {j.jNumber}
                     {j.printingType && <> · {j.printingType}</>}

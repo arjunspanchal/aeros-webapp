@@ -58,7 +58,7 @@ export default async function AdminJobDetail({ params }) {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/factoryos/manager" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
+        <Link href="/factoryos/manager" className="inline-block py-2 -my-2 text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
           ← All jobs
         </Link>
         <JobEditor

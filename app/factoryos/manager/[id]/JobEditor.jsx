@@ -359,8 +359,9 @@ export default function JobEditor({
   return (
     <div className="mt-4 space-y-5">
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
-        <div className="flex items-start justify-between gap-3">
-          <div>
+        {/* Phones: title on its own line, stage and actions wrap below it. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
               {job.item}
               {job.customItem && <span className="ml-2 align-middle rounded-md bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">Custom item</span>}
@@ -372,7 +373,7 @@ export default function JobEditor({
               J# {job.jNumber}{clientName && <> · {clientName}</>}{job.brand && <> · {job.brand}</>}{job.city && <> · {job.city}</>}
             </p>
           </div>
-          <div className="flex items-start gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:shrink-0 sm:items-start">
             <StageBadge stage={job.stage} />
             {(role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER) && job.sourcing !== "traded" && (
               <a
@@ -851,12 +852,12 @@ export default function JobEditor({
         ) : (
           <p className="text-sm text-gray-500 mb-4 dark:text-gray-400">No LR copies yet.</p>
         )}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <input
             type="file"
             accept="application/pdf,image/jpeg,image/png"
             onChange={(e) => setLrFile(e.target.files?.[0] || null)}
-            className="block text-sm text-gray-700 file:mr-3 file:py-1.5 file:px-3 file:border-0 file:rounded-md file:bg-blue-600 file:text-white file:text-xs hover:file:bg-blue-700 dark:text-gray-300"
+            className="block min-w-0 max-w-full text-sm text-gray-700 file:mr-3 file:py-1.5 file:px-3 file:border-0 file:rounded-md file:bg-blue-600 file:text-white file:text-xs hover:file:bg-blue-700 dark:text-gray-300"
           />
           <button
             type="button"

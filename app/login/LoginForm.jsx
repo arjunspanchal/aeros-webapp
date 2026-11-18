@@ -57,7 +57,8 @@ const SELECT_CLS =
 
 const TABS = [
   { key: "client", label: "Sign in" },
-  { key: "signup", label: "Sign up" },
+  // No "Sign up": the app is for the Aeros team only (Arjun, 18-Nov-2026).
+  // New people are added by an admin under User Access.
   { key: "admin",  label: "Admin"   },
 ];
 
@@ -232,14 +233,7 @@ export default function LoginForm() {
                 {busy ? "Sending…" : "Send code to email"}
               </Button>
               <p className="text-xs text-center text-ink-500">
-                New customer?{" "}
-                <button
-                  type="button"
-                  onClick={() => switchMode("signup")}
-                  className="text-royal-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-royal-600 rounded-sm"
-                >
-                  Create an account
-                </button>
+                For the Aeros team. Need access? Ask an admin to add you.
               </p>
             </form>
           )}

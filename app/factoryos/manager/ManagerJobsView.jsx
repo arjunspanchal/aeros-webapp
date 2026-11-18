@@ -232,7 +232,8 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
         ))}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-5">
+      {/* Phones: one row you swipe sideways, so the jobs start on the first screen. */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 [&>button]:shrink-0 [&>button]:min-w-[112px] sm:grid sm:grid-cols-6 sm:overflow-visible sm:[&>button]:min-w-0">
         <button
           onClick={() => setStage("open")}
           className={`p-3 rounded-lg text-left transition-colors ${stage === "open" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800"}`}
@@ -308,7 +309,81 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
         )}
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden dark:bg-gray-900 dark:border-gray-800">
+      {/* Phones: one card per job instead of a table that is twice the screen width. */}
+      <div className="sm:hidden">
+        <label className="mb-3 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+          Sort
+          <select
+            className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+            value={sort.key ? `${sort.key}:${sort.dir}` : ""}
+            onChange={(e) => {
+              const [key, dir] = e.target.value.split(":");
+              setSort(key ? { key, dir } : { key: null, dir: "asc" });
+            }}
+          >
+            <option value="">Needs attention first</option>
+            <option value="ready:asc">Ready date, earliest first</option>
+            <option value="ready:desc">Ready date, latest first</option>
+            <option value="stage:asc">Stage, start to finish</option>
+            <option value="stage:desc">Stage, finish to start</option>
+            <option value="customer:asc">Customer, A to Z</option>
+            <option value="qty:desc">Quantity, largest first</option>
+            <option value="jNumber:desc">Newest job first</option>
+            <option value="jNumber:asc">Oldest job first</option>
+          </select>
+        </label>
+        <ul className="space-y-2">
+          {filtered.map((j) => {
+            const client = j.clientIds.map((c) => clientMap[c]?.name).filter(Boolean).join(", ");
+            const late = isLate(j, today);
+            return (
+              <li key={j.id}>
+                <Link href={`/factoryos/manager/${j.id}`} className="block rounded-xl border border-gray-200 bg-white p-3 active:bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-gray-900 dark:text-white">{client || "—"}</div>
+                      {j.brand && j.brand !== client && <div className="truncate text-xs text-gray-500 dark:text-gray-400">{j.brand}</div>}
+                    </div>
+                    <span className="shrink-0"><StageBadge stage={j.stage} /></span>
+                  </div>
+                  <div className="mt-1.5 text-sm text-gray-800 dark:text-gray-200">
+                    {j.urgent && <span className="mr-1.5 inline-flex items-center rounded bg-red-100 px-1.5 py-0.5 align-middle text-[10px] font-semibold text-red-800 dark:bg-red-900/40 dark:text-red-200">URGENT</span>}
+                    {j.item}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="font-mono text-blue-700 dark:text-blue-400">J# {j.jNumber}</span>
+                    <span className={j.zohoSoNo ? "font-mono" : "text-amber-600 dark:text-amber-400"}>{j.zohoSoNo || "no SO"}</span>
+                    {j.qty != null && <span>{j.qty.toLocaleString("en-IN")} pcs</span>}
+                    {j.printingVendor && (
+                      <span>
+                        {j.printingVendor}
+                        {isPrinterLate(j, today) && <span className="ml-1 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-800 dark:bg-red-900/40 dark:text-red-200">LATE</span>}
+                      </span>
+                    )}
+                    <span className={late ? "font-semibold text-red-600 dark:text-red-400" : ""}>
+                      {j.productionDueDate ? `Ready ${formatDate(j.productionDueDate)}` : "No ready date"}
+                    </span>
+                  </div>
+                  {j.internalStatus && <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{j.internalStatus}</div>}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+        {filtered.length === 0 && (
+          <p className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+            No jobs match.
+            {line !== "all" && stage !== "all" && stageCountAll > 0 && (
+              <>
+                {" "}{stageCountAll} {stage} {stageCountAll === 1 ? "job is" : "jobs are"} in other lines.{" "}
+                <button type="button" onClick={() => setLine("all")} className="underline text-blue-700 dark:text-blue-400">Show all lines</button>
+              </>
+            )}
+          </p>
+        )}
+      </div>
+
+      <div className="hidden sm:block bg-white border border-gray-200 rounded-xl overflow-hidden dark:bg-gray-900 dark:border-gray-800">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-500 uppercase dark:text-gray-400">

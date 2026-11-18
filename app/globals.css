@@ -11,6 +11,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * Phones: a text box with type under 16px makes iPhones zoom the whole page
+ * in when it is tapped, and the page stays zoomed. Keep form text at 16px on
+ * small screens (found in the 18-Nov-2026 mobile check).
+ */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 @layer utilities {
   /*
    * Hide native scrollbar on overflow elements. Used by the mobile sub-tab

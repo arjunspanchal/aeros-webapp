@@ -20,7 +20,7 @@ export default async function AdminInventoryPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/factoryos/admin" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">← Admin</Link>
+        <Link href="/factoryos/admin" className="inline-block py-2 -my-2 text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">← Admin</Link>
         <div className="mt-4 flex items-start justify-between gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">RM Inventory</h1>
           <Link href="/factoryos/admin/rm-rolls" className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900">

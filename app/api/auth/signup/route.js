@@ -54,7 +54,15 @@ async function upsertClientForCompany({ company, contactPerson, contactEmail, co
   return created.id;
 }
 
+// Self sign-up is closed: the app is for the Aeros team only (Arjun,
+// 18-Nov-2026: "strictly for internal use only"). People are added by an admin
+// under User Access. The old flow below is kept for reference but unreachable.
+const SIGNUP_OPEN = false;
+
 export async function POST(req) {
+  if (!SIGNUP_OPEN) {
+    return Response.json({ error: "Sign-up is closed. Ask an Aeros admin to add you." }, { status: 403 });
+  }
   const body = await req.json().catch(() => ({}));
   const name = String(body.name || "").trim();
   const company = String(body.company || "").trim();
