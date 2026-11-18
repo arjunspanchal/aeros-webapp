@@ -3,43 +3,48 @@ import { useEffect, useRef, useState } from "react";
 import { inputCls, labelCls } from "@/app/factoryos/_components/ui";
 
 const num = (n) => (typeof n === "number" ? n.toLocaleString("en-IN") : n);
+const EMPTY = { loading: false, so: null, error: "", warn: "", linkedJobs: [], checked: "" };
 
 // Zoho SO number with a live, read-only lookup (customer, date, status, items
-// and quantities — never rates). Calls onResolved(so | null) after each check
-// so the parent can prefill the PO number or block saving.
-export default function ZohoSoField({ value, onChange, onResolved, required = true, label = "Zoho SO number", currentJobId = null }) {
-  const [state, setState] = useState({ loading: false, so: null, error: "", warn: "", linkedJobs: [], checked: "" });
+// and quantities — never rates). One job per SO ITEM (Arjun, 18-Nov-2026): an
+// SO with several items shows them as choices, and an item that already has a
+// job is greyed out. Calls onResolved(so | null) after each check so the
+// parent can prefill or block saving, and onLineChange(lineId, line) when the
+// item is picked (straight away when the SO has only one).
+export default function ZohoSoField({ value, onChange, onResolved, lineId = "", onLineChange, required = true, label = "Zoho SO number", currentJobId = null }) {
+  const [state, setState] = useState(EMPTY);
   const timer = useRef(null);
 
   async function check(raw) {
     const v = String(raw || "").trim();
-    if (!v) { setState({ loading: false, so: null, error: "", warn: "", linkedJobs: [], checked: "" }); onResolved && onResolved(null); return; }
+    if (!v) { setState(EMPTY); onResolved && onResolved(null); return; }
     setState((s) => ({ ...s, loading: true, error: "", warn: "" }));
     const res = await fetch(`/api/factoryos/zoho/so?number=${encodeURIComponent(v)}`);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { setState({ loading: false, so: null, error: data.error || "Lookup failed", warn: "", linkedJobs: [], checked: v }); onResolved && onResolved(null); return; }
+    if (!res.ok) { setState({ ...EMPTY, error: data.error || "Lookup failed", checked: v }); onResolved && onResolved(null); return; }
+    const others = (data.linkedJobs || []).filter((j) => j.id !== currentJobId);
     if (data.unreachable) {
-      const others = (data.linkedJobs || []).filter((j) => j.id !== currentJobId);
-      if (others.length) {
-        setState({ loading: false, so: null, error: `${data.number} already has job J# ${others.map((j) => j.jNumber).join(", ")}. One SO, one job.`, warn: "", linkedJobs: others, checked: v });
-        onResolved && onResolved(null);
-        return;
-      }
       // Zoho is down or over its daily limit: accept the number provisionally.
-      setState({ loading: false, so: null, error: "", warn: `Zoho isn't reachable right now. ${data.number} will be saved and checked automatically later. Make sure the number and customer are right.`, linkedJobs: [], checked: v });
+      const already = others.length ? ` It already has job J# ${others.map((j) => j.jNumber).join(", ")}; that is fine only if this job is for a different item on the SO.` : "";
+      setState({ ...EMPTY, warn: `Zoho isn't reachable right now. ${data.number} will be saved and checked automatically later. Make sure the number and customer are right.${already}`, linkedJobs: others, checked: v });
       onResolved && onResolved({ number: data.number, unverified: true });
       return;
     }
-    if (!data.found) { setState({ loading: false, so: null, error: `${data.number} is not in Zoho`, warn: "", linkedJobs: [], checked: v }); onResolved && onResolved(null); return; }
-    const others = (data.linkedJobs || []).filter((j) => j.id !== currentJobId);
-    if (others.length) {
-      // One SO, one job (Arjun, 18-Nov-2026).
-      setState({ loading: false, so: data.so, error: `${data.number} already has job J# ${others.map((j) => j.jNumber).join(", ")}. One SO, one job.`, warn: "", linkedJobs: others, checked: v });
+    if (!data.found) { setState({ ...EMPTY, error: `${data.number} is not in Zoho`, checked: v }); onResolved && onResolved(null); return; }
+    const lines = (data.so.lines || []).filter((l) => l.id);
+    if (others.length >= Math.max(lines.length, 1)) {
+      setState({ ...EMPTY, so: data.so, error: `${data.number} has ${Math.max(lines.length, 1)} item${lines.length === 1 ? "" : "s"} and already ${others.length} job${others.length === 1 ? "" : "s"} (J# ${others.map((j) => j.jNumber).join(", ")}). One SO item, one job.`, linkedJobs: others, checked: v });
       onResolved && onResolved(null);
       return;
     }
-    setState({ loading: false, so: data.so, error: "", warn: "", linkedJobs: [], checked: v });
+    setState({ ...EMPTY, so: data.so, linkedJobs: others, checked: v });
     onResolved && onResolved(data.so);
+    if (onLineChange) {
+      const free = lines.filter((l) => !others.some((j) => j.lineId === l.id));
+      const current = lines.find((l) => l.id === lineId && free.includes(l));
+      if (lines.length === 1) onLineChange(lines[0].id, lines[0]);
+      else if (!current) onLineChange("", null);
+    }
   }
 
   useEffect(() => {
@@ -50,6 +55,9 @@ export default function ZohoSoField({ value, onChange, onResolved, required = tr
   }, [value]);
 
   const so = state.so;
+  const lines = so ? (so.lines || []) : [];
+  const pickable = onLineChange && lines.filter((l) => l.id).length > 1 && !state.error;
+  const takenBy = (l) => state.linkedJobs.find((j) => j.lineId && j.lineId === l.id);
   return (
     <div className="sm:col-span-2">
       <label className={labelCls}>{label} {required && <span className="text-red-500">*</span>}</label>
@@ -69,12 +77,31 @@ export default function ZohoSoField({ value, onChange, onResolved, required = tr
             {so.number} · {so.customer} · {so.date} · <span className="uppercase">{so.status}</span>
             {so.reference ? <> · ref {so.reference}</> : null}
           </div>
-          {so.lines && so.lines.length > 0 && (
+          {pickable ? (
+            <fieldset className="mt-2">
+              <legend className="mb-1 font-medium text-gray-900 dark:text-white">This SO has {lines.length} items. Which one is this job for?</legend>
+              <div className="space-y-1">
+                {lines.map((l) => {
+                  const taken = takenBy(l);
+                  return (
+                    <label key={l.id} className={`flex items-start gap-2 rounded px-1.5 py-1 ${taken ? "opacity-60" : "cursor-pointer hover:bg-white/60 dark:hover:bg-black/20"}`}>
+                      <input type="radio" name={`so-line-${so.number}`} className="mt-0.5" disabled={!!taken} checked={lineId === l.id} onChange={() => onLineChange(l.id, l)} />
+                      <span>
+                        {l.name} — {num(l.qty)} {l.unit}
+                        {taken ? <span className="ml-1 font-medium">(already job J# {taken.jNumber})</span> : null}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {!lineId && <p className="mt-1 font-medium text-amber-700 dark:text-amber-300">Pick the item to continue.</p>}
+            </fieldset>
+          ) : lines.length > 0 && (
             <ul className="mt-1 space-y-0.5">
-              {so.lines.slice(0, 8).map((l, i) => (
+              {lines.slice(0, 8).map((l, i) => (
                 <li key={i}>{l.name} — {num(l.qty)} {l.unit}{l.invoiced ? ` (${num(l.invoiced)} invoiced)` : ""}</li>
               ))}
-              {so.lines.length > 8 && <li>+ {so.lines.length - 8} more lines</li>}
+              {lines.length > 8 && <li>+ {lines.length - 8} more lines</li>}
             </ul>
           )}
         </div>

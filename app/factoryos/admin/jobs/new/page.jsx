@@ -100,6 +100,7 @@ export default async function NewJobPage({ searchParams }) {
           canOverrideRm={role === ROLES.ADMIN}
           prefill={prefill}
           initialSo={typeof searchParams?.so === "string" ? searchParams.so.slice(0, 60) : ""}
+          initialLine={typeof searchParams?.line === "string" ? searchParams.line.slice(0, 40) : ""}
           products={products}
           catalogError={catalogError}
           // Only what the paper picker shows — no rates or rate notes go to the

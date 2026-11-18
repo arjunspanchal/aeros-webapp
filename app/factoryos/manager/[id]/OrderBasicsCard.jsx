@@ -28,6 +28,8 @@ export default function OrderBasicsCard({ job, canEdit, onSaved, salesManagers =
   // custom item has a typed name and size.
   const nameLocked = !!job.masterSku && !job.customItem;
   const [soOk, setSoOk] = useState(!!job.zohoSoNo);
+  const [soLine, setSoLine] = useState(job.zohoSoLineId || "");
+  const [soLines, setSoLines] = useState(0);
   if (!canEdit || job.closedAt) return null;
   const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setErr(""); };
   const manager = salesManagers.find((m) => m.id === job.customerManagerId);
@@ -44,6 +46,11 @@ export default function OrderBasicsCard({ job, canEdit, onSaved, salesManagers =
     if (form.zohoSoNo.trim() !== (job.zohoSoNo || "")) {
       if (form.zohoSoNo.trim() && !soOk) { setErr("That Zoho SO number didn't check out"); return; }
       patch.zohoSoNo = form.zohoSoNo.trim();
+    }
+    // Which item of the SO this job is for (one job per SO item).
+    if (form.zohoSoNo.trim() && soLine !== (job.zohoSoLineId || "")) {
+      if (soLine) patch.zohoSoLineId = soLine;
+      else if (soLines > 1) { setErr("This SO has several items. Pick which item this job is for."); return; }
     }
     if (nameLocked) delete patch.item;
     if (job.customItem && (form.itemSize || "") !== (job.itemSize || "")) patch.itemSize = form.itemSize.trim();
@@ -67,6 +74,7 @@ export default function OrderBasicsCard({ job, canEdit, onSaved, salesManagers =
         {job.zohoSoNo ? (
           <div className="text-xs text-gray-600 dark:text-gray-300">
             Zoho SO: <span className="font-mono font-medium text-gray-900 dark:text-white">{job.zohoSoNo}</span>
+            {job.zohoSoLineName && <span className="ml-1 text-gray-500 dark:text-gray-400">· {job.zohoSoLineName}</span>}
             {job.zohoSoUnverified && <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">not checked in Zoho yet</span>}
           </div>
         ) : (
@@ -131,7 +139,9 @@ export default function OrderBasicsCard({ job, canEdit, onSaved, salesManagers =
         <ZohoSoField
           value={form.zohoSoNo}
           onChange={(v) => { set("zohoSoNo", v); setSoOk(false); }}
-          onResolved={(so) => setSoOk(!!so)}
+          onResolved={(so) => { setSoOk(!!so); setSoLines(((so && so.lines) || []).filter((l) => l.id).length); }}
+          lineId={soLine}
+          onLineChange={(id) => setSoLine(id)}
           currentJobId={job.id}
         />
         <div>

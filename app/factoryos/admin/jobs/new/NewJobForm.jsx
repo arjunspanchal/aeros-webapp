@@ -89,6 +89,7 @@ export default function NewJobForm({
   prefill = null,
   // Zoho SO number handed over from the Zoho check page ("Raise job").
   initialSo = "",
+  initialLine = "",
 }) {
   const [overrideShortRm, setOverrideShortRm] = useState(false);
   const router = useRouter();
@@ -123,6 +124,7 @@ export default function NewJobForm({
     stage: STAGES[0],
     poNumber: "",
     zohoSoNo: initialSo || "",
+    zohoSoLineId: initialLine || "", // which item of the SO this job is for
     linkClientToZoho: false,
     // RM
     rmStockLineId: "",
@@ -352,6 +354,11 @@ export default function NewJobForm({
       setBusy(false);
       return;
     }
+    if ((soInfo.lines || []).filter((l) => l.id).length > 1 && !form.zohoSoLineId) {
+      setErr(`${soInfo.number} has several items. Pick which item this job is for.`);
+      setBusy(false);
+      return;
+    }
     const pickedProduct = form.customItem ? null : products.find((p) => p.id === (form.variantId || form.productId));
     if (!form.customItem && !pickedProduct) {
       setErr("Pick the item from the list, or tick 'Custom item' if it is not in the catalogue.");
@@ -457,6 +464,13 @@ export default function NewJobForm({
         <ZohoSoField
           value={form.zohoSoNo}
           onChange={(v) => set("zohoSoNo", v)}
+          lineId={form.zohoSoLineId}
+          onLineChange={(id, line) => setForm((f) => ({
+            ...f,
+            zohoSoLineId: id,
+            // The SO item's quantity is the order quantity; fill it if blank.
+            qty: !f.qty && line && line.qty ? String(line.qty) : f.qty,
+          }))}
           onResolved={(so) => {
             setSoInfo(so);
             // The SO's reference is usually the customer's PO; fill it if blank.

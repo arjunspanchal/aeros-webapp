@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/auth/session";
 import { requireInternal } from "@/lib/auth/policy";
 import { getSalesOrderByNumber, normaliseSoNumber, zohoConfigured } from "@/lib/zoho/books";
-import { dbSelect } from "@/lib/db/supabase";
+import { jobsOnSo } from "@/lib/factoryos/zohoSoCheck";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,12 +16,7 @@ export async function GET(req) {
   if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
   const number = normaliseSoNumber(new URL(req.url).searchParams.get("number"));
   if (!number) return Response.json({ error: "Enter a Zoho SO number" }, { status: 400 });
-  const jobs = await dbSelect("jobs", {
-    select: "id,airtable_id,j_number,item,stage,qty",
-    filter: { zoho_so_no: `ilike.${number}` },
-    limit: 50,
-  }).catch(() => []);
-  const linkedJobs = (jobs || []).map((j) => ({ id: j.airtable_id || j.id, jNumber: j.j_number, item: j.item, stage: j.stage, qty: j.qty }));
+  const linkedJobs = (await jobsOnSo(number)).map((j) => ({ id: j.id, jNumber: j.jNumber, item: j.item, stage: j.stage, qty: j.qty, lineId: j.lineId, lineName: j.lineName }));
   // Zoho not connected or not reachable (e.g. the daily API limit): the form
   // may still save the number, flagged "not checked yet" (Arjun, 18-Nov-2026).
   if (!zohoConfigured()) return Response.json({ number, found: null, unreachable: true, so: null, linkedJobs });
