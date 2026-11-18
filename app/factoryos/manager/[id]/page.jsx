@@ -8,6 +8,8 @@ import JobEditor from "./JobEditor";
 import { listRmStockOptions } from "@/lib/factoryos/rmStock";
 import { stepContext, listOutsourcers } from "@/lib/factoryos/transitions";
 
+export const metadata = { title: "Job — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 export default async function ManagerJobDetail({ params }) {

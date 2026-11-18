@@ -6,6 +6,8 @@ import { listJobsForSession, listClients, listUsers } from "@/lib/factoryos/repo
 import StatusChart from "@/app/factoryos/_components/StatusChart";
 import { StageBadge, formatDate } from "@/app/factoryos/_components/ui";
 
+export const metadata = { title: "Dashboard — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 // FactoryOS admin dashboard. Until this rewrite, the dashboard was a row of

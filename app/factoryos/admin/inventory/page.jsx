@@ -5,6 +5,8 @@ import { listRawMaterials } from "@/lib/factoryos/repo";
 import { listMasterPapers } from "@/lib/paper-rm";
 import InventoryAdmin from "./InventoryAdmin";
 
+export const metadata = { title: "RM inventory — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminInventoryPage() {

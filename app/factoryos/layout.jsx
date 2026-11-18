@@ -3,7 +3,7 @@ import Footer from "@/app/components/Footer";
 import { getSession } from "@/lib/hub/session";
 import ModuleShell from "@/app/_components/ModuleShell";
 import ModuleSidebar from "@/app/_components/ModuleSidebar";
-import { buildFactoryosSections } from "./_components/factoryosSections";
+import { buildFactoryosSections, buildFactoryosMobileTabs } from "./_components/factoryosSections";
 import { myOpenTaskCount } from "@/lib/factoryos/tasks";
 
 // Wraps every /factoryos page with the shared AppHeader + Footer. For
@@ -16,6 +16,8 @@ export default async function FactoryosLayout({ children }) {
   const sections = buildFactoryosSections(role, !!session?.isAdmin);
   const showShell = sections.length > 0;
 
+  const mobileTabs = showShell ? buildFactoryosMobileTabs(role, !!session?.isAdmin) : [];
+
   // Badge the Tasks link with the open tasks waiting on this person.
   if (showShell) {
     const mine = await myOpenTaskCount(session);
@@ -24,16 +26,19 @@ export default async function FactoryosLayout({ children }) {
         const link = section.items.find((it) => it.href === "/factoryos/tasks");
         if (link) { link.badge = mine; break; }
       }
+      const tab = mobileTabs.find((it) => it.href === "/factoryos/tasks");
+      if (tab) tab.badge = mine;
     }
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950">
+    <div className={`min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 ${mobileTabs.length ? "pb-14 md:pb-0" : ""}`}>
       <AppHeader session={session} />
       {showShell ? (
         <ModuleShell
           label="FactoryOS"
           sidebar={<ModuleSidebar sections={sections} ariaLabel="FactoryOS sections" />}
+          mobileTabs={mobileTabs}
         >
           {children}
         </ModuleShell>

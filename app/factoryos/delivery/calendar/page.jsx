@@ -4,6 +4,8 @@ import { listDeliveryLines } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import DeliveryCalendarClient from "./DeliveryCalendarClient";
 
+export const metadata = { title: "Production Calendar — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 // Month calendar of production ready dates. Internal staff only. A job lands on the day its goods are due to be

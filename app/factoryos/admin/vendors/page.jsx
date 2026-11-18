@@ -4,6 +4,8 @@ import { getSession, requireManager } from "@/lib/auth/session";
 import { listVendors } from "@/lib/factoryos/repo";
 import VendorsAdmin from "./VendorsAdmin";
 
+export const metadata = { title: "Vendors — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminVendorsPage() {

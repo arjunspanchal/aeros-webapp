@@ -1,11 +1,11 @@
 // Sidebar section config for FactoryOS staff (FE/FM/AM/Admin).
 // Customers don't see this — the layout doesn't render the shell for them.
 //
-// Visibility rules layered into the section build:
-//   - "Daily" + "Resources" + "HR" overview: all staff
-//   - "Admin" group (Dashboard, New job, Production runs, RM, Coating,
-//     Machines, Vendors, Users): factory_manager / admin only
-//     (account_manager + factory_executive don't get admin-tree access)
+// Groups (18-Nov-2026 tidy-up, was six groups):
+//   - "Work": all staff. Dashboard only for factory_manager / admin.
+//   - "Warehouse": all staff (sales see no Stock); first for the warehouse team.
+//   - "Manage": factory_manager / admin only.
+//   - "Help": all staff; the Assistant only for factory_manager / admin.
 //   - Paper rates moved to Calculator admin (17-Nov-2026): no rates in FactoryOS
 
 import { ROLES } from "@/lib/factoryos/constants";
@@ -22,17 +22,19 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
 
   const sections = [];
 
-  // Daily — every internal staff sees jobs + customer POs.
+  // Work — what everybody opens every day. Managers land on the Dashboard.
   sections.push({
-    label: "Daily",
+    label: "Work",
     items: [
-      { href: "/factoryos/manager",     label: "Jobs",          exact: false },
-      { href: "/factoryos/tasks",       label: "Tasks",         exact: false },
+      ...(adminish ? [{ href: "/factoryos/admin", label: "Dashboard", exact: true }] : []),
+      // The admin job page lives under /factoryos/admin/jobs/<id>; it is still "Jobs".
+      { href: "/factoryos/manager", label: "Jobs", also: ["/factoryos/admin/jobs"], not: ["/factoryos/manager/pos", "/factoryos/admin/jobs/new"] },
+      { href: "/factoryos/tasks", label: "Tasks" },
       { href: "/factoryos/delivery/calendar", label: "Production Calendar", exact: true },
-      { href: "/factoryos/manager/pos", label: "Customer POs",  exact: false },
-      { href: "/factoryos/how-to",      label: "How to use",    exact: true },
-      // Chat assistant — raises / changes jobs, so the same audience as + New job.
-      ...(adminish ? [{ href: "/factoryos/assistant", label: "Assistant", exact: true }] : []),
+      { href: "/factoryos/manager/pos", label: "Customer POs" },
+      // Documents that go out with the goods. Factory managers write them,
+      // the rest of the team can open and print.
+      { href: "/factoryos/qc", label: "COA generator" },
     ],
   });
 
@@ -53,46 +55,56 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
   if (isWH) sections.unshift(warehouse);
   else sections.push(warehouse);
 
-  // QC — documents that go out with the goods. COA first; factory managers
-  // write them, the rest of the team can open and print.
-  sections.push({
-    label: "QC",
-    items: [
-      { href: "/factoryos/qc", label: "COA generator", exact: false },
-    ],
-  });
-
-  // Admin tree — FM + Admin only.
+  // Manage — FM + Admin only: raising jobs, paper, checks and the lists
+  // behind them. (Paper rates live in Calculator admin: no rates in FactoryOS.)
   if (adminish) {
     sections.push({
-      label: "Admin",
+      label: "Manage",
       items: [
-        { href: "/factoryos/admin",          label: "Dashboard", exact: true },
-        { href: "/factoryos/admin/jobs/new", label: "+ New job", exact: true },
-        { href: "/factoryos/admin/runs",     label: "Production runs" },
-        { href: "/factoryos/admin/zoho-check", label: "Zoho check" },
-      ],
-    });
-    sections.push({
-      label: "Inventory & RM",
-      items: [
+        { href: "/factoryos/admin/jobs/new",  label: "+ New job", exact: true },
+        { href: "/factoryos/admin/runs",      label: "Production runs" },
         { href: "/factoryos/admin/inventory", label: "RM inventory" },
-      ],
-    });
-    // HR is now its own top-level module (/hr), gated by the independent `hr`
-    // entitlement — no longer part of the FactoryOS sidebar.
-    sections.push({
-      label: "Resources",
-      items: [
-        { href: "/factoryos/admin/clients",  label: "Customers" },
-        { href: "/factoryos/admin/vendors",  label: "Vendors" },
-        { href: "/factoryos/admin/machines", label: "Machines" },
-        // User management moved to /admin/access (hub-level) — covers
-        // roles + pricing + client links in one editor.
+        { href: "/factoryos/admin/zoho-check", label: "Zoho check" },
+        { href: "/factoryos/admin/clients",   label: "Customers" },
+        { href: "/factoryos/admin/vendors",   label: "Vendors" },
+        { href: "/factoryos/admin/machines",  label: "Machines" },
+        // User management lives at /admin/access (hub-level): roles, pricing
+        // and client links in one editor.
         ...(isAdmin ? [{ href: "/admin/access", label: "User Access" }] : []),
       ],
     });
   }
 
+  sections.push({
+    label: "Help",
+    items: [
+      { href: "/factoryos/how-to", label: "How to use", exact: true },
+      // Chat assistant — raises / changes jobs, so the same audience as + New job.
+      ...(adminish ? [{ href: "/factoryos/assistant", label: "Assistant", exact: true }] : []),
+    ],
+  });
+
   return sections;
+}
+
+// The few screens each role opens most, for the phone tab bar. Everything
+// else is one tap away under "More".
+export function buildFactoryosMobileTabs(role, isAdminCookie = false) {
+  const isAdmin = isAdminCookie || role === ROLES.ADMIN;
+  const jobs = { href: "/factoryos/manager", label: "Jobs", also: ["/factoryos/admin/jobs"], not: ["/factoryos/manager/pos", "/factoryos/admin/jobs/new"] };
+  const tasks = { href: "/factoryos/tasks", label: "Tasks" };
+  if (isAdmin) return [{ href: "/factoryos/admin", label: "Dashboard", exact: true }, jobs, tasks, { href: "/factoryos/warehouse", label: "Warehouse" }];
+  if (role === ROLES.WAREHOUSE) {
+    return [
+      { href: "/factoryos/warehouse", label: "Today", exact: true },
+      { href: "/factoryos/warehouse/inward", label: "Inward" },
+      { href: "/factoryos/warehouse/outward", label: "Outward" },
+      tasks,
+    ];
+  }
+  if (role === ROLES.ACCOUNT_MANAGER) return [jobs, tasks, { href: "/factoryos/manager/pos", label: "POs" }, { href: "/factoryos/delivery/calendar", label: "Calendar", exact: true }];
+  if (role === ROLES.FACTORY_MANAGER || role === ROLES.FACTORY_EXECUTIVE) {
+    return [jobs, tasks, { href: "/factoryos/delivery/calendar", label: "Calendar", exact: true }, { href: "/factoryos/warehouse", label: "Warehouse" }];
+  }
+  return [];
 }

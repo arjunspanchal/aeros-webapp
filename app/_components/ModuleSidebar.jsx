@@ -13,12 +13,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-function isActive(pathname, href, exact = false) {
-  if (exact) return pathname === href;
-  if (pathname === href) return true;
-  return pathname.startsWith(`${href}/`);
-}
+import { isNavActive } from "./navActive";
 
 export default function ModuleSidebar({ sections, ariaLabel = "Module sections" }) {
   const pathname = usePathname();
@@ -34,7 +29,7 @@ export default function ModuleSidebar({ sections, ariaLabel = "Module sections" 
           </h3>
           <ul className="space-y-0.5">
             {section.items.map((item) => {
-              const active = isActive(pathname, item.href, item.exact);
+              const active = isNavActive(pathname, item);
               return (
                 <li key={item.href}>
                   <Link

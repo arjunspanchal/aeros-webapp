@@ -5,6 +5,8 @@ import { dbSelect, dbUpdate } from "@/lib/db/supabase";
 import { getSalesOrderByNumber, listSalesOrdersSince, zohoConfigured } from "@/lib/zoho/books";
 import NoJobButton from "./NoJobButton";
 
+export const metadata = { title: "Zoho check — FactoryOS" };
+
 // SOs from this date on must each get a job (one SO, one job; Arjun,
 // 18-Nov-2026). Older SOs are history and are not chased.
 const NEW_SO_FROM = "2026-11-18";

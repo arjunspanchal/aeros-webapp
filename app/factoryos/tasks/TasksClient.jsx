@@ -300,7 +300,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
         <TaskPanel task={openTask} people={people} jobs={jobs} meId={meId} meName={meName} canDeleteAny={canDeleteAny} onPatch={patch} onDelete={remove} onClose={close} />
       )}
       {toast && (
-        <div role="status" className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-white dark:text-gray-900">
+        <div role="status" className="fixed bottom-20 left-1/2 z-50 flex w-max max-w-[92vw] -translate-x-1/2 items-center gap-3 md:bottom-4 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-white dark:text-gray-900">
           <span>{toast.msg}</span>
           {toast.action && (
             <a href={toast.action.href} target="_blank" rel="noopener noreferrer" onClick={() => setToast(null)} className="rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700">

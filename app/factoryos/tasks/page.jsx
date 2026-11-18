@@ -3,6 +3,8 @@ import { getSession, requireInternal, requireManager } from "@/lib/auth/session"
 import { listTasks, listTaskPeople, listJobsForTaskPicker, sessionUser, actorName } from "@/lib/factoryos/tasks";
 import TasksClient from "./TasksClient";
 
+export const metadata = { title: "Tasks — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 // Team task tracker (Arjun, 18-Nov-2026): everyone on the team sees every

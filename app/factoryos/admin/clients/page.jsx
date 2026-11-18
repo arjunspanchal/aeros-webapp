@@ -6,6 +6,8 @@ import { airtableList, TABLES } from "@/lib/factoryos/airtable";
 import { ROLES } from "@/lib/factoryos/constants";
 import ClientsAdmin from "./ClientsAdmin";
 
+export const metadata = { title: "Customers — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 async function listBrandManagers() {

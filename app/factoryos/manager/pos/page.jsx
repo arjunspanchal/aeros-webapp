@@ -5,6 +5,8 @@ import { listCustomerPOs, listClients } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 import ManagerPOsView from "./ManagerPOsView";
 
+export const metadata = { title: "Customer POs — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 export default async function ManagerPOsPage() {

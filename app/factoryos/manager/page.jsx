@@ -6,6 +6,8 @@ import { findOne } from "@/lib/db/supabase";
 import { cleanLineKeys } from "@/lib/factoryos/lines";
 import { ROLES } from "@/lib/factoryos/constants";
 
+export const metadata = { title: "Jobs — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 export default async function ManagerPage() {

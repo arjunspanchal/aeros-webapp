@@ -68,21 +68,9 @@ function subTabsFor(pathname, session) {
     return [];
   }
 
-  if (active === "factoryos") {
-    const role = session?.modules?.factoryos;
-    const internal = role === "admin" || role === "account_manager" || role === "factory_manager" || role === "factory_executive" || role === "warehouse";
-    const adminish = role === "admin" || role === "factory_manager";
-    const tabs = [];
-    if (internal) {
-      tabs.push({ href: "/factoryos/manager",      label: "Jobs",         short: "Jobs" });
-      tabs.push({ href: "/factoryos/tasks",        label: "Tasks",        short: "Tasks" });
-      tabs.push({ href: "/factoryos/manager/pos",  label: "Customer POs", short: "POs"  });
-    }
-    if (adminish) {
-      tabs.push({ href: "/factoryos/admin", label: "Admin", short: "Admin" });
-    }
-    return tabs;
-  }
+  // FactoryOS has a sidebar on desktop and a bottom tab bar on phones
+  // (app/_components/ModuleShell.jsx), so it shows no sub-tab row.
+  if (active === "factoryos") return [];
 
   if (active === "hr") {
     return [

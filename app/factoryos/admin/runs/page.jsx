@@ -4,6 +4,8 @@ import { getSession, requireManager } from "@/lib/auth/session";
 import { listRuns, listMachines, listJobsForSession } from "@/lib/factoryos/repo";
 import RunsAdmin from "./RunsAdmin";
 
+export const metadata = { title: "Production runs — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminRunsPage() {
