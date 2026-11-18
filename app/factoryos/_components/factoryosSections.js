@@ -27,6 +27,7 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
     label: "Daily",
     items: [
       { href: "/factoryos/manager",     label: "Jobs",          exact: false },
+      { href: "/factoryos/tasks",       label: "Tasks",         exact: false },
       { href: "/factoryos/delivery/calendar", label: "Production Calendar", exact: true },
       { href: "/factoryos/manager/pos", label: "Customer POs",  exact: false },
       { href: "/factoryos/how-to",      label: "How to use",    exact: true },

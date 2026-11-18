@@ -75,6 +75,7 @@ function subTabsFor(pathname, session) {
     const tabs = [];
     if (internal) {
       tabs.push({ href: "/factoryos/manager",      label: "Jobs",         short: "Jobs" });
+      tabs.push({ href: "/factoryos/tasks",        label: "Tasks",        short: "Tasks" });
       tabs.push({ href: "/factoryos/manager/pos",  label: "Customer POs", short: "POs"  });
     }
     if (adminish) {

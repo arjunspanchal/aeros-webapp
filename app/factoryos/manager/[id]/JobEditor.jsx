@@ -13,6 +13,7 @@ import CloseJobCard from "./CloseJobCard";
 import OrderBasicsCard from "./OrderBasicsCard";
 import StepCard from "./StepCard";
 import { V1 } from "@/lib/factoryos/v1";
+import JobTasksCard from "@/app/factoryos/tasks/JobTasksCard";
 
 export default function JobEditor({
   job: initialJob,
@@ -763,6 +764,8 @@ export default function JobEditor({
           canPush={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER}
         />
       )}
+
+      <JobTasksCard jNumber={job.jNumber} />
 
       <JobThread jobId={job.id} viewerRole="team" title="Messages & files (team + printer)" />
 
