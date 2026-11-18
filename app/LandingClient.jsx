@@ -160,7 +160,7 @@ function useReveal() {
 const NAV_LINKS = [
   { label: 'Catalog', href: '/catalog' },
   { label: 'Calculator', href: '/calculator' },
-  { label: 'Sign in', href: '/login' },
+  { label: 'Sign in', href: '/hub' },
 ];
 
 const Nav = () => (
@@ -220,6 +220,24 @@ const Nav = () => (
           WhatsApp
         </a>
       </div>
+      {/* Phones: the menu above is hidden, which left no way to sign in except
+          through the calculator buttons (and sign-in then landed on the
+          calculator). /hub sends a signed-out visitor to sign-in and back. */}
+      <Link
+        href="/hub"
+        className="md:hidden inline-flex items-center transition-opacity hover:opacity-90"
+        style={{
+          fontFamily: FONT_SANS,
+          fontSize: '14px',
+          fontWeight: 600,
+          color: C.white,
+          background: C.ink900,
+          borderRadius: '999px',
+          padding: '9px 18px',
+        }}
+      >
+        Sign in
+      </Link>
     </div>
   </nav>
 );
