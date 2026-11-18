@@ -44,6 +44,20 @@ function LinePill({ active, onClick, label, count }) {
   );
 }
 
+// Sortable columns of the jobs table, in display order. `value` is what a
+// row sorts by; "" means "nothing here" and always sorts last.
+const SORT_COLUMNS = {
+  jNumber: { label: "J#", value: (j) => String(j.jNumber || "") },
+  customer: { label: "Customer / Brand", value: (j, clientMap) => `${j.clientIds.map((c) => clientMap[c]?.name || "").join(" ")} ${j.brand || ""}`.trim() },
+  item: { label: "Item", value: (j) => String(j.item || "") },
+  qty: { label: "Qty", right: true, value: (j) => (typeof j.qty === "number" ? j.qty : "") },
+  printer: { label: "Printer", value: (j) => String(j.printingVendor || "") },
+  // By the order a job moves through the factory, not A to Z.
+  stage: { label: "Stage", value: (j) => (STAGES.indexOf(j.stage) >= 0 ? STAGES.indexOf(j.stage) : "") },
+  internal: { label: "Internal", value: (j) => String(j.internalStatus || "") },
+  ready: { label: "Ready date", value: (j) => String(j.productionDueDate || "").slice(0, 10) },
+};
+
 export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLines = null, meId = null }) {
   const searchParams = useSearchParams();
   const initialStage  = (() => {
@@ -77,6 +91,13 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
   const myCount = meId ? jobs.filter((j) => j.customerManagerId === meId).length : 0;
   const [dueFilter, setDueFilter] = useState(initialDue);
   const today = useMemo(() => todayIso(), []);
+  // Column sort. key null = the default work order (urgent, late, ready date).
+  // Click a heading: A→Z / low→high; again: the other way; a third time: back
+  // to the default order.
+  const [sort, setSort] = useState({ key: null, dir: "asc" });
+  const toggleSort = (key) => setSort((cur) => (
+    cur.key !== key ? { key, dir: "asc" } : cur.dir === "asc" ? { key, dir: "desc" } : { key: null, dir: "asc" }
+  ));
 
   const clients = useMemo(() => {
     const seen = new Set();
@@ -121,10 +142,23 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
       const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.printingVendor} ${j.poNumber} ${j.zohoSoNo || ""} ${clientName} ${j.internalStatus}`.toLowerCase();
       return hay.includes(term);
     })
-    // Work order: open urgent jobs first, then late (ready date passed, not
-    // ready yet), then by ready date (soonest first); undated last; finished
-    // jobs at the bottom, newest first.
     .sort((a, b) => {
+      // A column heading was clicked: sort by that column. Rows with nothing
+      // in that column always go last, whichever way the sort runs.
+      if (sort.key) {
+        const col = SORT_COLUMNS[sort.key];
+        const va = col.value(a, clientMap), vb = col.value(b, clientMap);
+        const ea = va === "" || va == null, eb = vb === "" || vb == null;
+        if (ea !== eb) return ea ? 1 : -1;
+        const cmp = typeof va === "number" && typeof vb === "number"
+          ? va - vb
+          : String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: "base" });
+        if (cmp !== 0) return sort.dir === "asc" ? cmp : -cmp;
+        return String(b.jNumber).localeCompare(String(a.jNumber), undefined, { numeric: true });
+      }
+      // Default work order: open urgent jobs first, then late (ready date
+      // passed, not ready yet), then by ready date (soonest first); undated
+      // last; finished jobs at the bottom, newest first.
       const rank = (j) => (DONE.has(j.stage) ? 4 : j.urgent ? 0 : isLate(j, today) ? 1 : j.productionDueDate ? 2 : 3);
       const ra = rank(a), rb = rank(b);
       if (ra !== rb) return ra - rb;
@@ -132,7 +166,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
       const da = a.productionDueDate || "9999", db = b.productionDueDate || "9999";
       return da < db ? -1 : da > db ? 1 : 0;
     });
-  }, [lineJobs, q, stage, clientId, urgentOnly, lateOnly, dueFilter, today, clientMap, factoryView]);
+  }, [lineJobs, q, stage, clientId, urgentOnly, lateOnly, dueFilter, today, clientMap, factoryView, sort, mineOnly, meId]);
   const printerLateCount = useMemo(() => lineJobs.filter((j) => isPrinterLate(j, today)).length, [lineJobs, today]);
 
   // Urgent only counts open jobs — a dispatched job is no longer urgent.
@@ -169,6 +203,12 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Jobs</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
             {role === "account_manager" ? (mineOnly ? "My jobs" : "All jobs") : line === "mine" ? describeLines(myLines) : line === "all" ? "All jobs" : LINE_LABEL[line]} · {filtered.length} shown · {openCount} open · {lineJobs.length - openCount} done
+            {sort.key && (
+              <>
+                {" · sorted by "}{SORT_COLUMNS[sort.key].label.toLowerCase()}{" "}
+                <button type="button" onClick={() => setSort({ key: null, dir: "asc" })} className="text-blue-600 hover:underline dark:text-blue-400">back to default order</button>
+              </>
+            )}
           </p>
         </div>
         {/* Mirrors the create-job allow-list: admin / factory manager only. */}
@@ -273,14 +313,22 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-500 uppercase dark:text-gray-400">
               <tr>
-                <th className="text-left px-4 py-2 font-medium">J#</th>
-                <th className="text-left px-4 py-2 font-medium">Customer / Brand</th>
-                <th className="text-left px-4 py-2 font-medium">Item</th>
-                <th className="text-right px-4 py-2 font-medium">Qty</th>
-                <th className="text-left px-4 py-2 font-medium">Printer</th>
-                <th className="text-left px-4 py-2 font-medium">Stage</th>
-                <th className="text-left px-4 py-2 font-medium">Internal</th>
-                <th className="text-left px-4 py-2 font-medium">Ready date</th>
+                {Object.entries(SORT_COLUMNS).map(([key, col]) => {
+                  const on = sort.key === key;
+                  return (
+                    <th key={key} aria-sort={on ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className={`px-4 py-2 font-medium ${col.right ? "text-right" : "text-left"}`}>
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(key)}
+                        title={on ? (sort.dir === "asc" ? "Sorted: click to reverse" : "Sorted: click for the default order") : `Sort by ${col.label}`}
+                        className={`inline-flex items-center gap-1 uppercase hover:text-gray-900 dark:hover:text-white ${on ? "text-gray-900 dark:text-white" : ""}`}
+                      >
+                        {col.label}
+                        <span aria-hidden className={on ? "" : "opacity-30"}>{on ? (sort.dir === "asc" ? "▲" : "▼") : "↕"}</span>
+                      </button>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
