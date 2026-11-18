@@ -6,8 +6,7 @@ import DeliveryCalendarClient from "./DeliveryCalendarClient";
 
 export const dynamic = "force-dynamic";
 
-// Month calendar of production ready dates. Internal staff only, same gate as
-// the Delivery Plan board. A job lands on the day its goods are due to be
+// Month calendar of production ready dates. Internal staff only. A job lands on the day its goods are due to be
 // ready at the factory — the only date FactoryOS tracks (17-Nov-2026).
 export default async function DeliveryCalendarPage() {
   const session = getSession();

@@ -144,7 +144,7 @@ export async function GET() {
 
   if (internalFactoryos) {
     tasks.jobsTotal = safe(() => dbCount("jobs"), 0);
-    tasks.jobsOpen = safe(() => dbCount("jobs", { stage: "neq.Delivered" }), 0);
+    tasks.jobsOpen = safe(() => dbCount("jobs", { stage: "not.in.(Dispatched,Delivered)" }), 0);
     tasks.pos = safe(() => dbCount("customer_pos"), 0);
     tasks.factoryosSpark = dailySpark("job_status_updates", "created_at");
   }

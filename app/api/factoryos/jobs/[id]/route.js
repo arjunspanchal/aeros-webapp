@@ -19,7 +19,7 @@ import { STAGES, ROLES, canUpdateStage } from "@/lib/factoryos/constants";
 import { routeAt } from "@/lib/factoryos/routes";
 import { cleanFeatures } from "@/lib/factoryos/jobOptions";
 import { getSalesOrderByNumber, normaliseSoNumber, zohoConfigured } from "@/lib/zoho/books";
-import { dbSelect } from "@/lib/db/supabase";
+import { dbSelect, dbUpdate } from "@/lib/db/supabase";
 
 // Roles allowed to remove a job entirely. Account managers + customers can
 // only update fields, never destroy the row + its timeline.
@@ -194,6 +194,7 @@ export async function PATCH(req, { params }) {
     // Zoho SO link: managers only; a new number is checked live against Zoho;
     // removing it is admin-only. Every change goes on the timeline.
     let soNote = "";
+    let soUnverified = null; // true = flag, false = clear, null = leave
     if (body.zohoSoNo !== undefined) {
       if (!requireManager(session)) return Response.json({ error: "Not allowed to change the Zoho SO number" }, { status: 403 });
       const next = normaliseSoNumber(body.zohoSoNo);
@@ -203,23 +204,29 @@ export async function PATCH(req, { params }) {
           if (!requireAdminStrict(session)) return Response.json({ error: "Only an admin can remove the Zoho SO number." }, { status: 403 });
           soNote = `Zoho SO removed (was ${prev})`;
         } else {
-          if (!zohoConfigured()) return Response.json({ error: "Zoho is not connected, so the SO number can't be checked." }, { status: 503 });
-          let so;
-          try { so = await getSalesOrderByNumber(next); }
-          catch (e) { return Response.json({ error: "Couldn't reach Zoho to check the SO number. Try again in a minute." }, { status: 502 }); }
-          if (!so) return Response.json({ error: `${next} is not in Zoho. Check the SO number.` }, { status: 400 });
-          if (so.status === "void") return Response.json({ error: `${next} is void in Zoho.` }, { status: 400 });
+          // Zoho unreachable → save it flagged unverified; the Zoho check page
+          // re-checks it later (Arjun, 18-Nov-2026).
+          let so = null;
+          if (!zohoConfigured()) soUnverified = true;
+          else {
+            try { so = await getSalesOrderByNumber(next); }
+            catch (e) { console.error("zoho SO check failed, saving unverified:", e?.message || e); soUnverified = true; }
+            if (!soUnverified && !so) return Response.json({ error: `${next} is not in Zoho. Check the SO number.` }, { status: 400 });
+            if (so && so.status === "void") return Response.json({ error: `${next} is void in Zoho.` }, { status: 400 });
+          }
           const taken = await dbSelect("jobs", { select: "id,airtable_id,j_number", filter: { zoho_so_no: `ilike.${next}` }, limit: 5 }).catch(() => []);
           const other = (taken || []).find((t) => (t.airtable_id || t.id) !== job.id && t.id !== job.id);
           if (other) return Response.json({ error: `${next} already has job J# ${other.j_number}. One SO, one job.` }, { status: 400 });
           // A job's customer must match the SO's Zoho customer when it is linked.
           const client = (job.clientIds || [])[0] ? await getClient(job.clientIds[0]).catch(() => null) : null;
-          if (client && client.zohoContactId && so.customerId && client.zohoContactId !== so.customerId) {
+          if (so && client && client.zohoContactId && so.customerId && client.zohoContactId !== so.customerId) {
             return Response.json({ error: `${next} is for ${so.customer} in Zoho, but this job's customer is ${client.name}.` }, { status: 400 });
           }
-          soNote = prev ? `Zoho SO changed ${prev} → ${next} (${so.customer})` : `Linked to Zoho ${next} (${so.customer})`;
+          const who = so ? so.customer : "not checked yet: Zoho was not reachable";
+          soNote = prev ? `Zoho SO changed ${prev} → ${next} (${who})` : `Linked to Zoho ${next} (${who})`;
         }
         patch.zohoSoNo = next;
+        if (soUnverified !== true) soUnverified = false;
       }
     }
     if (body.channel !== undefined) patch.channel = ["app", "key_account", "export", "other"].includes(body.channel) ? body.channel : null;
@@ -289,6 +296,11 @@ export async function PATCH(req, { params }) {
     }
 
     let updated = Object.keys(patch).length > 0 ? await updateJob(job.id, patch) : job;
+    if (soUnverified !== null) {
+      const rowId = (await dbSelect("jobs", { select: "id", filter: { airtable_id: `eq.${job.id}` }, limit: 1 }).catch(() => []))[0]?.id || job.id;
+      await dbUpdate("jobs", "id", rowId, { zoho_so_unverified: soUnverified }, { returning: "minimal" })
+        .catch((e) => console.error("set zoho_so_unverified failed:", e));
+    }
     const who = {
       updatedByEmail: session.email || "",
       updatedByName: session.name || (requireAdminStrict(session) ? "Admin" : ""),

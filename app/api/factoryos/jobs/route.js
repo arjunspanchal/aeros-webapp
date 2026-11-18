@@ -5,7 +5,7 @@ import { copyJobOrder } from "@/lib/factoryos/jobOrder";
 import { listJobsForSession, createJob, setJobDelivery, getNextJobNumber, customerSafeJob, vendorSafeJob, addJobUpdate, getClient, updateClient } from "@/lib/factoryos/repo";
 import { STAGES } from "@/lib/factoryos/constants";
 import { cleanFeatures } from "@/lib/factoryos/jobOptions";
-import { dbSelect, findOne, publicId } from "@/lib/db/supabase";
+import { dbSelect, dbUpdate, findOne, publicId } from "@/lib/db/supabase";
 import { getSalesOrderByNumber, normaliseSoNumber, zohoConfigured } from "@/lib/zoho/books";
 
 export const runtime = "nodejs";
@@ -83,12 +83,18 @@ export async function POST(req) {
     const soNumber = normaliseSoNumber(body.zohoSoNo);
     delete body.soSkipReason;
     if (!soNumber) return Response.json({ error: "Enter the Zoho SO number. A job can't be created without one." }, { status: 400 });
-    if (!zohoConfigured()) return Response.json({ error: "Zoho is not connected, so the SO number can't be checked." }, { status: 503 });
+    // When Zoho can't be reached (daily API limit, outage) the job is still
+    // raised, flagged zoho_so_unverified, and the Zoho check page re-checks
+    // it once Zoho is back (Arjun, 18-Nov-2026). "Not in Zoho" still blocks.
     let soInfo = null;
-    try { soInfo = await getSalesOrderByNumber(soNumber); }
-    catch (e) { return Response.json({ error: "Couldn't reach Zoho to check the SO number. Try again in a minute." }, { status: 502 }); }
-    if (!soInfo) return Response.json({ error: `${soNumber} is not in Zoho. Check the SO number.` }, { status: 400 });
-    if (soInfo.status === "void") return Response.json({ error: `${soNumber} is void in Zoho.` }, { status: 400 });
+    let soUnverified = false;
+    if (!zohoConfigured()) soUnverified = true;
+    else {
+      try { soInfo = await getSalesOrderByNumber(soNumber); }
+      catch (e) { console.error("zoho SO check failed, raising unverified:", e?.message || e); soUnverified = true; }
+      if (!soUnverified && !soInfo) return Response.json({ error: `${soNumber} is not in Zoho. Check the SO number.` }, { status: 400 });
+      if (soInfo && soInfo.status === "void") return Response.json({ error: `${soNumber} is void in Zoho.` }, { status: 400 });
+    }
     const taken = await dbSelect("jobs", { select: "j_number", filter: { zoho_so_no: `ilike.${soNumber}` }, limit: 1 }).catch(() => []);
     if (taken && taken.length) return Response.json({ error: `${soNumber} already has job J# ${taken[0].j_number}. One SO, one job.` }, { status: 400 });
     body.zohoSoNo = soNumber;
@@ -190,11 +196,17 @@ export async function POST(req) {
       rmStockLineId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(body.rmStockLineId || "")) ? body.rmStockLineId : null,
       packingAt: routeAt(body.packingAt),
     });
+    if (soUnverified) {
+      await dbUpdate("jobs", "zoho_so_no", soNumber, { zoho_so_unverified: true }, { returning: "minimal" })
+        .catch((e) => console.error("flag unverified SO failed:", e));
+    }
     // No rates in FactoryOS (Arjun, 17-Nov-2026): pricing and billing are in
     // Zoho. Any orderRate sent by an old client is ignored.
     await addJobUpdate({
       jobId: job.id, stage: startStage,
-      note: `Job raised on Zoho ${soInfo.number} (${soInfo.customer}${soInfo.date ? ", " + soInfo.date : ""})${linkedClientNote}`,
+      note: soInfo
+        ? `Job raised on Zoho ${soInfo.number} (${soInfo.customer}${soInfo.date ? ", " + soInfo.date : ""})${linkedClientNote}`
+        : `Job raised on Zoho ${soNumber} (not checked yet: Zoho was not reachable; the Zoho check page will verify it)`,
       updatedByEmail: session.email || "", updatedByName: session.name || (session.isAdmin ? "Admin" : ""),
     }).catch((e) => console.error("log job creation failed:", e));
     // Repeat order: carry the previous job's print spec over as a fresh draft.

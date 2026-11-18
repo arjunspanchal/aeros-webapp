@@ -16,6 +16,13 @@ function todayIso() {
 
 // Printer late = printing due passed, job still at or before Under Printing,
 // and the printer hasn't marked it printed on /printer.
+// Finished jobs — not work any more.
+const DONE = new Set(["Dispatched", "Delivered"]);
+// Late = ready date passed and the goods are not ready yet.
+function isLate(j, today) {
+  return !!(j.productionDueDate && j.productionDueDate.slice(0, 10) < today && !["Ready for Dispatch", "Dispatched", "Delivered"].includes(j.stage));
+}
+
 function isPrinterLate(j, today) {
   return !!j.printingDueDate && j.printingDueDate.slice(0, 10) < today
     && ["RM Pending", "Coating", "Under Printing"].includes(j.stage)
@@ -41,7 +48,9 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
   const searchParams = useSearchParams();
   const initialStage  = (() => {
     const s = searchParams.get("stage");
-    return s && STAGES.includes(s) ? s : "all";
+    // Default = open work only (Arjun, 18-Nov-2026: dispatched/delivered jobs
+    // were burying Rahul's live jobs). "all" still shows everything.
+    return s && (STAGES.includes(s) || s === "all") ? s : "open";
   })();
   const initialUrgent = searchParams.get("urgent") === "1";
   const initialDue    = searchParams.get("due") === "overdue" ? "overdue" : "all";
@@ -93,10 +102,11 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     return lineJobs.filter((j) => {
-      if (urgentOnly && !j.urgent) return false;
+      if (urgentOnly && (!j.urgent || DONE.has(j.stage))) return false;
       if (mineOnly && j.customerManagerId !== meId) return false;
       if (lateOnly && !isPrinterLate(j, today)) return false;
-      if (stage !== "all" && j.stage !== stage) return false;
+      if (stage === "open" && DONE.has(j.stage)) return false;
+      if (stage !== "all" && stage !== "open" && j.stage !== stage) return false;
       if (clientId !== "all" && !j.clientIds.includes(clientId)) return false;
       // Overdue dispatch: scheduled for before today AND not already in the
       // post-dispatch stages. Delivered and Dispatched jobs aren't "overdue"
@@ -111,12 +121,23 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
       const hay = `${j.jNumber} ${j.brand} ${j.item} ${j.city} ${j.printingVendor} ${j.poNumber} ${j.zohoSoNo || ""} ${clientName} ${j.internalStatus}`.toLowerCase();
       return hay.includes(term);
     })
-    // Urgent jobs float to the top; otherwise keep the list's J# order.
-    .sort((a, b) => (b.urgent === true) - (a.urgent === true));
+    // Work order: open urgent jobs first, then late (ready date passed, not
+    // ready yet), then by ready date (soonest first); undated last; finished
+    // jobs at the bottom, newest first.
+    .sort((a, b) => {
+      const rank = (j) => (DONE.has(j.stage) ? 4 : j.urgent ? 0 : isLate(j, today) ? 1 : j.productionDueDate ? 2 : 3);
+      const ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      if (ra === 4) return String(b.jNumber).localeCompare(String(a.jNumber), undefined, { numeric: true });
+      const da = a.productionDueDate || "9999", db = b.productionDueDate || "9999";
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
   }, [lineJobs, q, stage, clientId, urgentOnly, lateOnly, dueFilter, today, clientMap, factoryView]);
   const printerLateCount = useMemo(() => lineJobs.filter((j) => isPrinterLate(j, today)).length, [lineJobs, today]);
 
-  const urgentCount = useMemo(() => lineJobs.filter((j) => j.urgent).length, [lineJobs]);
+  // Urgent only counts open jobs — a dispatched job is no longer urgent.
+  const urgentCount = useMemo(() => lineJobs.filter((j) => j.urgent && !DONE.has(j.stage)).length, [lineJobs]);
+  const openCount = useMemo(() => lineJobs.filter((j) => !DONE.has(j.stage)).length, [lineJobs]);
 
   // Open-job count per line for the pills (closed jobs aren't work).
   const lineCount = useMemo(() => {
@@ -139,7 +160,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
   }, [lineJobs]);
   // Same stage across every line — so the empty state can say where the
   // jobs actually are.
-  const stageCountAll = useMemo(() => (stage === "all" ? 0 : jobs.filter((j) => j.stage === stage).length), [jobs, stage]);
+  const stageCountAll = useMemo(() => (stage === "all" || stage === "open" ? 0 : jobs.filter((j) => j.stage === stage).length), [jobs, stage]);
 
   return (
     <div>
@@ -147,7 +168,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Jobs</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-            {role === "account_manager" ? (mineOnly ? "My jobs" : "All jobs") : line === "mine" ? describeLines(myLines) : line === "all" ? "All jobs" : LINE_LABEL[line]} · {filtered.length} shown · {lineJobs.length} total
+            {role === "account_manager" ? (mineOnly ? "My jobs" : "All jobs") : line === "mine" ? describeLines(myLines) : line === "all" ? "All jobs" : LINE_LABEL[line]} · {filtered.length} shown · {openCount} open · {lineJobs.length - openCount} done
           </p>
         </div>
         {/* Mirrors the create-job allow-list: admin / factory manager only. */}
@@ -173,10 +194,17 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
 
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-5">
         <button
+          onClick={() => setStage("open")}
+          className={`p-3 rounded-lg text-left transition-colors ${stage === "open" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800"}`}
+        >
+          <div className="text-xs opacity-75">Open</div>
+          <div className="text-lg font-bold">{openCount}</div>
+        </button>
+        <button
           onClick={() => setStage("all")}
           className={`p-3 rounded-lg text-left transition-colors ${stage === "all" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-800"}`}
         >
-          <div className="text-xs opacity-75">All</div>
+          <div className="text-xs opacity-75">All (incl. done)</div>
           <div className="text-lg font-bold">{lineJobs.length}</div>
         </button>
         {STAGES.map((s) => (
@@ -293,7 +321,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
                       {j.internalStatus || "—"}
                     </td>
                     <td className={`px-4 py-2 text-xs ${
-                      j.productionDueDate && j.productionDueDate < today && !["Ready for Dispatch", "Dispatched", "Delivered"].includes(j.stage)
+                      isLate(j, today)
                         ? "text-red-600 font-semibold dark:text-red-400"
                         : "text-gray-600 dark:text-gray-300"}`}>
                       {formatDate(j.productionDueDate)}

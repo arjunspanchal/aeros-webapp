@@ -73,7 +73,7 @@ function buildKpis(jobs) {
     {
       key: "dispatched",
       label: "Dispatched",
-      sub: "in transit",
+      sub: "not marked delivered",
       count: jobs.filter((j) => j.stage === "Dispatched").length,
       href: "/factoryos/manager?stage=Dispatched",
       tone: "indigo",

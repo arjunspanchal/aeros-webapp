@@ -228,7 +228,7 @@ export default function StepCard({ job, role, ctx, outsourcers = [], printingVen
               {to === "Ready for Dispatch" && (
                 <input className={inputCls} placeholder="Note for the warehouse (optional)" value={f.closeNote} onChange={(e) => set("closeNote", e.target.value)} />
               )}
-              <input className={inputCls} placeholder="Note for the timeline (optional, sales and the customer can see it)" value={note} onChange={(e) => setNote(e.target.value)} />
+              <input className={inputCls} placeholder="Note for the timeline (optional, the team sees it)" value={note} onChange={(e) => setNote(e.target.value)} />
               {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
               <div className="flex flex-wrap items-center gap-3">
                 <button type="button" onClick={move} disabled={busy || missing.length > 0} className="w-full sm:w-auto rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700">

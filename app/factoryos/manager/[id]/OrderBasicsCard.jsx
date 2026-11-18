@@ -67,6 +67,7 @@ export default function OrderBasicsCard({ job, canEdit, onSaved, salesManagers =
         {job.zohoSoNo ? (
           <div className="text-xs text-gray-600 dark:text-gray-300">
             Zoho SO: <span className="font-mono font-medium text-gray-900 dark:text-white">{job.zohoSoNo}</span>
+            {job.zohoSoUnverified && <span className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">not checked in Zoho yet</span>}
           </div>
         ) : (
           <button type="button" onClick={() => setOpen(true)} className="block rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300">

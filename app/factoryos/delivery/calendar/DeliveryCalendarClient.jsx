@@ -128,8 +128,7 @@ export default function DeliveryCalendarClient({ jobs }) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Production Calendar</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Each job on its production ready date, the day the goods are due to be ready at the factory.{" "}
-            <Link href="/factoryos/delivery" className="text-blue-600 hover:underline dark:text-blue-400">Delivery Plan →</Link>
+            Each job on its production ready date, the day the goods are due to be ready at the factory.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

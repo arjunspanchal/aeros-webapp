@@ -66,11 +66,10 @@ export default function JobEditor({
   const [lrFile, setLrFile] = useState(null);
   const [lrBusy, setLrBusy] = useState(false);
   const [lrErr, setLrErr] = useState("");
-  const [transportMode, setTransportMode] = useState(initialJob.transportMode || "");
-  const [lrOrVehicleNumber, setLrOrVehicleNumber] = useState(initialJob.lrOrVehicleNumber || "");
-  const [driverContact, setDriverContact] = useState(initialJob.driverContact || "");
-  const [trackingBusy, setTrackingBusy] = useState(false);
-  const [trackingSaved, setTrackingSaved] = useState(false);
+  // Ready date in red once it has passed and the goods aren't ready yet.
+  const readyLate = !!job.productionDueDate
+    && String(job.productionDueDate).slice(0, 10) < new Date().toISOString().slice(0, 10)
+    && !["Ready for Dispatch", "Dispatched", "Delivered"].includes(job.stage);
   // Master-product mapping (admin + factory manager can edit; others see read-only).
   const canEditMasterProduct = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
   // Factory roles stop at Ready for Dispatch; the warehouse team dispatches.
@@ -446,7 +445,11 @@ export default function JobEditor({
               }[job.vendorStatus] || "—"
             }
           />
-          <Col label="Ready date" value={formatDate(job.productionDueDate)} />
+          <Col
+            label="Ready date"
+            value={formatDate(job.productionDueDate) + (readyLate ? " · late" : "")}
+            alert={readyLate}
+          />
           <Col label="RM delivery" value={formatDate(job.rmDeliveryDate)} />
         </dl>
         <OrderBasicsCard job={job} canEdit={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER} onSaved={setJob} salesManagers={salesManagers} />
@@ -761,7 +764,7 @@ export default function JobEditor({
         />
       )}
 
-      <JobThread jobId={job.id} viewerRole="team" title="Messages & files (customer + vendor)" />
+      <JobThread jobId={job.id} viewerRole="team" title="Messages & files (team + printer)" />
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Ready date and notes</h2>
@@ -800,7 +803,7 @@ export default function JobEditor({
             />
           </div>
           <div className="sm:col-span-2">
-            <label className={labelCls}>Note to log with this update (visible in customer timeline)</label>
+            <label className={labelCls}>Note to log with this update (shows on the job timeline)</label>
             <input
               className={inputCls}
               placeholder="e.g. Moved to printing, production starts Monday"
@@ -829,63 +832,8 @@ export default function JobEditor({
 
       {showTracking && (
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Tracking details</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className={labelCls}>Mode of transport</label>
-            <select className={inputCls} value={transportMode} onChange={(e) => setTransportMode(e.target.value)}>
-              <option value="">—</option>
-              <option value="Delhivery">Delhivery</option>
-              <option value="Bluedart">Bluedart</option>
-              <option value="Direct Vehicle">Direct Vehicle</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>LR / Vehicle number</label>
-            <input
-              className={inputCls}
-              value={lrOrVehicleNumber}
-              onChange={(e) => setLrOrVehicleNumber(e.target.value)}
-              placeholder={transportMode === "Direct Vehicle" ? "MH-12-AB-1234" : "LR number"}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Driver contact</label>
-            <input
-              className={inputCls}
-              value={driverContact}
-              onChange={(e) => setDriverContact(e.target.value)}
-              placeholder="Ravi — +91 98xx xx xxxx"
-            />
-          </div>
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          <button
-            type="button"
-            disabled={trackingBusy}
-            onClick={async () => {
-              setTrackingBusy(true); setTrackingSaved(false);
-              const res = await fetch(`/api/factoryos/jobs/${job.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ transportMode, lrOrVehicleNumber, driverContact }),
-              });
-              setTrackingBusy(false);
-              if (!res.ok) { setLrErr((await res.json()).error || "Failed"); return; }
-              const data = await res.json();
-              setJob(data.job);
-              setTrackingSaved(true);
-              setTimeout(() => setTrackingSaved(false), 2000);
-            }}
-            className="bg-blue-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-blue-700 disabled:opacity-60"
-          >
-            {trackingBusy ? "Saving…" : "Save tracking details"}
-          </button>
-          {trackingSaved && <span className="text-xs text-green-600 dark:text-green-400">Saved</span>}
-        </div>
-
-        <h3 className="text-xs uppercase tracking-wide text-gray-500 font-semibold mt-6 mb-2 dark:text-gray-400">LR copies</h3>
+        {/* Transport, LR number and driver are entered on the Dispatch step (18-Nov-2026). */}
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">LR copies</h2>
         {job.lrFiles && job.lrFiles.length > 0 ? (
           <ul className="space-y-2 mb-4">
             {job.lrFiles.map((f) => (
@@ -916,7 +864,7 @@ export default function JobEditor({
             {lrBusy ? "Uploading…" : "Upload"}
           </button>
         </div>
-        <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">PDF / JPG / PNG, max 5 MB. Customer can download.</p>
+        <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">PDF / JPG / PNG, max 5 MB.</p>
         {lrErr && <p className="text-xs text-red-500 mt-2">{lrErr}</p>}
       </div>
       )}
@@ -946,11 +894,11 @@ export default function JobEditor({
   );
 }
 
-function Col({ label, value }) {
+function Col({ label, value, alert = false }) {
   return (
     <div>
       <dt className="text-xs text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="text-sm text-gray-900 dark:text-white">{value}</dd>
+      <dd className={`text-sm ${alert ? "font-semibold text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white"}`}>{value}</dd>
     </div>
   );
 }

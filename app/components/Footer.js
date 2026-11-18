@@ -14,7 +14,7 @@ export default function Footer() {
     <footer className="h-16 bg-white border-t border-ink-200">
       <div className="max-w-7xl mx-auto px-4 md:px-6 h-full flex items-center justify-between">
         <Brand size="sm" />
-        <p className="text-xs font-mono text-ink-400">© 2025 Aeros</p>
+        <p className="text-xs font-mono text-ink-400">© {new Date().getFullYear()} Aeros</p>
       </div>
     </footer>
   );
