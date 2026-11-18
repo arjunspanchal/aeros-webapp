@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
 import { getSession } from "@/lib/hub/session";
-import { undoInvoiceRecord } from "@/lib/warehouse/invoiceDispatch";
+import { isWarehouseAdmin } from "@/lib/warehouse/access";
+import { undoInvoiceRecord } from "@/lib/warehouse/outward";
+import { respond, forbidden } from "../../../_respond";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,8 +10,6 @@ export const dynamic = "force-dynamic";
 // the invoice shows as "to load" again).
 export async function DELETE(_req, { params }) {
   const session = getSession();
-  if (!session?.isAdmin) return NextResponse.json({ error: "Only an admin can undo" }, { status: 403 });
-  const res = await undoInvoiceRecord({ session, recordId: params.id });
-  const { status, ok, ...rest } = res;
-  return NextResponse.json(ok ? rest : { error: res.error }, { status });
+  if (!isWarehouseAdmin(session)) return forbidden("Only an admin can undo");
+  return respond(await undoInvoiceRecord({ session, recordId: params.id }));
 }

@@ -19,7 +19,6 @@ const MODULES = [
   { key: "factoryos",   label: "FactoryOS",   href: "/factoryos"   },
   { key: "hr",          label: "HR",          href: "/hr"          },
   { key: "catalogue",   label: "Catalogue",   href: "/catalog"     },
-  { key: "clearance",   label: "WarehouseOS", href: "/warehouse"   },
 ];
 
 function activeModuleKey(pathname) {
@@ -27,7 +26,6 @@ function activeModuleKey(pathname) {
   if (pathname.startsWith("/factoryos"))  return "factoryos";
   if (pathname.startsWith("/hr"))         return "hr";
   if (pathname.startsWith("/catalog"))    return "catalogue";
-  if (pathname.startsWith("/warehouse"))  return "clearance";
   // Match /design and /design/... but NOT /design-system (the internal
   // brand-tokens QA page, which intentionally has no nav highlight).
   if (pathname === "/design" || pathname.startsWith("/design/")) return "design";
@@ -114,35 +112,6 @@ function subTabsFor(pathname, session) {
     return [];
   }
 
-  if (active === "clearance") {
-    // WarehouseOS sub-tabs. Stock is public; Manage + Inventory are
-    // FM/FE/Admin only. Sample Dispatch is open to AMs (Customer
-    // Managers) too — they raise dispatches on behalf of customers.
-    //
-    // Whs-PR-A: short labels disambiguated. Previously both
-    // /warehouse/clearance and /warehouse/inventory had short="Stock"
-    // — on mobile the row read "Hub · Stock · Stock · Items · In ·
-    // Out · Hist · Audit", two adjacent tabs identical. Now clearance
-    // short = "Clear" (matches its desktop label "Clearance"), and the
-    // canonical "Stock" stays on /warehouse/inventory where the page
-    // title is "Stock Position".
-    const role = session?.modules?.factoryos;
-    const adminish    = role === "admin" || role === "factory_manager" || role === "factory_executive" || role === "warehouse";
-    const tabs = [
-      { href: "/warehouse",                    label: "Hub",       short: "Hub"   },
-    ];
-    if (adminish || session?.isAdmin) {
-      tabs.push({ href: "/warehouse/dispatch",            label: "Dispatch",  short: "Disp"   });
-      tabs.push({ href: "/warehouse/inventory",           label: "Stock",     short: "Stock"  });
-      tabs.push({ href: "/warehouse/inventory/items",     label: "Items",     short: "Items"  });
-      tabs.push({ href: "/warehouse/inventory/inward",    label: "Inward",    short: "In"     });
-      tabs.push({ href: "/warehouse/inventory/outward",   label: "Outward",   short: "Out"    });
-      tabs.push({ href: "/warehouse/inventory/movements", label: "History",   short: "Hist"   });
-      tabs.push({ href: "/warehouse/inventory/audits",    label: "Audits",    short: "Audit"  });
-    }
-    return tabs;
-  }
-
   return [];
 }
 
@@ -170,7 +139,7 @@ export default function AppHeader({ session }) {
   // /warehouse/clearance is public-readable but the layout still mounts the
   // shell scaffold; the sidebar's own visibility (staff-only) is handled
   // inside the layout, not here.
-  const warehouseHasSidebar = active === "clearance";
+  const warehouseHasSidebar = false; // Warehouse is inside FactoryOS since 18-Nov-2026
   // HR mounts a ModuleShell sidebar in app/hr/layout.jsx.
   const hrHasSidebar = active === "hr";
   const sidebarReplacesSubtabsOnDesktop =

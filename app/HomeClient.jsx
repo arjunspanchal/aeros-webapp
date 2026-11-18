@@ -44,9 +44,9 @@ const TILES = [
   },
   {
     key: "clearance",
-    href: "/warehouse",
-    title: "WarehouseOS",
-    blurb: "Dispatch, master inventory, audits",
+    href: "/factoryos/warehouse",
+    title: "Warehouse",
+    blurb: "Inward, outward, in transit and stock",
     size: "lg",
     accent: "from-amber-500 via-orange-500 to-rose-600",
     sparkColor: "#F97316",
@@ -166,9 +166,9 @@ const QUICK_ACTIONS = [
   { label: "Dieline generator", href: "/design/dieline",              always: true },
   { label: "New job",           href: "/factoryos/admin/jobs/new",    module: "factoryos", roles: ["admin", "factory_manager"] },
   { label: "My jobs",           href: "/factoryos/manager",           module: "factoryos", roles: ["account_manager", "factory_executive"] },
-  { label: "Dispatch",          href: "/warehouse/dispatch",          module: "factoryos", roles: ["admin", "warehouse"] },
+  { label: "Load an invoice",   href: "/factoryos/warehouse/outward", module: "factoryos", roles: ["admin", "warehouse"] },
   { label: "Quote a customer",  href: "/calculator",                  module: "calculator" },
-  { label: "Mark inward",       href: "/warehouse/inventory/inward",  module: "factoryos", roles: ["admin", "factory_manager", "factory_executive", "warehouse"] },
+  { label: "Receive goods",     href: "/factoryos/warehouse/inward",  module: "factoryos", roles: ["admin", "warehouse"] },
   { label: "Punch clock",       href: "/hr/clock",                    always: true },
   { label: "Add payout",        href: "/payouts",                     module: "payouts" },
 ];
@@ -269,14 +269,14 @@ export default function HomeClient({ session, footer }) {
 
   // Global ⌘K + Vim-style "G then X" navigation shortcuts.
   // After pressing G, the next keypress within 1.2s maps to a module:
-  //   F → /factoryos · W → /warehouse · H → /hr · K → /calculator
+  //   F → /factoryos · W → /factoryos/warehouse · H → /hr · K → /calculator
   //   C → /catalog · D → /design
   useEffect(() => {
     let pendingG = false;
     let resetTimer = null;
     const ROUTE = {
       f: "/factoryos",
-      w: "/warehouse",
+      w: "/factoryos/warehouse",
       h: "/hr",
       k: "/calculator",
       c: "/catalog",

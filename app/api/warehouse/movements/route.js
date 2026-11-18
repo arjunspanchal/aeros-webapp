@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/hub/session";
-import { canManageInventory } from "@/lib/warehouse/inventory";
+import { canManageInventory, canSeeStock } from "@/lib/warehouse/inventory";
 import { listMovements, postMovement } from "@/lib/warehouse/movements";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req) {
   const session = getSession();
-  if (!canManageInventory(session)) {
+  if (!canSeeStock(session)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { searchParams } = new URL(req.url);

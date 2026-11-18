@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const STATIC_ITEMS = [
-  { kind: "module", label: "WarehouseOS",  hint: "Clearance stock, inward/outward, audits", href: "/warehouse",     module: "clearance" },
+  { kind: "module", label: "Warehouse",    hint: "Inward, outward, in transit, stock",       href: "/factoryos/warehouse", module: "clearance" },
   { kind: "module", label: "FactoryOS",    hint: "Jobs, POs, production",                    href: "/factoryos",    module: "factoryos" },
   { kind: "module", label: "HR",           hint: "Employees, attendance, payroll",           href: "/hr",           module: "hr" },
   { kind: "module", label: "Payouts",      hint: "Vendor payments, due dates, calendar",     href: "/payouts",      module: "payouts" },
@@ -20,11 +20,12 @@ const STATIC_ITEMS = [
   { kind: "module", label: "User Access",  hint: "Manage logins, roles, linked clients",     href: "/admin/access", adminOnly: true },
 
   { kind: "action", label: "New job",            hint: "Open the create-job form",   href: "/factoryos/admin/jobs/new",  module: "factoryos", roles: ["admin", "factory_manager"] },
-  { kind: "action", label: "Dispatch queue",     hint: "Ready to go and in transit", href: "/warehouse/dispatch",        module: "factoryos", roles: ["admin", "warehouse", "factory_manager", "factory_executive", "account_manager"] },
+  { kind: "action", label: "Load an invoice",    hint: "Warehouse outward",          href: "/factoryos/warehouse/outward", module: "factoryos", roles: ["admin", "warehouse", "factory_manager", "factory_executive", "account_manager"] },
+  { kind: "action", label: "In transit",         hint: "Confirm a delivery",         href: "/factoryos/warehouse/transit", module: "factoryos", roles: ["admin", "warehouse", "account_manager"] },
   { kind: "action", label: "Quote a customer",   hint: "Open the calculator",        href: "/calculator",                module: "calculator" },
   { kind: "action", label: "Punch in / out",     hint: "Worker self-service clock",  href: "/hr/clock",                  always: true },
-  { kind: "action", label: "Mark inward stock",  hint: "Add a goods-in entry",       href: "/warehouse/inventory/inward",module: "factoryos", roles: ["admin", "factory_manager", "factory_executive", "warehouse"] },
-  { kind: "action", label: "Mark outward stock", hint: "Issue stock from a location", href: "/warehouse/inventory/outward",module: "factoryos", roles: ["admin", "factory_manager", "factory_executive", "warehouse"] },
+  { kind: "action", label: "Receive goods",      hint: "Warehouse inward",           href: "/factoryos/warehouse/inward",  module: "factoryos", roles: ["admin", "warehouse"] },
+  { kind: "action", label: "Stock on the racks", hint: "What the warehouse holds",   href: "/factoryos/warehouse/stock",   module: "factoryos", roles: ["admin", "warehouse", "factory_manager", "factory_executive"] },
   { kind: "action", label: "Add a payout",       hint: "Log a vendor payment due",   href: "/payouts",                   module: "payouts" },
   { kind: "action", label: "Dieline generator",  hint: "Parametric cake-box KLD",    href: "/design/dieline",            always: true },
 

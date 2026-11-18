@@ -112,7 +112,17 @@ export async function middleware(req) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // --- Hub: landing, dashboard, catalog, WarehouseOS ---
+  // WarehouseOS moved inside FactoryOS on 18-Nov-2026 (/factoryos/warehouse).
+  // Old bookmarks land on the matching new screen.
+  if (pathname === "/warehouse" || pathname.startsWith("/warehouse/")) {
+    const to = pathname.startsWith("/warehouse/inventory/inward") ? "/factoryos/warehouse/inward"
+      : pathname.startsWith("/warehouse/inventory/outward") || pathname.startsWith("/warehouse/invoices") || pathname.startsWith("/warehouse/dispatch") ? "/factoryos/warehouse/outward"
+      : pathname.startsWith("/warehouse/inventory") ? "/factoryos/warehouse/stock"
+      : "/factoryos/warehouse";
+    return NextResponse.redirect(new URL(to, req.url));
+  }
+
+  // --- Hub: landing, dashboard, catalog ---
   // Public read access (no gate):
   //   • `/`                              — public marketing landing page
   //   • `/warehouse`                     — WarehouseOS hub (tiles render based on session)
@@ -123,7 +133,6 @@ export async function middleware(req) {
   if (
     pathname === "/hub" ||
     pathname.startsWith("/catalog/manage") ||
-    pathname.startsWith("/warehouse/inventory") ||
     pathname.startsWith("/api/warehouse/") ||
     pathname === "/brand" ||
     pathname.startsWith("/brand/") ||
@@ -144,7 +153,6 @@ export async function middleware(req) {
   // Public + legacy fall through — page renders based on session (or 308 redirects).
   if (
     pathname === "/" ||
-    pathname === "/warehouse" ||
     pathname === "/catalog"
   ) {
     return NextResponse.next();

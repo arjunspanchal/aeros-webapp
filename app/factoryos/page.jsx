@@ -11,6 +11,6 @@ export default function OrdersRoot() {
   if (role === ROLES.CUSTOMER) redirect("/hub"); // customer portal removed 17-Nov-2026
   if (role === ROLES.ADMIN) redirect("/factoryos/admin");
   if (role === ROLES.VENDOR) redirect("/factoryos/vendor");
-  if (role === ROLES.WAREHOUSE) redirect("/warehouse/dispatch");
+  if (role === ROLES.WAREHOUSE) redirect("/factoryos/warehouse");
   redirect("/factoryos/manager");
 }

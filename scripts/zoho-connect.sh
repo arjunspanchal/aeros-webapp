@@ -1,12 +1,19 @@
 #!/bin/zsh
-# Connect FactoryOS to Zoho Books, READ-ONLY (sales orders).
-# Run once by Arjun. Values are typed here (secret + code hidden), exchanged
-# with Zoho for a refresh token, and written straight to Vercel (production)
-# and .env.local. Nothing is printed or saved anywhere else.
+# Connect FactoryOS (and its Warehouse) to Zoho Books.
+# Run by Arjun whenever the permissions need to change. Values are typed here
+# (secret + code hidden), exchanged with Zoho for a refresh token, and written
+# straight to Vercel (production) and .env.local. Nothing is printed or saved
+# anywhere else.
+#
+# In the Zoho API console (api-console.zoho.in → Self Client → Generate Code),
+# use this scope line. It is read-only except the last entry, which lets the
+# warehouse tick "Delivery Acknowledgment" on an invoice; leave that one off to
+# stay fully read-only.
+#   ZohoBooks.salesorders.READ,ZohoBooks.invoices.READ,ZohoBooks.purchaseorders.READ,ZohoBooks.settings.READ,ZohoBooks.invoices.UPDATE
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-echo "Zoho -> FactoryOS read-only connection (org 60004253439, India)"
+echo "Zoho -> FactoryOS + Warehouse connection (org 60004253439, India)"
 read "CID?1) Client ID: "
 read -s "CSEC?2) Client Secret (hidden): "; echo
 echo "   Now tell Claude 'ready for code'. Paste the code once it says it is copied."
@@ -30,7 +37,12 @@ fi
 AT=$(printf '%s' "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))')
 TEST=$(curl -s "https://www.zohoapis.in/books/v3/salesorders?organization_id=60004253439&per_page=1" \
   -H "Authorization: Zoho-oauthtoken $AT" | python3 -c 'import sys,json; d=json.load(sys.stdin); s=d.get("salesorders") or []; print(s[0]["salesorder_number"] if s else "NO ACCESS: "+str(d.get("message")))')
-echo "Test read from Zoho: $TEST"
+echo "Test read, sales orders: $TEST"
+for KIND in invoices purchaseorders; do
+  T=$(curl -s "https://www.zohoapis.in/books/v3/$KIND?organization_id=60004253439&per_page=1" \
+    -H "Authorization: Zoho-oauthtoken $AT" | python3 -c 'import sys,json; d=json.load(sys.stdin); print("ok" if d.get("code")==0 else "NO ACCESS: "+str(d.get("message")))')
+  echo "Test read, $KIND: $T"
+done
 
 set_env () {  # name value
   vercel env rm "$1" production --yes >/dev/null 2>&1 || true
