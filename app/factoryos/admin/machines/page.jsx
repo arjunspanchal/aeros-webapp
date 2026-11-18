@@ -4,6 +4,8 @@ import { getSession, requireManager } from "@/lib/auth/session";
 import { listMachines } from "@/lib/factoryos/repo";
 import MachinesAdmin from "./MachinesAdmin";
 
+export const metadata = { title: "Machines — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminMachinesPage() {

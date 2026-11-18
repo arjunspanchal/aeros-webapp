@@ -5,6 +5,8 @@ import { listRawMaterials } from "@/lib/factoryos/repo";
 import { listMasterPapers } from "@/lib/paper-rm";
 import InventoryAdmin from "./InventoryAdmin";
 
+export const metadata = { title: "RM inventory — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminInventoryPage() {
@@ -28,10 +30,14 @@ export default async function AdminInventoryPage() {
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
           On-hand paper stock. Link each line to an entry in the
           Supabase <code className="font-mono text-xs">master_papers</code> table
-          using the picker below — base rates and supplier discounts come from there.
+          using the picker below.
           Register serial-numbered rolls under <strong>Manage RM rolls</strong> so floor operators can pick them.
         </p>
-        <InventoryAdmin initialInventory={inventory} masterPapers={masterPapers} />
+        <InventoryAdmin initialInventory={inventory} masterPapers={masterPapers.map((mp) => ({
+          // Spec fields only — no rates go to the browser (17-Nov-2026).
+          id: mp.id, materialName: mp.materialName, supplier: mp.supplier, type: mp.type,
+          gsm: mp.gsm, bf: mp.bf, form: mp.form, millCoating: mp.millCoating,
+        }))} />
       </main>
     </div>
   );

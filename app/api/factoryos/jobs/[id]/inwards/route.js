@@ -22,7 +22,12 @@ export async function POST(req, { params }) {
   if (!session) return new Response("Unauthorized", { status: 401 });
   const { job, access } = await resolveJobAccess(session, params.id);
   if (!job || access !== "internal") return Response.json({ error: "Not found" }, { status: 404 });
-  if (!requireManager(session)) return Response.json({ error: "Forbidden" }, { status: 403 });
+  // Whoever receives the stock records it: factory manager, floor executive
+  // or warehouse. (The form was shown to executives but the API refused them.)
+  const inwardRole = session.isAdmin ? "admin" : session.modules?.factoryos;
+  if (!["admin", "factory_manager", "factory_executive", "warehouse"].includes(inwardRole)) {
+    return Response.json({ error: "Only factory or warehouse staff can record an inward" }, { status: 403 });
+  }
   const body = await req.json().catch(() => null);
   if (!body) return Response.json({ error: "Invalid body" }, { status: 400 });
   try {

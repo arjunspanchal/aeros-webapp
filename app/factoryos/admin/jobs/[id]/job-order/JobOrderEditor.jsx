@@ -479,9 +479,6 @@ export default function JobOrderEditor({ job, clientName, vendor, initialSpec, i
         </F>
         <F label="Plate ref / set no."><input className={inputCls} {...bind("platesRef")} /></F>
         <F label="Plates owned by"><Select value={form.plateOwner} onChange={set("plateOwner")} options={PLATE_OWNERS} /></F>
-        <F label="Plate charge (₹)" hint="Leave blank if not charged on this job">
-          <input type="number" className={inputCls} {...bind("plateChargeInr")} />
-        </F>
       </Section>
 
       {/* Process block */}

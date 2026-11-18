@@ -7,11 +7,20 @@ import {
   deleteJob,
   countUpdatesForJob,
   setJobDelivery,
+  customerSafeJob,
+  customerSafeUpdate,
+  vendorSafeJob,
+  getClient,
 } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { sessionCanSeeJob } from "@/lib/factoryos/jobAccess";
+import { moveStage, roleOf } from "@/lib/factoryos/transitions";
 import { STAGES, ROLES, canUpdateStage } from "@/lib/factoryos/constants";
 import { routeAt } from "@/lib/factoryos/routes";
+import { cleanFeatures } from "@/lib/factoryos/jobOptions";
+import { normaliseSoNumber } from "@/lib/zoho/books";
+import { checkSoForJob } from "@/lib/factoryos/zohoSoCheck";
+import { dbSelect } from "@/lib/db/supabase";
 
 // Roles allowed to remove a job entirely. Account managers + customers can
 // only update fields, never destroy the row + its timeline.
@@ -31,6 +40,12 @@ export async function GET(_req, { params }) {
     if (!job) return Response.json({ error: "Not found" }, { status: 404 });
     if (!sessionCanSeeJob(session, job)) return Response.json({ error: "Forbidden" }, { status: 403 });
     const updates = await listJobUpdates(job.id);
+    // Outside parties get an allow-listed shape, never the raw job.
+    const viewerRole = session.isAdmin ? "admin" : session.modules?.factoryos;
+    if (viewerRole === "customer") {
+      return Response.json({ job: customerSafeJob(job), updates: updates.map(customerSafeUpdate) });
+    }
+    if (viewerRole === "vendor") return Response.json({ job: vendorSafeJob(job), updates: [] });
     return Response.json({ job, updates });
   } catch (e) {
     if (e instanceof Response) return e;
@@ -58,14 +73,13 @@ export async function PATCH(req, { params }) {
       job.stage === "Dispatched";
 
     if (body.stage !== undefined) {
-      if (!canUpdateStage(session.modules?.factoryos) && !isCustomerDeliver) {
+      if (!STAGES.includes(body.stage)) return Response.json({ error: "Invalid stage" }, { status: 400 });
+      if (isCustomer && !isCustomerDeliver && body.stage !== job.stage) {
         return Response.json({ error: "Not allowed" }, { status: 403 });
       }
-      if (!STAGES.includes(body.stage)) return Response.json({ error: "Invalid stage" }, { status: 400 });
-      if (body.stage !== job.stage) {
-        patch.stage = body.stage;
-        stageChanged = true;
-      }
+      // The stage itself is written by moveStage() below, which checks the
+      // step's required data and logs who moved it (rebuild step 1).
+      stageChanged = body.stage !== job.stage;
     }
 
     // Customers can: mark Delivered (above), and toggle Urgent.
@@ -76,17 +90,16 @@ export async function PATCH(req, { params }) {
 
       if (body.urgent !== undefined) patch.urgent = !!body.urgent;
 
-      const willWrite = stageChanged || body.urgent !== undefined;
-      const updated = willWrite ? await updateJob(job.id, patch) : job;
+      let updated = body.urgent !== undefined ? await updateJob(job.id, patch) : job;
 
       if (stageChanged) {
-        await addJobUpdate({
-          jobId: job.id,
-          stage: patch.stage,
+        const moved = await moveStage({
+          session, jobId: job.id, to: "Delivered",
+          fields: { deliveredOn: new Date().toISOString().slice(0, 10) },
           note: body.note || "Customer confirmed delivery",
-          updatedByEmail: session.email || "",
-          updatedByName: session.name || "",
         });
+        if (!moved.ok) return Response.json({ error: moved.error }, { status: moved.status });
+        updated = moved.job;
       } else if (body.urgent !== undefined) {
         // Log urgency toggles so managers see the signal in the timeline.
         await addJobUpdate({
@@ -97,25 +110,54 @@ export async function PATCH(req, { params }) {
           updatedByName: session.name || "",
         });
       }
-      return Response.json({ job: updated });
+      return Response.json({ job: customerSafeJob(updated) });
+    }
+    // Sales and warehouse see every production detail but do not edit it
+    // (Arjun, 17-Nov-2026). Sales: notes and flags. Warehouse: also transport.
+    const callerRole = roleOf(session);
+    if (callerRole === ROLES.ACCOUNT_MANAGER || callerRole === ROLES.WAREHOUSE) {
+      const allowed = new Set(["stage", "note", "stepFields", "internalStatus", "actionPoints", "notes", "urgent"]);
+      if (callerRole === ROLES.WAREHOUSE) for (const k of ["transportMode", "lrOrVehicleNumber", "driverContact"]) allowed.add(k);
+      const blocked = Object.keys(body).filter((k) => !allowed.has(k) && body[k] !== undefined);
+      if (blocked.length) {
+        return Response.json({
+          error: callerRole === ROLES.WAREHOUSE
+            ? "Warehouse can record dispatch and delivery, not change production details."
+            : "Sales can see production details but not change them. Ask the factory manager, or add a note.",
+        }, { status: 403 });
+      }
     }
     // Order basics (qty, brand, item, PO, city) — managers only; the forms
     // fix these at creation, the assistant may correct them (25-Oct-2026).
-    const basics = ["qty", "brand", "item", "poNumber", "city"].filter((k) => body[k] !== undefined);
+    const basics = ["qty", "brand", "item", "poNumber", "city", "customerManagerId", "extraFeatures"].filter((k) => body[k] !== undefined);
     if (basics.length) {
       if (!requireManager(session)) return Response.json({ error: "Not allowed to change order basics" }, { status: 403 });
+      // Sales manager can be changed but never cleared (Arjun, 17-Nov-2026).
+      if (body.customerManagerId !== undefined) {
+        if (!body.customerManagerId) return Response.json({ error: "Every job needs a sales manager" }, { status: 400 });
+        patch.customerManagerId = String(body.customerManagerId);
+      }
       if (body.qty !== undefined) {
         const q = Number(body.qty);
         if (!Number.isFinite(q) || q < 0) return Response.json({ error: "Invalid quantity" }, { status: 400 });
         patch.qty = q;
       }
       for (const k of ["brand", "item", "poNumber", "city"]) if (body[k] !== undefined) patch[k] = String(body[k] ?? "").slice(0, 300);
+      if (body.extraFeatures !== undefined) patch.extraFeatures = cleanFeatures(body.extraFeatures);
+      // A job on a catalogue item always carries the catalogue (listing) name.
+      // Only a custom item has a typed name. Extras go in "additional features".
+      if (patch.item !== undefined && job.masterSku && !job.customItem && body.customItem !== true) {
+        if (patch.item !== (job.masterProductName || job.item)) {
+          return Response.json({ error: "This job is on a catalogue item, so it keeps the catalogue name. Use additional features for extras such as a flap, or change the catalogue item." }, { status: 400 });
+        }
+      }
     }
     if (body.internalStatus !== undefined) patch.internalStatus = body.internalStatus;
     if (body.actionPoints !== undefined) patch.actionPoints = body.actionPoints;
     if (body.notes !== undefined) patch.notes = body.notes;
-    if (body.expectedDispatchDate !== undefined) patch.expectedDispatchDate = body.expectedDispatchDate;
-    if (body.estimatedDeliveryDate !== undefined) patch.estimatedDeliveryDate = body.estimatedDeliveryDate;
+    // Expected dispatch / estimated delivery are no longer set from FactoryOS
+    // (17-Nov-2026: one date only, the production ready date). The columns stay
+    // in the database for Cowork customer ops.
     // Delivery-plan fields live on PG columns outside the Airtable shim, so
     // they're written via setJobDelivery (not updateJob). Internal-only — the
     // customer branch already returned above.
@@ -123,7 +165,6 @@ export async function PATCH(req, { params }) {
     if (body.receivedQty !== undefined) deliveryPatch.receivedQty = body.receivedQty;
     if (body.deliveryStatus !== undefined) deliveryPatch.deliveryStatus = body.deliveryStatus;
     if (body.deliveryRemarks !== undefined) deliveryPatch.deliveryRemarks = body.deliveryRemarks;
-    if (body.orderRate !== undefined) deliveryPatch.orderRate = body.orderRate;
     // RM + production updates
     if (body.rmType !== undefined) patch.rmType = body.rmType;
     if (body.rmSupplier !== undefined) patch.rmSupplier = body.rmSupplier;
@@ -144,7 +185,52 @@ export async function PATCH(req, { params }) {
     if (body.printingVendor !== undefined) patch.printingVendor = body.printingVendor;
     if (body.printingDueDate !== undefined) patch.printingDueDate = body.printingDueDate;
     if (body.productionDueDate !== undefined) patch.productionDueDate = body.productionDueDate;
+    // Coating step, production count and order links (rebuild step 1).
+    if (body.coatingRequired !== undefined) patch.coatingRequired = !!body.coatingRequired;
+    if (body.coatingVendorId !== undefined) patch.coatingVendorId = body.coatingVendorId || null;
+    if (body.coatingSentOn !== undefined) patch.coatingSentOn = body.coatingSentOn || null;
+    if (body.coatingDueDate !== undefined) patch.coatingDueDate = body.coatingDueDate || null;
+    if (body.coatingReceivedOn !== undefined) patch.coatingReceivedOn = body.coatingReceivedOn || null;
+    if (body.producedQty !== undefined) patch.producedQty = body.producedQty === "" || body.producedQty === null ? null : Number(body.producedQty);
+    // Zoho SO link: managers only. One job per SO item; a new number or item
+    // is checked live against Zoho (saved "not checked" when Zoho is down).
+    // Removing the SO is admin-only. Every change goes on the timeline.
+    let soNote = "";
+    if (body.zohoSoNo !== undefined || body.zohoSoLineId !== undefined) {
+      if (!requireManager(session)) return Response.json({ error: "Not allowed to change the Zoho SO number" }, { status: 403 });
+      const prev = job.zohoSoNo || "";
+      const prevLine = job.zohoSoLineId || "";
+      const next = body.zohoSoNo !== undefined ? normaliseSoNumber(body.zohoSoNo) : prev;
+      const nextLine = body.zohoSoLineId !== undefined ? String(body.zohoSoLineId || "") : (next === prev ? prevLine : "");
+      if (next !== prev || nextLine !== prevLine) {
+        if (!next) {
+          if (!requireAdminStrict(session)) return Response.json({ error: "Only an admin can remove the Zoho SO number." }, { status: 403 });
+          soNote = `Zoho SO removed (was ${prev})`;
+          Object.assign(patch, { zohoSoNo: "", zohoSoLineId: "", zohoSoLineName: "", zohoSoUnverified: false });
+        } else {
+          const chk = await checkSoForJob({ raw: next, lineId: nextLine, excludeJob: job.id });
+          if (chk.error) return Response.json({ error: chk.error }, { status: 400 });
+          // A job's customer must match the SO's Zoho customer when it is linked.
+          const client = (job.clientIds || [])[0] ? await getClient(job.clientIds[0]).catch(() => null) : null;
+          if (chk.so && client && client.zohoContactId && chk.so.customerId && client.zohoContactId !== chk.so.customerId) {
+            return Response.json({ error: `${next} is for ${chk.so.customer} in Zoho, but this job's customer is ${client.name}.` }, { status: 400 });
+          }
+          const who = chk.so ? chk.so.customer : "not checked yet: Zoho was not reachable";
+          const item = chk.lineName ? `, item "${chk.lineName}"` : "";
+          soNote = next !== prev
+            ? (prev ? `Zoho SO changed ${prev} → ${next}${item} (${who})` : `Linked to Zoho ${next}${item} (${who})`)
+            : `Zoho SO item on ${next} set to "${chk.lineName}"`;
+          Object.assign(patch, { zohoSoNo: chk.number, zohoSoLineId: chk.lineId, zohoSoLineName: chk.lineName, zohoSoUnverified: chk.unverified });
+        }
+      }
+    }
+    if (body.channel !== undefined) patch.channel = ["app", "key_account", "export", "other"].includes(body.channel) ? body.channel : null;
     if (body.itemSize !== undefined) patch.itemSize = body.itemSize;
+    if (body.customItem !== undefined) {
+      if (!requireManager(session)) return Response.json({ error: "Not allowed" }, { status: 403 });
+      patch.customItem = !!body.customItem;
+      if (patch.customItem) { patch.masterSku = ""; patch.masterProductName = ""; }
+    }
     if (body.urgent !== undefined) patch.urgent = !!body.urgent;
     if (body.transportMode !== undefined) patch.transportMode = body.transportMode;
     if (body.lrOrVehicleNumber !== undefined) patch.lrOrVehicleNumber = body.lrOrVehicleNumber;
@@ -186,22 +272,51 @@ export async function PATCH(req, { params }) {
 
       if (body.masterSku !== undefined) patch.masterSku = body.masterSku;
       if (body.masterProductName !== undefined) patch.masterProductName = body.masterProductName;
+      // Picking a catalogue item renames the job to that item's listing name.
+      if (body.masterSku && body.masterProductName) patch.item = String(body.masterProductName).slice(0, 300);
     }
 
     if (Object.keys(deliveryPatch).length > 0) {
       await setJobDelivery(job.id, deliveryPatch);
     }
 
-    const updated = Object.keys(patch).length > 0 ? await updateJob(job.id, patch) : job;
+    // A committed date that changes is never silent: it goes on the timeline.
+    const dateNotes = soNote ? [soNote] : [];
+    const fmtD = (v) => (v ? new Date(String(v).slice(0, 10) + "T00:00:00Z").toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "UTC" }) : "none");
+    for (const [key, label] of [["productionDueDate", "Production ready date"], ["printingDueDate", "Printing due date"], ["coatingDueDate", "Coating due date"]]) {
+      if (patch[key] === undefined) continue;
+      const before = job[key] ? String(job[key]).slice(0, 10) : "";
+      const after = patch[key] ? String(patch[key]).slice(0, 10) : "";
+      if (before && before !== after) dateNotes.push(`${label} changed ${fmtD(before)} → ${fmtD(after)}`);
+    }
 
-    if (stageChanged || (body.note && body.note.trim())) {
-      await addJobUpdate({
-        jobId: job.id,
-        stage: patch.stage || job.stage,
-        note: body.note || "",
-        updatedByEmail: session.email || "",
-        updatedByName: session.name || (requireAdminStrict(session) ? "Admin" : ""),
+    let updated = Object.keys(patch).length > 0 ? await updateJob(job.id, patch) : job;
+    const who = {
+      updatedByEmail: session.email || "",
+      updatedByName: session.name || (requireAdminStrict(session) ? "Admin" : ""),
+    };
+    const userNote = body.note && String(body.note).trim() ? String(body.note).trim() : "";
+
+    if (stageChanged) {
+      const moved = await moveStage({
+        session, jobId: job.id, to: body.stage,
+        fields: body.stepFields && typeof body.stepFields === "object" ? body.stepFields : null,
+        override: body.override === true, reason: body.reason || "",
+        note: [userNote, ...dateNotes].filter(Boolean).join(" · "),
       });
+      if (!moved.ok) {
+        // Other fields in this request are already saved; only the move is refused.
+        return Response.json({ error: moved.error, missing: moved.missing || [], job: moved.job || updated }, { status: moved.status });
+      }
+      updated = moved.job;
+    } else {
+      if (body.stepFields && typeof body.stepFields === "object" && Object.keys(body.stepFields).length) {
+        const kept = await moveStage({ session, jobId: job.id, to: job.stage, fields: body.stepFields });
+        if (kept.job) updated = kept.job;
+      }
+      if (userNote || dateNotes.length) {
+        await addJobUpdate({ jobId: job.id, stage: updated.stage || job.stage, note: [userNote, ...dateNotes].filter(Boolean).join(" · "), ...who });
+      }
     }
     return Response.json({ job: updated });
   } catch (e) {

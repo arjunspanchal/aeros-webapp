@@ -17,7 +17,7 @@ export async function PATCH(req, { params }) {
         ROLES.ACCOUNT_MANAGER,
         ROLES.FACTORY_MANAGER,
         ROLES.FACTORY_EXECUTIVE,
-        ROLES.CUSTOMER,
+        ROLES.WAREHOUSE,
       ]);
       if (!validRoles.has(body.role)) {
         return Response.json({ error: "Invalid role (admin is password-only)" }, { status: 400 });

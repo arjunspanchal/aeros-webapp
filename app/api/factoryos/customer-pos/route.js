@@ -13,7 +13,7 @@ export async function GET() {
   // AM is also scoped to their assigned clients.
   let clientIds;
   if (requireRole(session, "factoryos", "customer")) clientIds = session.factoryosClientIds || [];
-  if (requireRole(session, "factoryos", "account_manager")) clientIds = session.factoryosClientIds || [];
+  // Sales see every customer PO, like every job (18-Nov-2026).
   const pos = await listCustomerPOs(clientIds ? { clientIds } : undefined);
   return Response.json({ pos });
 }

@@ -3,7 +3,6 @@ import { useState } from "react";
 import { StageBadge, formatDate, inputCls } from "@/app/factoryos/_components/ui";
 import JobThread from "@/app/factoryos/_components/JobThread";
 import VendorProgressStepper from "./VendorProgressStepper";
-import VendorInvoicePanel from "./VendorInvoicePanel";
 import VendorJobOrderPanel from "./VendorJobOrderPanel";
 
 function Spec({ label, value }) {
@@ -109,8 +108,6 @@ export default function VendorJobDetailClient({ initialJob, initialThread, jobOr
       {/* Unified conversation — messages, artwork, proofs, challans */}
       <JobThread jobId={job.id} viewerRole="vendor" initialThread={initialThread} title="Messages & files" />
 
-      {/* Invoices */}
-      <VendorInvoicePanel jobId={job.id} />
     </div>
   );
 }

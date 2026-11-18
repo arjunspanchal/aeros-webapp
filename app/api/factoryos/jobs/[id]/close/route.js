@@ -1,7 +1,8 @@
 import { getSession, requireManager } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
 import { postJobMessage } from "@/lib/factoryos/repo";
-import { closeJob, reopenJob } from "@/lib/factoryos/closeJob";
+import { reopenJob } from "@/lib/factoryos/closeJob";
+import { moveStage } from "@/lib/factoryos/transitions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,12 @@ export async function POST(req, { params }) {
       await postJobMessage({ jobId: job.id, body: "Job reopened by factory", authorEmail: session.email || null, authorRole: "team", kind: "system" }).catch(() => {});
       return Response.json({ ok: true });
     }
-    await closeJob(job.id, { fgQty: body.fgQty, fgCartons: body.fgCartons, note: body.note, email: session.email || null });
+    const moved = await moveStage({
+      session, jobId: job.id, to: "Ready for Dispatch",
+      fields: { fgQty: body.fgQty, fgCartons: body.fgCartons, closeNote: body.note },
+      note: "Handed to warehouse",
+    });
+    if (!moved.ok) return Response.json({ error: moved.error, missing: moved.missing || [] }, { status: moved.status });
     await postJobMessage({
       jobId: job.id,
       body: `Job closed — ${Number(body.fgQty).toLocaleString("en-IN")} pcs${body.fgCartons ? ` in ${body.fgCartons} cartons` : ""} handed to warehouse${body.note ? ` · ${body.note}` : ""}`,

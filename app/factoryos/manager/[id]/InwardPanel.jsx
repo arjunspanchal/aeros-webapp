@@ -6,9 +6,9 @@ import { inwardTotals, INWARD_UNITS } from "@/lib/factoryos/inwards";
 // What came back from the printer, delivery by delivery, against what was
 // ordered. Lives on the job so a short or damaged delivery is recorded
 // where the job is, not in a spreadsheet.
-export default function InwardPanel({ jobId, orderedQty, vendor, canEdit }) {
+export default function InwardPanel({ jobId, orderedQty, vendor, canEdit, defaultUnit = "pcs" }) {
   const [inwards, setInwards] = useState(null);
-  const [form, setForm] = useState({ receivedOn: new Date().toISOString().slice(0, 10), qty: "", unit: "pcs", damagedQty: "", challanNo: "", notes: "" });
+  const [form, setForm] = useState({ receivedOn: new Date().toISOString().slice(0, 10), qty: "", unit: defaultUnit, damagedQty: "", challanNo: "", notes: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 

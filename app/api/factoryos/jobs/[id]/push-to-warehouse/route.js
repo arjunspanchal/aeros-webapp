@@ -40,7 +40,7 @@ export async function POST(req, { params }) {
       goodQty:          body.goodQty,
       rejectQty:        body.rejectQty,
       rejectReason:     body.rejectReason,
-      unitCost:         body.unitCost,
+      unitCost:         null, // no rates in FactoryOS (17-Nov-2026)
       goodLocationCode: body.goodLocationCode,
       finalPush:        body.finalPush,
     }, session.email);

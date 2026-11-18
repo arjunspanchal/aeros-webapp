@@ -139,13 +139,12 @@ export async function GET() {
 
   // Public counts — clearance + catalogue are always available
   const tasks = {
-    clearance: safe(() => dbCount("clearance_items"), 0),
     catalogue: safe(() => dbCount("master_products"), 0),
   };
 
   if (internalFactoryos) {
     tasks.jobsTotal = safe(() => dbCount("jobs"), 0);
-    tasks.jobsOpen = safe(() => dbCount("jobs", { stage: "neq.Delivered" }), 0);
+    tasks.jobsOpen = safe(() => dbCount("jobs", { stage: "not.in.(Dispatched,Delivered)" }), 0);
     tasks.pos = safe(() => dbCount("customer_pos"), 0);
     tasks.factoryosSpark = dailySpark("job_status_updates", "created_at");
   }
@@ -239,12 +238,6 @@ export async function GET() {
         stage: "neq.Delivered",
         promised_date: `lt.${todayISO()}`,
       }), 0).then((n) => n > 0 ? { kind: "danger", label: `${n} overdue job${n>1?"s":""}`, href: "/factoryos/manager?filter=overdue" } : null),
-    );
-  }
-  if (internalRateCards) {
-    alertTasks.push(
-      safe(() => dbCount("rfq_quotes", { status: "eq.open" }), 0)
-        .then((n) => n > 0 ? { kind: "info", label: `${n} RFQ${n>1?"s":""} awaiting reply`, href: "/rfq-manager?filter=open" } : null),
     );
   }
   if (internalHR) {

@@ -3,8 +3,8 @@ import { useState } from "react";
 import { inputCls, labelCls, formatDate } from "@/app/factoryos/_components/ui";
 
 // Factory closes the job: finished pcs (and cartons) handed to the warehouse.
-// After this the warehouse team owns it — they see it on
-// /warehouse/factory-fg and mark it dispatched.
+// After this the warehouse team owns it: it shows on Warehouse → Inward to be
+// taken in, and leaves on Warehouse → Outward with its Zoho invoice.
 export default function CloseJobCard({ job, onChanged }) {
   const [fgQty, setFgQty] = useState(job.qty != null ? String(job.qty) : "");
   const [fgCartons, setFgCartons] = useState("");

@@ -1,11 +1,14 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
-import { getJob, listJobUpdates, listClients, listVendors } from "@/lib/factoryos/repo";
+import { getJob, listJobUpdates, listClients, listVendors, listUsers } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { ROLES } from "@/lib/factoryos/constants";
 import JobEditor from "./JobEditor";
 import { listRmStockOptions } from "@/lib/factoryos/rmStock";
+import { stepContext, listOutsourcers } from "@/lib/factoryos/transitions";
+
+export const metadata = { title: "Job — FactoryOS" };
 
 export const dynamic = "force-dynamic";
 
@@ -13,25 +16,18 @@ export default async function ManagerJobDetail({ params }) {
   const session = getSession();
   const role = session?.isAdmin ? "admin" : session?.modules?.factoryos;
   if (!session || !role) redirect("/login");
-  if (role === ROLES.CUSTOMER) redirect("/factoryos/customer");
-  if (role === ROLES.ADMIN) redirect(`/factoryos/admin/jobs/${params.id}`);
+  if (role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER) redirect(`/factoryos/admin/jobs/${params.id}`);
 
   const job = await getJob(params.id);
   if (!job) notFound();
 
-  // Scope check for account managers.
-  if (role === ROLES.ACCOUNT_MANAGER) {
-    const myClients = new Set(session.factoryosClientIds || []);
-    const ok = job.clientIds.some((c) => myClients.has(c)) ||
-      (job.customerManagerId && job.customerManagerId === session.factoryosUserId);
-    if (!ok) redirect("/factoryos/manager");
-  }
+  // Sales see every job, read-only (18-Nov-2026) — no scope check here.
 
   // FM lands here and CAN edit master-product mapping; AMs see it read-only.
   // Either way, the lock state needs to reflect whether warehouse pushes
   // have happened. If the fetch fails, fall back to unlocked — server-side
   // PATCH guard re-checks anyway.
-  const [updates, clients, pushStatus, printingVendors, rmStock] = await Promise.all([
+  const [updates, clients, pushStatus, printingVendors, rmStock, users, stepCtxRaw, outsourcers] = await Promise.all([
     listJobUpdates(job.id),
     listClients(),
     getJobPushStatus(job.id).catch((e) => {
@@ -40,9 +36,16 @@ export default async function ManagerJobDetail({ params }) {
     }),
     listVendors({ type: "Printing", activeOnly: true }).catch(() => []),
     listRmStockOptions(),
+    listUsers().catch(() => []),
+    stepContext(job.id).catch(() => null),
+    listOutsourcers().catch(() => []),
   ]);
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));
   const masterMappingLocked = (pushStatus?.push_count || 0) > 0;
+  // Sales managers = active account managers (same list as the New job form).
+  const salesManagers = users
+    .filter((u) => (u.role === "account_manager" || u.role === "admin") && u.active)
+    .map((u) => ({ id: u.id, name: u.name || u.email }));
   const printingVendorNames = printingVendors.map((v) => v.name);
 
   return (
@@ -60,6 +63,9 @@ export default async function ManagerJobDetail({ params }) {
           pushCount={pushStatus?.push_count || 0}
           printingVendors={printingVendorNames}
           rmStock={rmStock}
+          salesManagers={salesManagers}
+          stepCtx={stepCtxRaw ? { inwardCount: stepCtxRaw.inwardCount, coaCount: stepCtxRaw.coaCount, lots: stepCtxRaw.lots, dispatchedQty: stepCtxRaw.dispatchedQty } : null}
+          outsourcers={outsourcers}
         />
       </main>
     </div>

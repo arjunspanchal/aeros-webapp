@@ -2,7 +2,7 @@ import './globals.css';
 
 export const metadata = {
   title: 'Aeros Packaging',
-  description: 'Browse our clearance packaging inventory and full product catalog. Inquire via WhatsApp or email.',
+  description: 'Aeros Packaging: paper packaging catalogue, rate calculators and factory operations.',
 };
 
 // Theme handling retired in Shell prompt 2 — the new editorial-utilitarian

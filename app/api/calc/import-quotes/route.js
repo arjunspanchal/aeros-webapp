@@ -4,8 +4,12 @@
 // Cutover from the legacy `import_quotes` table — pattern lifted verbatim
 // from app/api/calc/pp-quotes/route.js. Import-specific differences:
 //   • quote_type = 'import' (admin-only).
-//   • payload jsonb carries 20 import-shipment keys (incl. the variable
-//     `items` array — same data the legacy `items_json` column held).
+//   • payload jsonb carries the import-shipment keys (incl. the variable
+//     `items` array — same data the legacy `items_json` column held). Because
+//     payload is free-form, the volumetric fields (alloc_basis, per-item carton
+//     specs, total_cbm / total_weight_kg / total_cartons) landed without a
+//     migration. Rows written before them read back with alloc_basis "fob",
+//     which is exactly the behaviour they were priced under.
 //   • Import quotes don't fit the per-piece × qty shape, so order_qty /
 //     order_total_inr are left NULL by omission. client_email is NULL too
 //     (Internal-only calc; vendor lives in payload.vendor_id / vendor_name).
@@ -47,6 +51,10 @@ function rowToQuote(row) {
     outputGstPct: p.output_gst_pct ?? null,
     freightAmount: p.freight_amount ?? null,
     freightMode: p.freight_mode || "",
+    freightBasis: p.freight_basis || "",
+    // Quotes saved before the volumetric model default to the old behaviour
+    // (split shipment costs by FOB value) so their numbers reload unchanged.
+    allocBasis: p.alloc_basis || "fob",
     inlandAmount: p.inland_amount ?? null,
     inlandMode: p.inland_mode || "",
     unofficialAmount: p.unofficial_amount ?? null,
@@ -57,6 +65,9 @@ function rowToQuote(row) {
     lclCbm: p.lcl_cbm ?? null,
     items: Array.isArray(p.items) ? p.items : [],
     itemsCount: p.items_count ?? null,
+    totalCbm: p.total_cbm ?? null,
+    totalWeightKg: p.total_weight_kg ?? null,
+    totalCartons: p.total_cartons ?? null,
     totalLandedINR: row.mfg_cost_inr ?? null,
     totalFinalSellingINR: row.selling_price_inr ?? null,
     generatedBy: row.generated_by || "",
@@ -95,6 +106,8 @@ function buildRow(body, session) {
       output_gst_pct: num(body.outputGstPct),
       freight_amount: num(body.freightAmount),
       freight_mode: body.freightMode || null,
+      freight_basis: body.freightBasis || null,
+      alloc_basis: body.allocBasis || null,
       inland_amount: num(body.inlandAmount),
       inland_mode: body.inlandMode || null,
       unofficial_amount: num(body.unofficialAmount),
@@ -104,6 +117,12 @@ function buildRow(body, session) {
       lcl_rate: num(body.lclRate),
       lcl_cbm: num(body.lclCbm),
       items_count: num(body.itemsCount),
+      total_cbm: num(body.totalCbm),
+      total_weight_kg: num(body.totalWeightKg),
+      total_cartons: num(body.totalCartons),
+      // Each item now also carries its outer-carton spec (cartonL/W/H in cm,
+      // pcsPerCtn, kgPerCtn, cbmPerCtnStated). payload is free-form jsonb, so
+      // this needed no migration.
       items: Array.isArray(body.items) ? body.items : [],
     },
   };

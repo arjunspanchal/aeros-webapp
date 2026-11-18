@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
-import { getJob, getVendor, listJobThread, vendorSafeJob } from "@/lib/factoryos/repo";
+import { getJob, getVendor, listJobThread, vendorSafeJob, threadForViewer } from "@/lib/factoryos/repo";
 import { vendorOwnsJob } from "@/lib/factoryos/vendorScope";
 import { ROLES } from "@/lib/factoryos/constants";
 import { getJobOrder } from "@/lib/factoryos/jobOrder";
@@ -43,7 +43,7 @@ export default async function VendorJobDetail({ params }) {
         </Link>
         <VendorJobDetailClient
           initialJob={vendorSafeJob(job)}
-          initialThread={thread}
+          initialThread={threadForViewer(thread, "vendor")}
           jobOrder={issued ? order : null}
         />
       </main>

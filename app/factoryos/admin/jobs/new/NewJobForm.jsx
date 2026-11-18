@@ -2,11 +2,12 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { inputCls, labelCls, ButtonGroup } from "@/app/factoryos/_components/ui";
-import { RM_FORMS, PRINTING_TYPES as PRINT_TYPES, PAPER_TYPES, MILLS, millFromPaperName, normRmForm, normPrintingType } from "@/lib/factoryos/jobOptions";
+import { RM_FORMS, PRINTING_TYPES as PRINT_TYPES, PAPER_TYPES, MILLS, millFromPaperName, normRmForm, normPrintingType, printVariantLabel, CUSTOM_ITEM_TYPES, JOB_FEATURES } from "@/lib/factoryos/jobOptions";
 import { STAGES, LEGACY_CATEGORIES } from "@/lib/factoryos/constants";
 import { LINES, lineForCategory } from "@/lib/factoryos/lines";
 import { ROUTE_AT, defaultRoute, describeRoute } from "@/lib/factoryos/routes";
 import { rmStockLabel, rmStockFree } from "@/lib/factoryos/rmStock";
+import ZohoSoField from "@/app/factoryos/_components/ZohoSoField";
 
 // Fallback if the server didn't pass a precomputed J#. Returns "YYMM001"
 // (just the prefix + first-of-month seq) so the form never starts blank.
@@ -86,6 +87,9 @@ export default function NewJobForm({
   canOverrideRm = false,
   // Repeat order: fields copied from a previous job (never J#, qty, dates).
   prefill = null,
+  // Zoho SO number handed over from the Zoho check page ("Raise job").
+  initialSo = "",
+  initialLine = "",
 }) {
   const [overrideShortRm, setOverrideShortRm] = useState(false);
   const router = useRouter();
@@ -97,12 +101,17 @@ export default function NewJobForm({
     // 'in_house' = manufactured here (full production pipeline). 'traded' =
     // bought-in and delivered (e.g. foils) — no catalogue SKU, no RM/printing.
     sourcing: "in_house",
-    orderRate: "",
+    coatingRequired: false,
+    channel: "",
     clientId: "",
     newClientName: "",
     brand: "",
     customerManagerId: "",
     productId: "",
+    variantId: "",
+    customItem: false,
+    extraFeatures: [],
+    otherFeature: "",
     // Category is auto-filled when the operator picks a master product —
     // the catalog category is the source of truth. Starts empty so a job
     // with no SKU selected doesn't carry a misleading default into the DB.
@@ -112,10 +121,11 @@ export default function NewJobForm({
     city: "",
     qty: "",
     orderDate: new Date().toISOString().slice(0, 10),
-    expectedDispatchDate: "",
-    estimatedDeliveryDate: "",
     stage: STAGES[0],
     poNumber: "",
+    zohoSoNo: initialSo || "",
+    zohoSoLineId: initialLine || "", // which item of the SO this job is for
+    linkClientToZoho: false,
     // RM
     rmStockLineId: "",
     masterPaperId: "",
@@ -141,6 +151,17 @@ export default function NewJobForm({
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  // The Zoho SO the number resolves to (null until it checks out).
+  const [soInfo, setSoInfo] = useState(null);
+  const isAdmin = canOverrideRm;
+  // Customer vs the SO's Zoho customer: "ok" | "unlinked" | "mismatch" | "new" | null
+  const pickedClient = clients.find((c) => c.id === form.clientId) || null;
+  const zohoClient = soInfo?.customerId ? clients.find((c) => c.zohoContactId === soInfo.customerId) || null : null;
+  const customerCheck = !soInfo || !soInfo.customerId ? null
+    : form.clientId === NEW_CLIENT ? "new"
+    : !pickedClient ? null
+    : pickedClient.zohoContactId === soInfo.customerId ? "ok"
+    : pickedClient.zohoContactId ? "mismatch" : "unlinked";
   const [productQuery, setProductQuery] = useState("");
   // Category narrows the product list before the search filter applies —
   // 600+ rows in a single dropdown is unworkable, this scopes it to a
@@ -186,7 +207,7 @@ export default function NewJobForm({
   const filteredProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
     // FactoryOS doesn't record traded items — only what the factory makes.
-    let list = products.filter((p) => p.inHouse);
+    let list = products.filter((p) => p.inHouse && !p.parentSku);
     if (productCategory === "line:any") {
       list = list.filter((p) => lineForCategory(p.category, p.subCategory) !== null);
     } else if (productCategory.startsWith("line:")) {
@@ -202,7 +223,7 @@ export default function NewJobForm({
 
   // Sizes available in the chosen line (before the size / search filters).
   const sizeOptions = useMemo(() => {
-    let list = products.filter((p) => p.inHouse);
+    let list = products.filter((p) => p.inHouse && !p.parentSku);
     if (productCategory === "line:any") list = list.filter((p) => lineForCategory(p.category, p.subCategory) !== null);
     else if (productCategory.startsWith("line:")) {
       const key = productCategory.slice(5);
@@ -215,10 +236,11 @@ export default function NewJobForm({
 
   function onPickProduct(id) {
     const p = products.find((x) => x.id === id);
-    if (!p) { set("productId", ""); return; }
+    if (!p) { setForm((f) => ({ ...f, productId: "", variantId: "" })); return; }
     setForm((f) => ({
       ...f,
       productId: id,
+      variantId: "",
       item: p.productName,
       ...defaultRoute({ category: p.category, subCategory: p.subCategory, item: p.productName, printingVendor: f.printingVendor }),
       itemSize: p.sizeVolume || f.itemSize,
@@ -232,6 +254,14 @@ export default function NewJobForm({
       gsm: p.gsm != null ? String(p.gsm) : f.gsm,
       paperType: p.material || f.paperType,
     }));
+  }
+
+  // Printed versions of the picked item (catalogue rows whose parent is it).
+  const baseProduct = products.find((x) => x.id === form.productId) || null;
+  const printVariants = baseProduct ? products.filter((x) => x.parentSku && x.parentSku === baseProduct.sku).sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true })) : [];
+  function onPickVariant(id) {
+    const v = products.find((x) => x.id === id);
+    setForm((f) => ({ ...f, variantId: v ? id : "", item: (v || baseProduct)?.productName || f.item }));
   }
 
   // Filter master papers by typed text — name / supplier / type / GSM / BF.
@@ -275,7 +305,6 @@ export default function NewJobForm({
       paperType: rm.paperType || f.paperType,
       gsm: rm.gsm != null ? String(rm.gsm) : f.gsm,
       rmSizeMm: rm.widthMm != null ? String(rm.widthMm) : f.rmSizeMm,
-      stage: f.stage === "RM Pending" ? "Under Printing" : f.stage,
     }));
   }
 
@@ -300,9 +329,44 @@ export default function NewJobForm({
     // Belt-and-braces guard — HTML5 `required` on the select also enforces this, but if
     // someone bypasses the browser we still catch it here before hitting the API.
     // Both in-house and traded jobs pick from the catalogue so the job maps to a DB SKU.
-    const pickedProduct = products.find((p) => p.id === form.productId);
-    if (!pickedProduct) {
-      setErr("Pick a product from the master catalogue — required so this job maps to an SKU.");
+    if (!form.customerManagerId) {
+      setErr("Pick the sales manager for this job.");
+      setBusy(false);
+      return;
+    }
+    if (form.zohoSoNo.trim() && !soInfo) {
+      setErr("That Zoho SO number didn't check out. Fix it, or wait for the Zoho check to finish.");
+      setBusy(false);
+      return;
+    }
+    if (customerCheck === "mismatch") {
+      setErr(`${soInfo.number} is for ${soInfo.customer} in Zoho, but you picked ${pickedClient.name}.`);
+      setBusy(false);
+      return;
+    }
+    if (customerCheck === "unlinked" && !form.linkClientToZoho) {
+      setErr(`Tick "same customer" to link ${pickedClient.name} to Zoho's ${soInfo.customer}, or pick the right customer.`);
+      setBusy(false);
+      return;
+    }
+    if (!form.zohoSoNo.trim() || !soInfo) {
+      setErr("Enter a valid Zoho SO number. A job can't be created without one.");
+      setBusy(false);
+      return;
+    }
+    if ((soInfo.lines || []).filter((l) => l.id).length > 1 && !form.zohoSoLineId) {
+      setErr(`${soInfo.number} has several items. Pick which item this job is for.`);
+      setBusy(false);
+      return;
+    }
+    const pickedProduct = form.customItem ? null : products.find((p) => p.id === (form.variantId || form.productId));
+    if (!form.customItem && !pickedProduct) {
+      setErr("Pick the item from the list, or tick 'Custom item' if it is not in the catalogue.");
+      setBusy(false);
+      return;
+    }
+    if (form.customItem && (!String(form.category || "").trim() || !String(form.itemSize || "").trim() || !String(form.item || "").trim())) {
+      setErr("For a custom item, pick the product type and enter the item name and its real size.");
       setBusy(false);
       return;
     }
@@ -329,7 +393,8 @@ export default function NewJobForm({
       const cRes = await fetch("/api/factoryos/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
+        // A customer added from the SO is created already linked to Zoho.
+        body: JSON.stringify({ name: trimmed, zohoContactId: soInfo?.customerId || undefined }),
       });
       if (!cRes.ok) { setErr(`Couldn't create client: ${(await cRes.json()).error || "Failed"}`); setBusy(false); return; }
       const cData = await cRes.json();
@@ -344,9 +409,8 @@ export default function NewJobForm({
       // the job-level record keeps the original mapping so FG ledger stays consistent.
       overrideShortRm: canOverrideRm && overrideShortRm,
       copySpecFromJobId: prefill?.fromJobId || undefined,
-      masterSku: pickedProduct.sku || "",
-      masterProductName: pickedProduct.productName || "",
-      orderRate: form.orderRate ? Number(form.orderRate) : undefined,
+      masterSku: pickedProduct?.sku || "",
+      masterProductName: pickedProduct?.productName || "",
       qty: form.qty ? Number(form.qty) : undefined,
       gsm: form.gsm ? Number(form.gsm) : undefined,
       rmSizeMm: form.rmSizeMm ? Number(form.rmSizeMm) : undefined,
@@ -354,14 +418,16 @@ export default function NewJobForm({
       rmQtyKgs: form.rmQtyKgs ? Number(form.rmQtyKgs) : undefined,
       customerManagerId: form.customerManagerId || undefined,
       orderDate: form.orderDate || undefined,
-      expectedDispatchDate: form.expectedDispatchDate || undefined,
-      estimatedDeliveryDate: form.estimatedDeliveryDate || undefined,
       rmDeliveryDate: form.rmDeliveryDate || undefined,
       printingDueDate: form.printingDueDate || undefined,
       productionDueDate: form.productionDueDate || undefined,
     };
     delete body.newClientName;
+    if (isNewClient && soInfo?.customerId) body.linkClientToZoho = true;
     delete body.productId;
+    delete body.variantId;
+    body.extraFeatures = [...(form.extraFeatures || []), form.otherFeature].map((x) => String(x || "").trim()).filter(Boolean);
+    delete body.otherFeature;
     delete body.masterPaperId;
 
     const res = await fetch("/api/factoryos/jobs", {
@@ -395,6 +461,26 @@ export default function NewJobForm({
           <label className={labelCls}>PO number (optional)</label>
           <input className={inputCls} value={form.poNumber} onChange={(e) => set("poNumber", e.target.value)} />
         </div>
+        <ZohoSoField
+          value={form.zohoSoNo}
+          onChange={(v) => set("zohoSoNo", v)}
+          lineId={form.zohoSoLineId}
+          onLineChange={(id, line) => setForm((f) => ({
+            ...f,
+            zohoSoLineId: id,
+            // The SO item's quantity is the order quantity; fill it if blank.
+            qty: !f.qty && line && line.qty ? String(line.qty) : f.qty,
+          }))}
+          onResolved={(so) => {
+            setSoInfo(so);
+            // The SO's reference is usually the customer's PO; fill it if blank.
+            if (so && so.reference) setForm((f) => (f.poNumber ? f : { ...f, poNumber: so.reference }));
+            // Pick the FactoryOS customer linked to the SO's Zoho customer.
+            const linked = so?.customerId ? clients.find((c) => c.zohoContactId === so.customerId) : null;
+            if (linked) setForm((f) => ({ ...f, clientId: linked.id, linkClientToZoho: false }));
+          }}
+        />
+
         <div>
           <label className={labelCls}>Customer</label>
           <select className={inputCls} value={form.clientId} onChange={(e) => set("clientId", e.target.value)} required>
@@ -411,6 +497,29 @@ export default function NewJobForm({
               required
               autoFocus
             />
+          )}
+          {customerCheck === "ok" && (
+            <p className="mt-1 text-xs text-green-700 dark:text-green-400">Matches the SO's Zoho customer.</p>
+          )}
+          {customerCheck === "mismatch" && (
+            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+              {soInfo.number} is for {soInfo.customer} in Zoho{zohoClient ? ` (${zohoClient.name} here)` : ""}. Pick the right customer or check the SO number.
+            </p>
+          )}
+          {customerCheck === "unlinked" && (
+            <label className="mt-1 flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300">
+              <input type="checkbox" className="mt-0.5" checked={form.linkClientToZoho} onChange={(e) => set("linkClientToZoho", e.target.checked)} />
+              <span>{pickedClient.name} is the same customer as Zoho's <b>{soInfo.customer}</b>. Link them (one time).</span>
+            </label>
+          )}
+          {soInfo && soInfo.customerId && !zohoClient && customerCheck !== "unlinked" && customerCheck !== "new" && (
+            <button
+              type="button"
+              className="mt-1 text-xs text-blue-700 hover:underline dark:text-blue-400"
+              onClick={() => setForm((f) => ({ ...f, clientId: NEW_CLIENT, newClientName: soInfo.customer }))}
+            >
+              {soInfo.customer} isn't in FactoryOS yet. Add it as a new customer (linked to Zoho)
+            </button>
           )}
         </div>
         <div>
@@ -431,8 +540,8 @@ export default function NewJobForm({
           </datalist>
         </div>
         <div>
-          <label className={labelCls}>Account manager <span className="font-normal normal-case text-gray-400">(handles the customer)</span></label>
-          <select className={inputCls} value={form.customerManagerId} onChange={(e) => set("customerManagerId", e.target.value)}>
+          <label className={labelCls}>Sales manager <span className="text-red-500">*</span> <span className="font-normal normal-case text-gray-400">(handles the customer)</span></label>
+          <select className={inputCls} value={form.customerManagerId} onChange={(e) => set("customerManagerId", e.target.value)} required>
             <option value="">—</option>
             {accountManagers.map((u) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
           </select>
@@ -446,19 +555,19 @@ export default function NewJobForm({
       <Section title="Item">
         <div className="sm:col-span-2">
           <label className={labelCls}>
-            Master product <span className="text-red-500">*</span>
+            Item <span className="text-red-500">*</span>
             <span className="ml-2 text-[11px] font-normal normal-case text-gray-500 dark:text-gray-400">
-              required — pick the SKU this job produces; auto-fills item, size, category, GSM, material
+              {form.customItem ? "custom item: enter its type, name and real size below" : "pick the item this job makes; it fills in the type, name, size, GSM and paper"}
             </span>
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
+          <div className={`grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2 ${form.customItem ? "hidden" : ""}`}>
             <select
               className={inputCls}
               value={productCategory}
               onChange={(e) => { setProductCategory(e.target.value); setProductSize(""); }}
-              aria-label="Category"
+              aria-label="Production line"
             >
-              <option value="line:any">All in-house products</option>
+              <option value="line:any">All lines</option>
               {LINES.map((l) => (
                 <option key={l.key} value={`line:${l.key}`}>{l.label}</option>
               ))}
@@ -474,27 +583,62 @@ export default function NewJobForm({
             </select>
             <input
               className={inputCls}
-              placeholder={`Search ${filteredProducts.length === products.length ? products.length : `${filteredProducts.length} of ${products.length}`} products by name / SKU / size…`}
+              placeholder={`Search ${filteredProducts.length} items by name / SKU / size…`}
               value={productQuery}
               onChange={(e) => setProductQuery(e.target.value)}
             />
           </div>
           <select
-            className={inputCls}
+            className={`${inputCls} ${form.customItem ? "hidden" : ""}`}
             value={form.productId}
             onChange={(e) => onPickProduct(e.target.value)}
-            required
+            required={!form.customItem}
+            disabled={form.customItem}
           >
-            <option value="">— Select a master product —</option>
+            <option value="">— Select the item —</option>
             {filteredProducts.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.productName}{p.sku ? ` (${p.sku})` : ""}{p.sizeVolume ? ` · ${p.sizeVolume}` : ""}
               </option>
             ))}
           </select>
+          {!form.customItem && printVariants.length > 0 && (
+            <div className="mt-2">
+              <label className={labelCls}>Print</label>
+              <select className={inputCls} value={form.variantId} onChange={(e) => onPickVariant(e.target.value)}>
+                <option value="">Plain, no print</option>
+                {printVariants.map((v) => <option key={v.id} value={v.id}>{printVariantLabel(v)}</option>)}
+              </select>
+            </div>
+          )}
+          <label className="mt-3 flex items-start gap-2 text-sm text-gray-800 dark:text-gray-200">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={form.customItem}
+              onChange={(e) => setForm((f) => ({ ...f, customItem: e.target.checked, productId: "", variantId: "", category: "", item: "", itemSize: "" }))}
+            />
+            <span>Custom item: the size or form is not in the list. <span className="text-gray-500 dark:text-gray-400">Enter the product type, name and real size below.</span></span>
+          </label>
+          <div className="mt-3">
+            <label className={labelCls}>Additional features <span className="font-normal normal-case text-gray-400">(made on top of the item, e.g. a flap)</span></label>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-800 dark:text-gray-200">
+              {JOB_FEATURES.map((ft) => (
+                <label key={ft} className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={form.extraFeatures.includes(ft)}
+                    onChange={(e) => setForm((f) => ({ ...f, extraFeatures: e.target.checked ? [...f.extraFeatures, ft] : f.extraFeatures.filter((x) => x !== ft) }))}
+                  />
+                  {ft}
+                </label>
+              ))}
+              <input className={`${inputCls} max-w-xs`} placeholder="Other feature (type it)" value={form.otherFeature} onChange={(e) => set("otherFeature", e.target.value)} />
+            </div>
+          </div>
           {(() => {
-            const pp = products.find((x) => x.id === form.productId);
-            if (!pp) return null;
+            const pp = products.find((x) => x.id === (form.variantId || form.productId));
+            if (!pp || form.customItem) return null;
             return (
               <p className="mt-1.5 text-xs text-gray-700 dark:text-gray-300">
                 <span className="text-gray-500 dark:text-gray-400">Dimensions: </span>
@@ -518,19 +662,31 @@ export default function NewJobForm({
           )}
         </div>
         <div>
-          <label className={labelCls}>Category</label>
-          <select className={inputCls} value={form.category} onChange={(e) => set("category", e.target.value)}>
-            <option value="">— Select category —</option>
-            {formCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <label className={labelCls}>Product type {form.customItem ? <span className="text-red-500">*</span> : <span className="font-normal normal-case text-gray-400">(from the item)</span>}</label>
+          {form.customItem ? (
+            <select className={inputCls} value={form.category} onChange={(e) => set("category", e.target.value)} required>
+              <option value="">— Pick —</option>
+              {CUSTOM_ITEM_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          ) : (
+            <input className={`${inputCls} bg-gray-50 text-gray-600 dark:bg-gray-800/60`} value={form.category} readOnly tabIndex={-1} placeholder="fills in when you pick an item" />
+          )}
         </div>
         <div>
-          <label className={labelCls}>Item</label>
-          <input className={inputCls} value={form.item} onChange={(e) => set("item", e.target.value)} placeholder="e.g. 250 ml DW Paper Cup" required />
+          <label className={labelCls}>Item name {form.customItem ? <span className="text-red-500">*</span> : <span className="font-normal normal-case text-gray-400">(catalogue name)</span>}</label>
+          {form.customItem ? (
+            <input className={inputCls} value={form.item} onChange={(e) => set("item", e.target.value)} placeholder="e.g. Twisted Handle Paper Bag White Kraft 260 x 120 x 320" required />
+          ) : (
+            <input className={`${inputCls} bg-gray-50 text-gray-600 dark:bg-gray-800/60`} value={form.item} readOnly tabIndex={-1} placeholder="fills in when you pick an item" />
+          )}
         </div>
         <div>
-          <label className={labelCls}>Item size <span className="font-normal normal-case text-gray-400">(from the product)</span></label>
-          <input className={`${inputCls} bg-gray-50 text-gray-600 dark:bg-gray-800/60`} value={form.itemSize} readOnly tabIndex={-1} placeholder="fills in when you pick a product" />
+          <label className={labelCls}>Item size <span className="font-normal normal-case text-gray-400">{form.customItem ? "(real size, e.g. 280 x 254 x 280 mm W x G x H)" : "(from the item)"}</span></label>
+          {form.customItem ? (
+            <input className={inputCls} value={form.itemSize} onChange={(e) => set("itemSize", e.target.value)} placeholder="Real size of this item" required />
+          ) : (
+            <input className={`${inputCls} bg-gray-50 text-gray-600 dark:bg-gray-800/60`} value={form.itemSize} readOnly tabIndex={-1} placeholder="fills in when you pick an item" />
+          )}
         </div>
         <div>
           <label className={labelCls}>Delivery city</label>
@@ -544,16 +700,8 @@ export default function NewJobForm({
           <input type="number" className={inputCls} value={form.qty} onChange={(e) => set("qty", e.target.value)} />
         </div>
         <div>
-          <label className={labelCls}>Rate (₹/unit)</label>
-          <input type="number" step="0.0001" className={inputCls} value={form.orderRate} onChange={(e) => set("orderRate", e.target.value)} placeholder="e.g. 0.72" />
-        </div>
-        <div>
-          <label className={labelCls}>Expected dispatch <span className="font-normal normal-case text-gray-400">(customer promise — defaults to production due)</span></label>
-          <input type="date" className={inputCls} value={form.expectedDispatchDate} onChange={(e) => set("expectedDispatchDate", e.target.value)} />
-        </div>
-        <div>
-          <label className={labelCls}>Estimated delivery (customer-facing ETA)</label>
-          <input type="date" className={inputCls} value={form.estimatedDeliveryDate} onChange={(e) => set("estimatedDeliveryDate", e.target.value)} />
+          <label className={labelCls}>Production ready date <span className="font-normal normal-case text-gray-400">(the date the goods will be ready at the factory)</span></label>
+          <input type="date" className={inputCls} value={form.productionDueDate} onChange={(e) => set("productionDueDate", e.target.value)} />
         </div>
       </Section>
 
@@ -622,7 +770,6 @@ export default function NewJobForm({
               <option key={mp.id} value={mp.id}>
                 {mp.materialName}
                 {mp.bf != null ? ` · ${mp.bf} BF` : ""}
-                {mp.effectiveRate != null ? ` · ₹${mp.effectiveRate}/kg` : ""}
               </option>
             ))}
           </select>
@@ -737,29 +884,29 @@ export default function NewJobForm({
           <label className={labelCls}>Printing due date</label>
           <input type="date" className={inputCls} value={form.printingDueDate} onChange={(e) => set("printingDueDate", e.target.value)} />
         </div>
-        <div>
-          <label className={labelCls}>Production due date <span className="font-normal normal-case text-gray-400">(the floor works to this)</span></label>
-          <input
-            type="date"
-            className={inputCls}
-            value={form.productionDueDate}
-            onChange={(e) => {
-              const v = e.target.value;
-              // Expected dispatch follows production due unless the AM set it.
-              setForm((f) => ({ ...f, productionDueDate: v, expectedDispatchDate: f.expectedDispatchDate || v }));
-            }}
-          />
-        </div>
       </Section>
       )}
 
       <Section title="Workflow">
         <div>
-          <label className={labelCls}>Starting stage</label>
-          <select className={inputCls} value={form.stage} onChange={(e) => set("stage", e.target.value)}>
-            {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+          <label className={labelCls}>Order came from</label>
+          <select className={inputCls} value={form.channel} onChange={(e) => set("channel", e.target.value)}>
+            <option value="">— Pick —</option>
+            <option value="app">Aeros App</option>
+            <option value="key_account">Key account (India)</option>
+            <option value="export">Export</option>
+            <option value="other">Other</option>
           </select>
         </div>
+        <div className="flex items-end">
+          <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200 pb-2">
+            <input type="checkbox" checked={form.coatingRequired} onChange={(e) => set("coatingRequired", e.target.checked)} />
+            Paper goes for PE coating before printing
+          </label>
+        </div>
+        <p className="sm:col-span-3 text-xs text-gray-500 dark:text-gray-400">
+          Every job starts at RM Pending and moves one step at a time from the job page.
+        </p>
         <div className="sm:col-span-2">
           <label className={labelCls}>Notes (visible to customer)</label>
           <textarea rows={2} className={inputCls} value={form.notes} onChange={(e) => set("notes", e.target.value)} />

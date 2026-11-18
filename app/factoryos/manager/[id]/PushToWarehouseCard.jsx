@@ -34,7 +34,6 @@ export default function PushToWarehouseCard({ job, canPush }) {
   const [goodQty, setGoodQty] = useState("");
   const [rejectQty, setRejectQty] = useState("");
   const [rejectReason, setRejectReason] = useState("");
-  const [unitCost, setUnitCost] = useState("");
   const [goodLoc, setGoodLoc] = useState("BWD-FG-RECV");
   const [finalPush, setFinalPush] = useState(false);
 
@@ -61,7 +60,7 @@ export default function PushToWarehouseCard({ job, canPush }) {
     setErr(""); setSuccess("");
     setGoodQty(remaining > 0 ? String(remaining) : "");
     setRejectQty(""); setRejectReason("");
-    setUnitCost(""); setGoodLoc("BWD-FG-RECV");
+    setGoodLoc("BWD-FG-RECV");
     setFinalPush(false);
     setOpen(true);
   }
@@ -80,7 +79,6 @@ export default function PushToWarehouseCard({ job, canPush }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           goodQty: g, rejectQty: r, rejectReason: rejectReason || null,
-          unitCost: unitCost === "" ? null : Number(unitCost),
           goodLocationCode: goodLoc, finalPush,
         }),
       });
@@ -201,7 +199,6 @@ export default function PushToWarehouseCard({ job, canPush }) {
               <Field label="Good qty" type="number" step="any" min="0" value={goodQty} onChange={setGoodQty} />
               <Field label="Reject qty" type="number" step="any" min="0" value={rejectQty} onChange={setRejectQty} />
               <Select label="Reject reason" value={rejectReason} onChange={setRejectReason} options={REJECT_REASONS.map((r) => ({ value: r, label: r || "—" }))} />
-              <Field label="Unit cost (₹)" type="number" step="any" min="0" value={unitCost} onChange={setUnitCost} placeholder="optional" />
               <div className="col-span-2">
                 <Select
                   label="Receiving location"

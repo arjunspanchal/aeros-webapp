@@ -274,7 +274,6 @@ export default function PrintView({ job, vendor, spec: s, colours = [], autoPrin
             { label: "Plates", value: LABEL.platesStatus[s.platesStatus], strong: true, required: true },
             { label: "Plate ref", value: s.platesRef },
             { label: "Owned by", value: LABEL.plateOwner[s.plateOwner] },
-            { label: "Plate charge", value: s.plateChargeInr != null ? `₹${fmtNum(s.plateChargeInr)}` : null },
           ]} />
         </Block>
 

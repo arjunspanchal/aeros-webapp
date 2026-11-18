@@ -1,0 +1,42 @@
+import Link from "next/link";
+import { redirect, notFound } from "next/navigation";
+import { getSession } from "@/lib/hub/session";
+import { canManageInventory, listLocations, listItems } from "@/lib/warehouse/inventory";
+import { getAudit } from "@/lib/warehouse/audits";
+import AuditDetailClient from "./AuditDetailClient";
+
+export const dynamic = "force-dynamic";
+
+export const metadata = { title: "Audit detail — Warehouse" };
+
+export default async function AuditDetailPage({ params }) {
+  const session = getSession();
+  if (!session) redirect("/login");
+  if (!canManageInventory(session)) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-800">
+          <p className="text-lg font-semibold">Access denied</p>
+        </div>
+      </div>
+    );
+  }
+  const audit = await getAudit(params.id);
+  if (!audit) notFound();
+  // Pull items + locations for the ad-hoc add-line picker.
+  const [items, locations] = await Promise.all([listItems(), listLocations()]);
+
+  return (
+    <div className="w-full">
+      <Link href="/factoryos/warehouse/stock/counts" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
+        ← Audits
+      </Link>
+      <AuditDetailClient
+        initialAudit={audit}
+        items={items}
+        locations={locations}
+        currentUserEmail={session.email || ""}
+      />
+    </div>
+  );
+}

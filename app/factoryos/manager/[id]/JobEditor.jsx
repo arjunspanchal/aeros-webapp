@@ -2,16 +2,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StageBadge, StageTimeline, ButtonGroup, inputCls, labelCls, formatDate, formatDateTime } from "@/app/factoryos/_components/ui";
-import { RM_FORMS, PRINTING_TYPES, PAPER_TYPES, MILLS, millFromPaperName, normRmForm, normPrintingType } from "@/lib/factoryos/jobOptions";
+import { RM_FORMS, PRINTING_TYPES, PAPER_TYPES, MILLS, millFromPaperName, normRmForm, normPrintingType, printVariantLabel } from "@/lib/factoryos/jobOptions";
 import { ROLES } from "@/lib/factoryos/constants";
-import { ROUTE_AT, stagesForJob, stageOptionsForJob, describeRoute } from "@/lib/factoryos/routes";
+import { ROUTE_AT, stagesForJob, stageOptionsForJob, describeRoute, isHandPasted } from "@/lib/factoryos/routes";
 import { rmStockLabel, rmStockFree } from "@/lib/factoryos/rmStock";
 import PushToWarehouseCard from "./PushToWarehouseCard";
 import JobThread from "@/app/factoryos/_components/JobThread";
 import InwardPanel from "./InwardPanel";
 import CloseJobCard from "./CloseJobCard";
 import OrderBasicsCard from "./OrderBasicsCard";
+import StepCard from "./StepCard";
 import { V1 } from "@/lib/factoryos/v1";
+import JobTasksCard from "@/app/factoryos/tasks/JobTasksCard";
 
 export default function JobEditor({
   job: initialJob,
@@ -29,6 +31,11 @@ export default function JobEditor({
   printingVendors = [],
   // RM stock lines the job can be linked to (slim raw_materials rows).
   rmStock = [],
+  // Active sales managers [{id, name}] for the Order basics card.
+  salesManagers = [],
+  // Counts and dispatch lots the step rules need, and the coaters/printers.
+  stepCtx = null,
+  outsourcers = [],
 }) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
@@ -37,8 +44,6 @@ export default function JobEditor({
   const [note, setNote] = useState("");
   const [internalStatus, setInternalStatus] = useState(initialJob.internalStatus);
   const [actionPoints, setActionPoints] = useState(initialJob.actionPoints);
-  const [expectedDispatchDate, setExpectedDispatchDate] = useState(initialJob.expectedDispatchDate || "");
-  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState(initialJob.estimatedDeliveryDate || "");
   // RM + production editable fields
   const [rmStockLineId, setRmStockLineId] = useState(initialJob.rmStockLineId || "");
   const [rmSupplier, setRmSupplier] = useState(initialJob.rmSupplier);
@@ -62,22 +67,25 @@ export default function JobEditor({
   const [lrFile, setLrFile] = useState(null);
   const [lrBusy, setLrBusy] = useState(false);
   const [lrErr, setLrErr] = useState("");
-  const [transportMode, setTransportMode] = useState(initialJob.transportMode || "");
-  const [lrOrVehicleNumber, setLrOrVehicleNumber] = useState(initialJob.lrOrVehicleNumber || "");
-  const [driverContact, setDriverContact] = useState(initialJob.driverContact || "");
-  const [trackingBusy, setTrackingBusy] = useState(false);
-  const [trackingSaved, setTrackingSaved] = useState(false);
+  // Ready date in red once it has passed and the goods aren't ready yet.
+  const readyLate = !!job.productionDueDate
+    && String(job.productionDueDate).slice(0, 10) < new Date().toISOString().slice(0, 10)
+    && !["Ready for Dispatch", "Dispatched", "Delivered"].includes(job.stage);
   // Master-product mapping (admin + factory manager can edit; others see read-only).
   const canEditMasterProduct = role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER;
   // Factory roles stop at Ready for Dispatch; the warehouse team dispatches.
   const floorOnly = !V1.factoryDispatches && (role === ROLES.FACTORY_MANAGER || role === ROLES.FACTORY_EXECUTIVE);
+  // Sales and warehouse see every production detail but cannot edit it.
+  const viewOnly = role === ROLES.ACCOUNT_MANAGER || role === ROLES.WAREHOUSE;
+  // Transport details and LR copies belong to the warehouse.
+  const showTracking = role === ROLES.ADMIN || role === ROLES.WAREHOUSE;
   // Printer late: printing due has passed, the job is still at or before
   // Under Printing, and the printer hasn't marked it printed on /printer.
   const todayIso = new Date().toISOString().slice(0, 10);
   const printerLate =
     !!job.printingDueDate &&
     job.printingDueDate.slice(0, 10) < todayIso &&
-    ["RM Pending", "Under Printing"].includes(job.stage) &&
+    ["RM Pending", "Coating", "Under Printing"].includes(job.stage) &&
     !["printing_completed", "dispatched"].includes(job.vendorStatus || "");
   const printerLateDays = printerLate
     ? Math.max(1, Math.round((new Date(todayIso) - new Date(job.printingDueDate.slice(0, 10))) / 86400000))
@@ -176,11 +184,8 @@ export default function JobEditor({
   const norm = (v) => (v == null ? "" : String(v));
   const formDirty = useMemo(() => {
     if (note && note.trim()) return true;
-    if (stage !== job.stage) return true;
     if (norm(internalStatus) !== norm(job.internalStatus)) return true;
     if (norm(actionPoints) !== norm(job.actionPoints)) return true;
-    if (norm(expectedDispatchDate) !== norm(job.expectedDispatchDate)) return true;
-    if (norm(estimatedDeliveryDate) !== norm(job.estimatedDeliveryDate)) return true;
     if ((rmStockLineId || "") !== (job.rmStockLineId || "")) return true;
     if (norm(rmSupplier) !== norm(job.rmSupplier)) return true;
     if (norm(rmMill) !== norm(job.rmMill)) return true;
@@ -200,7 +205,6 @@ export default function JobEditor({
     return false;
   }, [
     job, note, stage, internalStatus, actionPoints,
-    expectedDispatchDate, estimatedDeliveryDate,
     rmSupplier, paperType, gsm, rmSizeMm, rmQtySheets, rmQtyKgs,
     rmDeliveryDate, printingVendor, printingDueDate, productionDueDate, conversionAt, packingAt, rmStockLineId, rmType, printingType, rmMill,
   ]);
@@ -222,17 +226,20 @@ export default function JobEditor({
   // never falls out of sync with whatever taxonomy the master products use.
   const productCategories = useMemo(() => {
     const set = new Set();
-    for (const p of products) if (p.category) set.add(p.category);
+    for (const p of products) if (p.inHouse && !p.parentSku && p.category) set.add(p.category);
     return Array.from(set).sort();
   }, [products]);
 
   const filteredProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase();
-    let list = products;
+    // The factory only makes its own items: traded catalogue items (PP/PET
+    // cups, lids, bagasse…) are not offered. Same rule as the New job form.
+    // Plain (physical) items only; the printed version is the "Print" choice.
+    let list = products.filter((p) => (p.inHouse && !p.parentSku) || p.id === productId);
     if (productCategory) list = list.filter((p) => p.category === productCategory);
     if (q) list = list.filter((p) => `${p.productName} ${p.sku} ${p.category} ${p.sizeVolume}`.toLowerCase().includes(q));
     return list.slice(0, 200);
-  }, [products, productQuery, productCategory]);
+  }, [products, productQuery, productCategory, productId]);
 
   function onPickProduct(id) {
     setProductId(id);
@@ -245,14 +252,14 @@ export default function JobEditor({
   async function saveMasterMapping() {
     setMasterErr(""); setMasterSaved(false);
     if (!masterSku.trim()) {
-      setMasterErr("Pick a master product first.");
+      setMasterErr("Pick the item first.");
       return;
     }
     setMasterBusy(true);
     const res = await fetch(`/api/factoryos/jobs/${job.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ masterSku, masterProductName }),
+      body: JSON.stringify(job.customItem ? { customItem: false, masterSku, masterProductName } : { masterSku, masterProductName }),
     });
     setMasterBusy(false);
     if (!res.ok) { setMasterErr((await res.json()).error || "Failed"); return; }
@@ -300,13 +307,14 @@ export default function JobEditor({
     const res = await fetch(`/api/factoryos/jobs/${job.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        stage,
+      body: JSON.stringify(viewOnly ? {
         note: note.trim() || undefined,
         internalStatus,
         actionPoints,
-        expectedDispatchDate: expectedDispatchDate || null,
-        estimatedDeliveryDate: estimatedDeliveryDate || null,
+      } : {
+        note: note.trim() || undefined,
+        internalStatus,
+        actionPoints,
         rmStockLineId: rmStockLineId || null,
         rmType: rmType || null,
         printingType: printingType || null,
@@ -333,11 +341,11 @@ export default function JobEditor({
     setSavedAt(new Date());
     router.refresh();
     // Optimistic: push the new update into the timeline locally.
-    if (stage !== initialJob.stage || (note && note.trim())) {
+    if (note && note.trim()) {
       setUpdates((prev) => [
         {
           id: `local-${Date.now()}`,
-          stage,
+          stage: data.job?.stage || job.stage,
           note: note.trim(),
           updatedByEmail: "",
           updatedByName: "",
@@ -353,7 +361,13 @@ export default function JobEditor({
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">{job.item}</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              {job.item}
+              {job.customItem && <span className="ml-2 align-middle rounded-md bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900/40 dark:text-purple-200">Custom item</span>}
+              {(job.extraFeatures || []).map((ft) => (
+                <span key={ft} className="ml-2 align-middle rounded-md bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-900/40 dark:text-sky-200">+ {ft}</span>
+              ))}
+            </h1>
             <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
               J# {job.jNumber}{clientName && <> · {clientName}</>}{job.brand && <> · {job.brand}</>}{job.city && <> · {job.city}</>}
             </p>
@@ -432,11 +446,17 @@ export default function JobEditor({
               }[job.vendorStatus] || "—"
             }
           />
-          <Col label="Production due" value={formatDate(job.productionDueDate)} />
+          <Col
+            label="Ready date"
+            value={formatDate(job.productionDueDate) + (readyLate ? " · late" : "")}
+            alert={readyLate}
+          />
           <Col label="RM delivery" value={formatDate(job.rmDeliveryDate)} />
         </dl>
-        <OrderBasicsCard job={job} canEdit={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER} onSaved={setJob} />
+        <OrderBasicsCard job={job} canEdit={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER} onSaved={setJob} salesManagers={salesManagers} />
       </div>
+
+      <StepCard job={job} role={role} ctx={stepCtx} outsourcers={outsourcers} printingVendors={printingVendors} />
 
       {canManageJobOrder && job.sourcing !== "traded" && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
@@ -480,7 +500,7 @@ export default function JobEditor({
                 )}
               </span>
             ) : (
-              <span className="text-xs text-amber-600 dark:text-amber-400">Unmapped — pick a master product so FG inventory can track this job.</span>
+              <span className="text-xs text-amber-600 dark:text-amber-400">{job.customItem ? "Custom item: not in the catalogue. Pick an item below only if it now has one." : "No catalogue item yet. Pick the item this job makes."}</span>
             )}
           </div>
           {masterMappingLocked ? (
@@ -526,7 +546,7 @@ export default function JobEditor({
                 </select>
                 <input
                   className={`${inputCls} sm:col-span-2`}
-                  placeholder={`Search ${filteredProducts.length === products.length ? products.length : `${filteredProducts.length} of ${products.length}`} products by name / SKU / size…`}
+                  placeholder={`Search ${filteredProducts.length} items by name / SKU / size…`}
                   value={productQuery}
                   onChange={(e) => setProductQuery(e.target.value)}
                 />
@@ -536,13 +556,29 @@ export default function JobEditor({
                 value={productId}
                 onChange={(e) => onPickProduct(e.target.value)}
               >
-                <option value="">— Select a master product —</option>
+                <option value="">— Select the item —</option>
                 {filteredProducts.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.productName}{p.sku ? ` (${p.sku})` : ""}{p.sizeVolume ? ` · ${p.sizeVolume}` : ""}
                   </option>
                 ))}
               </select>
+              {(() => {
+                // Printed versions of the picked item, if the catalogue has any.
+                const picked = products.find((x) => x.id === productId);
+                const base = picked?.parentSku ? products.find((x) => x.sku === picked.parentSku) : picked;
+                const variants = base ? products.filter((x) => x.parentSku && x.parentSku === base.sku).sort((a, b) => a.sku.localeCompare(b.sku, undefined, { numeric: true })) : [];
+                if (!base || variants.length === 0) return null;
+                return (
+                  <div className="mt-2">
+                    <label className={labelCls}>Print</label>
+                    <select className={inputCls} value={picked?.parentSku ? picked.id : ""} onChange={(e) => onPickProduct(e.target.value || base.id)}>
+                      <option value="">Plain, no print</option>
+                      {variants.map((v) => <option key={v.id} value={v.id}>{printVariantLabel(v)}</option>)}
+                    </select>
+                  </div>
+                );
+              })()}
               <div className="mt-3 flex items-center gap-3">
                 <button
                   type="button"
@@ -564,7 +600,8 @@ export default function JobEditor({
       )}
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">RM details</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">RM details{viewOnly && <span className="ml-2 text-xs font-normal text-gray-400">view only</span>}</h2>
+        <fieldset disabled={viewOnly} className="min-w-0 border-0 p-0 m-0 disabled:opacity-70">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="sm:col-span-3">
             <label className={labelCls}>Paper from RM stock</label>
@@ -702,28 +739,23 @@ export default function JobEditor({
             <label className={labelCls}>Printing due date</label>
             <input type="date" className={inputCls} value={printingDueDate ? printingDueDate.slice(0, 10) : ""} onChange={(e) => setPrintingDueDate(e.target.value)} />
           </div>
-          <div>
-            <label className={labelCls}>Production due date</label>
-            <input type="date" className={inputCls} value={productionDueDate ? productionDueDate.slice(0, 10) : ""} onChange={(e) => setProductionDueDate(e.target.value)} />
-          </div>
         </div>
-        <p className="text-xs text-gray-400 mt-3 dark:text-gray-500">These save along with the status update below.</p>
+        </fieldset>
+        {!viewOnly && <p className="text-xs text-gray-400 mt-3 dark:text-gray-500">These save along with the notes below.</p>}
       </div>
 
       {/* Audit C2: ledger writes (FG stock + unit cost) are admin/FM only.
           FE keeps full production-floor access (RM, stage, runs) but no
           longer authors financial movements. */}
+      <div id="inward-panel" className="scroll-mt-24" />
       {job.sourcing !== "traded" && (
         <InwardPanel
           jobId={job.id}
           orderedQty={job.qty}
           vendor={job.printingVendor}
-          canEdit={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER || role === ROLES.FACTORY_EXECUTIVE}
+          defaultUnit={isHandPasted(job) ? "sheets" : "pcs"}
+          canEdit={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER || role === ROLES.FACTORY_EXECUTIVE || role === ROLES.WAREHOUSE}
         />
-      )}
-
-      {(role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER) && job.sourcing !== "traded" && (
-        <CloseJobCard job={job} onChanged={() => router.refresh()} />
       )}
 
       {V1.warehousePush && (
@@ -733,33 +765,22 @@ export default function JobEditor({
         />
       )}
 
-      <JobThread jobId={job.id} viewerRole="team" title="Messages & files (customer + vendor)" />
+      <JobTasksCard jNumber={job.jNumber} />
+
+      <JobThread jobId={job.id} viewerRole="team" title="Messages & files (team + printer)" />
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Update status</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Ready date and notes</h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">The stage moves from the step card at the top. A changed date is logged on the timeline.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className={labelCls}>Stage</label>
-            <select className={inputCls} value={stage} onChange={(e) => setStage(e.target.value)}>
-              {stageOptionsForJob({ ...job, stage, conversionAt, packingAt }).filter((s) => floorOnly ? !["Dispatched", "Delivered"].includes(s) || s === job.stage : true).map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Expected dispatch date</label>
+            <label className={labelCls}>Production ready date</label>
             <input
               type="date"
+              disabled={viewOnly}
               className={inputCls}
-              value={expectedDispatchDate ? expectedDispatchDate.slice(0, 10) : ""}
-              onChange={(e) => setExpectedDispatchDate(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Estimated delivery date (shown to customer)</label>
-            <input
-              type="date"
-              className={inputCls}
-              value={estimatedDeliveryDate ? estimatedDeliveryDate.slice(0, 10) : ""}
-              onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
+              value={productionDueDate ? productionDueDate.slice(0, 10) : ""}
+              onChange={(e) => setProductionDueDate(e.target.value)}
             />
           </div>
           <div className="sm:col-span-2">
@@ -785,7 +806,7 @@ export default function JobEditor({
             />
           </div>
           <div className="sm:col-span-2">
-            <label className={labelCls}>Note to log with this update (visible in customer timeline)</label>
+            <label className={labelCls}>Note to log with this update (shows on the job timeline)</label>
             <input
               className={inputCls}
               placeholder="e.g. Moved to printing, production starts Monday"
@@ -812,65 +833,10 @@ export default function JobEditor({
         </div>
       </div>
 
-      {!floorOnly && (
+      {showTracking && (
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Tracking details</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className={labelCls}>Mode of transport</label>
-            <select className={inputCls} value={transportMode} onChange={(e) => setTransportMode(e.target.value)}>
-              <option value="">—</option>
-              <option value="Delhivery">Delhivery</option>
-              <option value="Bluedart">Bluedart</option>
-              <option value="Direct Vehicle">Direct Vehicle</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>LR / Vehicle number</label>
-            <input
-              className={inputCls}
-              value={lrOrVehicleNumber}
-              onChange={(e) => setLrOrVehicleNumber(e.target.value)}
-              placeholder={transportMode === "Direct Vehicle" ? "MH-12-AB-1234" : "LR number"}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Driver contact</label>
-            <input
-              className={inputCls}
-              value={driverContact}
-              onChange={(e) => setDriverContact(e.target.value)}
-              placeholder="Ravi — +91 98xx xx xxxx"
-            />
-          </div>
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          <button
-            type="button"
-            disabled={trackingBusy}
-            onClick={async () => {
-              setTrackingBusy(true); setTrackingSaved(false);
-              const res = await fetch(`/api/factoryos/jobs/${job.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ transportMode, lrOrVehicleNumber, driverContact }),
-              });
-              setTrackingBusy(false);
-              if (!res.ok) { setLrErr((await res.json()).error || "Failed"); return; }
-              const data = await res.json();
-              setJob(data.job);
-              setTrackingSaved(true);
-              setTimeout(() => setTrackingSaved(false), 2000);
-            }}
-            className="bg-blue-600 text-white text-sm font-medium px-3 py-1.5 rounded-md hover:bg-blue-700 disabled:opacity-60"
-          >
-            {trackingBusy ? "Saving…" : "Save tracking details"}
-          </button>
-          {trackingSaved && <span className="text-xs text-green-600 dark:text-green-400">Saved</span>}
-        </div>
-
-        <h3 className="text-xs uppercase tracking-wide text-gray-500 font-semibold mt-6 mb-2 dark:text-gray-400">LR copies</h3>
+        {/* Transport, LR number and driver are entered on the Dispatch step (18-Nov-2026). */}
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">LR copies</h2>
         {job.lrFiles && job.lrFiles.length > 0 ? (
           <ul className="space-y-2 mb-4">
             {job.lrFiles.map((f) => (
@@ -901,7 +867,7 @@ export default function JobEditor({
             {lrBusy ? "Uploading…" : "Upload"}
           </button>
         </div>
-        <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">PDF / JPG / PNG, max 5 MB. Customer can download.</p>
+        <p className="text-xs text-gray-400 mt-1 dark:text-gray-500">PDF / JPG / PNG, max 5 MB.</p>
         {lrErr && <p className="text-xs text-red-500 mt-2">{lrErr}</p>}
       </div>
       )}
@@ -931,11 +897,11 @@ export default function JobEditor({
   );
 }
 
-function Col({ label, value }) {
+function Col({ label, value, alert = false }) {
   return (
     <div>
       <dt className="text-xs text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="text-sm text-gray-900 dark:text-white">{value}</dd>
+      <dd className={`text-sm ${alert ? "font-semibold text-red-600 dark:text-red-400" : "text-gray-900 dark:text-white"}`}>{value}</dd>
     </div>
   );
 }

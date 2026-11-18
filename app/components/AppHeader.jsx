@@ -16,22 +16,16 @@ import { Brand, IdentityMenu, MobileNav } from "./ui";
 
 const MODULES = [
   { key: "calculator",  label: "Calculator",  href: "/calculator"  },
-  { key: "rate_cards",  label: "RFQs",        href: "/rfq-manager" },
   { key: "factoryos",   label: "FactoryOS",   href: "/factoryos"   },
   { key: "hr",          label: "HR",          href: "/hr"          },
   { key: "catalogue",   label: "Catalogue",   href: "/catalog"     },
-  { key: "clearance",   label: "WarehouseOS", href: "/warehouse"   },
 ];
 
 function activeModuleKey(pathname) {
   if (pathname.startsWith("/calculator")) return "calculator";
-  if (pathname.startsWith("/rate-cards")) return "rate_cards";
-  if (pathname.startsWith("/rfq-manager")) return "rate_cards";
   if (pathname.startsWith("/factoryos"))  return "factoryos";
   if (pathname.startsWith("/hr"))         return "hr";
   if (pathname.startsWith("/catalog"))    return "catalogue";
-  if (pathname.startsWith("/warehouse"))  return "clearance";
-  if (pathname.startsWith("/clearance"))  return "clearance";
   // Match /design and /design/... but NOT /design-system (the internal
   // brand-tokens QA page, which intentionally has no nav highlight).
   if (pathname === "/design" || pathname.startsWith("/design/")) return "design";
@@ -58,6 +52,7 @@ function subTabsFor(pathname, session) {
         { href: "/calculator/gsm",            label: "GSM",      short: "GSM" },
         { href: "/calculator/admin/history",  label: "History",  short: "History" },
         { href: "/calculator/admin/rates",    label: "Rates",    short: "Rates" },
+        { href: "/calculator/admin/paper-rates", label: "Paper rates", short: "Paper" },
       ];
     }
     if (role === "client") {
@@ -73,27 +68,9 @@ function subTabsFor(pathname, session) {
     return [];
   }
 
-  if (active === "factoryos") {
-    const role = session?.modules?.factoryos;
-    if (role === "customer") {
-      // Customer nav lives in the portal's own sticky CustomerNavBar
-      // (client picker + Orders/Inbox/Documents/POs/Profile). Emitting a
-      // second, staler tab row here doubled the chrome and the header's
-      // extra h-10 row overlapped the navbar's top-14 sticky offset.
-      return [];
-    }
-    const internal = role === "admin" || role === "account_manager" || role === "factory_manager" || role === "factory_executive";
-    const adminish = role === "admin" || role === "factory_manager";
-    const tabs = [];
-    if (internal) {
-      tabs.push({ href: "/factoryos/manager",      label: "Jobs",         short: "Jobs" });
-      tabs.push({ href: "/factoryos/manager/pos",  label: "Customer POs", short: "POs"  });
-    }
-    if (adminish) {
-      tabs.push({ href: "/factoryos/admin", label: "Admin", short: "Admin" });
-    }
-    return tabs;
-  }
+  // FactoryOS has a sidebar on desktop and a bottom tab bar on phones
+  // (app/_components/ModuleShell.jsx), so it shows no sub-tab row.
+  if (active === "factoryos") return [];
 
   if (active === "hr") {
     return [
@@ -106,26 +83,6 @@ function subTabsFor(pathname, session) {
     ];
   }
 
-  if (active === "rate_cards") {
-    const role = session?.isAdmin ? "admin" : session?.modules?.rate_cards;
-    if (role === "admin") {
-      return [
-        { href: "/rfq-manager",           label: "RFQ Manager",  short: "RFQs"   },
-        { href: "/rate-cards",            label: "Rate Cards",   short: "Cards"  },
-        { href: "/rate-cards/quotes",     label: "Past Quotes",  short: "Quotes" },
-        { href: "/rate-cards/admin/new",  label: "+ New Card",   short: "New"    },
-      ];
-    }
-    if (role === "client") {
-      return [
-        { href: "/rfq-manager",       label: "RFQ Manager",   short: "RFQs"   },
-        { href: "/rate-cards",        label: "Rate Cards",    short: "Cards"  },
-        { href: "/rate-cards/quotes", label: "Past Quotes",   short: "Quotes" },
-      ];
-    }
-    return [];
-  }
-
   if (active === "catalogue") {
     // Show a Manage tab for Admin / Factory Manager / Factory Executive /
     // Account Manager. Everyone else just sees the catalogue.
@@ -133,7 +90,7 @@ function subTabsFor(pathname, session) {
     const canEdit =
       role === "admin" ||
       role === "factory_manager" ||
-      role === "factory_executive" ||
+      role === "factory_executive" || role === "warehouse" ||
       role === "account_manager";
     if (canEdit || session?.isAdmin) {
       return [
@@ -144,41 +101,6 @@ function subTabsFor(pathname, session) {
     return [];
   }
 
-  if (active === "clearance") {
-    // WarehouseOS sub-tabs. Stock is public; Manage + Inventory are
-    // FM/FE/Admin only. Sample Dispatch is open to AMs (Customer
-    // Managers) too — they raise dispatches on behalf of customers.
-    //
-    // Whs-PR-A: short labels disambiguated. Previously both
-    // /warehouse/clearance and /warehouse/inventory had short="Stock"
-    // — on mobile the row read "Hub · Stock · Stock · Items · In ·
-    // Out · Hist · Audit", two adjacent tabs identical. Now clearance
-    // short = "Clear" (matches its desktop label "Clearance"), and the
-    // canonical "Stock" stays on /warehouse/inventory where the page
-    // title is "Stock Position".
-    const role = session?.modules?.factoryos;
-    const adminish    = role === "admin" || role === "factory_manager" || role === "factory_executive";
-    const canDispatch = adminish || role === "account_manager" || session?.isAdmin;
-    const tabs = [
-      { href: "/warehouse",                    label: "Hub",       short: "Hub"   },
-      { href: "/warehouse/clearance",          label: "Clearance", short: "Clear" },
-    ];
-    if (adminish || session?.isAdmin) {
-      tabs.push({ href: "/warehouse/clearance/manage",    label: "Manage",    short: "Manage" });
-      tabs.push({ href: "/warehouse/inventory",           label: "Stock",     short: "Stock"  });
-      tabs.push({ href: "/warehouse/inventory/items",     label: "Items",     short: "Items"  });
-      tabs.push({ href: "/warehouse/inventory/inward",    label: "Inward",    short: "In"     });
-      tabs.push({ href: "/warehouse/inventory/outward",   label: "Outward",   short: "Out"    });
-      tabs.push({ href: "/warehouse/inventory/movements", label: "History",   short: "Hist"   });
-      tabs.push({ href: "/warehouse/inventory/audits",    label: "Audits",    short: "Audit"  });
-    }
-    if (canDispatch) {
-      tabs.push({ href: "/warehouse/sample-dispatch",     label: "Dispatch",  short: "Disp"   });
-      tabs.push({ href: "/warehouse/sample-kits",         label: "Kit Manager", short: "Kits" });
-    }
-    return tabs;
-  }
-
   return [];
 }
 
@@ -187,22 +109,7 @@ export default function AppHeader({ session }) {
   const pathname = usePathname();
   const active = activeModuleKey(pathname);
   const modules = session?.modules || {};
-  // Customer-only sessions: keep the customer-friendly modules (Catalogue,
-  // WarehouseOS browser, Design) and surface their order portal as "My
-  // Orders" instead of the generic "FactoryOS" label that pointed at the
-  // internal landing. Hide internal-only tools (Calculator, RFQs) that
-  // they'd land on an internal page from.
-  const isCustomerOnly =
-    !!session && !session.isAdmin && modules.factoryos === "customer";
-  let available;
-  if (isCustomerOnly) {
-    available = [
-      { key: "factoryos",  label: "My Orders",   href: "/factoryos/customer" },
-      ...MODULES.filter((m) => m.key === "catalogue" || m.key === "clearance"),
-    ];
-  } else {
-    available = MODULES.filter((m) => !!modules[m.key]);
-  }
+  const available = MODULES.filter((m) => !!modules[m.key]);
   // Design module is open to every authenticated user — append it to
   // the nav unconditionally if the user is signed in.
   if (session) {
@@ -216,19 +123,16 @@ export default function AppHeader({ session }) {
   // ModuleShell-based sidebar in its layout.
   const factoryosRole = session?.modules?.factoryos;
   const factoryosHasSidebar =
-    active === "factoryos" && factoryosRole && factoryosRole !== "customer";
+    active === "factoryos" && !!factoryosRole;
   // WarehouseOS sidebar is unconditional for the active="clearance" module —
   // /warehouse/clearance is public-readable but the layout still mounts the
   // shell scaffold; the sidebar's own visibility (staff-only) is handled
   // inside the layout, not here.
-  const warehouseHasSidebar = active === "clearance";
-  // RFQs module — both /rate-cards and /rfq-manager mount the same sidebar
-  // (RFQ Manager + Rate Cards toggle).
-  const rateCardsHasSidebar = active === "rate_cards";
+  const warehouseHasSidebar = false; // Warehouse is inside FactoryOS since 18-Nov-2026
   // HR mounts a ModuleShell sidebar in app/hr/layout.jsx.
   const hrHasSidebar = active === "hr";
   const sidebarReplacesSubtabsOnDesktop =
-    factoryosHasSidebar || warehouseHasSidebar || rateCardsHasSidebar || hrHasSidebar;
+    factoryosHasSidebar || warehouseHasSidebar || hrHasSidebar;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -241,10 +145,7 @@ export default function AppHeader({ session }) {
   // nested <a> tags (invalid HTML); browsers fall through to Brand's inner
   // default href="/", which sends authed users to the marketing page and
   // looks like a logout.
-  // Customer-only sessions return to their order portal, not the internal
-  // command center — clicking the wordmark should take them home, and home
-  // for them is /factoryos/customer.
-  const brandHref = !session ? "/" : isCustomerOnly ? "/factoryos/customer" : "/hub";
+  const brandHref = !session ? "/" : "/hub";
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-ink-200">

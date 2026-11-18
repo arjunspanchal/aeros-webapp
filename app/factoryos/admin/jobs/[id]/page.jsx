@@ -1,11 +1,14 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession, requireManager } from "@/lib/auth/session";
-import { getJob, listJobUpdates, listClients, listVendors } from "@/lib/factoryos/repo";
+import { getJob, listJobUpdates, listClients, listVendors, listUsers } from "@/lib/factoryos/repo";
 import { getJobPushStatus } from "@/lib/warehouse/jobPush";
 import { fetchCatalogLite } from "@/lib/catalog";
 import JobEditor from "@/app/factoryos/manager/[id]/JobEditor";
 import { listRmStockOptions } from "@/lib/factoryos/rmStock";
+import { stepContext, listOutsourcers } from "@/lib/factoryos/transitions";
+
+export const metadata = { title: "Job — FactoryOS" };
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +18,7 @@ export default async function AdminJobDetail({ params }) {
   if (!requireManager(session)) redirect("/factoryos");
   const job = await getJob(params.id);
   if (!job) notFound();
-  const [updates, clients, catalogResult, pushStatus, printingVendors, rmStock] = await Promise.all([
+  const [updates, clients, catalogResult, pushStatus, printingVendors, rmStock, users, stepCtxRaw, outsourcers] = await Promise.all([
     listJobUpdates(job.id),
     listClients(),
     // Catalog is optional on edit — if it fails we still let the page load read-only.
@@ -37,6 +40,9 @@ export default async function AdminJobDetail({ params }) {
     }),
     listVendors({ type: "Printing", activeOnly: true }).catch(() => []),
     listRmStockOptions(),
+    listUsers().catch(() => []),
+    stepContext(job.id).catch(() => null),
+    listOutsourcers().catch(() => []),
   ]);
   const printingVendorNames = printingVendors.map((v) => v.name);
   // fetchCatalogLite already returns the slim picker shape NewJobForm uses.
@@ -44,12 +50,16 @@ export default async function AdminJobDetail({ params }) {
   const catalogError = catalogResult.error;
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));
   const masterMappingLocked = (pushStatus?.push_count || 0) > 0;
+  // Sales managers = active account managers (same list as the New job form).
+  const salesManagers = users
+    .filter((u) => (u.role === "account_manager" || u.role === "admin") && u.active)
+    .map((u) => ({ id: u.id, name: u.name || u.email }));
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/factoryos/admin" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
-          ← Back to admin
+        <Link href="/factoryos/manager" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">
+          ← All jobs
         </Link>
         <JobEditor
           job={job}
@@ -62,6 +72,9 @@ export default async function AdminJobDetail({ params }) {
           pushCount={pushStatus?.push_count || 0}
           printingVendors={printingVendorNames}
           rmStock={rmStock}
+          salesManagers={salesManagers}
+          stepCtx={stepCtxRaw ? { inwardCount: stepCtxRaw.inwardCount, coaCount: stepCtxRaw.coaCount, lots: stepCtxRaw.lots, dispatchedQty: stepCtxRaw.dispatchedQty } : null}
+          outsourcers={outsourcers}
         />
       </main>
     </div>

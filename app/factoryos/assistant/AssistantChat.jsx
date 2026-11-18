@@ -11,9 +11,9 @@ const SUGGESTIONS = [
 
 const FIELD_LABEL = {
   clientName: "Customer", brand: "Brand", item: "Product", masterSku: "SKU", qty: "Quantity", printingVendor: "Printer",
-  printingType: "Printing", stage: "Stage", productionDueDate: "Production due", expectedDispatchDate: "Expected dispatch",
-  poNumber: "PO number", notes: "Notes", urgent: "Urgent", rmType: "RM type", paperType: "Paper", gsm: "GSM",
-  rmQtySheets: "RM sheets", rmQtyKgs: "RM kg", printingDueDate: "Printing due", estimatedDeliveryDate: "Est. delivery",
+  printingType: "Printing", stage: "Stage", productionDueDate: "Production ready date",
+  poNumber: "PO number", zohoSoNo: "Zoho SO", notes: "Notes", urgent: "Urgent", rmType: "RM type", paperType: "Paper", gsm: "GSM",
+  rmQtySheets: "RM sheets", rmQtyKgs: "RM kg", printingDueDate: "Printing due",
   city: "City", internalStatus: "Internal status", actionPoints: "Action points", rmSupplier: "RM supplier", rmMill: "Mill",
   rmSizeMm: "RM size (mm)", rmDeliveryDate: "RM delivery", conversionAt: "Conversion at", packingAt: "Packing at",
   itemSize: "Item size", masterProductName: "Product name",

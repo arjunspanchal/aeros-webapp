@@ -174,7 +174,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
         </div>
 
         <div>
-          <label className={labelCls}>Customer manager</label>
+          <label className={labelCls}>Sales manager</label>
           <select className={inputCls} value={bmChoice} onChange={(e) => setBm(e.target.value)}>
             <option value={BM_NONE}>— None —</option>
             {brandManagers.map((bm) => (
@@ -289,7 +289,7 @@ export default function ClientsAdmin({ initialClients, initialBrandManagers = []
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase dark:bg-gray-800/50 dark:text-gray-400">
             <tr>
               <th className="text-left px-4 py-2 font-medium">Name</th>
-              <th className="text-left px-4 py-2 font-medium">Account manager</th>
+              <th className="text-left px-4 py-2 font-medium">Sales manager</th>
               <th className="text-left px-4 py-2 font-medium">Contact</th>
               <th className="text-right px-4 py-2 font-medium">&nbsp;</th>
             </tr>

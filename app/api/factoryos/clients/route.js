@@ -6,6 +6,8 @@ export const runtime = "nodejs";
 export async function GET() {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
+  // Internal staff only: customers and vendors hold a FactoryOS role too.
+  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
   try {
     const clients = await listClients();
     return Response.json({ clients });

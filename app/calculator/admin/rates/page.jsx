@@ -67,8 +67,8 @@ export default async function AdminRatesPage() {
           Read-only reference. Paper rates are pulled live from the Supabase
           <code className="text-xs bg-gray-100 mx-1 px-1 py-0.5 rounded dark:bg-gray-800 dark:text-gray-200">master_papers</code>
           table. To change a rate, edit it on the{" "}
-          <a href="/factoryos/admin/master-papers" className="underline hover:text-blue-700 dark:hover:text-blue-400">Master RM Rates</a>{" "}
-          admin and the calculator picks it up within ~5 minutes.
+          <a href="/calculator/admin/paper-rates" className="underline hover:text-blue-700 dark:hover:text-blue-400">Paper rates</a>{" "}
+          page and the calculator picks it up within ~5 minutes.
           Other constants (glue, case pack, handle cost, conversion labour, setup, plate, printing) are still in
           <code className="text-xs bg-gray-100 px-1 py-0.5 rounded dark:bg-gray-800 dark:text-gray-200"> lib/calc/calculator.js</code>.
         </p>

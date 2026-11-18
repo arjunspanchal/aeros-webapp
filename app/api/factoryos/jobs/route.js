@@ -2,10 +2,31 @@ import { getSession, requireInternal, requireManager, requireRole } from "@/lib/
 import { routeAt } from "@/lib/factoryos/routes";
 import { listRmStockOptions, rmStockFree } from "@/lib/factoryos/rmStock";
 import { copyJobOrder } from "@/lib/factoryos/jobOrder";
-import { listJobsForSession, createJob, setJobDelivery, getNextJobNumber } from "@/lib/factoryos/repo";
+import { listJobsForSession, createJob, setJobDelivery, getNextJobNumber, customerSafeJob, vendorSafeJob, addJobUpdate, getClient, updateClient } from "@/lib/factoryos/repo";
 import { STAGES } from "@/lib/factoryos/constants";
+import { cleanFeatures } from "@/lib/factoryos/jobOptions";
+import { dbSelect, findOne, publicId } from "@/lib/db/supabase";
+import { checkSoForJob } from "@/lib/factoryos/zohoSoCheck";
 
 export const runtime = "nodejs";
+
+// Every job needs a sales manager (Arjun, 17-Nov-2026). When a caller doesn't
+// send one (the assistant, old clients), take the manager on this customer's
+// most recent job that has one.
+async function lastSalesManagerFor(clientPublicId) {
+  const client = await findOne("clients", clientPublicId, "id");
+  if (!client) return null;
+  const rows = await dbSelect("jobs", {
+    select: "customer_manager_id,created_at",
+    filter: { client_id: `eq.${client.id}`, customer_manager_id: "not.is.null" },
+    order: "created_at.desc",
+    limit: 1,
+  });
+  const mgrPg = rows[0]?.customer_manager_id;
+  if (!mgrPg) return null;
+  const user = await findOne("users", mgrPg, "id,airtable_id,active");
+  return user && user.active !== false ? publicId(user) : null;
+}
 
 export async function GET() {
   const session = getSession();
@@ -19,6 +40,10 @@ export async function GET() {
       userId: session.factoryosUserId,
       clientIds: session.factoryosClientIds,
     });
+    // Outside parties get an allow-listed shape, never the raw job.
+    const role = session.isAdmin ? "admin" : session.modules?.factoryos;
+    if (role === "customer") return Response.json({ jobs: jobs.map(customerSafeJob) });
+    if (role === "vendor") return Response.json({ jobs: jobs.map(vendorSafeJob) });
     return Response.json({ jobs });
   } catch (e) {
     if (e instanceof Response) return e;
@@ -51,14 +76,64 @@ export async function POST(req) {
     if (!body.jNumber || !body.clientId || !body.item) {
       return Response.json({ error: "J#, client, and item are required" }, { status: 400 });
     }
+    // Every job hangs off a Zoho sales order: one job per SO ITEM (Arjun,
+    // 18-Nov-2026: "without SO number a job cannot be created" and "One SO
+    // could have multiple items"). Checked live against Zoho (read-only); no
+    // skip, admins included. When Zoho can't be reached the job is still
+    // raised, flagged unverified, and the Zoho check page verifies it later.
+    delete body.soSkipReason;
+    const soCheck = await checkSoForJob({ raw: body.zohoSoNo, lineId: String(body.zohoSoLineId || "") });
+    if (soCheck.error) return Response.json({ error: soCheck.error }, { status: 400 });
+    const soNumber = soCheck.number;
+    const soInfo = soCheck.so;
+    const soUnverified = soCheck.unverified;
+    body.zohoSoNo = soNumber;
+    body.zohoSoLineId = soCheck.lineId;
+    body.zohoSoLineName = soCheck.lineName;
+    body.zohoSoUnverified = soUnverified;
+
+    // The job's customer must be the SO's Zoho customer (Arjun, 18-Nov-2026).
+    // A customer not yet linked to Zoho is linked here only when the user
+    // ticked "same customer" on the form; names are never changed.
+    let linkedClientNote = "";
+    const linkClient = body.linkClientToZoho === true;
+    delete body.linkClientToZoho;
+    if (soInfo && soInfo.customerId) {
+      const client = await getClient(body.clientId).catch(() => null);
+      if (!client) return Response.json({ error: "Customer not found" }, { status: 400 });
+      if (client.zohoContactId && client.zohoContactId !== soInfo.customerId) {
+        return Response.json({ error: `${soInfo.number} is for ${soInfo.customer} in Zoho, but this job's customer is ${client.name}. Pick the right customer or check the SO number.` }, { status: 400 });
+      }
+      if (!client.zohoContactId) {
+        if (!linkClient) return Response.json({ error: `${client.name} isn't linked to Zoho yet. Tick "same customer as ${soInfo.customer}" to link it, or pick the right customer.` }, { status: 400 });
+        await updateClient(client.id, { zohoContactId: soInfo.customerId });
+        linkedClientNote = ` · customer ${client.name} linked to Zoho ${soInfo.customer}`;
+      }
+    }
+
+    if (!body.customerManagerId) body.customerManagerId = await lastSalesManagerFor(body.clientId);
+    if (!body.customerManagerId) {
+      return Response.json({ error: "Pick the sales manager for this job." }, { status: 400 });
+    }
     // Every job must map to a row in Aeros Products Master so FG inventory can
     // be tracked by SKU — including traded items (already in the catalogue).
-    if (!body.masterSku || !String(body.masterSku).trim()) {
+    // A custom item (size or form not in the catalogue) carries its own name,
+    // type and size instead of a wrong "nearest" SKU.
+    const isCustomItem = body.customItem === true;
+    if (isCustomItem) {
+      if (!String(body.category || "").trim() || !String(body.itemSize || "").trim()) {
+        return Response.json({ error: "For a custom item, pick the product type and enter its real size." }, { status: 400 });
+      }
+      body.masterSku = "";
+      body.masterProductName = "";
+    } else if (!body.masterSku || !String(body.masterSku).trim()) {
       return Response.json(
-        { error: "Pick a product from the master catalogue — required so this job maps to an SKU." },
+        { error: "Pick the item from the list, or tick 'Custom item' if it is not in the catalogue." },
         { status: 400 },
       );
     }
+    // A job on a catalogue item carries the catalogue (listing) name.
+    if (!isCustomItem && body.masterProductName) body.item = String(body.masterProductName);
     // A job drawing from a stock line must say how much it needs — that is
     // the number the stock "free" figure is computed from.
     if (body.rmStockLineId && !(Number(body.rmQtySheets) > 0 || Number(body.rmQtyKgs) > 0)) {
@@ -96,22 +171,33 @@ export async function POST(req) {
       }
       body.category = c || undefined;
     }
-    const { orderRate, copySpecFromJobId, overrideShortRm, ...rest } = body;
+    const { orderRate, copySpecFromJobId, overrideShortRm, stage: requestedStage, ...rest } = body;
+    if (rest.channel !== undefined && !["app", "key_account", "export", "other"].includes(rest.channel)) delete rest.channel;
+    if (rest.extraFeatures !== undefined) rest.extraFeatures = cleanFeatures(rest.extraFeatures);
+    if (!(Number(body.qty) > 0)) {
+      return Response.json({ error: "Enter the order quantity." }, { status: 400 });
+    }
+    // Every job starts at the first step and earns its way forward. Only an
+    // admin may enter an old job at a later stage (backfill).
+    const isAdminCaller = session.isAdmin || session.modules?.factoryos === "admin";
+    const startStage = isAdminCaller && STAGES.includes(requestedStage) ? requestedStage : STAGES[0];
     const job = await createJob({
-      stage: STAGES[0],
       ...rest,
+      stage: startStage,
       sourcing: isTraded ? "traded" : "in_house",
       conversionAt: routeAt(body.conversionAt),
       rmStockLineId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(body.rmStockLineId || "")) ? body.rmStockLineId : null,
       packingAt: routeAt(body.packingAt),
     });
-    // order_rate lives on a PG column outside the Airtable shim — set it after
-    // create. Mainly used for traded items (open value / rate on the plan).
-    if (orderRate !== undefined && orderRate !== null && orderRate !== "") {
-      await setJobDelivery(job.id, { orderRate }).catch((e) =>
-        console.error("set order_rate on new job failed:", e),
-      );
-    }
+    // No rates in FactoryOS (Arjun, 17-Nov-2026): pricing and billing are in
+    // Zoho. Any orderRate sent by an old client is ignored.
+    await addJobUpdate({
+      jobId: job.id, stage: startStage,
+      note: soInfo
+        ? `Job raised on Zoho ${soInfo.number}${soCheck.lineName ? `, item "${soCheck.lineName}"` : ""} (${soInfo.customer}${soInfo.date ? ", " + soInfo.date : ""})${linkedClientNote}`
+        : `Job raised on Zoho ${soNumber} (not checked yet: Zoho was not reachable; the Zoho check page will verify it)`,
+      updatedByEmail: session.email || "", updatedByName: session.name || (session.isAdmin ? "Admin" : ""),
+    }).catch((e) => console.error("log job creation failed:", e));
     // Repeat order: carry the previous job's print spec over as a fresh draft.
     if (copySpecFromJobId) {
       await copyJobOrder(String(copySpecFromJobId), job.id).catch((e) => console.error("copyJobOrder failed:", e));

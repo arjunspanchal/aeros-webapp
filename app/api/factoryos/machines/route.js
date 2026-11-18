@@ -1,4 +1,4 @@
-import { getSession, requireManager } from "@/lib/auth/session";
+import { getSession, requireManager, requireInternal } from "@/lib/auth/session";
 import { listMachines, createMachine } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
@@ -6,6 +6,8 @@ export const runtime = "nodejs";
 export async function GET() {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
+  // Internal staff only: customers and vendors hold a FactoryOS role too.
+  if (!requireInternal(session)) return new Response("Forbidden", { status: 403 });
   try {
     const machines = await listMachines();
     return Response.json({ machines });

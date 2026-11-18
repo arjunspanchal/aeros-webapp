@@ -46,11 +46,9 @@ export async function POST(req) {
   });
   jar.set(hubCookie(hubToken));
 
-  // Tell the client where to land. Customers go straight to their portal
-  // instead of the internal /hub command center — the previous default
-  // forced a no-op click ("Your orders" tile) on every login.
-  const isCustomer = !ents.isAdmin && ents.modules?.factoryos === "customer";
-  const redirect = isCustomer ? "/factoryos/customer" : "/hub";
+  // Tell the client where to land. (The customer portal was removed on
+  // 17-Nov-2026, so everyone lands on the hub.)
+  const redirect = "/hub";
 
   return Response.json({ ok: true, modules: ents.modules, redirect });
 }

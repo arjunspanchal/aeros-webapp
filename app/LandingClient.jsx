@@ -160,7 +160,6 @@ function useReveal() {
 const NAV_LINKS = [
   { label: 'Catalog', href: '/catalog' },
   { label: 'Calculator', href: '/calculator' },
-  { label: 'Clearance', href: '/warehouse/clearance' },
   { label: 'Sign in', href: '/login' },
 ];
 
@@ -613,15 +612,6 @@ const Surfaces = () => {
       desc: 'Enter spec — paper, dimensions, quantity. Margin-adjusted ₹ quote in seconds. Login for repeat clients.',
       cta: 'Get a quote',
       meta: 'Quote in <60s',
-    },
-    {
-      id: 'clearance',
-      href: '/warehouse/clearance',
-      eyebrow: 'For value-hunters',
-      title: 'Warehouse',
-      desc: 'Overstock and slow-moving SKUs at sharper rates. First-come basis. Lots move quickly.',
-      cta: "See what's on",
-      meta: 'Updated daily',
     },
   ];
 

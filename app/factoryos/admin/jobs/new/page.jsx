@@ -10,6 +10,8 @@ import { ROLES } from "@/lib/factoryos/constants";
 import { fetchCatalogLite } from "@/lib/catalog";
 import NewJobForm from "./NewJobForm";
 
+export const metadata = { title: "New job — FactoryOS" };
+
 export const dynamic = "force-dynamic";
 
 export default async function NewJobPage({ searchParams }) {
@@ -44,7 +46,7 @@ export default async function NewJobPage({ searchParams }) {
   // fetchCatalogLite already returns the slim picker shape the form uses.
   const products = catalogResult.products;
   const catalogError = catalogResult.error;
-  const accountManagers = users.filter((u) => u.role === ROLES.ACCOUNT_MANAGER && u.active);
+  const accountManagers = users.filter((u) => (u.role === ROLES.ACCOUNT_MANAGER || u.role === ROLES.ADMIN) && u.active);
 
   // Repeat order: copy the identifying + production fields of a previous job.
   let prefill = null;
@@ -60,12 +62,18 @@ export default async function NewJobPage({ searchParams }) {
           clientId: src.clientIds?.[0] || "",
           brand: src.brand || "",
           customerManagerId: src.customerManagerId || "",
-          productId: product?.id || "",
+          // The form lists plain (physical) items and takes the printed
+          // version as a second choice, so split a printed SKU into both.
+          productId: (product?.parentSku ? products.find((p) => p.sku === product.parentSku)?.id : product?.id) || "",
+          variantId: product?.parentSku ? product.id : "",
+          customItem: !!src.customItem,
+          extraFeatures: Array.isArray(src.extraFeatures) ? src.extraFeatures : [],
+          coatingRequired: !!src.coatingRequired,
+          channel: src.channel || "",
           category: src.category || "",
           item: src.item || "",
-          itemSize: product?.sizeVolume || src.itemSize || "",
+          itemSize: (src.customItem ? src.itemSize : product?.sizeVolume) || src.itemSize || "",
           city: src.city || "",
-          orderRate: src.orderRate != null ? String(src.orderRate) : "",
           rmType: src.rmType || "",
           rmSupplier: src.rmSupplier || "",
           rmMill: src.rmMill || "",
@@ -85,7 +93,7 @@ export default async function NewJobPage({ searchParams }) {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/factoryos/admin" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">← Back</Link>
+        <Link href="/factoryos/manager" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">← All jobs</Link>
         <h1 className="text-2xl font-bold text-gray-900 mt-4 dark:text-white">New job</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">Create a single job (line item). For a multi-item PO, create one job per item and use the same PO number.</p>
         <NewJobForm
@@ -93,9 +101,16 @@ export default async function NewJobPage({ searchParams }) {
           accountManagers={accountManagers}
           canOverrideRm={role === ROLES.ADMIN}
           prefill={prefill}
+          initialSo={typeof searchParams?.so === "string" ? searchParams.so.slice(0, 60) : ""}
+          initialLine={typeof searchParams?.line === "string" ? searchParams.line.slice(0, 40) : ""}
           products={products}
           catalogError={catalogError}
-          masterPapers={masterPapers}
+          // Only what the paper picker shows — no rates or rate notes go to the
+          // browser (no rates in FactoryOS, 17-Nov-2026).
+          masterPapers={masterPapers.map((mp) => ({
+            id: mp.id, materialName: mp.materialName, supplier: mp.supplier, type: mp.type,
+            gsm: mp.gsm, bf: mp.bf, form: mp.form,
+          }))}
           printingVendors={printingVendors.map((v) => v.name)}
           initialJNumber={nextJNumber}
           brands={brands}
