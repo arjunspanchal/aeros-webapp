@@ -25,6 +25,18 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
   const [openId, setOpenId] = useState("");
   const [toast, setToast] = useState(null); // { msg, action?: { href, label } }
   const [ready, setReady] = useState(false);
+  // Email the assignee when a task is given to them (admin can switch it).
+  const [emails, setEmails] = useState(null); // { emailsEnabled, canChange }
+  useEffect(() => {
+    fetch("/api/factoryos/tasks/settings").then((r) => (r.ok ? r.json() : null)).then(setEmails).catch(() => {});
+  }, []);
+  async function toggleEmails() {
+    if (!emails?.canChange) return;
+    const next = !emails.emailsEnabled;
+    if (!window.confirm(next ? "Turn email alerts ON? From now, each person gets an email from factory@aeros-x.com when a task is given to them." : "Turn email alerts OFF? Nobody will be emailed about new tasks.")) return;
+    const res = await fetch("/api/factoryos/tasks/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emailsEnabled: next }) });
+    if (res.ok) setEmails(await res.json());
+  }
   const [draft, setDraft] = useState({ title: "", assigneeId: "", dueDate: "" });
   const [adding, setAdding] = useState(false);
   const busy = useRef(0);
@@ -230,6 +242,19 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
             {lateCount > 0 && <> · <span className="font-medium text-red-600 dark:text-red-400">{lateCount} late</span></>}
             {todayCount > 0 && <> · <span className="font-medium text-amber-700 dark:text-amber-300">{todayCount} due today</span></>}
           </p>
+          {emails && (
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              Email alerts to the assignee:{" "}
+              {emails.canChange ? (
+                <button type="button" onClick={toggleEmails} className={`font-medium underline-offset-2 hover:underline ${emails.emailsEnabled ? "text-green-700 dark:text-green-400" : "text-gray-700 dark:text-gray-200"}`}>
+                  {emails.emailsEnabled ? "on" : "off"} (change)
+                </button>
+              ) : (
+                <span className="font-medium">{emails.emailsEnabled ? "on" : "off"}</span>
+              )}
+              {emails.canChange && <> · <a href="/factoryos/tasks/email-preview" className="hover:underline">see the email</a></>}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
           {VIEWS.map((v) => (
