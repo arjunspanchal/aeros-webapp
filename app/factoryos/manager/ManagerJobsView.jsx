@@ -2,9 +2,11 @@
 import { LINES, LINE_KEYS, LINE_LABEL, lineForCategory, describeLines } from "@/lib/factoryos/lines";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { StageBadge, formatDate, inputCls } from "@/app/factoryos/_components/ui";
 import { STAGES } from "@/lib/factoryos/constants";
+import { nextStage, canMoveTo } from "@/lib/factoryos/steps";
+import QuickStepSheet from "./QuickStepSheet";
 
 // Deep-link support: KPI tiles on /factoryos/admin land here with a query
 // string that pre-populates the filters. Validated against the canonical
@@ -95,6 +97,14 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
   // Click a heading: A→Z / low→high; again: the other way; a third time: back
   // to the default order.
   const [sort, setSort] = useState({ key: null, dir: "asc" });
+  // "Next step" from the list: which job's step sheet is open.
+  const router = useRouter();
+  const [stepJob, setStepJob] = useState(null);
+  // The next stage for a job, if this person is the one who moves it there.
+  const myNext = (j) => {
+    const to = nextStage(j);
+    return to && canMoveTo(role, to) ? to : null;
+  };
   const toggleSort = (key) => setSort((cur) => (
     cur.key !== key ? { key, dir: "asc" } : cur.dir === "asc" ? { key, dir: "desc" } : { key: null, dir: "asc" }
   ));
@@ -337,8 +347,8 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
             const client = j.clientIds.map((c) => clientMap[c]?.name).filter(Boolean).join(", ");
             const late = isLate(j, today);
             return (
-              <li key={j.id}>
-                <Link href={`/factoryos/manager/${j.id}`} className="block rounded-xl border border-gray-200 bg-white p-3 active:bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
+              <li key={j.id} className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                <Link href={`/factoryos/manager/${j.id}`} className="block p-3 active:bg-gray-50 dark:active:bg-gray-800">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-gray-900 dark:text-white">{client || "—"}</div>
@@ -366,6 +376,12 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
                   </div>
                   {j.internalStatus && <div className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{j.internalStatus}</div>}
                 </Link>
+                {myNext(j) && (
+                  <button type="button" onClick={() => setStepJob(j)} className="flex w-full items-center justify-between border-t border-gray-100 px-3 py-2.5 text-sm font-medium text-blue-700 active:bg-blue-50 dark:border-gray-800 dark:text-blue-400">
+                    <span>Next step: {myNext(j)}</span>
+                    <span aria-hidden>→</span>
+                  </button>
+                )}
               </li>
             );
           })}
@@ -439,7 +455,14 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
                         <span className="ml-1.5 inline-flex items-center text-[10px] font-semibold bg-red-100 text-red-800 px-1.5 py-0.5 rounded align-middle dark:bg-red-900/40 dark:text-red-200">LATE</span>
                       )}
                     </td>
-                    <td className="px-4 py-2"><StageBadge stage={j.stage} /></td>
+                    <td className="px-4 py-2">
+                      <StageBadge stage={j.stage} />
+                      {myNext(j) && (
+                        <button type="button" onClick={() => setStepJob(j)} className="mt-1 block whitespace-nowrap text-xs font-medium text-blue-700 hover:underline dark:text-blue-400" title={`Fill what is needed and move this job to ${myNext(j)}`}>
+                          Next step →
+                        </button>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 max-w-xs truncate">
                       {j.internalStatus || "—"}
                     </td>
@@ -469,6 +492,16 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
           </table>
         </div>
       </div>
+      {stepJob && (
+        <QuickStepSheet
+          jobId={stepJob.id}
+          role={role}
+          title={`J# ${stepJob.jNumber} · ${stepJob.item}`}
+          subtitle={[stepJob.clientIds.map((c) => clientMap[c]?.name).filter(Boolean).join(", "), stepJob.brand].filter(Boolean).join(" · ")}
+          onClose={() => setStepJob(null)}
+          onMoved={() => { setStepJob(null); router.refresh(); }}
+        />
+      )}
     </div>
   );
 }

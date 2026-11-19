@@ -14,8 +14,14 @@ import DispatchForm from "@/app/factoryos/_components/DispatchForm";
 const today = () => new Date().toISOString().slice(0, 10);
 const d10 = (v) => (v ? String(v).slice(0, 10) : "");
 
-export default function StepCard({ job, role, ctx, outsourcers = [], printingVendors = [] }) {
+// onDone: called after a successful save instead of reloading the page (the
+// jobs list uses it to close its "Next step" sheet and refresh the list).
+export default function StepCard({ job, role, ctx, outsourcers = [], printingVendors = [], onDone = null }) {
   const c = ctx || { inwardCount: 0, coaCount: 0, lots: [], dispatchedQty: 0 };
+  // Printed stock received, entered right here when the job is leaving Under
+  // Printing: recorded as an inward and moved in one go.
+  const [inw, setInw] = useState({ receivedOn: today(), qty: "", unit: isHandPasted(job) ? "sheets" : "pcs", damagedQty: "", challanNo: "" });
+  const setI = (k, v) => { setInw((p) => ({ ...p, [k]: v })); setErr(""); };
   const [f, setF] = useState({
     coatingRequired: !!job.coatingRequired,
     printingType: normPrintingType(job.printingType),
@@ -46,7 +52,11 @@ export default function StepCard({ job, role, ctx, outsourcers = [], printingVen
   // The job as it would be once this card is saved: drives the live checklist.
   const draft = useMemo(() => ({ ...job, ...f }), [job, f]);
   const to = nextStage(draft);
-  const reqs = to ? requirementsFor(draft, to, c) : [];
+  const inwardHere = job.stage === "Under Printing" && (c.inwardCount || 0) === 0;
+  const inwardFilled = inwardHere && Number(String(inw.qty).replace(/,/g, "")) > 0 && !!inw.receivedOn;
+  // The checklist counts the inward as done once its boxes here are filled.
+  const cNow = inwardFilled ? { ...c, inwardCount: 1 } : c;
+  const reqs = to ? requirementsFor(draft, to, cNow) : [];
   const missing = reqs.filter((r) => !r.ok);
   const mine = to ? canMoveTo(role, to) : false;
   const isAdmin = role === ROLES.ADMIN;
@@ -96,11 +106,27 @@ export default function StepCard({ job, role, ctx, outsourcers = [], printingVen
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) { setErr(data.error || "Could not save"); return false; }
+    if (onDone) { onDone(data.job || null); return true; }
     // Full reload so every card on the page shows the saved values.
     window.location.reload();
     return true;
   }
-  const move = () => send({ stage: to, stepFields: stepFields(), note: note.trim() || undefined });
+  // Leaving Under Printing with the inward filled in here: record it first.
+  async function recordInward() {
+    if (!inwardFilled) return true;
+    setBusy(true); setErr("");
+    const res = await fetch(`/api/factoryos/jobs/${job.id}/inwards`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...inw, qty: String(inw.qty).replace(/,/g, ""), damagedQty: String(inw.damagedQty).replace(/,/g, "") }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { setBusy(false); setErr(data.error || "Could not record the inward"); return false; }
+    return true;
+  }
+  const move = async () => {
+    if (!(await recordInward())) return;
+    return send({ stage: to, stepFields: stepFields(), note: note.trim() || undefined });
+  };
   const saveOnly = () => send({ stepFields: stepFields() });
   const override = () => send({ stage: ovStage, override: true, reason: ovReason });
 
@@ -143,6 +169,43 @@ export default function StepCard({ job, role, ctx, outsourcers = [], printingVen
       default:
         return null;
     }
+  }
+
+  // The inward boxes, shown in the checklist row itself.
+  function inwardInputs() {
+    const ordered = isHandPasted(job) ? job.rmQtySheets : job.qty;
+    return (
+      <div className="space-y-2">
+        <label className="block">
+          <span className={labelCls}>Qty received</span>
+          <div className="flex gap-2">
+            <input className={`${inputCls} min-w-0 flex-1`} inputMode="numeric" value={inw.qty} onChange={(e) => setI("qty", e.target.value)} placeholder={ordered ? `Ordered ${Number(ordered).toLocaleString("en-IN")}` : "Quantity"} />
+            <select aria-label="Unit" className={`${inputCls} !w-auto shrink-0`} value={inw.unit} onChange={(e) => setI("unit", e.target.value)}>
+              {["pcs", "sheets", "kg"].map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
+        </label>
+        {ordered ? (
+          <button type="button" onClick={() => setI("qty", String(ordered))} className="-mt-1 block py-1 text-xs text-blue-700 hover:underline dark:text-blue-400">
+            All {Number(ordered).toLocaleString("en-IN")} {inw.unit} came: fill it in
+          </button>
+        ) : null}
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className={labelCls}>Received on</span>
+            <input type="date" className={inputCls} value={inw.receivedOn} onChange={(e) => setI("receivedOn", e.target.value)} />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Challan no.</span>
+            <input className={inputCls} value={inw.challanNo} onChange={(e) => setI("challanNo", e.target.value)} />
+          </label>
+        </div>
+        <label className="block">
+          <span className={labelCls}>Damaged (if any)</span>
+          <input className={`${inputCls} sm:max-w-[12rem]`} inputMode="numeric" value={inw.damagedQty} onChange={(e) => setI("damagedQty", e.target.value)} placeholder="0" />
+        </label>
+      </div>
+    );
   }
 
   function helpFor(r) {
@@ -206,7 +269,7 @@ export default function StepCard({ job, role, ctx, outsourcers = [], printingVen
         <>
           <ul className="mt-4 space-y-3">
             {reqs.map((r) => (
-              <li key={r.key} className="grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-3 items-center">
+              <li key={r.key} className={`grid grid-cols-1 gap-1 sm:gap-3 ${r.key === "inward" && mine && inwardHere ? "items-start" : "sm:grid-cols-2 items-center"}`}>
                 <div className="flex items-start gap-2 text-sm">
                   <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${r.ok ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"}`}>
                     {r.ok ? "✓" : "!"}
@@ -216,6 +279,7 @@ export default function StepCard({ job, role, ctx, outsourcers = [], printingVen
                 <div className="text-sm">
                   {savedOk.has(r.key)
                     ? <span className="text-gray-600 dark:text-gray-300">{savedValue(r)}</span>
+                    : r.key === "inward" && mine && inwardHere ? inwardInputs()
                     : mine ? (fieldInput(r) || (!r.ok && helpFor(r))) : (!r.ok && helpFor(r))}
                 </div>
               </li>
@@ -232,7 +296,7 @@ export default function StepCard({ job, role, ctx, outsourcers = [], printingVen
               {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
               <div className="flex flex-wrap items-center gap-3">
                 <button type="button" onClick={move} disabled={busy || missing.length > 0} className="w-full sm:w-auto rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-700">
-                  {busy ? "Saving…" : missing.length ? `Locked: ${missing.length} thing${missing.length === 1 ? "" : "s"} missing` : `Done. Move to ${to}`}
+                  {busy ? "Saving…" : missing.length ? `Locked: ${missing.length} thing${missing.length === 1 ? "" : "s"} missing` : (inwardFilled ? `Record inward and move to ${to}` : `Done. Move to ${to}`)}
                 </button>
                 {missing.length > 0 && (
                   <button type="button" onClick={saveOnly} disabled={busy} className="text-sm text-blue-700 hover:underline dark:text-blue-400">Save what I have filled</button>

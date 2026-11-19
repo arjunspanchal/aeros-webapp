@@ -424,7 +424,14 @@ export default function JobEditor({
           </div>
         )}
 
-        <dl className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 text-sm">
+      </div>
+
+      {/* The step card comes straight after the header: it is what people open
+          a job to do (19-Nov-2026). The job's details follow in their own card. */}
+      <StepCard job={job} role={role} ctx={stepCtx} outsourcers={outsourcers} printingVendors={printingVendors} />
+
+      <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
+        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 text-sm">
           <Col label="Quantity" value={job.qty != null ? job.qty.toLocaleString("en-IN") : "—"} />
           <Col label="Category" value={job.category || "—"} />
           <Col label="Dimensions" value={catalogDims || job.itemSize || "—"} />
@@ -456,8 +463,6 @@ export default function JobEditor({
         </dl>
         <OrderBasicsCard job={job} canEdit={role === ROLES.ADMIN || role === ROLES.FACTORY_MANAGER} onSaved={setJob} salesManagers={salesManagers} />
       </div>
-
-      <StepCard job={job} role={role} ctx={stepCtx} outsourcers={outsourcers} printingVendors={printingVendors} />
 
       {canManageJobOrder && job.sourcing !== "traded" && (
         <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
