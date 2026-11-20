@@ -106,6 +106,7 @@ export function ListView({ groups, tasksByGroup, people, today, onOpen, onPatch,
                           <span className="sm:hidden"><TaskMeta task={t} today={today} /></span>
                         </button>
                         <span className="hidden shrink-0 items-center gap-2 sm:flex">
+                          {t.label && g.patch.label === undefined && <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600 dark:bg-gray-800 dark:text-gray-400">{t.label}</span>}
                           <BrandChip task={t} />
                           <JobChip job={t.job} />
                           {t.checklist.length > 0 && <span className="text-[11px] text-gray-500">☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</span>}

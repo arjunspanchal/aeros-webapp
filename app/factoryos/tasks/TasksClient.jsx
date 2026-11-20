@@ -1,13 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { STATUSES, PRIORITIES } from "@/lib/factoryos/taskOptions";
+import { STATUSES, PRIORITIES, LABELS } from "@/lib/factoryos/taskOptions";
 import { STATUS_STYLE, Avatar, whatsappLink, ymd, dueInfo } from "./taskUi";
 import { BoardView, ListView, CalendarView } from "./TaskViews";
 import TaskPanel from "./TaskPanel";
 
 const PREFS_KEY = "aeros.tasks.prefs.v1";
 const VIEWS = [{ key: "board", label: "Board" }, { key: "list", label: "List" }, { key: "calendar", label: "Calendar" }];
-const GROUPS = [{ key: "status", label: "Status" }, { key: "assignee", label: "Person" }, { key: "priority", label: "Priority" }, { key: "customer", label: "Customer" }];
+const GROUPS = [{ key: "status", label: "Status" }, { key: "assignee", label: "Person" }, { key: "priority", label: "Priority" }, { key: "customer", label: "Customer" }, { key: "type", label: "Type" }];
 const PRIORITY_DOT = { urgent: "bg-red-500", high: "bg-amber-500", normal: "bg-gray-400", low: "bg-gray-300" };
 const pill = (on) => `rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ${on ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900" : "bg-white text-gray-700 ring-1 ring-inset ring-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700"}`;
 
@@ -20,6 +20,8 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
   // Customer and brand filters ("" = all, "none" = tasks with none).
   const [customer, setCustomer] = useState("");
   const [brand, setBrand] = useState("");
+  // Type of task filter ("" = all, "none" = tasks with no type).
+  const [type, setType] = useState("");
   const meId = initial.meId;
   const [view, setView] = useState("board");
   const [groupBy, setGroupBy] = useState("status");
@@ -41,7 +43,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
     const res = await fetch("/api/factoryos/tasks/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ emailsEnabled: next }) });
     if (res.ok) setEmails(await res.json());
   }
-  const [draft, setDraft] = useState({ title: "", assigneeId: "", dueDate: "" });
+  const [draft, setDraft] = useState({ title: "", assigneeId: "", dueDate: "", label: "" });
   const [adding, setAdding] = useState(false);
   const busy = useRef(0);
   const seq = useRef({});
@@ -152,6 +154,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
     // ...and is tagged with the customer / brand being looked at.
     if (body.clientId === undefined && !body.jNumber && customer && customer !== "none") body.clientId = customer;
     if (body.brand === undefined && !body.jNumber && brand && brand !== "none") body.brand = brand;
+    if (body.label === undefined && type && type !== "none") body.label = type;
     busy.current += 1;
     try {
       const res = await fetch("/api/factoryos/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -169,7 +172,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
       busy.current -= 1;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [who, meId, meName, customer, brand]);
+  }, [who, meId, meName, customer, brand, type]);
 
   const remove = useCallback(async (id) => {
     const res = await fetch(`/api/factoryos/tasks/${id}`, { method: "DELETE" });
@@ -185,10 +188,16 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
       if (who.length && !who.includes(t.assigneeId || "none")) return false;
       if (customer && (t.customerId || "none") !== customer) return false;
       if (brand && (t.brand || "none") !== brand) return false;
+      if (type && (t.label || "none") !== type) return false;
       if (!q) return true;
       return `${t.title} ${t.notes} ${t.label} ${t.customerName} ${t.brand} ${t.job ? `${t.job.jNumber} ${t.job.item}` : ""}`.toLowerCase().includes(q);
     });
-  }, [tasks, who, search, customer, brand]);
+  }, [tasks, who, search, customer, brand, type]);
+  const openByType = useMemo(() => {
+    const m = {};
+    for (const t of tasks) if (t.status !== "done") m[t.label || "none"] = (m[t.label || "none"] || 0) + 1;
+    return m;
+  }, [tasks]);
 
   // What the two filter pickers offer: only customers and brands that have a
   // task, each with its count of open tasks. Brands narrow to the chosen customer.
@@ -233,6 +242,12 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
       return cols;
     }
     if (groupBy === "priority") return PRIORITIES.map((p) => ({ key: p.key, title: p.label, dot: PRIORITY_DOT[p.key], patch: { priority: p.key } }));
+    if (groupBy === "type") {
+      return [
+        ...LABELS.map((l) => ({ key: l, title: l, dot: "bg-gray-500", patch: { label: l } })),
+        { key: "none", title: "No type", dot: "bg-gray-300", patch: { label: "" } },
+      ];
+    }
     if (groupBy === "customer") {
       // One column per customer that has a task on screen. Dropping a task
       // here tags it with that customer (a task on a job keeps its job's).
@@ -247,7 +262,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
 
   const tasksByGroup = useMemo(() => {
     const map = new Map(groups.map((g) => [g.key, []]));
-    const keyOf = (t) => (groupBy === "assignee" ? t.assigneeId || "none" : groupBy === "priority" ? t.priority : groupBy === "customer" ? t.customerId || "none" : t.status);
+    const keyOf = (t) => (groupBy === "assignee" ? t.assigneeId || "none" : groupBy === "priority" ? t.priority : groupBy === "customer" ? t.customerId || "none" : groupBy === "type" ? (LABELS.includes(t.label) ? t.label : "none") : t.status);
     for (const t of visible) map.get(keyOf(t))?.push(t);
     for (const [key, list] of map) {
       if (groupBy === "status" && key === "done") list.sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")));
@@ -256,6 +271,9 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
     return map;
   }, [groups, visible, groupBy]);
 
+  // The list leaves out types that have no task (ten empty headings is noise);
+  // the board keeps every column so a card can be dragged into it.
+  const listGroups = groupBy === "type" ? groups.filter((g) => g.key === "none" || (tasksByGroup.get(g.key) || []).length) : groups;
   const openTasks = filtered.filter((t) => t.status !== "done");
   const lateCount = openTasks.filter((t) => dueInfo(t, today)?.late).length;
   const todayCount = openTasks.filter((t) => t.dueDate === today).length;
@@ -277,6 +295,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
     const body = { title };
     if (draft.assigneeId) body.assigneeId = draft.assigneeId;
     if (draft.dueDate) body.dueDate = draft.dueDate;
+    if (draft.label) body.label = draft.label;
     const ok = await add(body);
     setAdding(false);
     if (ok) setDraft((d) => ({ ...d, title: "" }));
@@ -323,6 +342,10 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
           <option value="">Who?</option>
           {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        <select aria-label="Type of task" className={field} value={draft.label} onChange={(e) => setDraft((d) => ({ ...d, label: e.target.value }))}>
+          <option value="">Type?</option>
+          {LABELS.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
         <input aria-label="Due date" type="date" className={field} value={draft.dueDate} onChange={(e) => setDraft((d) => ({ ...d, dueDate: e.target.value }))} />
         <button type="submit" disabled={adding || !draft.title.trim()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
           {adding ? "Adding…" : "Add task"}
@@ -352,8 +375,13 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
             <option value="">All brands</option>
             {brandOptions.map((b) => <option key={b.id} value={b.id}>{b.name}{b.open ? ` (${b.open})` : ""}</option>)}
           </select>
-          {(customer || brand) && (
-            <button type="button" onClick={() => { setCustomer(""); setBrand(""); }} className="text-xs text-blue-700 hover:underline dark:text-blue-400">Clear</button>
+          <select aria-label="Type of task" className={`max-w-[11rem] rounded-md border px-2 py-1.5 text-xs dark:bg-gray-900 dark:text-white ${type ? "border-violet-400 bg-violet-50 font-medium text-violet-800 dark:border-violet-700" : "border-gray-200 bg-white dark:border-gray-700"}`} value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="">All types</option>
+            {LABELS.map((l) => <option key={l} value={l}>{l}{openByType[l] ? ` (${openByType[l]})` : ""}</option>)}
+            <option value="none">No type{openByType.none ? ` (${openByType.none})` : ""}</option>
+          </select>
+          {(customer || brand || type) && (
+            <button type="button" onClick={() => { setCustomer(""); setBrand(""); setType(""); }} className="text-xs text-blue-700 hover:underline dark:text-blue-400">Clear</button>
           )}
           {view !== "calendar" && (
             <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
@@ -379,7 +407,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
       ) : view === "board" ? (
         <BoardView groups={groups} tasksByGroup={tasksByGroup} people={people} today={today} onOpen={open} onPatch={patch} onAdd={add} />
       ) : view === "list" ? (
-        <ListView groups={groups} tasksByGroup={tasksByGroup} people={people} today={today} onOpen={open} onPatch={patch} onAdd={add} />
+        <ListView groups={listGroups} tasksByGroup={tasksByGroup} people={people} today={today} onOpen={open} onPatch={patch} onAdd={add} />
       ) : (
         <CalendarView tasks={visible} people={people} today={today} onOpen={open} onPatch={patch} onAdd={add} />
       )}
