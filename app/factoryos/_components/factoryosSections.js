@@ -30,6 +30,8 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
       // The admin job page lives under /factoryos/admin/jobs/<id>; it is still "Jobs".
       { href: "/factoryos/manager", label: "Jobs", also: ["/factoryos/admin/jobs"], not: ["/factoryos/manager/pos", "/factoryos/admin/jobs/new"] },
       { href: "/factoryos/tasks", label: "Tasks" },
+      // Every job sitting with a printer, printer by printer (20-Nov-2026).
+      ...(isWH ? [] : [{ href: "/factoryos/printers", label: "Printer chase" }]),
       { href: "/factoryos/delivery/calendar", label: "Production Calendar", exact: true },
       { href: "/factoryos/manager/pos", label: "Customer POs" },
       // Documents that go out with the goods. Factory managers write them,
@@ -48,6 +50,8 @@ export function buildFactoryosSections(role, isAdminCookie = false) {
       { href: "/factoryos/warehouse/inward",  label: "Inward" },
       { href: "/factoryos/warehouse/outward", label: "Outward" },
       { href: "/factoryos/warehouse/transit", label: "In transit" },
+      // Tick several dispatched jobs delivered at once (20-Nov-2026).
+      { href: "/factoryos/closeout", label: "Mark delivered" },
       ...(isAM ? [] : [{ href: "/factoryos/warehouse/stock", label: "Stock" }]),
     ],
   };
