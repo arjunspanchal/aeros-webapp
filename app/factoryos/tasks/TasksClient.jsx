@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATUSES, PRIORITIES, LABELS } from "@/lib/factoryos/taskOptions";
-import { STATUS_STYLE, Avatar, whatsappLink, ymd, dueInfo } from "./taskUi";
+import { STATUS_STYLE, Avatar, whatsappLink, ymd, addDays, dueInfo } from "./taskUi";
 import { BoardView, ListView, CalendarView } from "./TaskViews";
 import TaskPanel from "./TaskPanel";
 
@@ -22,6 +22,8 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
   const [brand, setBrand] = useState("");
   // Type of task filter ("" = all, "none" = tasks with no type).
   const [type, setType] = useState("");
+  // Due-date filter: "" any, "overdue", "today", "week" (next 7 days), "nodate".
+  const [due, setDue] = useState("");
   const meId = initial.meId;
   const [view, setView] = useState("board");
   const [groupBy, setGroupBy] = useState("status");
@@ -231,11 +233,19 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
 
   const weekAgo = Date.now() - 7 * 86400000;
   const visible = useMemo(() => filtered.filter((t) => {
+    if (due) {
+      if (t.status === "done") return false;
+      if (due === "overdue" && !dueInfo(t, today)?.late) return false;
+      if (due === "today" && t.dueDate !== today) return false;
+      if (due === "week" && !(t.dueDate && t.dueDate >= today && t.dueDate <= addDays(today, 6))) return false;
+      if (due === "nodate" && t.dueDate) return false;
+      return true;
+    }
     if (t.status !== "done" || showDone) return true;
     // The Done column on the status board keeps the last week in view.
     return view === "board" && groupBy === "status" && t.completedAt && new Date(t.completedAt).getTime() > weekAgo;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [filtered, showDone, view, groupBy]);
+  }), [filtered, showDone, view, groupBy, due, today]);
 
   const groups = useMemo(() => {
     if (groupBy === "assignee") {
@@ -318,8 +328,12 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tasks</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {openTasks.length} open
-            {lateCount > 0 && <> · <span className="font-medium text-red-600 dark:text-red-400">{lateCount} late</span></>}
-            {todayCount > 0 && <> · <span className="font-medium text-amber-700 dark:text-amber-300">{todayCount} due today</span></>}
+            {lateCount > 0 && (
+              <> · <button type="button" onClick={() => setDue(due === "overdue" ? "" : "overdue")} title={due === "overdue" ? "Show all tasks" : "Show only overdue tasks"} className={`font-medium text-red-600 underline-offset-2 hover:underline dark:text-red-400 ${due === "overdue" ? "rounded bg-red-50 px-1 underline dark:bg-red-900/30" : ""}`}>{lateCount} late</button></>
+            )}
+            {todayCount > 0 && (
+              <> · <button type="button" onClick={() => setDue(due === "today" ? "" : "today")} title={due === "today" ? "Show all tasks" : "Show only tasks due today"} className={`font-medium text-amber-700 underline-offset-2 hover:underline dark:text-amber-300 ${due === "today" ? "rounded bg-amber-50 px-1 underline dark:bg-amber-900/30" : ""}`}>{todayCount} due today</button></>
+            )}
           </p>
           {emails && (
             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -388,8 +402,15 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
             {LABELS.map((l) => <option key={l} value={l}>{l}{openByType[l] ? ` (${openByType[l]})` : ""}</option>)}
             <option value="none">No type{openByType.none ? ` (${openByType.none})` : ""}</option>
           </select>
-          {(customer || brand || type) && (
-            <button type="button" onClick={() => { setCustomer(""); setBrand(""); setType(""); }} className="text-xs text-blue-700 hover:underline dark:text-blue-400">Clear</button>
+          <select aria-label="Due date" className={`max-w-[11rem] rounded-md border px-2 py-1.5 text-xs dark:bg-gray-900 dark:text-white ${due === "overdue" ? "border-red-400 bg-red-50 font-medium text-red-800 dark:border-red-700" : due ? "border-violet-400 bg-violet-50 font-medium text-violet-800 dark:border-violet-700" : "border-gray-200 bg-white dark:border-gray-700"}`} value={due} onChange={(e) => setDue(e.target.value)}>
+            <option value="">Any due date</option>
+            <option value="overdue">Overdue{lateCount ? ` (${lateCount})` : ""}</option>
+            <option value="today">Due today{todayCount ? ` (${todayCount})` : ""}</option>
+            <option value="week">Due in the next 7 days</option>
+            <option value="nodate">No due date</option>
+          </select>
+          {(customer || brand || type || due) && (
+            <button type="button" onClick={() => { setCustomer(""); setBrand(""); setType(""); setDue(""); }} className="text-xs text-blue-700 hover:underline dark:text-blue-400">Clear</button>
           )}
           {view !== "calendar" && (
             <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
@@ -411,6 +432,11 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
         <div className="rounded-xl border border-dashed border-gray-300 bg-white p-10 text-center dark:border-gray-700 dark:bg-gray-900">
           <p className="text-sm font-medium text-gray-800 dark:text-gray-100">No tasks yet.</p>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Type what needs doing in the box above, pick who and when, and press Enter.</p>
+        </div>
+      ) : due && visible.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+          {due === "overdue" ? "Nothing overdue." : due === "today" ? "Nothing due today." : due === "week" ? "Nothing due in the next 7 days." : "Every open task has a due date."}{" "}
+          <button type="button" onClick={() => setDue("")} className="text-blue-700 hover:underline dark:text-blue-400">Show all tasks</button>
         </div>
       ) : view === "board" ? (
         <BoardView groups={groups} tasksByGroup={tasksByGroup} people={people} today={today} onOpen={open} onPatch={patch} onAdd={add} />
