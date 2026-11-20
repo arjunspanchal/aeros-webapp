@@ -16,7 +16,7 @@ function Row({ label, children }) {
 }
 
 // Side panel for one task: every field saves as soon as you leave it.
-export default function TaskPanel({ task, people, jobs = [], meId, meName, canDeleteAny, onPatch, onDelete, onClose }) {
+export default function TaskPanel({ task, people, jobs = [], customers = [], meId, meName, canDeleteAny, onPatch, onDelete, onClose }) {
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes);
   const [items, setItems] = useState(task.checklist);
@@ -61,6 +61,12 @@ export default function TaskPanel({ task, people, jobs = [], meId, meName, canDe
   const due = dueInfo(task, today);
   const canDelete = canDeleteAny || (meId && task.createdById === meId);
   const assignee = people.find((p) => p.id === task.assigneeId);
+  // Brands to suggest: those on this customer's jobs, else every brand on a job.
+  const brandChoices = useMemo(() => {
+    const mine = jobs.filter((j) => j.brand && (!task.customerId || j.clientId === task.customerId)).map((j) => j.brand);
+    const all = jobs.filter((j) => j.brand).map((j) => j.brand);
+    return [...new Set(mine.length ? mine : all)].sort((a, b) => a.localeCompare(b));
+  }, [jobs, task.customerId]);
 
   const jobMatches = useMemo(() => {
     const q = jobQuery.trim().toLowerCase();
@@ -190,6 +196,34 @@ export default function TaskPanel({ task, people, jobs = [], meId, meName, canDe
                       ))}
                     </ul>
                   )}
+                </div>
+              )}
+            </Row>
+            <Row label="Customer">
+              {task.job ? (
+                <div className="text-sm text-gray-700 dark:text-gray-300">
+                  {[task.customerName, task.brand].filter(Boolean).join(" · ") || "—"}
+                  <span className="ml-1 text-xs text-gray-400">(from the job)</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  <select aria-label="Customer" className={fieldCls} value={task.customerId} onChange={(e) => onPatch(task.id, { clientId: e.target.value })}>
+                    <option value="">No customer</option>
+                    {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <input
+                    aria-label="Brand"
+                    className={fieldCls}
+                    list={`brands-${task.id}`}
+                    defaultValue={task.brand}
+                    key={`${task.id}-${task.brand}`}
+                    placeholder="Brand (optional)"
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (task.brand || "")) onPatch(task.id, { brand: v }); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                  />
+                  <datalist id={`brands-${task.id}`}>
+                    {brandChoices.map((b) => <option key={b} value={b} />)}
+                  </datalist>
                 </div>
               )}
             </Row>

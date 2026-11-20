@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { PRIORITIES } from "@/lib/factoryos/taskOptions";
-import { STATUS_STYLE, PRIORITY_RANK, Avatar, DoneTick, JobChip, TaskMeta, QuickAdd, ymd, dueInfo } from "./taskUi";
+import { STATUS_STYLE, PRIORITY_RANK, Avatar, DoneTick, JobChip, BrandChip, TaskMeta, QuickAdd, ymd, dueInfo } from "./taskUi";
 
 const byDue = (a, b) =>
   (a.dueDate || "9999").localeCompare(b.dueDate || "9999")
@@ -106,6 +106,7 @@ export function ListView({ groups, tasksByGroup, people, today, onOpen, onPatch,
                           <span className="sm:hidden"><TaskMeta task={t} today={today} /></span>
                         </button>
                         <span className="hidden shrink-0 items-center gap-2 sm:flex">
+                          <BrandChip task={t} />
                           <JobChip job={t.job} />
                           {t.checklist.length > 0 && <span className="text-[11px] text-gray-500">☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</span>}
                           {t.commentCount > 0 && <span className="text-[11px] text-gray-500">💬 {t.commentCount}</span>}

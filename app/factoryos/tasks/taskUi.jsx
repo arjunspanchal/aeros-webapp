@@ -101,6 +101,16 @@ export function JobChip({ job, link = true }) {
   );
 }
 
+// The brand (or, failing that, the customer) a task is for.
+export function BrandChip({ task }) {
+  if (!task.brand && !task.customerName) return null;
+  return (
+    <span className="max-w-[11rem] shrink-0 truncate rounded bg-violet-50 px-1.5 py-0.5 text-[11px] text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" title={[task.customerName, task.brand].filter(Boolean).join(" · ")}>
+      {task.brand || task.customerName}
+    </span>
+  );
+}
+
 // The line of small facts under a task title.
 export function TaskMeta({ task, today, showJob = true }) {
   const due = dueInfo(task, today);
@@ -112,6 +122,7 @@ export function TaskMeta({ task, today, showJob = true }) {
       )}
       {due && <span className={due.cls}>{due.text}</span>}
       {showJob && <JobChip job={task.job} />}
+      {showJob && <BrandChip task={task} />}
       {task.label && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600 dark:bg-gray-800 dark:text-gray-400">{task.label}</span>}
       {task.checklist.length > 0 && <span className="text-gray-500 dark:text-gray-400">☑ {done}/{task.checklist.length}</span>}
       {task.commentCount > 0 && <span className="text-gray-500 dark:text-gray-400">💬 {task.commentCount}</span>}

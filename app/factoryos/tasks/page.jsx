@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession, requireInternal, requireManager } from "@/lib/auth/session";
-import { listTasks, listTaskPeople, listJobsForTaskPicker, sessionUser, actorName } from "@/lib/factoryos/tasks";
+import { listTasks, listTaskPeople, listJobsForTaskPicker, listTaskCustomers, sessionUser, actorName } from "@/lib/factoryos/tasks";
 import TasksClient from "./TasksClient";
 
 export const metadata = { title: "Tasks — FactoryOS" };
@@ -15,8 +15,8 @@ export default async function TasksPage() {
   if (!session) redirect("/login");
   if (!requireInternal(session)) redirect("/factoryos");
 
-  const [tasks, people, jobs, me] = await Promise.all([
-    listTasks(), listTaskPeople(), listJobsForTaskPicker(), sessionUser(session),
+  const [tasks, people, jobs, customers, me] = await Promise.all([
+    listTasks(), listTaskPeople(), listJobsForTaskPicker(), listTaskCustomers(), sessionUser(session),
   ]);
   const isAdmin = session.isAdmin || session.modules?.factoryos === "admin";
   const today = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
@@ -24,7 +24,7 @@ export default async function TasksPage() {
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">
       <TasksClient
-        initial={{ tasks, people, jobs, meId: me?.id || "", meName: actorName(session, me), today }}
+        initial={{ tasks, people, jobs, customers, meId: me?.id || "", meName: actorName(session, me), today }}
         canDeleteAny={requireManager(session)}
         defaultMine={!isAdmin}
       />
