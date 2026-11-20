@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Avatar, DoneTick, TaskMeta, WhatsAppButton, ymd } from "./taskUi";
+import { AvatarStack, DoneTick, TaskMeta, WhatsAppButton, ymd } from "./taskUi";
 
 const field = "rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white";
 
@@ -75,7 +75,7 @@ export default function JobTasksCard({ jNumber }) {
                 <TaskMeta task={t} today={today} showJob={false} />
               </Link>
               {t.status !== "done" && <WhatsAppButton task={t} person={people.find((p) => p.id === t.assigneeId)} fromName={meName} compact />}
-              <Avatar person={people.find((p) => p.id === t.assigneeId)} />
+              <AvatarStack people={(t.assigneeIds || []).map((id) => people.find((p) => p.id === id))} />
             </li>
           ))}
         </ul>

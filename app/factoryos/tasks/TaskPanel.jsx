@@ -60,7 +60,7 @@ export default function TaskPanel({ task, people, jobs = [], customers = [], meI
   const today = ymd();
   const due = dueInfo(task, today);
   const canDelete = canDeleteAny || (meId && task.createdById === meId);
-  const assignee = people.find((p) => p.id === task.assigneeId);
+  const assignees = (task.assigneeIds || []).map((id) => people.find((p) => p.id === id)).filter(Boolean);
   // Brands to suggest: those on this customer's jobs, else every brand on a job.
   const brandChoices = useMemo(() => {
     const mine = jobs.filter((j) => j.brand && (!task.customerId || j.clientId === task.customerId)).map((j) => j.brand);
@@ -132,19 +132,28 @@ export default function TaskPanel({ task, people, jobs = [], customers = [], meI
               </div>
             </Row>
             <Row label="Who">
-              <div className="flex items-center gap-2">
-                <Avatar person={assignee} />
-                <select className={fieldCls} value={task.assigneeId} onChange={(e) => onPatch(task.id, { assigneeId: e.target.value })}>
-                  <option value="">Nobody yet</option>
-                  {people.map((p) => <option key={p.id} value={p.id}>{p.name}{p.role ? ` (${p.role})` : ""}</option>)}
+              <div className="space-y-1.5">
+                {assignees.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <Avatar person={p} />
+                    <span className="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-white">{p.name}{p.role ? <span className="text-gray-400"> · {p.role}</span> : null}</span>
+                    {task.status !== "done" && <WhatsAppButton task={task} person={p} fromName={meName} compact />}
+                    <button type="button" aria-label={`Take ${p.name} off this task`} title={`Take ${p.name} off this task`} onClick={() => onPatch(task.id, { assigneeIds: task.assigneeIds.filter((x) => x !== p.id) })} className="shrink-0 rounded px-1.5 py-0.5 text-xs text-gray-400 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-gray-800">✕</button>
+                  </div>
+                ))}
+                <select
+                  aria-label="Add a person"
+                  className={fieldCls}
+                  value=""
+                  onChange={(e) => { if (e.target.value) onPatch(task.id, { assigneeIds: [...task.assigneeIds, e.target.value] }); }}
+                >
+                  <option value="">{assignees.length ? "+ Add another person" : "Nobody yet: pick a person"}</option>
+                  {people.filter((p) => !task.assigneeIds.includes(p.id)).map((p) => <option key={p.id} value={p.id}>{p.name}{p.role ? ` (${p.role})` : ""}</option>)}
                 </select>
+                {assignees.some((p) => !p.wa) && task.status !== "done" && (
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">No number saved for {assignees.filter((p) => !p.wa).map((p) => p.name.split(" ")[0]).join(", ")}; WhatsApp will ask who to send to.</p>
+                )}
               </div>
-              {assignee && task.status !== "done" && (
-                <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                  <WhatsAppButton task={task} person={assignee} fromName={meName} />
-                  {!assignee.wa && <span className="text-[11px] text-gray-500 dark:text-gray-400">No number saved for {assignee.name.split(" ")[0]}; WhatsApp will ask who to send to.</span>}
-                </div>
-              )}
             </Row>
             <Row label="Due">
               <div className="flex flex-wrap items-center gap-1.5">

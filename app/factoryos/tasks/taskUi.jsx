@@ -72,6 +72,20 @@ export function Avatar({ person, size = "sm", title }) {
   );
 }
 
+// Everyone on a task, as overlapping initials. Shows "?" when nobody is.
+export function AvatarStack({ people = [], max = 3, size = "sm" }) {
+  const list = people.filter(Boolean);
+  if (!list.length) return <Avatar person={null} size={size} />;
+  return (
+    <span className="inline-flex shrink-0 items-center" title={list.map((p) => p.name).join(", ")}>
+      {list.slice(0, max).map((p, i) => (
+        <span key={p.id} className={i ? "-ml-1.5 rounded-full ring-2 ring-white dark:ring-gray-800" : ""}><Avatar person={p} size={size} /></span>
+      ))}
+      {list.length > max && <span className="ml-1 text-[10px] font-medium text-gray-500 dark:text-gray-400">+{list.length - max}</span>}
+    </span>
+  );
+}
+
 // Round tick that finishes (or reopens) a task.
 export function DoneTick({ done, onToggle, size = "h-4 w-4" }) {
   return (

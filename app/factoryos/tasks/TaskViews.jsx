@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { PRIORITIES } from "@/lib/factoryos/taskOptions";
-import { STATUS_STYLE, PRIORITY_RANK, Avatar, DoneTick, JobChip, BrandChip, TaskMeta, QuickAdd, ymd, dueInfo } from "./taskUi";
+import { STATUS_STYLE, PRIORITY_RANK, Avatar, AvatarStack, DoneTick, JobChip, BrandChip, TaskMeta, QuickAdd, ymd, dueInfo } from "./taskUi";
 
 const byDue = (a, b) =>
   (a.dueDate || "9999").localeCompare(b.dueDate || "9999")
@@ -62,7 +62,9 @@ export function BoardView({ groups, tasksByGroup, people, today, onOpen, onPatch
                       <div className={`text-sm leading-snug ${t.status === "done" ? "text-gray-400 line-through" : "text-gray-900 dark:text-white"}`}>{t.title}</div>
                       <TaskMeta task={t} today={today} />
                     </div>
-                    {g.person === undefined && <Avatar person={person(t.assigneeId)} />}
+                    {g.person === undefined
+                      ? <AvatarStack people={t.assigneeIds.map(person)} />
+                      : t.assigneeIds.length > 1 && <span className="shrink-0 text-[10px] text-gray-500 dark:text-gray-400" title={t.assigneeIds.map((id) => person(id)?.name).filter(Boolean).join(", ")}>+{t.assigneeIds.length - 1}</span>}
                   </div>
                 </article>
               ))}
@@ -119,14 +121,19 @@ export function ListView({ groups, tasksByGroup, people, today, onOpen, onPatch,
                           <span className="relative">
                             <input aria-label="Due date" type="date" className={`${cellSelect} w-[118px] ${due?.late ? "!text-red-600 font-medium" : ""}`} value={t.dueDate} onChange={(e) => onPatch(t.id, { dueDate: e.target.value })} />
                           </span>
-                          {g.patch.assigneeId === undefined && (
+                          {g.patch.assigneeId === undefined && t.assigneeIds.length > 1 && (
+                            <button type="button" onClick={() => onOpen(t.id)} className="w-28 truncate px-1 py-1 text-left text-xs text-gray-700 hover:underline dark:text-gray-300" title={t.assigneeIds.map((id) => people.find((p) => p.id === id)?.name).filter(Boolean).join(", ")}>
+                              {(people.find((p) => p.id === t.assigneeIds[0])?.name || "").split(" ")[0]} +{t.assigneeIds.length - 1}
+                            </button>
+                          )}
+                          {g.patch.assigneeId === undefined && t.assigneeIds.length <= 1 && (
                             <select aria-label="Who" className={`${cellSelect} w-28`} value={t.assigneeId} onChange={(e) => onPatch(t.id, { assigneeId: e.target.value })}>
                               <option value="">Nobody yet</option>
                               {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                           )}
                         </span>
-                        <span className="sm:hidden"><Avatar person={people.find((p) => p.id === t.assigneeId)} /></span>
+                        <span className="sm:hidden"><AvatarStack people={t.assigneeIds.map((id) => people.find((p) => p.id === id))} /></span>
                       </li>
                     );
                   })}
@@ -145,7 +152,8 @@ export function ListView({ groups, tasksByGroup, people, today, onOpen, onPatch,
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function CalChip({ t, people, today, onOpen, setDragId, setOverDay }) {
-  const who = people.find((p) => p.id === t.assigneeId);
+  const names = t.assigneeIds.map((id) => people.find((p) => p.id === id)?.name).filter(Boolean).join(", ");
+  const who = names ? { name: names } : null;
   return (
     <button
       type="button"

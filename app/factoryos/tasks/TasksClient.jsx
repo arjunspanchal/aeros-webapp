@@ -124,6 +124,9 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
       shown.customerName = customersRef.current.find((c) => c.id === shown.clientId)?.name || "";
     }
     delete shown.clientId;
+    // One person (drag, list picker) replaces the list; the list sets the lead.
+    if (shown.assigneeId !== undefined) shown.assigneeIds = shown.assigneeId ? [shown.assigneeId] : [];
+    else if (shown.assigneeIds !== undefined) shown.assigneeId = shown.assigneeIds[0] || "";
     setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, ...shown, ...(localOnly || {}) } : t)));
     if (!Object.keys(change).length) return;
     const n = (seq.current[id] || 0) + 1;
@@ -162,7 +165,8 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
       if (!res.ok) throw new Error(data.error || "Couldn't save the task");
       setTasks((ts) => [...ts, data.task]);
       // Given to someone else: offer to tell them on WhatsApp.
-      const person = data.task.assigneeId && data.task.assigneeId !== meId ? peopleRef.current.find((p) => p.id === data.task.assigneeId) : null;
+      const firstOther = (data.task.assigneeIds || []).find((x) => x !== meId);
+      const person = firstOther ? peopleRef.current.find((p) => p.id === firstOther) : null;
       if (person) flash(`Task given to ${person.name.split(" ")[0]}.`, { href: whatsappLink(data.task, person, meName), label: "Send on WhatsApp" });
       return data.task;
     } catch (e) {
@@ -185,7 +189,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return tasks.filter((t) => {
-      if (who.length && !who.includes(t.assigneeId || "none")) return false;
+      if (who.length && !(t.assigneeIds.length ? t.assigneeIds.some((x) => who.includes(x)) : who.includes("none"))) return false;
       if (customer && (t.customerId || "none") !== customer) return false;
       if (brand && (t.brand || "none") !== brand) return false;
       if (type && (t.label || "none") !== type) return false;
@@ -235,7 +239,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
 
   const groups = useMemo(() => {
     if (groupBy === "assignee") {
-      const ids = new Set(visible.map((t) => t.assigneeId).filter(Boolean));
+      const ids = new Set(visible.flatMap((t) => t.assigneeIds));
       for (const id of who) if (id !== "none") ids.add(id);
       const cols = people.filter((p) => ids.has(p.id)).map((p) => ({ key: p.id, title: p.name, person: p, patch: { assigneeId: p.id } }));
       if (!who.length || who.includes("none")) cols.push({ key: "none", title: "Nobody yet", person: null, patch: { assigneeId: "" } });
@@ -263,7 +267,11 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
   const tasksByGroup = useMemo(() => {
     const map = new Map(groups.map((g) => [g.key, []]));
     const keyOf = (t) => (groupBy === "assignee" ? t.assigneeId || "none" : groupBy === "priority" ? t.priority : groupBy === "customer" ? t.customerId || "none" : groupBy === "type" ? (LABELS.includes(t.label) ? t.label : "none") : t.status);
-    for (const t of visible) map.get(keyOf(t))?.push(t);
+    for (const t of visible) {
+      // Grouped by person, a shared task shows under each of its people.
+      if (groupBy === "assignee") { for (const k of (t.assigneeIds.length ? t.assigneeIds : ["none"])) map.get(k)?.push(t); }
+      else map.get(keyOf(t))?.push(t);
+    }
     for (const [key, list] of map) {
       if (groupBy === "status" && key === "done") list.sort((a, b) => String(b.completedAt || "").localeCompare(String(a.completedAt || "")));
       else list.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -279,7 +287,7 @@ export default function TasksClient({ initial, canDeleteAny, defaultMine }) {
   const todayCount = openTasks.filter((t) => t.dueDate === today).length;
   const openCountBy = useMemo(() => {
     const m = {};
-    for (const t of tasks) if (t.status !== "done") m[t.assigneeId || "none"] = (m[t.assigneeId || "none"] || 0) + 1;
+    for (const t of tasks) if (t.status !== "done") for (const k of (t.assigneeIds.length ? t.assigneeIds : ["none"])) m[k] = (m[k] || 0) + 1;
     return m;
   }, [tasks]);
   // People shown as filter buttons: anyone holding a task, plus yourself.
