@@ -62,10 +62,10 @@ function cupMeshes(g, blank, mats, caliper = 0.3) {
   out.push(new THREE.Mesh(wall(g.rFold, g.rRim, t, false), mats[1])); // inside skin, one caliper in
   out.push(new THREE.Mesh(wall(g.rFold, g.rFold + skirt, 3 * t, false), mats[1])); // bottom strip folded up inside (wall + base skirt between)
   const yBase = skirt * g.cosB, rBase = (g.rFold + skirt) * g.sinB - t;
-  const base = new THREE.Mesh(new THREE.CircleGeometry(rBase, 96), mats[1]); base.rotation.x = -Math.PI / 2; base.position.y = yBase; out.push(base);
+  if (g.hasRim) { const base = new THREE.Mesh(new THREE.CircleGeometry(rBase, 96), mats[1]); base.rotation.x = -Math.PI / 2; base.position.y = yBase; out.push(base); } // a double-wall wrap has no base of its own
   const foot = new THREE.Mesh(new THREE.RingGeometry(g.rFold * g.sinB - 3 * t, g.rFold * g.sinB, 96), mats[2]); foot.rotation.x = Math.PI / 2; out.push(foot); // the fold the cup stands on
   const yRim = (g.rRim - g.rFold) * g.cosB, rBody = g.rRim * g.sinB, tube = Math.max(0.6, (g.spec.TD - 2 * rBody) / 4);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(rBody + tube, tube, 16, 144), mats[1]); rim.rotation.x = Math.PI / 2; rim.position.y = yRim; out.push(rim);
+  if (g.hasRim) { const rim = new THREE.Mesh(new THREE.TorusGeometry(rBody + tube, tube, 16, 144), mats[1]); rim.rotation.x = Math.PI / 2; rim.position.y = yRim; out.push(rim); } // the wrap ends at its top cut
   return out;
 }
 

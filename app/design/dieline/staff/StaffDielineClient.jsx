@@ -16,6 +16,8 @@ import { artworkToPdf } from "@/lib/dieline/designer/vector-pdf";
 import { sheetLayoutPdf } from "@/lib/dieline/designer/layout-pdf";
 import { layoutUps } from "@/lib/dieline/print-rules";
 import { vendorSheetPdf, describeArtwork } from "@/lib/dieline/designer/vendor-pdf";
+import { cupNestPdf, fanPlacement } from "@/lib/dieline/designer/cup-nest-pdf";
+import { CUP_NEST_REFS } from "@/lib/dieline/cup-nest-refs";
 import { toPolar } from "@/lib/dieline/cup";
 import { cupGeometry, cupItemChecks, cupFormedChecks } from "@/lib/dieline/cup";
 import { curveItem } from "@/lib/dieline/designer/cup-warp";
@@ -31,7 +33,7 @@ const firstValues = (t) => {
   for (const i of t.inputs) v[i.key] = i.type === "bool" ? false : p[i.key] != null ? +(+p[i.key]).toFixed(1) : 0;
   return v;
 };
-const defaultBoard = (t) => (t.family === "bag" ? "bag-kraft-80" : t.family === "cup" ? "cupstock-230-1pe" : "fbb-300");
+const defaultBoard = (t) => (t.family === "bag" ? "bag-kraft-80" : t.family === "cup" ? (t.cup === "dw8" ? "cupstock-230" : "cupstock-230-1pe") : "fbb-300");
 const useOf = (t) => (t.family === "bag" ? "bag" : t.family === "cup" ? "cup" : "box");
 
 const SEV = {
@@ -185,6 +187,20 @@ export default function StaffDielineClient() {
           title: `${kldTitle} | ${kind === "layout" ? "ARTWORK + OUTLINES" : "ARTWORK, NO OUTLINES"}` });
       }
       save(`${stem}-${kind === "layout" ? "LAYOUT" : kind === "artpunch" ? "ARTWORK-PUNCH" : "VENDOR"}.pdf`, pdf, "application/pdf");
+    } catch (e) { alert(`Could not make the file: ${e.message}`); }
+    setMaking("");
+  }
+  // cups: the printer's set on their own nested sheet (LAYOUT / ARTWORK-PUNCH / PUNCH), as made for Blueline and Lucky
+  const cupNest = t.nest ? CUP_NEST_REFS[t.nest] : null;
+  const [printer, setPrinter] = useState("BLUELINE");
+  async function nestFile(mode) {
+    setMaking(`nest-${mode}`);
+    try {
+      const vec = art.length && mode !== "punch" ? await vectorArt() : null;
+      const pdf = cupNestPdf({ nest: cupNest, g: cupG, vector: vec, mode });
+      const brand = (saved.customer || saved.name || "aeros").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "aeros";
+      const kind = mode === "layout" ? "OFFSET-LAYOUT" : mode === "artpunch" ? "OFFSET-ARTWORK-PUNCH" : "OFFSET-PUNCH";
+      save(`${brand}_${t.nestFile.size}_${t.nestFile.item}_${kind}-${t.nestFile.tag}-v1-VENDOR-${printer}.pdf`, pdf, "application/pdf");
     } catch (e) { alert(`Could not make the file: ${e.message}`); }
     setMaking("");
   }
@@ -467,7 +483,7 @@ export default function StaffDielineClient() {
                     ))}
                     {(solid || cupG) && <button className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200" onClick={() => { const a = document.createElement("a"); a.href = viewerRef.current.snapshot(); a.download = `${stem}-3D-PROOF.png`; a.click(); }}>3D proof (PNG)</button>}
                     {(!ok || artBlocked) && <span className="text-[11px] text-red-700 dark:text-red-300">Print files are locked until every check passes.</span>}
-                    {cupG && <p className="w-full text-[11px] text-gray-600 dark:text-gray-400">Cups: these are one-cup files for checking and approval. The printer's set (LAYOUT, ARTWORK-PUNCH, PUNCH on their own nested sheet, as made for Blueline and Lucky) is not produced here yet.</p>}
+                    {cupG && <p className="w-full text-[11px] text-gray-600 dark:text-gray-400">{cupNest ? "These are one-cup files for checking and approval. The printer's set is below." : "These are one-cup files for checking and approval. No offset nest is on file for this cup, so the printer's set is not made here."}</p>}
                   </div>
                 </>
               )}
@@ -545,6 +561,37 @@ export default function StaffDielineClient() {
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {cupNest && cupG && res && res.doc && (
+            <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Printer's set: {cupNest.fans.length}-up on {cupNest.page[0].toFixed(1)} × {cupNest.page[1].toFixed(1)} mm</h2>
+                <select value={printer} onChange={(e) => setPrinter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
+                  <option value="BLUELINE">Blueline</option><option value="LUCKY-OFFSET">Lucky Offset</option>
+                </select>
+              </div>
+              <svg viewBox={`-4 -4 ${cupNest.page[0] + 8} ${cupNest.page[1] + 8}`} className="h-auto max-h-[460px] w-full rounded-md bg-[#e9ebee]">
+                <rect x={0} y={0} width={cupNest.page[0]} height={cupNest.page[1]} fill="#ffffff" stroke="#8a8a8a" strokeWidth={0.6} />
+                <defs><clipPath id="nest-bleed"><polygon points={cupG.bleed.poly.map((q) => q.join(",")).join(" ")} /></clipPath></defs>
+                {cupNest.fans.map((fan, k) => { const m = fanPlacement(cupG, fan); return (
+                  <g key={k}>
+                    {tex && <g transform={`matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`} clipPath="url(#nest-bleed)"><image href={texUrl} x={0} y={0} width={blankMm.w} height={blankMm.h} preserveAspectRatio="none" /></g>}
+                    <path d={fan.segs.map((sg) => (sg[0] === "l" ? `M${sg[1].join(" ")}L${sg[2].join(" ")}` : `M${sg[1].join(" ")}C${sg[2].join(" ")} ${sg[3].join(" ")} ${sg[4].join(" ")}`)).join("")} fill="none" stroke="#1d1d1b" strokeWidth={0.5} />
+                  </g>
+                ); })}
+                <path d={cupNest.marks.map((sg) => `M${sg[1].join(" ")}L${sg[2].join(" ")}`).join("")} fill="none" stroke="#1d1d1b" strokeWidth={0.4} />
+              </svg>
+              <p className="mt-1 text-[11px] text-gray-500">The printer's own punch layout, taken line for line from their file: middle column turned 180°, register marks and size labels kept. Artwork is stamped once per cup, clipped to the KLD's bleed line and held 1.2 mm clear of every neighbouring knife.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {[["layout", "LAYOUT: artwork + outlines", ok && art.length > 0 && !artBlocked], ["artpunch", "ARTWORK-PUNCH: artwork only", ok && art.length > 0 && !artBlocked], ["punch", "PUNCH: outlines only", ok]].map(([k, label, can]) => (
+                  <button key={k} disabled={!can || !!making} onClick={() => nestFile(k)}
+                    className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
+                    {making === `nest-${k}` ? "Making…" : label}
+                  </button>
+                ))}
+              </div>
             </section>
           )}
 
