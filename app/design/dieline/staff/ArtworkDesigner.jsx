@@ -15,7 +15,7 @@ const inputCls = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-base
 const btnCls = "rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200";
 const r1 = (v) => Math.round(v * 10) / 10;
 
-export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items, setItems, boardColour, snap, undo, redo, canUndo, canRedo, cup = null, clipPoly = null, house = null, pantone = false }) {
+export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items, setItems, boardColour, snap, undo, redo, canUndo, canRedo, cup = null, clipPoly = null, house = null, pantone = false, customer = "" }) {
   const svgRef = useRef(null), drag = useRef(null);
   const [sel, setSel] = useState(null), [busy, setBusy] = useState(""), [err, setErr] = useState(""), [guides, setGuides] = useState([]);
   const [pen, setPen] = useState(null); // null = off; { pts: [[x, y]], at: [x, y] } while drawing with the pen
@@ -295,6 +295,37 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   const jobInks = (() => { const seen = new Map(); for (const i of items) for (const c2 of (i.kind === "flood" ? [{ to: i.colour, name: i.pantone || "" }] : i.kind === "svg" ? i.colours || [] : [])) { const k = String(c2.to).toLowerCase(); if (/^#[0-9a-f]{6}$/.test(k) && k !== "#ffffff" && (!seen.has(k) || (!seen.get(k).name && c2.name))) seen.set(k, { to: k, name: c2.name || "" }); } return [...seen.values()]; })();
   const lastInk = () => { for (let k = items.length - 1; k >= 0; k--) { const i = items[k]; if (i.house) continue; const c2 = i.kind === "flood" ? { to: i.colour, name: i.pantone || "" } : (i.colours || []).find((q) => /^#[0-9a-f]{6}$/i.test(q.to) && !/^#f{6}$/i.test(q.to)); if (c2) return { to: c2.to, name: c2.name || "" }; } return null; };
   const sameInk = (it) => { const ink = lastInk(); return ink && it.colours?.length === 1 ? refreshSvg({ ...it, colours: [{ ...it.colours[0], to: ink.to, name: ink.name }] }) : it; }; // a new one-colour object starts in the job's last colour
+  // ---- BRAND KIT: a customer's vector logos and Pantone colours, saved once (table dieline_brand_kits) and dropped onto any
+  // item. Saved under the customer / brand name typed on the design. Vector only: a picture is traced first.
+  const [bk, setBk] = useState({ open: false, list: null, kit: null, msg: "" });
+  const brand = (customer || "").trim();
+  const kitLogos = items.filter((i) => i.kind === "svg" && !i.house && !["shape", "house", "text"].includes(i.source));
+  const kitList = async () => { try { const j = await (await fetch("/api/design/brand-kits")).json(); setBk((q) => ({ ...q, list: j.kits || [], msg: j.error || "" })); return j.kits || []; } catch { setBk((q) => ({ ...q, list: [], msg: "Could not load the brand kits." })); return []; } };
+  const kitOpen = async (id) => { if (!id) { setBk((q) => ({ ...q, kit: null })); return; } try { const j = await (await fetch(`/api/design/brand-kits/${id}`)).json(); if (j.error) throw new Error(j.error); setBk((q) => ({ ...q, kit: j.kit })); } catch (ex) { setBk((q) => ({ ...q, msg: ex.message })); } };
+  const kitToggle = async () => {
+    if (bk.open) { setBk((q) => ({ ...q, open: false })); return; }
+    setBk((q) => ({ ...q, open: true, msg: "Loading…" }));
+    const list = await kitList(), mine = list.find((k) => k.customer.trim().toLowerCase() === brand.toLowerCase());
+    setBk((q) => ({ ...q, msg: q.msg === "Loading…" ? "" : q.msg }));
+    if (mine) kitOpen(mine.id);
+  };
+  const kitPick = cur && kitLogos.includes(cur) ? [cur] : kitLogos; // the selected logo, or every logo of this job
+  const kitSave = async () => {
+    setBk((q) => ({ ...q, msg: "Saving…" }));
+    try {
+      const r = await fetch("/api/design/brand-kits", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customer: brand, logos: kitPick.map(({ href, ...rest }) => rest), colours: jobInks.map((q) => ({ hex: q.to, name: q.name })) }) });
+      const j = await r.json();
+      if (!r.ok || j.error) throw new Error(j.error || "Save failed");
+      await kitList(); await kitOpen(j.kit.id);
+      setBk((q) => ({ ...q, msg: `Saved to the brand kit of ${j.kit.customer}.` }));
+    } catch (ex) { setBk((q) => ({ ...q, msg: ex.message })); }
+  };
+  const kitAdd = (lg) => { // lands where an uploaded file lands, at its saved size unless that is too big for this item
+    const a0 = areas[0]?.box || [0, 0, W, H], w = Math.min(lg.w, cup ? 40 : Math.min(90, (a0[2] - a0[0]) * 0.55)), { key, ...rest } = lg;
+    snap(); const it = refreshSvg({ ...rest, id: newId(), w: r1(w), h: r1((w * lg.h) / lg.w), rot: 0, ...landing() }); setItems((l) => [...l, it]); setSel(it.id);
+  };
+  const kitDrop = async (key) => { try { await fetch(`/api/design/brand-kits/${bk.kit.id}?logo=${encodeURIComponent(key)}`, { method: "DELETE" }); await kitOpen(bk.kit.id); kitList(); } catch { setBk((q) => ({ ...q, msg: "Could not remove the logo." })); } };
+  const kitInk = (c) => { if (!cur || cur.house) return; snap(); patch(cur.id, (i) => (i.kind === "flood" ? { ...i, colour: c.hex, pantone: c.name } : i.kind === "svg" ? refreshSvg({ ...i, colours: (i.colours || []).map((c3) => ({ ...c3, to: c.hex, name: c.name })) }) : i)); };
   // ---- Aeros mark + ready symbols (lifted from the house files; lib/dieline/designer/house.js)
   const hasMark = items.some((i) => i.house === "mark");
   // THE FOOTER FOLLOWS THE JOB (Arjun 21-Nov-2026: "narrow the footer list"): of the footers on file for this size, only
@@ -392,6 +423,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
         {SHAPES.map(([k, label]) => <button key={k} className={btnCls} onClick={() => addShape(k)} title={`Add a ${label.toLowerCase()}`}>{label}</button>)}
         <button className={`${btnCls} ${pen ? "border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40" : ""}`} onClick={() => { setSel(null); setPen((q) => (q ? null : { pts: [], at: null })); }} title="Click points on the die to draw">Pen</button>
         <button className={btnCls} onClick={addFlood}>Add colour ground</button>
+        <button className={`${btnCls} ${bk.open ? "border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40" : ""}`} onClick={kitToggle} title="A customer's logos and Pantone colours, saved once and reused on every item">Brand kit</button>
         {hs0 && (
           <select value="" onChange={(e) => { if (e.target.value) addSymbol(e.target.value); }} className="rounded-md border border-gray-300 px-2 py-1.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200" title="Ready vector symbols from the Aeros house files">
             <option value="">Add a symbol…</option>
@@ -426,6 +458,50 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
           {!cup && <label className="flex items-center gap-1.5"><input type="checkbox" checked={snapOpt.guides} onChange={(e) => setSnapOpt({ ...snapOpt, guides: e.target.checked })} />Panel centre lines and safe edges</label>}
           <label className="flex items-center gap-1.5">Grid<select value={snapOpt.grid} onChange={(e) => setSnapOpt({ ...snapOpt, grid: +e.target.value })} className="rounded border border-gray-300 px-1 py-0.5 text-xs dark:border-gray-700 dark:bg-gray-950"><option value={0}>off</option><option value={0.5}>0.5 mm</option><option value={1}>1 mm</option><option value={5}>5 mm</option></select></label>
           <span className="text-gray-500">The point's own path always snaps. Shift = 45° steps from the last point. Alt = no snapping. {!pen && "Drag the blue points of a drawn shape to move them."}</span>
+        </div>
+      )}
+      {bk.open && (
+        <div className="rounded-md border border-blue-200 bg-blue-50/40 px-3 py-2 text-xs text-gray-700 dark:border-blue-900 dark:bg-blue-950/20 dark:text-gray-300">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold">Brand kit:</span>
+            <select value={bk.kit?.id || ""} onChange={(e) => kitOpen(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950">
+              <option value="">{bk.list === null ? "Loading…" : bk.list.length ? "Choose a customer…" : "No kits saved yet"}</option>
+              {(bk.list || []).map((k) => <option key={k.id} value={k.id}>{k.customer} ({k.logo_names.length} logo{k.logo_names.length === 1 ? "" : "s"})</option>)}
+            </select>
+            <button className={`${btnCls} border-gray-900 bg-gray-900 text-white disabled:opacity-40 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900`} disabled={!brand || !kitPick.length} onClick={kitSave}
+              title="Vector logos only, with their Pantone names. The same logo saved again replaces the old one.">
+              {kitPick.length === 1 && kitPick[0] === cur ? "Save this logo" : `Save this job's logos (${kitPick.length})`} to the kit{brand ? ` of ${brand}` : ""}
+            </button>
+            {!brand && <span className="text-amber-700 dark:text-amber-300">type the customer / brand name above first: a kit is saved under it.</span>}
+            {brand && !kitLogos.length && <span className="text-gray-500">place a vector logo to save it (a picture is traced to vector first).</span>}
+            {bk.msg && <span className="text-gray-600 dark:text-gray-400">{bk.msg}</span>}
+          </div>
+          {bk.kit && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(bk.kit.logos || []).map((lg) => (
+                <div key={lg.key} className="w-36 rounded-md border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="flex h-16 items-center justify-center rounded bg-gray-100 dark:bg-gray-800"><img src={refreshSvg(lg).href} alt={lg.name} className="max-h-14 max-w-full" /></div>
+                  <p className="mt-1 truncate font-medium" title={lg.name}>{lg.name}</p>
+                  <p className="truncate text-[10px] text-gray-500" title={(lg.colours || []).map((c) => c.name || c.to).join(", ")}>{(lg.colours || []).map((c) => c.name || c.to).join(", ") || "-"}</p>
+                  <div className="mt-1 flex gap-1">
+                    <button className="rounded border border-gray-900 bg-gray-900 px-2 py-0.5 text-[11px] font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" onClick={() => kitAdd(lg)}>Add</button>
+                    <button className="rounded border border-gray-300 px-2 py-0.5 text-[11px] text-gray-600 dark:border-gray-700 dark:text-gray-300" onClick={() => kitDrop(lg.key)} title="Take this logo out of the kit">Remove</button>
+                  </div>
+                </div>
+              ))}
+              {!(bk.kit.logos || []).length && <span className="text-gray-500">No logos in this kit yet.</span>}
+              {(bk.kit.colours || []).length > 0 && (
+                <div className="flex basis-full flex-wrap items-center gap-2">
+                  <span className="font-semibold">Brand colours:</span>
+                  {bk.kit.colours.map((c) => (
+                    <button key={c.hex} onClick={() => kitInk(c)} disabled={!cur || !!cur.house} title={cur && !cur.house ? "Give the selected object this colour" : "Select an object to give it this colour"} className="flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] disabled:opacity-70 dark:border-gray-700">
+                      <span className="inline-block h-3.5 w-3.5 rounded-sm border border-gray-400" style={{ background: c.hex }} />{c.name || c.hex}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
       {jobInks.length > 0 && (
