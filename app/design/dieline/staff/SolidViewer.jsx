@@ -7,6 +7,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { sceneOf } from "@/lib/dieline/designer/scenes";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 // die frame (x right, y down, z into the box) -> three (y up): (x, -y, -z) is a proper rotation, no mirror
 // Bags stand up (the die's top is the bag's top): (x, -y, -z). Boxes lie on their base (the die plane is the table, the
@@ -151,7 +152,15 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     for (const c of [...s.group.children]) { s.group.remove(c); c.geometry?.dispose(); }
     s.tex?.dispose();
     s.tex = null;
-    if (texture) { s.tex = new THREE.CanvasTexture(texture); s.tex.colorSpace = THREE.SRGBColorSpace; s.tex.anisotropy = 8; }
+    let texSrc = texture;
+    if (texture && pet) { // on a clear cup, white in the artwork is NO INK (as the vendor sheet says): it is left clear, not painted white
+      texSrc = document.createElement("canvas"); texSrc.width = texture.width; texSrc.height = texture.height;
+      const g2 = texSrc.getContext("2d"); g2.drawImage(texture, 0, 0);
+      const im = g2.getImageData(0, 0, texSrc.width, texSrc.height), px = im.data;
+      for (let i = 0; i < px.length; i += 4) if (px[i] > 244 && px[i + 1] > 244 && px[i + 2] > 244) px[i + 3] = 0;
+      g2.putImageData(im, 0, 0);
+    }
+    if (texture) { s.tex = new THREE.CanvasTexture(texSrc); s.tex.colorSpace = THREE.SRGBColorSpace; s.tex.anisotropy = 8; }
     const mats = [
       new THREE.MeshStandardMaterial({ color: s.tex ? "#ffffff" : colours?.top || "#f4f2ec", map: s.tex, roughness: 0.85, side: THREE.DoubleSide }), // printed outside
       new THREE.MeshStandardMaterial({ color: colours?.back || "#e8e4da", roughness: 0.9, side: THREE.DoubleSide }), // inside
@@ -161,10 +170,16 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     if (pet) {
       // PET CUP: the moulded cup turned from its measured profile (clear), with the print band wrapped a full 360 deg.
       // The artwork rectangle is stretched round the cup at every height, as the printer's cone distortion does.
-      const body = new THREE.Mesh(new THREE.LatheGeometry(pet.profile.map(([d, z]) => new THREE.Vector2(d / 2, z)), 128),
-        new THREE.MeshStandardMaterial({ color: "#cfe3ee", transparent: true, opacity: 0.3, roughness: 0.08, metalness: 0, side: THREE.DoubleSide, depthWrite: false }));
-      const floor = new THREE.Mesh(new THREE.CircleGeometry(pet.profile[0][0] / 2, 96), body.material); floor.rotation.x = -Math.PI / 2;
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(pet.td / 2, 0.9, 12, 128), new THREE.MeshStandardMaterial({ color: "#dbe9f1", transparent: true, opacity: 0.55, roughness: 0.1 })); rim.rotation.x = Math.PI / 2; rim.position.y = pet.h;
+      // PET AS A MATERIAL (Arjun 21-Nov-2026: "improve the PET material"): clear plastic that lets the scene through and
+      // bends it (PET's refractive index 1.57), a glossy skin that picks up a soft studio reflection, a faint cool tint
+      // where the wall is seen edge-on, a rolled rim and a heavier base. The reflection map is used by the PET only -
+      // paper and board stay lit as before, so a printed colour is still shown as it is.
+      if (!s.env) { const pm = new THREE.PMREMGenerator(s.renderer); s.env = pm.fromScene(new RoomEnvironment(), 0.04).texture; pm.dispose(); }
+      const clear = (extra = {}) => new THREE.MeshPhysicalMaterial({ color: "#ffffff", transmission: 1, ior: 1.57, thickness: 0.5, roughness: 0.03, metalness: 0, envMap: s.env, envMapIntensity: 0.85,
+        clearcoat: 0.5, clearcoatRoughness: 0.04, attenuationColor: new THREE.Color("#d5e9f0"), attenuationDistance: 22, side: THREE.DoubleSide, ...extra });
+      const body = new THREE.Mesh(new THREE.LatheGeometry(pet.profile.map(([d, z]) => new THREE.Vector2(d / 2, z)), 160), clear());
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(pet.profile[0][0] / 2, 96), clear({ thickness: 1.4, roughness: 0.07 })); floor.rotation.x = -Math.PI / 2; floor.position.y = 0.05; // the base is the thickest part of the cup
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(pet.td / 2, 1.15, 16, 160), clear({ thickness: 2.3, attenuationDistance: 10 })); rim.rotation.x = Math.PI / 2; rim.position.y = pet.h; // rolled rim
       s.group.add(body, floor, rim);
       if (s.tex) {
         const nA = 192, nZ = 32, pos = [], uvs = [], idx = [];
@@ -174,7 +189,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
         }
         for (let j = 0; j < nZ; j++) for (let i = 0; i < nA; i++) { const a = j * (nA + 1) + i, b = a + 1, c = a + nA + 1, d = c + 1; idx.push(a, b, c, b, d, c); }
         const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); g.setIndex(idx); g.computeVertexNormals();
-        s.group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: s.tex, transparent: true, alphaTest: 0.03, roughness: 0.6, side: THREE.DoubleSide })));
+        s.group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: s.tex, alphaTest: 0.5, alphaToCoverage: true, roughness: 0.38, envMap: s.env, envMapIntensity: 0.25, side: THREE.DoubleSide }))); // dry-offset ink: solid, with a slight sheen
       }
     } else if (cone && coneInner) {
       // FULL DOUBLE-WALL CUP: the plain inner cup stands on its bottom fold; the wrap hangs just under its rolled rim
@@ -204,7 +219,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     const plate = sceneOf(sceneKind).src ? sceneOf(sceneKind) : null;
     s.pivot.rotation.y = plate ? turn : 0;
     s.floor.visible = sceneKind === "studio" || !!plate; s.floor.scale.set(d * 6, d * 6, 1); s.floor.position.set(0, -sz.y / 2 - 0.05, 0);
-    s.blob.visible = sceneKind === "studio" || !!plate; s.blob.material.opacity = plate ? Math.min(1, plate.shadow / 0.3) : 1; s.blob.scale.set(sz.x * 1.7, sz.z * 1.7, 1); s.blob.position.set(0, -sz.y / 2 - 0.03, 0);
+    s.blob.visible = sceneKind === "studio" || !!plate; s.blob.material.opacity = (plate ? Math.min(1, plate.shadow / 0.3) : 1) * (pet ? 0.45 : 1); s.floor.material.opacity = pet ? 0.1 : 0.22; // a clear cup throws a light shadow s.blob.scale.set(sz.x * 1.7, sz.z * 1.7, 1); s.blob.position.set(0, -sz.y / 2 - 0.03, 0);
     s.sun.position.set(d * (plate ? plate.light[0] : 0.5), d * (plate ? plate.light[1] : 1.3), d * (plate ? plate.light[2] : 0.8)); const sc = s.sun.shadow.camera; sc.left = -d; sc.right = d; sc.top = d; sc.bottom = -d; sc.near = 0.1; sc.far = d * 5; sc.updateProjectionMatrix();
     // LIFESTYLE SCENE: the plate is the background; the camera is put where the plate's own camera was, so the product
     // stands on the plate's surface in the plate's perspective. On a wider or narrower view the plate is cropped to fit

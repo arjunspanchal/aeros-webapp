@@ -297,7 +297,16 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   const sameInk = (it) => { const ink = lastInk(); return ink && it.colours?.length === 1 ? refreshSvg({ ...it, colours: [{ ...it.colours[0], to: ink.to, name: ink.name }] }) : it; }; // a new one-colour object starts in the job's last colour
   // ---- Aeros mark + ready symbols (lifted from the house files; lib/dieline/designer/house.js)
   const hasMark = items.some((i) => i.house === "mark");
-  const feet = hs0 && house?.bag ? footersFor(hs0, house.bag.W, house.bag.G, house.bag.H) : [];
+  // THE FOOTER FOLLOWS THE JOB (Arjun 21-Nov-2026: "narrow the footer list"): of the footers on file for this size, only
+  // those of the paper chosen (B brown / W white) are offered, and the one for the job's print is picked by itself
+  // (-P50 = 2-colour, -P100 = 4-colour, no suffix = plain; oil-and-grease-resistant ones only when asked for).
+  const feetAll = hs0 && house?.bag ? footersFor(hs0, house.bag.W, house.bag.G, house.bag.H) : [];
+  const tail = (sku) => sku.split("-").slice(2).join("-"); // "B", "W-P50", "B-OGR-P100"
+  const narrow = (list, test) => { const hit = list.filter(test); return hit.length ? hit : list; }; // a filter that would leave nothing is not applied
+  const feet = narrow(narrow(feetAll, (f2) => !house?.bag?.paper || tail(f2.sku).split("-")[0] === house.bag.paper), (f2) => /OGR/.test(f2.sku) === !!house?.bag?.ogr); // OGR footers only on OGR paper (it comes brown or white, so both stay on offer)
+  const bestFoot = house?.bag ? feet.find((f2) => { const q = tail(f2.sku).split("-"); return (house.bag.print ? q.includes(house.bag.print) : !q.includes("P50") && !q.includes("P100")); }) || feet[0] : null;
+  const pickSku = footSku && feet.some((f2) => f2.sku === footSku) ? footSku : bestFoot?.sku || "";
+  const footLabel = (sku) => { const q = tail(sku).split("-"); return `${sku} - ${q[0] === "W" ? "white" : "brown"}${q.includes("OGR") ? ", oil and grease resistant" : ""}, ${q.includes("P50") ? "2-colour print" : q.includes("P100") ? "4-colour print" : "plain"}`; };
   const darkest = () => { // the mark never adds a colour: it takes the darkest ink the artwork already prints
     const inks = items.flatMap((i) => (i.kind === "flood" ? [{ to: i.colour, name: i.pantone || "" }] : i.kind === "svg" && !i.house ? i.colours || [] : [])).filter((c2) => /^#[0-9a-f]{6}$/i.test(c2.to) && !/^#f{6}$/i.test(c2.to));
     const lum = (hx) => 0.299 * parseInt(hx.slice(1, 3), 16) + 0.587 * parseInt(hx.slice(3, 5), 16) + 0.114 * parseInt(hx.slice(5, 7), 16);
@@ -327,12 +336,12 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
         const it = inked({ ...t0, name: "Aeros mark", w: Math.round(t0.w * k * 100) / 100, h: Math.round(hgt * 100) / 100, x: r2(x), y: r2(y), rot: 0, curve: true, flip: sp.flip, house: "mark", noClip: true });
         snap(); setItems((l) => [...l, it]); if (!quiet) setSel(it.id);
       } else if (house?.bag) { // the locked footer block of this SKU, on the front's bottom flap
-        const f = footerSvg(hs0, footSku || feet[0]?.sku);
+        const f = footerSvg(hs0, pickSku);
         if (!f) throw new Error("No Aeros footer is on file for this bag size.");
         // SIZE IN PROPORTION TO THE BAG (Arjun 21-Nov-2026): the footer is 23 % of the front width - the proportion of the house
         // files (58 mm on a 254 bag, 53 on a 230, 27 on the small one) - never under 27 mm (its small type) or over its drawn 60 mm
         const front = areas.find((a) => /^Front/.test(a.name)) || areas[0], fw = front.box[2] - front.box[0], w = Math.round(Math.max(27, Math.min(f.w, fw * 0.23, fw - 16)) * 10) / 10;
-        const it = inked({ ...vectorItem(f.svg, `Aeros footer ${footSku || feet[0].sku}`, w), h: Math.round(((w * f.h) / f.w) * 100) / 100, x: r1((front.box[0] + front.box[2]) / 2), y: r1(front.box[3] + house.bag.flapMid), house: "mark", source: "house" });
+        const it = inked({ ...vectorItem(f.svg, `Aeros footer ${pickSku}`, w), houseSku: pickSku, h: Math.round(((w * f.h) / f.w) * 100) / 100, x: r1((front.box[0] + front.box[2]) / 2), y: r1(front.box[3] + house.bag.flapMid), house: "mark", source: "house" });
         snap(); setItems((l) => [...l, it]); if (!quiet) setSel(it.id);
       }
     } catch (ex) { setErr(ex.message || "Could not add the Aeros mark."); }
@@ -345,12 +354,14 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     if (!house?.kind) return;
     if (house.channel === "dealer") { if (hasMark) setItems((l) => l.filter((i) => i.house !== "mark")); return; }
     if (house.channel !== "direct" || hasMark || !items.some((i) => !i.house)) return;
-    if (!(cup || feet.length === 1)) return;
-    const key = `${cup ? cup.id : feet[0].sku}-${items.length}`;
+    if (!(cup || pickSku)) return;
+    const key = `${cup ? cup.id : pickSku}-${items.length}`;
     if (autoMark.current === key) return;
     autoMark.current = key;
     addMark(true);
-  }, [house?.kind, house?.channel, hasMark, items.length, feet.length, cup?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [house?.kind, house?.channel, hasMark, items.length, pickSku, cup?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the paper, the print or the SKU picked changed: the old footer comes off (the right one goes on by the rule above)
+  useEffect(() => { const mk = items.find((i) => i.house === "mark" && i.houseSku); if (mk && pickSku && mk.houseSku !== pickSku) setItems((l) => l.filter((i) => i.id !== mk.id)); }, [pickSku]); // eslint-disable-line react-hooks/exhaustive-deps
   // JOB COLOURS, named in one place: a name typed here goes on every object that prints in that colour
   const nameInk = (hex, name) => { setItems((l) => l.map((i) => (i.kind === "flood" ? (String(i.colour).toLowerCase() === hex ? { ...i, pantone: name } : i) : i.kind === "svg" && (i.colours || []).some((c2) => String(c2.to).toLowerCase() === hex) ? { ...i, colours: i.colours.map((c2) => (String(c2.to).toLowerCase() === hex ? { ...c2, name } : c2)) } : i))); };
   function addSymbol(key) {
@@ -434,11 +445,11 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
           <span className="font-semibold">Aeros mark:</span>
           {!house.channel && <span className="text-amber-700 dark:text-amber-300">choose who the job is sold to in step 4 (Print) first. Direct = the mark goes on; dealer = no Aeros mark at all.</span>}
           {house.channel === "dealer" && <span>{hasMark ? "Dealer sale: delete the Aeros mark." : "Dealer sale: no Aeros mark on this pack."}</span>}
+          {house.channel === "direct" && house.bag && feet.length > 1 && <select value={pickSku} onChange={(e) => setFootSku(e.target.value)} title="The footer of this SKU: picked from the paper and the print; change it here if the job is another SKU" className="rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950">{feet.map((f2) => <option key={f2.sku} value={f2.sku}>{footLabel(f2.sku)}</option>)}</select>}
           {house.channel === "direct" && (hasMark ? <span>on the pack ({cup ? (cup.wall === "double" ? "in the hem's white strip" : "upside down in the fold-in lip") : "front bottom flap"}), in the artwork's darkest ink. It is added by itself for a direct sale and cannot be moved.</span> : <>
-            {house.bag && feet.length > 0 && <select value={footSku || feet[0].sku} onChange={(e) => setFootSku(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950">{feet.map((f2) => <option key={f2.sku} value={f2.sku}>{f2.sku}</option>)}</select>}
-            {(cup || feet.length > 0) ? <button className={`${btnCls} border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900`} onClick={addMark}>Add Aeros mark</button>
+            {(cup || pickSku) ? <button className={`${btnCls} border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900`} onClick={() => addMark()}>Add Aeros mark</button>
               : <span>{hs0 ? "no Aeros footer is on file for this bag size (the house footers are made per SKU by the footer tool)." : "loading…"}</span>}
-            <span className="text-gray-500">{cup ? `"${house.cupText}", one line hidden in the fold.` : "The footer block of this SKU (recycle line, SKU, QR), taken from the house file."}</span>
+            <span className="text-gray-500">{cup ? `"${house.cupText}", one line hidden in the fold. It goes on by itself once there is artwork.` : "The footer block of this SKU (recycle line, SKU, QR), taken from the house file. It goes on by itself once there is artwork."}</span>
           </>)}
         </div>
       )}

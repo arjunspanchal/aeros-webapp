@@ -381,7 +381,9 @@ export default function StaffDielineClient() {
   const [printerPick, setPrinter] = useState("BLUELINE");
   const [bg3d, setBg3d] = useState("#f3f4f6"), [scene3d, setScene3d] = useState("plain"), [sceneScale, setSceneScale] = useState(1), sec3d = useRef(null); // 3D viewer background (also used in snapshots and proof shots)
   const houseInfo = { channel, kind: houseKind, cupText: cupG ? cupMarkText(cupG.spec.label, cupG.wall) : "",
-    bag: houseKind === "bag" && blankMm ? { W: +values.W, G: +values.G, H: +values.H, flapMid: (+values.G / 2 + 29.6) / 2 } : null };
+    // the footer SKU follows the job: paper colour (B / W) and print (-P50 = 2-colour, -P100 = 4-colour, none = plain)
+    bag: houseKind === "bag" && blankMm ? { W: +values.W, G: +values.G, H: +values.H, flapMid: (+values.G / 2 + 29.6) / 2,
+      paper: mat.id === "ogr" ? "" : /white/i.test(mat.top || "") ? "W" : "B", ogr: mat.id === "ogr", print: process === "plain" ? "" : process === "pantone" && +colours <= 2 ? "P50" : "P100" } : null };
   const printer = (t.printers || ["BLUELINE"]).includes(printerPick) ? printerPick : (t.printers || ["BLUELINE"])[0]; // only printers whose file for this cup is on hand
   async function nestFile(mode) {
     setMaking(`nest-${mode}`);
@@ -803,31 +805,45 @@ export default function StaffDielineClient() {
         {/* beside it on wide screens (under it otherwise): 3D, the dimensioned KLD, checks, sheet fit */}
         <div className="min-w-0 space-y-5 lg:col-start-2 2xl:col-start-3">
           <section ref={sec3d} className="[&:fullscreen]:overflow-auto [&:fullscreen]:p-6 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{petG ? "3D cup (the moulded cup, print band wrapped 360°)" : cupG ? "3D cup (the real fan wrapped to its cone)" : `3D model (the real die folded at ${board.mm} mm caliper${board.caliperStatus === "assumed" ? ", assumed" : ""})`}</h2>
-              {(solid || cupG || petG) && (
-                <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700" title="Standard views">
-                    {[["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"], ["top", "Top"], ["bottom", "Bottom"], ["iso", "3/4"], ["under", "From below"]].filter(([k]) => !sceneOf(scene3d).src || !["top", "bottom", "under"].includes(k)).map(([k, label]) => <button key={k} onClick={() => viewerRef.current?.view(k)} className="border-r border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 last:border-r-0 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">{label}</button>)}
-                  </span>
-                  <button onClick={() => { setSpin(8); turntable(8); }} disabled={spin > 0} title="One full turn of the model as it stands now, 8 seconds, with the Aeros watermark" className="rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">{spin > 0 ? `Recording… ${Math.ceil(spin)} s` : "Turntable video"}</button>
-                  <button onClick={() => { if (document.fullscreenElement) document.exitFullscreen(); else sec3d.current?.requestFullscreen?.(); }} title="The 3D panel fills the whole screen (Esc to leave)" className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">Full screen</button>
-                  <select value={scene3d} onChange={(e) => setScene3d(e.target.value)} title="What the product stands on" className="rounded-md border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
-                    {SCENES.map((sc2) => <option key={sc2.key} value={sc2.key}>Scene: {sc2.label}</option>)}
-                  </select>
-                  {sceneOf(scene3d).src && <label className="flex items-center gap-1 text-[11px] text-gray-600 dark:text-gray-300" title="How big the product reads in the scene (the product itself is always true to size)">Size in scene<input type="range" min="0.6" max="1.8" step="0.05" value={sceneScale} onChange={(e) => setSceneScale(+e.target.value)} className="w-24" /></label>}
-                  <span className="flex items-center gap-1 rounded-md border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 dark:border-gray-700 dark:text-gray-300" title="Background of the 3D view (snapshots and proof shots use it too)">
-                    Background
-                    {["#ffffff", "#f3f4f6", "#d9dde3", "#3a3f47", "#111111"].map((c2) => <button key={c2} onClick={() => setBg3d(c2)} className={`h-4 w-4 rounded-sm border ${bg3d === c2 ? "border-blue-600 ring-1 ring-blue-600" : "border-gray-400"}`} style={{ background: c2 }} aria-label={`Background ${c2}`} />)}
-                    <input type="color" value={bg3d} onChange={(e) => setBg3d(e.target.value)} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" aria-label="Any background colour" />
-                  </span>
-                  <button onClick={() => save(`${stem}-3D.stl`, viewerRef.current.exportStl(), "model/stl")} className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">STL (mm)</button>
-                  <button onClick={() => saveShot(`${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`)} title="Saves the 3D view exactly as it is turned now" className="rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">Snapshot of this view (PNG)</button>
-                  {cupG && <button onClick={takeShot} disabled={shots.length >= 4} title="Adds this view to the customer proof (3 or 4 are needed)" className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40">Take proof shot ({shots.length}/4)</button>}
-                  <button onClick={() => save(`${stem}-3D.obj`, viewerRef.current.exportObj(), "model/obj")} className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">OBJ (mm)</button>
+            <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{petG ? "3D cup (the moulded cup, print band wrapped 360°)" : cupG ? "3D cup (the real fan wrapped to its cone)" : `3D model (the real die folded at ${board.mm} mm caliper${board.caliperStatus === "assumed" ? ", assumed" : ""})`}</h2>
+            {(solid || cupG || petG) && (() => {
+              const inScene = !!sceneOf(scene3d).src, lab = "w-12 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400";
+              const plainBtn = "rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200", darkBtn = "rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900";
+              return (
+                <div className="mb-2 space-y-1.5 rounded-md border border-gray-200 px-2.5 py-2 dark:border-gray-800">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={lab}>View</span>
+                    <span className="inline-flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700" title="Standard views">
+                      {[["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"], ["top", "Top"], ["bottom", "Bottom"], ["iso", "3/4"], ["under", "From below"]].filter(([k]) => !inScene || !["top", "bottom", "under"].includes(k)).map(([k, label]) => <button key={k} onClick={() => viewerRef.current?.view(k)} className="border-r border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 last:border-r-0 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">{label}</button>)}
+                    </span>
+                    <button onClick={() => { if (document.fullscreenElement) document.exitFullscreen(); else sec3d.current?.requestFullscreen?.(); }} title="The 3D panel fills the whole screen (Esc to leave)" className={plainBtn}>Full screen</button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={lab}>Scene</span>
+                    <select value={scene3d} onChange={(e) => setScene3d(e.target.value)} title="What the product stands on" className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                      {SCENES.map((sc2) => <option key={sc2.key} value={sc2.key}>{sc2.label}</option>)}
+                    </select>
+                    {inScene ? <label className="flex items-center gap-1 text-[11px] text-gray-600 dark:text-gray-300" title="How big the product reads in the scene (the product itself is always true to size)">Size<input type="range" min="0.6" max="1.8" step="0.05" value={sceneScale} onChange={(e) => setSceneScale(+e.target.value)} className="w-24" /></label>
+                      : (
+                        <span className="flex items-center gap-1 text-[11px] text-gray-600 dark:text-gray-300" title="Background of the 3D view (snapshots and proof shots use it too)">
+                          Background
+                          {["#ffffff", "#f3f4f6", "#d9dde3", "#3a3f47", "#111111"].map((c2) => <button key={c2} onClick={() => setBg3d(c2)} className={`h-4 w-4 rounded-sm border ${bg3d === c2 ? "border-blue-600 ring-1 ring-blue-600" : "border-gray-400"}`} style={{ background: c2 }} aria-label={`Background ${c2}`} />)}
+                          <input type="color" value={bg3d} onChange={(e) => setBg3d(e.target.value)} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" aria-label="Any background colour" />
+                        </span>
+                      )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={lab}>Save</span>
+                    <button onClick={() => saveShot(`${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`)} title="Saves the 3D view exactly as it is turned now, with the Aeros watermark" className={darkBtn}>Snapshot (PNG)</button>
+                    {cupG && <button onClick={takeShot} disabled={shots.length >= 4} title="Adds this view to the customer proof (3 or 4 are needed)" className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40">Proof shot ({shots.length}/4)</button>}
+                    <button onClick={() => { setSpin(8); turntable(8); }} disabled={spin > 0} title="One full turn of the model as it stands now, 8 seconds, with the Aeros watermark" className={plainBtn}>{spin > 0 ? `Recording… ${Math.ceil(spin)} s` : "Turntable video"}</button>
+                    <select value="" onChange={(e) => { const k = e.target.value; if (k === "stl") save(`${stem}-3D.stl`, viewerRef.current.exportStl(), "model/stl"); if (k === "obj") save(`${stem}-3D.obj`, viewerRef.current.exportObj(), "model/obj"); }} title="The 3D model as a CAD file, in mm" className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                      <option value="">3D file…</option><option value="stl">STL (mm)</option><option value="obj">OBJ (mm)</option>
+                    </select>
+                  </div>
                 </div>
-              )}
-            </div>
+              );
+            })()}
             {petG && blankMm ? (
               <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} background={bg3d} pet={petG} colours={mat.colour3d} texture={tex} blank={blankMm} />
             ) : cupG && blankMm ? (
