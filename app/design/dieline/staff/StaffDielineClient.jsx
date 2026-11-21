@@ -443,7 +443,7 @@ export default function StaffDielineClient() {
   const cupNest = t.nest ? CUP_NEST_REFS[t.nest] : null;
   const [printerPick, setPrinter] = useState("BLUELINE");
   const [bg3d, setBg3d] = useState("#f3f4f6"), [scene3d, setScene3d] = useState("plain"), [sceneScale, setSceneScale] = useState(1), sec3d = useRef(null); // 3D viewer background (also used in snapshots and proof shots)
-  const houseInfo = { channel, kind: houseKind, cupText: cupG ? cupMarkText(cupG.spec.label, cupG.wall) : "",
+  const houseInfo = { channel, kind: houseKind, cupText: cupG ? cupMarkText(cupG.spec.label, cupG.wall, cupG.item) : "",
     // the footer SKU follows the job: paper colour (B / W) and print (-P50 = 2-colour, -P100 = 4-colour, none = plain)
     bag: houseKind === "bag" && blankMm ? { W: +values.W, G: +values.G, H: +values.H, flapMid: (+values.G / 2 + 29.6) / 2,
       paper: mat.id === "ogr" ? "" : /white/i.test(mat.top || "") ? "W" : "B", ogr: mat.id === "ogr", print: process === "plain" ? "" : process === "pantone" && +colours <= 2 ? "P50" : "P100" } : null };

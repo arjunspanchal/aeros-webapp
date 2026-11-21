@@ -126,6 +126,38 @@ def kld(cup_id, label, rel, spec):
     return ref
 
 
+def tub(tub_id, label, n, ml):
+    """A paper tub: the team's single fan, already split into cut / guides / printed area and measured by the house
+    tub tools (KLD Templates/Paper Tubs/_source/tub<N>_geo.json + _die-paths.json). Every stroke is the supplied one."""
+    src = os.path.join(ROOT, "KLD Templates/Paper Tubs/_source")
+    G = json.load(open(os.path.join(src, f"tub{n}_geo.json"))); P = {q["n"]: q for q in json.load(open(os.path.join(src, f"tub{n}_die-paths.json")))}
+    seg = lambda it: [it[0]] + [tuple(q) for q in it[1:]]
+    cut = [seg(it) for k in (1, 2, 3, 4) for it in P[k]["items"]]
+    crease = [seg(it) for k in (5, 6, 7) for it in P[k]["items"]]  # bottom fold, glue line, rim-curl line (team guides)
+    area = [tuple(it[1]) for it in P[8]["items"]] + [tuple(P[8]["items"][-1][-1])]  # the PRINTED area: art clip minus the brim
+    def thin(pts, tol=0.02):  # drop points that sit on the line between their neighbours (a clip path sampled very finely)
+        keep = [pts[0]]
+        for i in range(1, len(pts) - 1):
+            a, b, c = keep[-1], pts[i], pts[i + 1]
+            L = math.hypot(c[0] - a[0], c[1] - a[1]) or 1e-9
+            if abs((c[0] - a[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (c[1] - a[1])) / L > tol or math.hypot(b[0] - a[0], b[1] - a[1]) > 4:
+                keep.append(b)
+        return keep + [pts[-1]]
+    area = thin(area)
+    allp = [q for s2 in cut for q in s2[1:]] + area
+    x0, y0 = min(q[0] for q in allp), min(q[1] for q in allp)
+    sh = lambda q: [round(q[0] - x0, 3), round(q[1] - y0, 3)]
+    ref = dict(id=tub_id, label=label, source=f"Aeros Artworks/KLD Templates/Paper Tubs/_source/tub{n}_die-paths.json (team single fan, die {G['die']})",
+               centre=sh((G["CX"], G["CY"])), kld=f"die {G['die']} ({G['sku']})", wall="single", rules="tub", item="tub", ml=ml, TD=G["TD"], BD=G["BD"], H=G["H"],
+               cut=[[s2[0]] + [sh(q) for q in s2[1:]] for s2 in cut], crease=[[s2[0]] + [sh(q) for q in s2[1:]] for s2 in crease],
+               limit=[sh(q) for q in area], bleed=[sh(q) for q in area])
+    allq = [q for s2 in ref["cut"] for q in s2[1:]] + ref["bleed"]
+    ref["w"], ref["h"] = round(max(q[0] for q in allq), 3), round(max(q[1] for q in allq), 3)
+    print(f"  {tub_id}: cut {len(cut)} segs, guides {len(crease)}, printed area {len(area)} pts (of {len(P[8]['items'])}), "
+          f"R {G['RB']:.2f}..{G['RT']:.2f}, fold {G['R_fold']:.2f}, rim line {G['R_curl']:.2f}, blank {ref['w']} x {ref['h']} mm")
+    return ref
+
+
 def samples(segs, n):
     out = []
     for s in segs:
@@ -267,6 +299,12 @@ klds = {
     "dw16": kld("dw16", "16 oz (450 mL) double-wall paper cup, outer wrap", "KLD Templates/Paper Cups/16oz-450ml-paper-cup-DW.pdf",
                 dict(kld="KLD-CUP-16DW v1", wall="double", TD=90, BD=60, H=135)),
 }
+print("paper tubs")
+klds.update({
+    "tub350": tub("tub350", "Paper tub 115 mm, 12 oz (350 mL)", 350, 350),
+    "tub500": tub("tub500", "Paper tub 115 mm, 16 oz (500 mL)", 500, 500),
+    "tub750": tub("tub750", "Paper tub 115 mm, 24 oz (750 mL)", 750, 750),
+})
 print("printer nests")
 CA = "Customer Artwork/"
 nests = {
