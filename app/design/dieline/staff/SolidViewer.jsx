@@ -4,6 +4,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { sceneOf } from "@/lib/dieline/designer/scenes";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter.js";
 
@@ -81,7 +82,7 @@ export function wrapLift(wrap, inner) {
   return inner.formed.wallHeight - tube - wrap.formed.wallHeight;
 }
 
-const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, coneInner = null, pet = null, caliper, lieFlat = false, background = "#f3f4f6", scene: sceneKind = "plain" }, ref) {
+const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, coneInner = null, pet = null, caliper, lieFlat = false, background = "#f3f4f6", scene: sceneKind = "plain", sceneScale = 1 }, ref) {
   const host = useRef(null), st = useRef({});
 
   useEffect(() => {
@@ -110,10 +111,16 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     lamp.position.set(0, 0, 1);
     camera.add(lamp);
     scene.add(camera);
-    const group = new THREE.Group();
-    scene.add(group);
+    // the model hangs on a pivot at the centre of the view, so it can be turned on the spot (lifestyle scenes, turntable)
+    const pivot = new THREE.Group(), group = new THREE.Group();
+    pivot.add(group); scene.add(pivot);
+    // in a lifestyle scene the camera is fixed to the plate: a sideways drag turns the PRODUCT instead of the view
+    let dragX = null;
+    const pd = (e) => { if (st.current.plate) dragX = e.clientX; }, pu = () => { dragX = null; };
+    const pm = (e) => { if (st.current.plate && dragX != null) { pivot.rotation.y += (e.clientX - dragX) * 0.012; dragX = e.clientX; } };
+    renderer.domElement.addEventListener("pointerdown", pd); window.addEventListener("pointermove", pm); window.addEventListener("pointerup", pu);
     // full screen: the 3D panel (its buttons included) fills the screen and the view takes all the height that is left
-    const size = () => { const fs = !!document.fullscreenElement && document.fullscreenElement.contains(el), w = el.clientWidth, h = fs ? Math.max(320, window.innerHeight - 190) : Math.max(320, Math.round(w * 0.62)); renderer.setSize(w, h, false); renderer.domElement.style.width = "100%"; renderer.domElement.style.height = `${h}px`; renderer.domElement.style.display = "block"; camera.aspect = w / h; camera.updateProjectionMatrix(); };
+    const size = () => { setTimeout(() => st.current.applyPlate?.(), 0); const fs = !!document.fullscreenElement && document.fullscreenElement.contains(el), w = el.clientWidth, h = fs ? Math.max(320, window.innerHeight - 190) : Math.max(320, Math.round(w * 0.62)); renderer.setSize(w, h, false); renderer.domElement.style.width = "100%"; renderer.domElement.style.height = `${h}px`; renderer.domElement.style.display = "block"; camera.aspect = w / h; camera.updateProjectionMatrix(); };
     size();
     const ro = new ResizeObserver(size);
     ro.observe(el);
@@ -131,13 +138,13 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     const blob = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bc), transparent: true, depthWrite: false }));
     blob.rotation.x = -Math.PI / 2; blob.visible = false; scene.add(blob);
     let raf;
-    const loop = () => { controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); };
+    const loop = () => { if (!st.current.plate) controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); }; // a scene's camera is fixed to its plate
     loop();
-    st.current = { renderer, scene, camera, controls, group, framed: false, sun, floor, blob };
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener("fullscreenchange", size); window.removeEventListener("resize", size); controls.dispose(); renderer.dispose(); el.removeChild(renderer.domElement); };
+    st.current = { renderer, scene, camera, controls, group, framed: false, sun, floor, blob, pivot, plates: {} };
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener("fullscreenchange", size); window.removeEventListener("resize", size); window.removeEventListener("pointermove", pm); window.removeEventListener("pointerup", pu); controls.dispose(); renderer.dispose(); el.removeChild(renderer.domElement); };
   }, []);
 
-  useEffect(() => { if (st.current.scene) st.current.scene.background = new THREE.Color(background); }, [background]);
+  useEffect(() => { if (st.current.scene && !st.current.plate) st.current.scene.background = new THREE.Color(background); }, [background]);
   useEffect(() => {
     const s = st.current;
     if (!s.group || (!cone && !pet && (!model || !model.world))) return;
@@ -186,24 +193,47 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       s.group.add(edges);
     }
     // centre the model; frame the camera once per template/size
+    const turn = s.pivot.rotation.y; s.pivot.rotation.y = 0; // measured square to the axes, whatever way it is turned now
     s.group.position.set(0, 0, 0);
-    s.group.updateMatrixWorld(true);
+    s.pivot.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(s.group), c = box.getCenter(new THREE.Vector3()), d = box.getSize(new THREE.Vector3()).length();
     s.group.position.set(-c.x, -c.y, -c.z);
     // studio floor under the model + the key light's shadow sized to it
     s.group.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     const sz = box.getSize(new THREE.Vector3());
-    s.floor.visible = sceneKind === "studio"; s.floor.scale.set(d * 6, d * 6, 1); s.floor.position.set(0, -sz.y / 2 - 0.05, 0);
-    s.blob.visible = sceneKind === "studio"; s.blob.scale.set(sz.x * 1.7, sz.z * 1.7, 1); s.blob.position.set(0, -sz.y / 2 - 0.03, 0);
-    s.sun.position.set(d * 0.5, d * 1.3, d * 0.8); const sc = s.sun.shadow.camera; sc.left = -d; sc.right = d; sc.top = d; sc.bottom = -d; sc.near = 0.1; sc.far = d * 5; sc.updateProjectionMatrix();
+    const plate = sceneOf(sceneKind).src ? sceneOf(sceneKind) : null;
+    s.pivot.rotation.y = plate ? turn : 0;
+    s.floor.visible = sceneKind === "studio" || !!plate; s.floor.scale.set(d * 6, d * 6, 1); s.floor.position.set(0, -sz.y / 2 - 0.05, 0);
+    s.blob.visible = sceneKind === "studio" || !!plate; s.blob.material.opacity = plate ? Math.min(1, plate.shadow / 0.3) : 1; s.blob.scale.set(sz.x * 1.7, sz.z * 1.7, 1); s.blob.position.set(0, -sz.y / 2 - 0.03, 0);
+    s.sun.position.set(d * (plate ? plate.light[0] : 0.5), d * (plate ? plate.light[1] : 1.3), d * (plate ? plate.light[2] : 0.8)); const sc = s.sun.shadow.camera; sc.left = -d; sc.right = d; sc.top = d; sc.bottom = -d; sc.near = 0.1; sc.far = d * 5; sc.updateProjectionMatrix();
+    // LIFESTYLE SCENE: the plate is the background; the camera is put where the plate's own camera was, so the product
+    // stands on the plate's surface in the plate's perspective. On a wider or narrower view the plate is cropped to fit
+    // and the camera's angle of view follows the crop, so the product never slides off the surface.
+    s.plate = plate; s.controls.enabled = !plate;
+    s.applyPlate = !plate ? null : () => {
+      const el2 = s.renderer.domElement, Ac = el2.clientWidth / Math.max(1, el2.clientHeight), tex = s.plates[plate.key];
+      const v = Math.min(1, plate.aspect / Ac), u = Math.min(1, Ac / plate.aspect); // share of the plate's height / width that shows
+      if (tex) { tex.repeat.set(u, v); tex.offset.set((1 - u) / 2, (1 - v) / 2); }
+      const half = Math.tan((plate.fov * Math.PI) / 360) * v, anchor = (plate.anchor - (1 - v) / 2) / v, p = (plate.pitch * Math.PI) / 180;
+      // the plate has no ruler in it, so the camera's height is set from the product: it stands (plate.fill) of the view
+      // tall at "Size in scene" 1. Moving the camera along its own ray keeps the plate's perspective exactly.
+      const ray = p + Math.atan((anchor - 0.5) * 2 * half), big = Math.max(sz.y, 0.75 * Math.max(sz.x, sz.z) / Math.max(0.6, Ac / 1.6));
+      const H = (big * Math.sin(ray)) / (2 * half * (plate.fill || 0.36)) / Math.max(0.3, sceneScale), g = H / Math.tan(ray), yb = -sz.y / 2;
+      s.camera.fov = (Math.atan(half) * 360) / Math.PI; s.camera.near = 5; s.camera.far = 20000; s.camera.aspect = Ac;
+      s.camera.position.set(0, yb + H, g); s.camera.lookAt(0, yb + H - Math.sin(p) * 1000, g - Math.cos(p) * 1000); s.camera.updateProjectionMatrix();
+    };
+    if (plate) {
+      if (!s.plates[plate.key]) { const tex = new THREE.TextureLoader().load(plate.src, () => s.applyPlate?.()); tex.colorSpace = THREE.SRGBColorSpace; s.plates[plate.key] = tex; }
+      s.scene.background = s.plates[plate.key]; s.applyPlate(); s.framed = false;
+    } else if (s.scene.background && s.scene.background.isTexture) { s.scene.background = new THREE.Color(background); s.camera.fov = 35; s.camera.updateProjectionMatrix(); s.framed = false; }
     const key = pet ? `pet-${pet.id}` : cone ? `cup-${cone.id}-${coneInner ? "full" : "alone"}` : model.key;
-    if (!s.framed || s.lastKey !== key) {
+    if (!plate && (!s.framed || s.lastKey !== key)) {
       s.camera.position.set(d * 1.1, d * 0.7, d * 1.5);
       s.controls.target.set(0, 0, 0);
       s.camera.near = d / 100; s.camera.far = d * 20; s.camera.updateProjectionMatrix();
       s.framed = true; s.lastKey = key;
     }
-  }, [model, colours, texture, blank, cone, coneInner, pet, caliper, lieFlat, sceneKind]);
+  }, [model, colours, texture, blank, cone, coneInner, pet, caliper, lieFlat, sceneKind, sceneScale]);
 
   useImperativeHandle(ref, () => ({
     exportStl() { return new STLExporter().parse(st.current.group, { binary: false }); },
@@ -216,10 +246,13 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       controls.enabled = false; st.current.spin0 = { r: Math.hypot(o.x, o.z), y: o.y, a: Math.atan2(o.x, o.z), pr: renderer.getPixelRatio() };
       renderer.setPixelRatio(Math.max(1, Math.min(4, targetW / cssW)));
     },
-    spinTo(frac) { const { camera, controls, renderer, scene, spin0: s0 } = st.current, a = s0.a + frac * 2 * Math.PI; camera.position.set(controls.target.x + s0.r * Math.sin(a), controls.target.y + s0.y, controls.target.z + s0.r * Math.cos(a)); camera.lookAt(controls.target); renderer.render(scene, camera); },
-    spinEnd() { const { controls, renderer, spin0 } = st.current; renderer.setPixelRatio(spin0.pr); this.spinTo(0); controls.enabled = true; controls.update(); },
+    spinTo(frac) { const { camera, controls, renderer, scene, spin0: s0 } = st.current, a = s0.a + frac * 2 * Math.PI;
+      if (st.current.plate) { if (s0.turn == null) s0.turn = st.current.pivot.rotation.y; st.current.pivot.rotation.y = s0.turn + frac * 2 * Math.PI; renderer.render(scene, camera); return; } // in a scene the product turns, the camera stays
+      camera.position.set(controls.target.x + s0.r * Math.sin(a), controls.target.y + s0.y, controls.target.z + s0.r * Math.cos(a)); camera.lookAt(controls.target); renderer.render(scene, camera); },
+    spinEnd() { const { controls, renderer, spin0 } = st.current; renderer.setPixelRatio(spin0.pr); this.spinTo(0); controls.enabled = !st.current.plate; if (!st.current.plate) controls.update(); st.current.applyPlate?.(); },
     // standard views, as in a CAD program: the camera goes straight onto that side, same distance, looking at the model's centre
     view(name) {
+      if (st.current.plate) { st.current.pivot.rotation.y = { front: 0, back: Math.PI, left: Math.PI / 2, right: -Math.PI / 2, iso: -Math.PI / 5 }[name] ?? st.current.pivot.rotation.y; return; } // a scene's camera is fixed: turn the product
       const { camera, controls } = st.current, r = camera.position.distanceTo(controls.target) || 500;
       const dir = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0], top: [0, 1, 0.0005], bottom: [0, -1, 0.0005], iso: [0.55, 0.35, 0.75], under: [0.5, -0.62, 0.6] }[name] || [0.55, 0.35, 0.75], l = Math.hypot(...dir);
       controls.target.set(0, 0, 0); camera.position.set((dir[0] / l) * r, (dir[1] / l) * r, (dir[2] / l) * r); camera.lookAt(0, 0, 0); controls.update();

@@ -2,7 +2,7 @@
 // Staff KLD maker. Maths only: lib/dieline/staff.js builds, cleans, audits and checks the die; this screen only collects
 // inputs and shows the answer. Downloads stay locked while any "block" check fails.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { TEMPLATES, templateLimits } from "@/lib/dieline/templates";
+import { TEMPLATES, TEMPLATE_GROUPS, templateLimits } from "@/lib/dieline/templates";
 import { runStaffTemplate, fileStem } from "@/lib/dieline/staff";
 import { MATERIAL_LIBRARY, MATERIAL_FAMILIES, materialById } from "@/lib/dieline/material-library";
 import { panelsFromDie } from "@/lib/dieline/solid/arrangement";
@@ -25,6 +25,7 @@ import { cupMarkText } from "@/lib/dieline/designer/house";
 import { petGeometry, petItemChecks } from "@/lib/dieline/pet";
 import { petArtPdf } from "@/lib/dieline/designer/pet-pdf";
 import { cupProofPdf } from "@/lib/dieline/designer/proof-pdf";
+import { SCENES, sceneOf } from "@/lib/dieline/designer/scenes";
 import { watermark, watermarkLayer } from "@/lib/dieline/designer/watermark";
 import { cmykOf } from "@/lib/dieline/designer/vector-pdf";
 import { corners as itemCorners } from "@/lib/dieline/designer/model";
@@ -64,6 +65,8 @@ function save(name, text, type) {
 export default function StaffDielineClient() {
   const [tid, setTid] = useState(TEMPLATES[0].id);
   const t = TEMPLATES.find((x) => x.id === tid);
+  const [cat, setCat] = useState(TEMPLATES[0].family); // the group of templates on show
+  useEffect(() => { setCat(t.family); }, [tid]); // eslint-disable-line react-hooks/exhaustive-deps -- a loaded design brings its own group forward
   const [values, setValues] = useState(() => firstValues(TEMPLATES[0]));
   const [unit, setUnit] = useState("mm");
   const [boardSel, setBoardSel] = useState(() => defaultBoard(TEMPLATES[0]));
@@ -350,7 +353,7 @@ export default function StaffDielineClient() {
   // cups: the printer's set on their own nested sheet (LAYOUT / ARTWORK-PUNCH / PUNCH), as made for Blueline and Lucky
   const cupNest = t.nest ? CUP_NEST_REFS[t.nest] : null;
   const [printerPick, setPrinter] = useState("BLUELINE");
-  const [bg3d, setBg3d] = useState("#f3f4f6"), [scene3d, setScene3d] = useState("plain"), sec3d = useRef(null); // 3D viewer background (also used in snapshots and proof shots)
+  const [bg3d, setBg3d] = useState("#f3f4f6"), [scene3d, setScene3d] = useState("plain"), [sceneScale, setSceneScale] = useState(1), sec3d = useRef(null); // 3D viewer background (also used in snapshots and proof shots)
   const houseInfo = { channel, kind: houseKind, cupText: cupG ? cupMarkText(cupG.spec.label, cupG.wall) : "",
     bag: houseKind === "bag" && blankMm ? { W: +values.W, G: +values.G, H: +values.H, flapMid: (+values.G / 2 + 29.6) / 2 } : null };
   const printer = (t.printers || ["BLUELINE"]).includes(printerPick) ? printerPick : (t.printers || ["BLUELINE"])[0]; // only printers whose file for this cup is on hand
@@ -408,20 +411,32 @@ export default function StaffDielineClient() {
       {/* 1. template */}
       <section>
         <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">1. Template</h2>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
-          {TEMPLATES.map((x) => (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {TEMPLATE_GROUPS.map((g) => {
+            const n = TEMPLATES.filter((x) => x.family === g.family).length, on = g.family === cat, has = g.family === t.family;
+            return (
+              <button key={g.family} onClick={() => setCat(g.family)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${on ? "border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" : "border-gray-300 text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200"}`}>
+                {g.label} <span className="opacity-60">{n}</span>{has && !on ? " •" : ""}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {TEMPLATES.filter((x) => x.family === cat).map((x) => (
             <button
               key={x.id}
+              title={x.name}
               onClick={() => pickTemplate(x.id)}
-              className={`rounded-lg border px-3 py-2 text-left transition ${x.id === tid ? "border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" : "border-gray-200 bg-white hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-600"}`}
+              className={`rounded-lg border px-3 py-1.5 text-left text-[13px] font-semibold transition ${x.id === tid ? "border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" : "border-gray-200 bg-white hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-600"}`}
             >
-              <p className="text-[13px] font-semibold leading-snug">{x.name}</p>
-              <p className={`text-xs ${x.id === tid ? "opacity-80" : "text-gray-500 dark:text-gray-400"}`}>
-                {x.proven.length} proven size{x.proven.length > 1 ? "s" : ""} · {x.family === "bag" ? "hand-made, offset sheet" : x.family === "cup" ? "fixed KLD die" : "offset sheet, die-cut"}
-              </p>
+              {x.short || x.name}
             </button>
           ))}
         </div>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          {t.name} · {t.proven.length} proven size{t.proven.length > 1 ? "s" : ""} · {t.family === "bag" ? "hand-made, offset sheet" : t.family === "cup" ? "fixed KLD die" : t.family === "pet" ? "direct print on the moulded cup" : "offset sheet, die-cut"}
+        </p>
       </section>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)_minmax(400px,30%)]">
@@ -770,13 +785,14 @@ export default function StaffDielineClient() {
               {(solid || cupG || petG) && (
                 <div className="flex flex-wrap gap-2">
                   <span className="inline-flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700" title="Standard views">
-                    {[["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"], ["top", "Top"], ["bottom", "Bottom"], ["iso", "3/4"], ["under", "From below"]].map(([k, label]) => <button key={k} onClick={() => viewerRef.current?.view(k)} className="border-r border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 last:border-r-0 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">{label}</button>)}
+                    {[["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"], ["top", "Top"], ["bottom", "Bottom"], ["iso", "3/4"], ["under", "From below"]].filter(([k]) => !sceneOf(scene3d).src || !["top", "bottom", "under"].includes(k)).map(([k, label]) => <button key={k} onClick={() => viewerRef.current?.view(k)} className="border-r border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 last:border-r-0 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">{label}</button>)}
                   </span>
                   <button onClick={() => { setSpin(8); turntable(8); }} disabled={spin > 0} title="One full turn of the model as it stands now, 8 seconds, with the Aeros watermark" className="rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">{spin > 0 ? `Recording… ${Math.ceil(spin)} s` : "Turntable video"}</button>
                   <button onClick={() => { if (document.fullscreenElement) document.exitFullscreen(); else sec3d.current?.requestFullscreen?.(); }} title="The 3D panel fills the whole screen (Esc to leave)" className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">Full screen</button>
                   <select value={scene3d} onChange={(e) => setScene3d(e.target.value)} title="What the product stands on" className="rounded-md border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
-                    <option value="plain">Scene: plain</option><option value="studio">Scene: studio floor with shadow</option>
+                    {SCENES.map((sc2) => <option key={sc2.key} value={sc2.key}>Scene: {sc2.label}</option>)}
                   </select>
+                  {sceneOf(scene3d).src && <label className="flex items-center gap-1 text-[11px] text-gray-600 dark:text-gray-300" title="How big the product reads in the scene (the product itself is always true to size)">Size in scene<input type="range" min="0.6" max="1.8" step="0.05" value={sceneScale} onChange={(e) => setSceneScale(+e.target.value)} className="w-24" /></label>}
                   <span className="flex items-center gap-1 rounded-md border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 dark:border-gray-700 dark:text-gray-300" title="Background of the 3D view (snapshots and proof shots use it too)">
                     Background
                     {["#ffffff", "#f3f4f6", "#d9dde3", "#3a3f47", "#111111"].map((c2) => <button key={c2} onClick={() => setBg3d(c2)} className={`h-4 w-4 rounded-sm border ${bg3d === c2 ? "border-blue-600 ring-1 ring-blue-600" : "border-gray-400"}`} style={{ background: c2 }} aria-label={`Background ${c2}`} />)}
@@ -790,7 +806,7 @@ export default function StaffDielineClient() {
               )}
             </div>
             {petG && blankMm ? (
-              <SolidViewer ref={viewerRef} scene={scene3d} background={bg3d} pet={petG} colours={mat.colour3d} texture={tex} blank={blankMm} />
+              <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} background={bg3d} pet={petG} colours={mat.colour3d} texture={tex} blank={blankMm} />
             ) : cupG && blankMm ? (
               <>
                 {innerG && (
@@ -800,7 +816,7 @@ export default function StaffDielineClient() {
                     ))}
                   </div>
                 )}
-                <SolidViewer ref={viewerRef} scene={scene3d} background={bg3d} cone={cupG} coneInner={innerG && cupView === "full" ? innerG : null} caliper={board.mm} colours={mat.colour3d} texture={tex} blank={blankMm} />
+                <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} background={bg3d} cone={cupG} coneInner={innerG && cupView === "full" ? innerG : null} caliper={board.mm} colours={mat.colour3d} texture={tex} blank={blankMm} />
                 <ul className="mt-3 space-y-1.5">
                   {[...cupFormedChecks(cupG), ...(innerG && cupView === "full" ? cupFitChecks(cupG, innerG, board.mm) : [])].map((c, k) => (
                     <li key={k} className={`rounded-md px-3 py-2 text-xs ${SEV[c.severity][c.ok ? "pass" : "fail"]}`}>
@@ -812,7 +828,7 @@ export default function StaffDielineClient() {
               </>
             ) : solid ? (
               <>
-                <SolidViewer ref={viewerRef} scene={scene3d} background={bg3d} model={solid} lieFlat={t.family === "box"} colours={mat.colour3d} texture={tex} blank={blankMm} />
+                <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} background={bg3d} model={solid} lieFlat={t.family === "box"} colours={mat.colour3d} texture={tex} blank={blankMm} />
                 <label className="mt-2 flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
                   Flat
                   <input type="range" min={0} max={1} step={0.01} value={foldT} onChange={(e) => setFoldT(+e.target.value)} className="flex-1" />
