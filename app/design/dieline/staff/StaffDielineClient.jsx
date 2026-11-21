@@ -27,6 +27,7 @@ import { petArtPdf } from "@/lib/dieline/designer/pet-pdf";
 import { cupProofPdf } from "@/lib/dieline/designer/proof-pdf";
 import { SCENES, sceneOf } from "@/lib/dieline/designer/scenes";
 import { watermark, watermarkLayer } from "@/lib/dieline/designer/watermark";
+import { zipBlob } from "@/lib/dieline/designer/zip";
 import { cmykOf } from "@/lib/dieline/designer/vector-pdf";
 import { corners as itemCorners } from "@/lib/dieline/designer/model";
 import { curveItem } from "@/lib/dieline/designer/cup-warp";
@@ -306,10 +307,12 @@ export default function StaffDielineClient() {
   // TURNTABLE VIDEO: one full turn of the model as it stands in the 3D view (background, scene and height as set), recorded
   // off the view frame by frame with the Aeros watermark on every frame. MP4 where the browser can write it, else WebM.
   const [spin, setSpin] = useState(0); // 0 = idle, else seconds left
-  async function turntable(seconds = 8) {
+  async function turntable(seconds = 8) { const clip = await recordTurn(seconds); if (clip) save(`${stem}-3D-TURNTABLE.${clip.ext}`, clip.blob, clip.blob.type); }
+  async function recordTurn(seconds = 8) { // one full turn of the view as it stands -> { blob, ext } (null if it could not be recorded)
+    let clip = null;
     const v = viewerRef.current, fps = 30;
     const type = ["video/mp4;codecs=avc1.42E01E", "video/mp4", "video/webm;codecs=vp9", "video/webm"].find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
-    if (!type) { alert("This browser cannot record video. Use Chrome or Edge."); return; }
+    if (!type) { alert("This browser cannot record video. Use Chrome or Edge."); return null; }
     v.spinStart(1920); // about 1920 px wide for the recording
     const src = v.canvas(), W2 = src.width & ~1, H2 = src.height & ~1;
     const out = document.createElement("canvas"); out.width = W2; out.height = H2;
@@ -327,9 +330,33 @@ export default function StaffDielineClient() {
       }
       await new Promise((r) => setTimeout(r, 120));
       rec.stop(); await done;
-      const a2 = document.createElement("a"); a2.href = URL.createObjectURL(new Blob(chunks, { type: type.split(";")[0] })); a2.download = `${stem}-3D-TURNTABLE.${type.includes("mp4") ? "mp4" : "webm"}`; a2.click();
+      clip = { blob: new Blob(chunks, { type: type.split(";")[0] }), ext: type.includes("mp4") ? "mp4" : "webm" };
     } catch (e) { alert(`Could not record the video: ${e.message}`); }
     v.spinEnd(); setSpin(0);
+    return clip;
+  }
+  // MOCKUP PACK (Arjun 21-Nov-2026): everything sales sends a prospect, in one zip - the three standard views, the product
+  // in each scene, and the turntable. All from the measured model, all watermarked; nothing is generated.
+  const [pack, setPack] = useState("");
+  async function mockupPack() {
+    const v = viewerRef.current, scene0 = scene3d, wait = (ms) => new Promise((r) => setTimeout(r, ms)), files = [];
+    const shot = async (name) => { await wait(120); const cv = watermark(await loadImage(v.snapshot(2))); const b64 = atob((/\.jpg$/.test(name) ? cv.toDataURL("image/jpeg", 0.92) : cv.toDataURL("image/png")).split(",")[1]), data = new Uint8Array(b64.length); for (let i = 0; i < b64.length; i++) data[i] = b64.charCodeAt(i); files.push({ name, data }); }; // (toBlob can hang in a background tab)
+    try {
+      setPack("Views…");
+      if (sceneOf(scene0).src) { setScene3d("plain"); await wait(900); }
+      for (const [k, label] of [["iso", "1-three-quarter"], ["front", "2-front"], ["back", "3-back"]]) { v.view(k); await shot(`${stem}-MOCKUP-${label}.png`); }
+      v.view("iso");
+      const plates = SCENES.filter((q) => q.src);
+      await Promise.all(plates.map((q) => new Promise((r) => { const im = new Image(); im.onload = im.onerror = r; im.src = q.src; setTimeout(r, 4000); }))); // the plates are in hand before the scene is switched
+      let n = 4;
+      for (const q of plates) { setPack(`Scene: ${q.label.split(" (")[0]}…`); setScene3d(q.key); await wait(1500); v.view("iso"); await shot(`${stem}-MOCKUP-${n++}-${q.key}.jpg`); } // a scene is a photograph: JPEG keeps it small enough to send
+      setScene3d(scene0); await wait(900);
+      setPack("Turntable…"); setSpin(8);
+      const clip = await recordTurn(8);
+      if (clip) files.push({ name: `${stem}-MOCKUP-${n}-turntable.${clip.ext}`, data: new Uint8Array(await clip.blob.arrayBuffer()) });
+      save(`${stem}-MOCKUP-PACK.zip`, zipBlob(files), "application/zip");
+    } catch (e) { alert(`Could not make the mockup pack: ${e.message}`); setScene3d(scene0); }
+    setPack("");
   }
   // EVERY SNAPSHOT of the 3D view carries the Aeros house watermark (Arjun 21-Nov-2026) - downloads and proof shots alike
   async function saveShot(name) {
@@ -836,7 +863,8 @@ export default function StaffDielineClient() {
                     <span className={lab}>Save</span>
                     <button onClick={() => saveShot(`${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`)} title="Saves the 3D view exactly as it is turned now, with the Aeros watermark" className={darkBtn}>Snapshot (PNG)</button>
                     {cupG && <button onClick={takeShot} disabled={shots.length >= 4} title="Adds this view to the customer proof (3 or 4 are needed)" className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40">Proof shot ({shots.length}/4)</button>}
-                    <button onClick={() => { setSpin(8); turntable(8); }} disabled={spin > 0} title="One full turn of the model as it stands now, 8 seconds, with the Aeros watermark" className={plainBtn}>{spin > 0 ? `Recording… ${Math.ceil(spin)} s` : "Turntable video"}</button>
+                    <button onClick={mockupPack} disabled={!!pack || spin > 0} title="One zip for sales: 3/4, front and back views, the product in each scene, and the turntable video - all with the Aeros watermark" className={darkBtn}>{pack ? `Mockup pack: ${pack}` : "Mockup pack (zip)"}</button>
+                    <button onClick={() => { setSpin(8); turntable(8); }} disabled={spin > 0 || !!pack} title="One full turn of the model as it stands now, 8 seconds, with the Aeros watermark" className={plainBtn}>{spin > 0 ? `Recording… ${Math.ceil(spin)} s` : "Turntable video"}</button>
                     <select value="" onChange={(e) => { const k = e.target.value; if (k === "stl") save(`${stem}-3D.stl`, viewerRef.current.exportStl(), "model/stl"); if (k === "obj") save(`${stem}-3D.obj`, viewerRef.current.exportObj(), "model/obj"); }} title="The 3D model as a CAD file, in mm" className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
                       <option value="">3D file…</option><option value="stl">STL (mm)</option><option value="obj">OBJ (mm)</option>
                     </select>

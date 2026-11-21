@@ -267,7 +267,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     spinEnd() { const { controls, renderer, spin0 } = st.current; renderer.setPixelRatio(spin0.pr); this.spinTo(0); controls.enabled = !st.current.plate; if (!st.current.plate) controls.update(); st.current.applyPlate?.(); },
     // standard views, as in a CAD program: the camera goes straight onto that side, same distance, looking at the model's centre
     view(name) {
-      if (st.current.plate) { st.current.pivot.rotation.y = { front: 0, back: Math.PI, left: Math.PI / 2, right: -Math.PI / 2, iso: -Math.PI / 5 }[name] ?? st.current.pivot.rotation.y; return; } // a scene's camera is fixed: turn the product
+      if (st.current.plate) { st.current.pivot.rotation.y = { front: 0, back: Math.PI, left: Math.PI / 2, right: -Math.PI / 2, iso: -Math.PI / 9 }[name] ?? st.current.pivot.rotation.y; return; } // a scene's camera is fixed: turn the product
       const { camera, controls } = st.current, r = camera.position.distanceTo(controls.target) || 500;
       const dir = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0], top: [0, 1, 0.0005], bottom: [0, -1, 0.0005], iso: [0.55, 0.35, 0.75], under: [0.5, -0.62, 0.6] }[name] || [0.55, 0.35, 0.75], l = Math.hypot(...dir);
       controls.target.set(0, 0, 0); camera.position.set((dir[0] / l) * r, (dir[1] / l) * r, (dir[2] / l) * r); camera.lookAt(0, 0, 0); controls.update();
