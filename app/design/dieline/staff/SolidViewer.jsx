@@ -45,13 +45,14 @@ function panelGeometry(w, outline2d, holes2d, blank) {
 // sits on the cup), so the printed skin is one caliper further out and the hem turns up between wrap and cup.
 function cupMeshes(g, blank, mats, caliper = 0.3, asWrap = false) {
   const out = [], nA = 144, nR = 32, t = caliper;
-  const wall = (rIn, rOut, shrink, uv, yOf = (R) => (R - g.rFold) * g.cosB) => {
+  // mirror = a fan radius the strip is folded about: the picture on it is then taken from the fan BELOW the fold
+  const wall = (rIn, rOut, shrink, uv, yOf = (R) => (R - g.rFold) * g.cosB, mirror = null) => {
     const pos = [], uvs = [], idx = [];
     for (let j = 0; j <= nR; j++) for (let i = 0; i <= nA; i++) {
       const a = g.aLeft + (g.wrap * i) / nA, R = rIn + ((rOut - rIn) * j) / nR, psi = 2 * Math.PI * (i / nA - 0.5);
       const r3 = R * g.sinB - shrink, y = yOf(R);
       pos.push(r3 * Math.sin(psi), y, r3 * Math.cos(psi));
-      const fx = g.cx + R * Math.sin(a), fy = g.cy - R * Math.cos(a);
+      const Rf = mirror == null ? R : 2 * mirror - R, fx = g.cx + Rf * Math.sin(a), fy = g.cy - Rf * Math.cos(a);
       uvs.push(uv ? fx / blank.w : 0, uv ? 1 - fy / blank.h : 0);
     }
     for (let j = 0; j < nR; j++) for (let i = 0; i < nA; i++) { const a = j * (nA + 1) + i, b = a + 1, c = a + nA + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
@@ -62,7 +63,9 @@ function cupMeshes(g, blank, mats, caliper = 0.3, asWrap = false) {
   const skirt = g.rFold - g.rBot; // the strip below the fold: it turns up inside and grips the base disc
   out.push(new THREE.Mesh(wall(g.rFold, g.rRim, asWrap ? -t : 0, true), mats[0])); // printed outside, bottom fold .. rim line
   out.push(new THREE.Mesh(wall(g.rFold, g.rRim, asWrap ? 0 : t, false), mats[1])); // inside skin, one caliper in
-  out.push(new THREE.Mesh(wall(g.rFold, g.rFold + skirt, asWrap ? t : 3 * t, false), mats[1])); // bottom strip / hem folded up inside
+  // bottom strip / hem folded up inside. It carries its own print: the strip of the fan below the fold (bottom cut .. fold),
+  // which is where the Aeros mark sits - on a single-wall cup it reads from underneath, in the foot recess (Arjun 21-Nov-2026)
+  out.push(new THREE.Mesh(wall(g.rFold, g.rFold + skirt, asWrap ? t : 3 * t, true, undefined, g.rFold), mats[0]));
   const yBase = skirt * g.cosB, rBase = (g.rFold + skirt) * g.sinB - t;
   if (g.hasRim) { const base = new THREE.Mesh(new THREE.CircleGeometry(rBase, 96), mats[1]); base.rotation.x = -Math.PI / 2; base.position.y = yBase; out.push(base); } // a double-wall wrap has no base of its own
   const foot = new THREE.Mesh(new THREE.RingGeometry(g.rFold * g.sinB - 3 * t, g.rFold * g.sinB, 96), mats[2]); foot.rotation.x = Math.PI / 2; out.push(foot); // the fold the cup stands on
@@ -218,7 +221,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     // standard views, as in a CAD program: the camera goes straight onto that side, same distance, looking at the model's centre
     view(name) {
       const { camera, controls } = st.current, r = camera.position.distanceTo(controls.target) || 500;
-      const dir = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0], top: [0, 1, 0.0005], bottom: [0, -1, 0.0005], iso: [0.55, 0.35, 0.75] }[name] || [0.55, 0.35, 0.75], l = Math.hypot(...dir);
+      const dir = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0], top: [0, 1, 0.0005], bottom: [0, -1, 0.0005], iso: [0.55, 0.35, 0.75], under: [0.5, -0.62, 0.6] }[name] || [0.55, 0.35, 0.75], l = Math.hypot(...dir);
       controls.target.set(0, 0, 0); camera.position.set((dir[0] / l) * r, (dir[1] / l) * r, (dir[2] / l) * r); camera.lookAt(0, 0, 0); controls.update();
     },
     // the view exactly as it is turned now; scale > 1 re-renders it sharper (proof shots)
