@@ -11,6 +11,7 @@ import { solidModel } from "@/lib/dieline/solid";
 
 import { dieEdges } from "@/lib/dieline/solid/arrangement";
 import { checkArtwork, BLEED, itemColours } from "@/lib/dieline/designer/model";
+import { refreshSvg } from "@/lib/dieline/designer/io";
 import { paintArtwork, rasteriseItem, parseSvgDom, packArtwork, unpackArtwork } from "@/lib/dieline/designer/io";
 import { artworkToPdf, imageXObject } from "@/lib/dieline/designer/vector-pdf";
 import { planDigital, digitalSamplePdf, DIGITAL } from "@/lib/dieline/designer/digital-pdf";
@@ -77,6 +78,7 @@ function CheckList({ checks, className = "" }) {
   );
 }
 
+const WHITE_INK_MARK = "#03fbc5"; // stands for white ink in the 3D texture of a clear cup (SolidViewer turns it white)
 let CAPTURE = null; // while a pack is being made, files are collected here instead of being downloaded
 function save(name, text, type) {
   if (CAPTURE) { CAPTURE.push({ name, data: text, type }); return; }
@@ -206,11 +208,12 @@ export default function StaffDielineClient() {
   const artChecks = useMemo(() => {
     if (!artCtx) return [];
     const base = checkArtwork(art, artCtx);
-    if (art.length && petG) { // PET: one solid colour (Arjun 21-Nov-2026) - every object must be in the SAME ink; no Aeros mark, whoever it is sold to
-      const ground = art.some((i) => i.kind === "flood");
+    if (art.length && petG) { // moulded cups: solid spot colours only (PET one, PP up to two); no Aeros mark, whoever it is sold to
+      const ground = art.some((i) => i.kind === "flood"), M = petG.mat, cap = petG.maxInks;
       const inks = new Set(art.flatMap((i) => (i.kind === "flood" ? [i.colour] : i.kind === "svg" ? (i.colours || []).map((c2) => c2.to) : ["picture"])).map((c2) => String(c2).toLowerCase()).filter((c2) => c2 !== "#ffffff"));
-      return [...base, ...(ground ? [{ id: "PET-NO-GROUND", ok: false, severity: "block", title: "PET cup: no full background patch", detail: "Remove the colour ground. A PET cup carries logos, text and line work only." }] : []), { id: "PET-ONE-COLOUR", ok: inks.size <= 1 && !inks.has("picture"), severity: "block", title: "PET cup: the whole artwork is ONE solid colour",
-        detail: inks.has("picture") ? "A picture cannot be printed on a PET cup. Use the vector logo in one colour (or trace it to one colour)." : inks.size <= 1 ? "One ink." : `${inks.size} colours on the artwork. A PET cup prints one solid colour only: give every object the same ink (click the job-colour swatch beside its colour).` }];
+      const n = inks.size - (inks.has("picture") ? 1 : 0);
+      return [...base, ...(ground ? [{ id: "PET-NO-GROUND", ok: false, severity: "block", title: `${M} cup: no full background patch`, detail: `Remove the colour ground. A ${M} cup carries logos, text and line work only.` }] : []), { id: "PET-ONE-COLOUR", ok: n <= cap && !inks.has("picture"), severity: "block", title: cap === 1 ? "PET cup: the whole artwork is ONE solid colour" : `${M} cup: solid colours only, ${cap} at most`,
+        detail: inks.has("picture") ? `A picture cannot be printed on a ${M} cup. Use the vector logo in a solid colour (or trace it).` : n <= cap ? `${n} ink${n === 1 ? "" : "s"}.` : `${n} colours on the artwork. A ${M} cup prints ${cap === 1 ? "one solid colour only" : `${cap} solid colours at most`}: give objects the same ink (click the job-colour swatch beside its colour).` }];
     }
     if (!art.length) return base;
     const marks = art.filter((i) => i.house === "mark"), C = (id, ok, sev, title, detail) => ({ id, ok, severity: sev, title, detail });
@@ -228,7 +231,9 @@ export default function StaffDielineClient() {
     let live = true;
     if (!art.length || !blankMm || !artCtx) { setTex(null); return; }
     const px = petG ? 12 : Math.min(5, 4096 / Math.max(blankMm.w, blankMm.h));
-    paintArtwork(artOut, { box: [0, 0, blankMm.w, blankMm.h], pxPerMm: cupG ? Math.min(12, px * 2) : px, noInk: artCtx.noInk, background: petG ? null : mat.colour3d.top, clipPoly: artCtx.clipPoly || null }).then((cv) => { if (live) setTex(cv); }).catch(() => {});
+    // on a clear cup an ink NAMED white ("Opaque White") is white ink: it is painted in a marker colour that the 3D view turns into opaque white
+    const cupArt = petG ? artOut.map((i) => (i.kind === "svg" && (i.colours || []).some((c2) => /\bwhite\b/i.test(c2.name || "")) ? refreshSvg({ ...i, colours: i.colours.map((c2) => (/\bwhite\b/i.test(c2.name || "") ? { ...c2, to: WHITE_INK_MARK } : c2)) }) : i)) : artOut;
+    paintArtwork(cupArt, { box: [0, 0, blankMm.w, blankMm.h], pxPerMm: cupG ? Math.min(12, px * 2) : px, noInk: artCtx.noInk, background: petG ? null : mat.colour3d.top, clipPoly: artCtx.clipPoly || null }).then((cv) => { if (live) setTex(cv); }).catch(() => {});
     return () => { live = false; };
   }, [artOut, artCtx, mat.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -259,7 +264,7 @@ export default function StaffDielineClient() {
         pdf = vendorSheetPdf({ doc: res.doc, vector: vec,
           head: { title: t.name, sub: [saved.name && `Design: ${saved.name}`, saved.customer && `Customer: ${saved.customer}`, job && `Job: ${job}`, today, "Sizes in mm, inches in brackets"].filter(Boolean).join("  |  ") },
           job: [["Item", t.name], ...(sizeText ? [["Size", sizeText]] : []), ...(res.piecesPerBag === 2 ? [["Made as", "2 pieces: two identical halves per bag"]] : []), ["Blank", `${blankMm.w} x ${blankMm.h} mm`],
-            petG ? ["Cup", `${petG.label}: top ${petG.td} x base ${petG.bd} x height ${petG.h} mm, clear PET. Print band ${petG.band[0]} to ${petG.band[1]} mm below the brim (${petG.bandH} mm tall).`]
+            petG ? ["Cup", `${petG.label}: top ${petG.td} x base ${petG.bd} x height ${petG.h} mm, clear ${petG.mat}. Print band ${petG.band[0]} to ${petG.band[1]} mm below the brim (${petG.bandH} mm tall).`]
               : ["Material", `${board.label}, ${board.mm} mm thick${board.caliperStatus === "assumed" ? " (assumed)" : ""}`]],
           print: petG ? [["Process", `Dry offset, direct on the cup: ${vec.inks.length} solid spot colour${vec.inks.length === 1 ? "" : "s"}`], ["Print rectangle", `${petG.w} x ${petG.bandH} mm - width to match your plate blank. Wraps 360 deg, no bleed.`]] : [["Process", process === "pantone" ? `${vec.inks.length} Pantone colour${vec.inks.length === 1 ? "" : "s"}` : process === "cmyk" ? "CMYK" : "Plain"], ["Bleed", `${BLEED} mm past the cut`],
             ...(layFit ? [["Sheet", `${layFit.sheet} (${Math.round(layFit.sw)} x ${Math.round(layFit.sh)} mm), ${layFit.ups}-up, gripper ${layFit.margins.gripper} mm on the ${layFit.gripperOn} edge, ${layFit.press}`]] : [])],

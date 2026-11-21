@@ -157,7 +157,10 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       texSrc = document.createElement("canvas"); texSrc.width = texture.width; texSrc.height = texture.height;
       const g2 = texSrc.getContext("2d"); g2.drawImage(texture, 0, 0);
       const im = g2.getImageData(0, 0, texSrc.width, texSrc.height), px = im.data;
-      for (let i = 0; i < px.length; i += 4) if (px[i] > 244 && px[i + 1] > 244 && px[i + 2] > 244) px[i + 3] = 0;
+      for (let i = 0; i < px.length; i += 4) {
+        if (px[i] > 244 && px[i + 1] > 244 && px[i + 2] > 244) px[i + 3] = 0; // white in the file = clear cup
+        else if (px[i] < 12 && px[i + 1] > 242 && Math.abs(px[i + 2] - 197) < 9) { px[i] = px[i + 1] = px[i + 2] = 255; } // the white-ink marker = opaque white ink
+      }
       g2.putImageData(im, 0, 0);
     }
     if (texture) { s.tex = new THREE.CanvasTexture(texSrc); s.tex.colorSpace = THREE.SRGBColorSpace; s.tex.anisotropy = 8; }
