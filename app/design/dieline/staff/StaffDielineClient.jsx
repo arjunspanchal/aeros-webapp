@@ -29,6 +29,7 @@ import { wrapSheetPdf } from "@/lib/dieline/designer/wrap-pdf";
 import { petArtPdf } from "@/lib/dieline/designer/pet-pdf";
 import { cupProofPdf } from "@/lib/dieline/designer/proof-pdf";
 import { bagProofPdf } from "@/lib/dieline/designer/proof-bag-pdf";
+import { petProofPdf } from "@/lib/dieline/designer/proof-pet-pdf";
 import { SCENES, sceneOf } from "@/lib/dieline/designer/scenes";
 import { watermark, watermarkLayer } from "@/lib/dieline/designer/watermark";
 import { zipBlob } from "@/lib/dieline/designer/zip";
@@ -396,12 +397,13 @@ export default function StaffDielineClient() {
     setPack("");
   }
   // the product in each lifestyle scene, three-quarter view, watermarked - for the "how it looks" pages of a proof
-  async function sceneShots() {
-    const v = viewerRef.current, scene0 = scene3d, wait = (ms) => new Promise((r) => setTimeout(r, ms)), out = [], plates = SCENES.filter((q) => q.src);
+  async function sceneShots(wear = null) { // wear = a dressing to show for these shots (drink / lid / straw), put back afterwards
+    const v = viewerRef.current, scene0 = scene3d, dress0 = dress, wait = (ms) => new Promise((r) => setTimeout(r, ms)), out = [], plates = SCENES.filter((q) => q.src);
+    if (wear) { setDress(wear); await wait(700); }
     await Promise.all(plates.map((q) => new Promise((r) => { const im = new Image(); im.onload = im.onerror = r; im.src = q.src; setTimeout(r, 4000); })));
     try {
       for (const q of plates) { setScene3d(q.key); await wait(1500); v.view("iso"); await wait(150); const cv = watermark(await loadImage(v.snapshot(2))); out.push({ ...(await imageXObject(cv)), w: cv.width, h: cv.height, caption: q.label.split(" (")[0] }); }
-    } finally { setScene3d(scene0); await wait(700); }
+    } finally { setScene3d(scene0); if (wear) setDress(dress0); await wait(700); }
     return out;
   }
   // EVERY SNAPSHOT of the 3D view carries the Aeros house watermark (Arjun 21-Nov-2026) - downloads and proof shots alike
@@ -416,7 +418,8 @@ export default function StaffDielineClient() {
   const proofRow = (prodRows || []).find((r) => r.sku === proofPick) || null;
   const freshShots = shots.filter((s2) => s2.sig === artSig);
   const bagProof = t.family === "bag"; // bags: the house bag proof (flat + grid + 3D), ported in proof-bag-pdf.js
-  const proofWhy = !cupG && !bagProof ? [] : [
+  const petProof = !!petG; // PET / PP cups: the house direct-print proof, ported in proof-pet-pdf.js
+  const proofWhy = !cupG && !bagProof && !petProof ? [] : [
     !(ok && !artBlocked) && "every check on this screen must pass",
     !art.length && "place the artwork",
     !saved.customer.trim() && "type the customer / brand name (it heads every page)",
@@ -428,6 +431,34 @@ export default function StaffDielineClient() {
     try {
       const vec = await vectorArt(), views = [];
       for (const s2 of freshShots) { const im2 = await loadImage(s2.url), cv = document.createElement("canvas"); cv.width = im2.naturalWidth; cv.height = im2.naturalHeight; cv.getContext("2d").drawImage(im2, 0, 0); views.push({ ...(await imageXObject(cv)), w: cv.width, h: cv.height, caption: s2.caption }); }
+      if (petProof) { // PET / PP CUP: the house direct-print proof. Cup sizes are the house job figures the template is built on.
+        const g = petG, n = vec.inks.length, named = (k) => !/^Spot \d/.test(k.label), names = vec.inks.map((k, i) => (named(k) ? k.label : `colour ${i + 1}`)), white = vec.inks.some((k) => /\bwhite\b/i.test(k.label));
+        const bodyHex = white ? "#9ea1a6" : "#dededf", body = cmykOf(bodyHex).map((q) => q.toFixed(3)).join(" "), /* the clear cup: light grey, darker under white ink (house PET_BODY) */ rgbOf = (hex) => [1, 3, 5].map((k) => (parseInt(hex.slice(k, k + 2), 16) / 255).toFixed(3)).join(" ");
+        // on the proof: white ink is drawn white, and white in the file (no ink) is drawn as the clear cup
+        const shown = artOut.map((i) => (i.kind === "svg" ? refreshSvg({ ...i, colours: (i.colours || []).map((c2) => (/\bwhite\b/i.test(c2.name || "") ? { ...c2, to: "#ffffff" } : /^#f{6}$/i.test(c2.to) ? { ...c2, to: bodyHex } : c2)) }) : i));
+        const flat = await artworkToPdf(shown, { box: [0, 0, g.w, g.bandH], noInk: [], spot: false, rasterise: rasteriseItem, parse: parseSvgDom });
+        const els = art.filter((i) => i.kind !== "flood" && !i.house).map((i) => ({ label: i.name, short: i.name.length > 22 ? `${i.name.slice(0, 20)}..` : i.name, x: i.x, y: i.y, w: i.w, h: i.h }));
+        const dressed = !!(dress.drink || dress.lid || dress.straw), plain = { drink: "", lid: "", straw: "" };
+        const looks = await sceneShots(dressed ? plain : null), inUse = dressed ? await sceneShots(dress) : [];
+        const inkTxt = `${n === 1 ? "one colour" : `${n} colours`} - ${names.join(", ")}`, cupName = g.label.replace(/ (PET|PP) cup.*$/, " cup");
+        const pdf = petProofPdf({ g, vector: flat, elements: els, body,
+          brand: saved.customer.trim().toUpperCase(), brandShort: saved.customer.trim(), product: cupName.replace(/^(\d+ oz \(\d+ mL\)) (.)/, (m0, a, b) => `${a} ${b.toUpperCase()}`), proofNo: `Proof ${proofNo}`,
+          proofLine: `Proof ${proofNo}  ·  ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}  ·  for approval`,
+          productRows: [["Product", cupName], ["Material", `clear ${g.mat}, food grade`], ["Printed", `directly onto the cup, ${inkTxt}`], ["Printed area", `${g.w} x ${g.bandH} mm laid flat`], ["Finished cup", `${g.td} mm across the top x ${g.h} mm high`], ["Artwork", "your artwork, placed as shown on this page"]],
+          howto: [["box", "the printed area, laid out flat"], ["line", "the edge of the printed area - nothing prints outside it"], ["", `${white ? "grey" : "light grey"} stands for the clear cup - it is not an ink, it is what you see through`]],
+          howtoNote: "The print wraps the whole way round the cup, so the left and right edges of this rectangle meet each other on the finished cup. Everything outside the artwork stays clear.",
+          colourNote: `Printed in ${inkTxt}. Any gap inside the artwork is left clear - no ink - so the cup shows through it. On this proof the clear cup is shown ${white ? "grey, so that the white ink can be seen" : "light grey"}.`,
+          swatches: [...vec.inks.map((k, i) => [/\bwhite\b/i.test(k.label) ? "1 1 1" : rgbOf(k.hex), names[i], n === 1 ? "everything printed" : "printed"]), [body, "Clear cup - not an ink", `shown ${white ? "grey" : "light grey"} here; also every gap in the artwork`]],
+          checkList: [...els.map((q) => `${q.label}: ${q.w.toFixed(1)} x ${q.h.toFixed(1)} mm.`), "Spelling and wording - every word on the artwork.", `The colour: ${names.join(" and ")} only.`, `Page 2 gives the height of each element from the base of the cup. Page 3 shows the artwork on the true shape of the cup; page 4 shows it in a scene, for appearance only.`],
+          page2Note: "A moulded cup has no seam and no fold, so there is nothing to line the artwork up against by eye. The artwork is therefore set as a height measured up from the base of the cup, which is how it is checked on a finished sample.",
+          marksNote: "The printed band is the part of the wall the press can reach: below the ridge under the rim and down to the foot of the band shown on the drawing.",
+          imagePages: [{ label: "THE CUP IN 3D", intro: "Your artwork on the true shape of the cup. Use this page to check position and size; colours on these views are approximate.", images: views, captions: views.map((q) => q.caption) },
+            { label: "HOW IT LOOKS", intro: "Your artwork on the true-size 3D model of the cup, set in a scene. The scenes are computer-generated. For appearance only: approve colour from page 1 or a printed sample, never from a screen.", images: looks, captions: looks.map((q) => q.caption) },
+            ...(inUse.length ? [{ label: "IN USE", intro: "The cup in use, with a drink, lid and straw chosen for the picture - they are not part of this order unless ordered. For appearance only: approve colour from page 1 or a printed sample, never from a screen.", images: inUse, captions: inUse.map((q) => q.caption) }] : [])] });
+        const brandSlug = saved.customer.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        save(`${brandSlug}_${t.petFile.size}_${t.petFile.item}_print_CUSTOMER-PROOF-v${proofNo}.pdf`, pdf, "application/pdf");
+        setMaking(""); return;
+      }
       if (bagProof) { // PAPER BAG: the house bag proof. Every size on it is the size of this die, as entered in step 2.
         const Wb = +values.W, Gb = +values.G, Hb = +values.H, inch = (mm) => (mm / 25.4).toFixed(1), dcut = t.id === "dcut-bag", brown = /brown/i.test(mat.top || "");
         const body = [...artCtx.areas].sort((a, b) => a.box[0] - b.box[0]), lab = (n2) => (/front/i.test(n2) && /back/i.test(n2) ? "FRONT / BACK" : /front/i.test(n2) ? "FRONT" : /back/i.test(n2) ? "BACK" : "SIDE");
@@ -842,9 +873,9 @@ export default function StaffDielineClient() {
           {res && res.doc && (
             <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer proof</h2>
-              {!cupG && !bagProof ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">This tool makes customer proofs for paper cups, tubs and paper bags so far. Boxes, PET / PP cups and wrap sheets still go through the house proof tools.</p> : (
+              {!cupG && !bagProof && !petProof ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">This tool makes customer proofs for paper cups, tubs, PET / PP cups and paper bags so far. Boxes and wrap sheets still go through the house proof tools.</p> : (
                 <div className="mt-2 space-y-3 text-xs text-gray-700 dark:text-gray-300">
-                  <p>{bagProof ? "The house bag proof: the flat bag with the artwork, the bag's W x G x H drawing and the sign-off box (page 1), the same flat on a 50 mm grid with where each element sits (page 2), your 3D shots (page 3) and the bag in the three scenes (page 4, taken by the tool). Every size printed on it is the size of this die." : "The house proof: the artwork flat at full size, the same drawing on the mesh (page 2), your 3D shots (page 3) and the colours and timeline page. Every size printed on it comes from the product list."}</p>
+                  <p>{petProof ? "The house clear-cup proof: the printed area laid flat with every element dimensioned (page 1), each element as a height up from the base of the cup (page 2), your 3D shots (page 3), the cup in the three scenes (page 4, taken by the tool) and, if you have dressed the cup with a drink, lid or straw, the cup in use (page 5)." : bagProof ? "The house bag proof: the flat bag with the artwork, the bag's W x G x H drawing and the sign-off box (page 1), the same flat on a 50 mm grid with where each element sits (page 2), your 3D shots (page 3) and the bag in the three scenes (page 4, taken by the tool). Every size printed on it is the size of this die." : "The house proof: the artwork flat at full size, the same drawing on the mesh (page 2), your 3D shots (page 3) and the colours and timeline page. Every size printed on it comes from the product list."}</p>
                   <div className="flex flex-wrap items-end gap-3">
                     {cupG && <label className="min-w-[260px] flex-1">Product (from the product list)
                       <select value={proofPick} onChange={(e) => setProofPick(e.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
@@ -857,7 +888,7 @@ export default function StaffDielineClient() {
                   {cupG && proofRow && proofRow.h !== cupG.spec.H && <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">The product list says height {proofRow.h} mm; the keyline says {cupG.spec.H} mm. The proof prints the product list's figure. If the keyline is the right one, the product list must be corrected first.</p>}
                   <div>
                     <p className="font-semibold">3D shots for page 3: {freshShots.length} of 3 to 4</p>
-                    <p className="text-gray-500">{bagProof ? "Turn the 3D bag the way you want it, then press Proof shot above the 3D view. Take 3 or 4 different views (three-quarter, front, side, from below)." : "Turn the 3D cup the way you want it, then press the button under it. Take 3 or 4 different views (front, back, the seam side, from below)."}</p>
+                    <p className="text-gray-500">{petProof ? "Turn the 3D cup the way you want it, then press Proof shot above the 3D view. Take 3 or 4 different views (front, three-quarter, side, back). Take them with the cup empty: the drink and lid go on the last page only." : bagProof ? "Turn the 3D bag the way you want it, then press Proof shot above the 3D view. Take 3 or 4 different views (three-quarter, front, side, from below)." : "Turn the 3D cup the way you want it, then press the button under it. Take 3 or 4 different views (front, back, the seam side, from below)."}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {shots.map((s2, k) => (
                         <div key={k} className={`w-36 rounded-md border p-1 ${s2.sig === artSig ? "border-gray-300 dark:border-gray-700" : "border-red-400 opacity-60"}`}>
@@ -992,7 +1023,7 @@ export default function StaffDielineClient() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={lab}>Save</span>
                     <button onClick={() => saveShot(`${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`)} title="Saves the 3D view exactly as it is turned now, with the Aeros watermark" className={darkBtn}>Snapshot (PNG)</button>
-                    {(cupG || bagProof) && <button onClick={takeShot} disabled={shots.length >= 4} title="Adds this view to the customer proof (3 or 4 are needed)" className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40">Proof shot ({shots.length}/4)</button>}
+                    {(cupG || bagProof || petProof) && <button onClick={takeShot} disabled={shots.length >= 4} title="Adds this view to the customer proof (3 or 4 are needed)" className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40">Proof shot ({shots.length}/4)</button>}
                     <button onClick={mockupPack} disabled={!!pack || spin > 0} title="One zip for sales: 3/4, front and back views, the product in each scene, and the turntable video - all with the Aeros watermark" className={darkBtn}>{pack ? `Mockup pack: ${pack}` : "Mockup pack (zip)"}</button>
                     <button onClick={() => { setSpin(8); turntable(8); }} disabled={spin > 0 || !!pack} title="One full turn of the model as it stands now, 8 seconds, with the Aeros watermark" className={plainBtn}>{spin > 0 ? `Recording… ${Math.ceil(spin)} s` : "Turntable video"}</button>
                     <select value="" onChange={(e) => { const k = e.target.value; if (k === "stl") save(`${stem}-3D.stl`, viewerRef.current.exportStl(), "model/stl"); if (k === "obj") save(`${stem}-3D.obj`, viewerRef.current.exportObj(), "model/obj"); }} title="The 3D model as a CAD file, in mm" className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
