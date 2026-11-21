@@ -8,7 +8,7 @@ import { corners, bboxOf, effectiveDpi, newId, BLEED, SAFE, MIN_DPI } from "@/li
 import { parseSvgDom } from "@/lib/dieline/designer/io";
 import { curveItem, curveBlocker } from "@/lib/dieline/designer/cup-warp";
 import { toPolar, fromPolar, CUP_RULES } from "@/lib/dieline/cup";
-import { importFile, refreshSvg, textItem, retext, FONTS, addCustomFont, svgParts, hideParts, replaceFile, SHAPES, shapeItem, penItem, reshape, traceItem } from "@/lib/dieline/designer/io";
+import { importFile, refreshSvg, textItem, retext, FONTS, addCustomFont, svgParts, hideParts, replaceFile, SHAPES, shapeItem, penItem, reshape, traceItem, nodesOf, withNodes } from "@/lib/dieline/designer/io";
 
 const inputCls = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100";
 const btnCls = "rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200";
@@ -18,6 +18,8 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   const svgRef = useRef(null), drag = useRef(null);
   const [sel, setSel] = useState(null), [busy, setBusy] = useState(""), [err, setErr] = useState(""), [guides, setGuides] = useState([]);
   const [pen, setPen] = useState(null); // null = off; { pts: [[x, y]], at: [x, y] } while drawing with the pen
+  // SNAP TO NODES (pen points and dragged shape points): what the cursor catches. Alt = no snapping, Shift = 45 deg steps.
+  const [snapOpt, setSnapOpt] = useState({ nodes: true, die: true, guides: true, grid: 0 }), [mark, setMark] = useState(null);
   const [alignTo, setAlignTo] = useState("safe"); // what Align lines things up with: "safe" | "panel" | "blank" | a layer id
   const [tr, setTr] = useState({ colours: 1, detail: 0.9, keepPaper: false }), [trInfo, setTrInfo] = useState(null);
   const W = doc.blank.widthPt / PT_PER_MM, H = doc.blank.heightPt / PT_PER_MM, M = 14;
@@ -56,6 +58,31 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+  const dieNodes = useMemo(() => { // every end of a cut or fold line of the die
+    const k = 1 / PT_PER_MM, seen = new Set(), out = [];
+    for (const sg of doc.segments) if (sg.layer === "cut" || sg.layer === "crease") for (const q of [sg.pts[0], sg.pts[sg.pts.length - 1]]) { const v = [+(q[0] * k).toFixed(2), +(q[1] * k).toFixed(2)], key = v.join(); if (!seen.has(key)) { seen.add(key); out.push(v); } }
+    return out;
+  }, [doc]);
+  const r2 = (v) => Math.round(v * 100) / 100;
+  /** where a pen / node point lands: raw = cursor in die mm; from = the previous point (for Shift); own = the path being drawn */
+  function snapPoint(raw, e, { from = null, own = [], skipId = null } = {}) {
+    if (e.altKey) return { p: raw.map(r2), kind: null };
+    const box = svgRef.current.getBoundingClientRect(), tol = 9 * ((W + 2 * M) / (box.width || 1)); // 9 screen pixels, in mm
+    let best = null;
+    const tryPt = (q, kind) => { const d = Math.hypot(q[0] - raw[0], q[1] - raw[1]); if (d < tol && (!best || d < best.d)) best = { p: q, kind, d }; };
+    own.forEach((q, k) => tryPt(q, k === 0 && own.length >= 3 ? "start: closes the shape" : "point"));
+    if (snapOpt.nodes) for (const it of items) if (it.id !== skipId) for (const q of nodesOf(it)) tryPt(q, "point of " + it.name);
+    if (snapOpt.die) for (const q of dieNodes) tryPt(q, "die corner");
+    if (best) return { p: [r2(best.p[0]), r2(best.p[1])], kind: best.kind };
+    let p = raw.slice(), kind = null;
+    if (e.shiftKey && from) { const a = Math.round(Math.atan2(p[1] - from[1], p[0] - from[0]) / (Math.PI / 4)) * (Math.PI / 4), L = Math.hypot(p[0] - from[0], p[1] - from[1]); p = [from[0] + L * Math.cos(a), from[1] + L * Math.sin(a)]; kind = "45 deg step"; }
+    else if (snapOpt.guides && !cup) for (const a of areas) if (p[0] > a.box[0] && p[0] < a.box[2] && p[1] > a.box[1] && p[1] < a.box[3]) {
+      for (const [v, n] of [[(a.box[0] + a.box[2]) / 2, "centre line"], [a.box[0] + S.fold, "safe edge"], [a.box[2] - S.fold, "safe edge"]]) if (Math.abs(p[0] - v) < tol) { p[0] = v; kind = n; }
+      for (const [v, n] of [[(a.box[1] + a.box[3]) / 2, "centre line"], [a.box[1] + S.topCut, "safe edge"], [a.box[3] - S.fold, "safe edge"]]) if (Math.abs(p[1] - v) < tol) { p[1] = v; kind = kind ? kind + " + " + n : n; }
+    }
+    if (!kind && snapOpt.grid) { p = p.map((v) => Math.round(v / snapOpt.grid) * snapOpt.grid); kind = `${snapOpt.grid} mm grid`; }
+    return { p: p.map(r2), kind };
+  }
   const toMm = (e) => { const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svgRef.current.getScreenCTM().inverse()); return [p.x, p.y]; };
 
   async function onFiles(e) {
@@ -104,18 +131,25 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   const addFlood = () => { snap(); const it = { id: newId(), kind: "flood", name: "Colour ground", role: "background", colour: "#1f1f1f", pantone: "" }; setItems((l) => [it, ...l]); setSel(it.id); };
 
   // ---- pointer: move, and scale from a corner handle
-  function down(e, it, mode) {
+  function down(e, it, mode, k = -1) {
     if (it.kind === "flood") { setSel(it.id); return; }
     e.stopPropagation(); e.currentTarget.setPointerCapture?.(e.pointerId);
     snap();
     const [mx, my] = toMm(e);
     const upright = cup && Math.abs(((((it.rot || 0) - (toPolar(cup, [it.x, it.y]).a * 180) / Math.PI) + 540) % 360) - 180) <= 1;
-    drag.current = { id: it.id, mode, mx, my, x: it.x, y: it.y, w: it.w, h: it.h, d0: Math.hypot(mx - it.x, my - it.y), upright };
+    drag.current = { id: it.id, mode, mx, my, x: it.x, y: it.y, w: it.w, h: it.h, d0: Math.hypot(mx - it.x, my - it.y), upright, k, nodes: mode === "node" ? nodesOf(it) : null };
     setSel(it.id);
   }
   function move(e) {
     const d = drag.current; if (!d) return;
     const [mx, my] = toMm(e);
+    if (d.mode === "node") { // drag one point of a drawn shape; it catches the same nodes the pen does
+      const sp = snapPoint([mx, my], e, { skipId: d.id, own: d.nodes.filter((_, n) => n !== d.k), from: d.nodes[(d.k + d.nodes.length - 1) % d.nodes.length] });
+      d.nodes = d.nodes.map((q, n) => (n === d.k ? sp.p : q));
+      setMark(sp.kind ? sp : null);
+      patch(d.id, (i) => withNodes(i, d.nodes));
+      return;
+    }
     if (d.mode === "move") {
       let x = d.x + mx - d.mx, y = d.y + my - d.my; const g = [];
       if (!cup && !e.altKey) { // SNAP (hold Alt to switch off): this layer's left / centre / right and top / middle / bottom
@@ -152,7 +186,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   const up = () => {
     const d = drag.current;
     if (d && d.mode === "scale") patch(d.id, (i) => (i.shape ? reshape(i) : i)); // a stretched shape is redrawn at true line weight
-    drag.current = null; setGuides([]);
+    drag.current = null; setGuides([]); setMark(null);
   };
 
   const setCrop = (side, pct) => patch(cur.id, (i) => {
@@ -233,6 +267,16 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
           <button className={btnCls} onClick={() => setPen(null)}>Cancel (Esc)</button>
         </div>
       )}
+      {(pen || (cur && cur.shape?.type === "path")) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:text-gray-300">
+          <span className="font-semibold">Snap to:</span>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={snapOpt.nodes} onChange={(e) => setSnapOpt({ ...snapOpt, nodes: e.target.checked })} />Points of other layers (shape points, logo corners, middles, centres)</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={snapOpt.die} onChange={(e) => setSnapOpt({ ...snapOpt, die: e.target.checked })} />Die corners (ends of cut and fold lines)</label>
+          {!cup && <label className="flex items-center gap-1.5"><input type="checkbox" checked={snapOpt.guides} onChange={(e) => setSnapOpt({ ...snapOpt, guides: e.target.checked })} />Panel centre lines and safe edges</label>}
+          <label className="flex items-center gap-1.5">Grid<select value={snapOpt.grid} onChange={(e) => setSnapOpt({ ...snapOpt, grid: +e.target.value })} className="rounded border border-gray-300 px-1 py-0.5 text-xs dark:border-gray-700 dark:bg-gray-950"><option value={0}>off</option><option value={0.5}>0.5 mm</option><option value={1}>1 mm</option><option value={5}>5 mm</option></select></label>
+          <span className="text-gray-500">The point's own path always snaps. Shift = 45° steps from the last point. Alt = no snapping. {!pen && "Drag the blue points of a drawn shape to move them."}</span>
+        </div>
+      )}
       {err && <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-950/40 dark:text-red-300">{err}</p>}
       {pictures.length > 0 && (
         <div className="rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
@@ -243,9 +287,10 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
       )}
 
       <div className="rounded-md border border-gray-200 bg-[#e9ebee] p-1 dark:border-gray-800">
-        <svg ref={svgRef} viewBox={`${-M} ${-M} ${W + 2 * M} ${H + 2 * M}`} className="h-auto max-h-[620px] w-full touch-none select-none" onPointerMove={(e) => { if (pen) { const at = toMm(e).map(r1); setPen((q) => (q ? { ...q, at } : q)); } else move(e); }} onPointerUp={up} onPointerLeave={up}
-          onPointerDownCapture={(e) => { if (!pen) return; e.stopPropagation(); e.preventDefault(); const at = toMm(e).map(r1); // pen: every click is a point; clicking the first point again closes the shape
-            if (pen.pts.length >= 3 && Math.hypot(at[0] - pen.pts[0][0], at[1] - pen.pts[0][1]) < Math.max(2, W / 150)) finishPen(true); else setPen((q) => ({ ...q, pts: [...q.pts, at] })); }}
+        <svg ref={svgRef} viewBox={`${-M} ${-M} ${W + 2 * M} ${H + 2 * M}`} className="h-auto max-h-[620px] w-full touch-none select-none" onPointerMove={(e) => { if (pen) { const sp = snapPoint(toMm(e), e, { from: pen.pts[pen.pts.length - 1] || null, own: pen.pts }); setMark(sp.kind ? sp : null); setPen((q) => (q ? { ...q, at: sp.p } : q)); } else move(e); }} onPointerUp={up} onPointerLeave={up}
+          onPointerDownCapture={(e) => { if (!pen) return; e.stopPropagation(); e.preventDefault(); // pen: every click is a point; clicking the first point again closes the shape
+            const at = snapPoint(toMm(e), e, { from: pen.pts[pen.pts.length - 1] || null, own: pen.pts }).p;
+            if (pen.pts.length >= 3 && Math.hypot(at[0] - pen.pts[0][0], at[1] - pen.pts[0][1]) < 0.02) finishPen(true); else setPen((q) => ({ ...q, pts: [...q.pts, at] })); }}
           onDoubleClick={() => { if (pen) finishPen(false); }} onPointerDown={() => setSel(null)} style={pen ? { cursor: "crosshair" } : undefined}>
           <defs>
             <clipPath id="art-clip">{clipPoly ? <polygon points={clipPoly.map((q) => q.join(",")).join(" ")} /> : <rect x={-BLEED} y={-BLEED} width={W + 2 * BLEED} height={H + 2 * BLEED} />}</clipPath>
@@ -292,6 +337,16 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
               {pen.pts.map((q, k) => <circle key={k} cx={q[0]} cy={q[1]} r={k === 0 ? Math.max(1.2, W / 260) : Math.max(0.8, W / 400)} fill={k === 0 ? "#2563eb" : "#ffffff"} stroke="#2563eb" strokeWidth={0.3} />)}
             </g>
           )}
+          {cur && cur.shape?.type === "path" && !cur.curve && !pen && nodesOf(cur).map((q, k) => ( // drag a point of a drawn shape
+            <circle key={"nd" + k} cx={q[0]} cy={q[1]} r={hs * 0.6} fill="#2563eb" stroke="#ffffff" strokeWidth={0.3} style={{ cursor: "crosshair" }} onPointerDown={(e) => down(e, cur, "node", k)}><title>Drag this point (it snaps to nodes; Alt = free, Shift = 45° steps)</title></circle>
+          ))}
+          {mark && (() => { const fs = Math.max(2, W / 170); return (
+            <g pointerEvents="none">
+              <rect x={mark.p[0] - hs * 0.7} y={mark.p[1] - hs * 0.7} width={hs * 1.4} height={hs * 1.4} fill="none" stroke="#f59e0b" strokeWidth={0.5} />
+              <rect x={mark.p[0] + hs} y={mark.p[1] - hs - fs * 1.2} width={mark.kind.length * fs * 0.52 + fs * 0.6} height={fs * 1.35} fill="#f59e0b" />
+              <text x={mark.p[0] + hs + fs * 0.3} y={mark.p[1] - hs - fs * 0.2} fontSize={fs} fontWeight="700" fill="#ffffff" fontFamily="system-ui, sans-serif">{mark.kind}</text>
+            </g>
+          ); })()}
           {pictures.map((i) => { const cs = corners(view(i)), b = bboxOf(cs), fs = Math.max(2.2, W / 150); return (
             <g key={"nv" + i.id} pointerEvents="none">
               <polygon points={cs.map((q) => q.join(",")).join(" ")} fill="none" stroke="#d97706" strokeWidth={0.5} strokeDasharray="2 1.2" />
