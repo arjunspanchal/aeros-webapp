@@ -498,7 +498,7 @@ export default function StaffDielineClient() {
               </>
             ) : solid ? (
               <>
-                <SolidViewer ref={viewerRef} model={solid} colours={mat.colour3d} texture={tex} blank={blankMm} />
+                <SolidViewer ref={viewerRef} model={solid} lieFlat={t.family === "box"} colours={mat.colour3d} texture={tex} blank={blankMm} />
                 <label className="mt-2 flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
                   Flat
                   <input type="range" min={0} max={1} step={0.01} value={foldT} onChange={(e) => setFoldT(+e.target.value)} className="flex-1" />

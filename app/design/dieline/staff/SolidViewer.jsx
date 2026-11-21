@@ -8,7 +8,10 @@ import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter.js";
 
 // die frame (x right, y down, z into the box) -> three (y up): (x, -y, -z) is a proper rotation, no mirror
-const P = (p) => new THREE.Vector3(p[0], -p[1], -p[2]);
+// Bags stand up (the die's top is the bag's top): (x, -y, -z). Boxes lie on their base (the die plane is the table, the
+// box rises out of it): (x, z, -y). Both are proper rotations (determinant +1), so nothing is ever mirrored.
+let LIE_FLAT = false;
+const P = (p) => (LIE_FLAT ? new THREE.Vector3(p[0], p[2], -p[1]) : new THREE.Vector3(p[0], -p[1], -p[2]));
 
 function panelGeometry(w, outline2d, holes2d, blank) {
   const tris = THREE.ShapeUtils.triangulateShape(outline2d.map(([x, y]) => new THREE.Vector2(x, y)), holes2d.map((h) => h.map(([x, y]) => new THREE.Vector2(x, y))));
@@ -66,7 +69,7 @@ function cupMeshes(g, blank, mats, caliper = 0.3) {
   return out;
 }
 
-const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, caliper }, ref) {
+const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, caliper, lieFlat = false }, ref) {
   const host = useRef(null), st = useRef({});
 
   useEffect(() => {
@@ -108,6 +111,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       new THREE.MeshStandardMaterial({ color: colours?.back || "#e8e4da", roughness: 0.9, side: THREE.DoubleSide }), // inside
       new THREE.MeshStandardMaterial({ color: "#c9c3b5", roughness: 0.9, side: THREE.DoubleSide }), // cut edges
     ];
+    LIE_FLAT = !!lieFlat && !cone;
     if (cone) for (const m of cupMeshes(cone, blank, mats, caliper)) s.group.add(m);
     const panels = cone ? [] : model.geom.panels;
     for (const w of cone ? [] : model.world) {
@@ -130,7 +134,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       s.camera.near = d / 100; s.camera.far = d * 20; s.camera.updateProjectionMatrix();
       s.framed = true; s.lastKey = key;
     }
-  }, [model, colours, texture, blank, cone, caliper]);
+  }, [model, colours, texture, blank, cone, caliper, lieFlat]);
 
   useImperativeHandle(ref, () => ({
     exportStl() { return new STLExporter().parse(st.current.group, { binary: false }); },
