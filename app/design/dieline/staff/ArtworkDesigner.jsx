@@ -8,18 +8,21 @@ import { corners, bboxOf, effectiveDpi, newId, BLEED, SAFE, MIN_DPI } from "@/li
 import { parseSvgDom } from "@/lib/dieline/designer/io";
 import { curveItem, curveBlocker } from "@/lib/dieline/designer/cup-warp";
 import { toPolar, fromPolar, CUP_RULES } from "@/lib/dieline/cup";
-import { importFile, refreshSvg, textItem, retext, FONTS, addCustomFont, svgParts, hideParts, replaceFile, SHAPES, shapeItem, penItem, reshape, traceItem, nodesOf, withNodes } from "@/lib/dieline/designer/io";
+import { importFile, refreshSvg, textItem, retext, FONTS, addCustomFont, svgParts, hideParts, replaceFile, SHAPES, shapeItem, penItem, reshape, traceItem, nodesOf, withNodes, vectorItem } from "@/lib/dieline/designer/io";
+import { loadHouse, footersFor, footerSvg, symbolSvg, cupMarkSpot, MARK_CAP_MM } from "@/lib/dieline/designer/house";
 
 const inputCls = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100";
 const btnCls = "rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200";
 const r1 = (v) => Math.round(v * 10) / 10;
 
-export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items, setItems, boardColour, snap, undo, redo, canUndo, canRedo, cup = null, clipPoly = null }) {
+export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items, setItems, boardColour, snap, undo, redo, canUndo, canRedo, cup = null, clipPoly = null, house = null }) {
   const svgRef = useRef(null), drag = useRef(null);
   const [sel, setSel] = useState(null), [busy, setBusy] = useState(""), [err, setErr] = useState(""), [guides, setGuides] = useState([]);
   const [pen, setPen] = useState(null); // null = off; { pts: [[x, y]], at: [x, y] } while drawing with the pen
   // SNAP TO NODES (pen points and dragged shape points): what the cursor catches. Alt = no snapping, Shift = 45 deg steps.
   const [snapOpt, setSnapOpt] = useState({ nodes: true, die: true, guides: true, grid: 0 }), [mark, setMark] = useState(null);
+  const [hs0, setHs0] = useState(null), [footSku, setFootSku] = useState(""); // house marks (loaded once), the footer picked
+  useEffect(() => { let live = true; loadHouse().then((h) => { if (live) setHs0(h); }).catch(() => {}); return () => { live = false; }; }, []);
   const [alignTo, setAlignTo] = useState("safe"); // what Align lines things up with: "safe" | "panel" | "blank" | a layer id
   const [tr, setTr] = useState({ colours: 1, detail: 0.9, keepPaper: false }), [trInfo, setTrInfo] = useState(null);
   const W = doc.blank.widthPt / PT_PER_MM, H = doc.blank.heightPt / PT_PER_MM, M = 14;
@@ -230,6 +233,36 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     catch (ex) { setErr(ex.message || "Could not trace that picture."); }
     setBusy("");
   }
+  // ---- Aeros mark + ready symbols (lifted from the house files; lib/dieline/designer/house.js)
+  const hasMark = items.some((i) => i.house === "mark");
+  const feet = hs0 && house?.bag ? footersFor(hs0, house.bag.W, house.bag.G, house.bag.H) : [];
+  const darkest = () => { // the mark never adds a colour: it takes the darkest ink the artwork already prints
+    const inks = items.flatMap((i) => (i.kind === "flood" ? [{ to: i.colour, name: i.pantone || "" }] : i.kind === "svg" && !i.house ? i.colours || [] : [])).filter((c2) => /^#[0-9a-f]{6}$/i.test(c2.to) && !/^#f{6}$/i.test(c2.to));
+    const lum = (hx) => 0.299 * parseInt(hx.slice(1, 3), 16) + 0.587 * parseInt(hx.slice(3, 5), 16) + 0.114 * parseInt(hx.slice(5, 7), 16);
+    return inks.sort((p2, q2) => lum(p2.to) - lum(q2.to))[0] || { to: "#000000", name: "" };
+  };
+  const inked = (it) => { const ink = darkest(); return refreshSvg({ ...it, colours: (it.colours || []).map((c2) => ({ ...c2, to: ink.to, name: ink.name || "" })) }); };
+  async function addMark() {
+    setErr("");
+    try {
+      if (cup) { // one line on a true arc in the hem's white strip (double wall) or upside down in the fold-in lip (single wall)
+        const sp = cupMarkSpot(cup), t0 = await textItem({ content: house.cupText, fontId: "inter" });
+        const hgt = MARK_CAP_MM / 0.6, k = hgt / t0.h, [x, y] = fromPolar(cup, sp.r, sp.a); // cap height = 0.6 of the line box of this font
+        const it = inked({ ...t0, name: "Aeros mark", w: Math.round(t0.w * k * 100) / 100, h: Math.round(hgt * 100) / 100, x: r2(x), y: r2(y), rot: 0, curve: true, flip: sp.flip, house: "mark", noClip: true });
+        snap(); setItems((l) => [...l, it]); setSel(it.id);
+      } else if (house?.bag) { // the locked footer block of this SKU, on the front's bottom flap
+        const f = footerSvg(hs0, footSku || feet[0]?.sku);
+        if (!f) throw new Error("No Aeros footer is on file for this bag size.");
+        const front = areas.find((a) => /^Front/.test(a.name)) || areas[0], wMax = front.box[2] - front.box[0] - 16, w = Math.min(f.w, wMax);
+        const it = inked({ ...vectorItem(f.svg, `Aeros footer ${footSku || feet[0].sku}`, w), h: Math.round(((w * f.h) / f.w) * 100) / 100, x: r1((front.box[0] + front.box[2]) / 2), y: r1(front.box[3] + house.bag.flapMid), house: "mark", source: "house" });
+        snap(); setItems((l) => [...l, it]); setSel(it.id);
+      }
+    } catch (ex) { setErr(ex.message || "Could not add the Aeros mark."); }
+  }
+  function addSymbol(key) {
+    const y = hs0 && symbolSvg(hs0, key); if (!y) return;
+    snap(); const it = { ...vectorItem(y.svg, y.label, y.w), h: y.h, ...landing(), source: "house" }; setItems((l) => [...l, it]); setSel(it.id);
+  }
   const centreOn = (a) => patch(cur.id, (i) => ({ ...i, x: r1((a.box[0] + a.box[2]) / 2), y: r1((a.box[1] + a.box[3]) / 2) }));
   const fitBlank = () => patch(cur.id, (i) => { const k = Math.max((W + 2 * BLEED) / i.w, (H + 2 * BLEED) / i.h); return { ...i, role: "background", x: r1(W / 2), y: r1(H / 2), w: r1(i.w * k + 0.2), h: r1(i.h * k + 0.2), rot: 0 }; });
   const fitArea = (a) => patch(cur.id, (i) => { const aw = a.box[2] - a.box[0] - 2 * S.fold, ah = a.box[3] - a.box[1] - S.fold - S.topCut, k = Math.min(aw / i.w, ah / i.h); return { ...i, x: r1((a.box[0] + a.box[2]) / 2), y: r1((a.box[1] + a.box[3]) / 2 + (S.topCut - S.fold) / 2), w: r1(i.w * k - 0.1), h: r1(i.h * k - 0.1) }; });
@@ -254,6 +287,12 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
         {SHAPES.map(([k, label]) => <button key={k} className={btnCls} onClick={() => addShape(k)} title={`Add a ${label.toLowerCase()}`}>{label}</button>)}
         <button className={`${btnCls} ${pen ? "border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40" : ""}`} onClick={() => { setSel(null); setPen((q) => (q ? null : { pts: [], at: null })); }} title="Click points on the die to draw">Pen</button>
         <button className={btnCls} onClick={addFlood}>Add colour ground</button>
+        {hs0 && (
+          <select value="" onChange={(e) => { if (e.target.value) addSymbol(e.target.value); }} className="rounded-md border border-gray-300 px-2 py-1.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200" title="Ready vector symbols from the Aeros house files">
+            <option value="">Add a symbol…</option>
+            {hs0.symbols.map((y) => <option key={y.key} value={y.key}>{y.label}</option>)}
+          </select>
+        )}
         <button className={btnCls} onClick={undo} disabled={!canUndo} title="Ctrl/Cmd + Z">Undo</button>
         <button className={btnCls} onClick={redo} disabled={!canRedo} title="Ctrl/Cmd + Shift + Z">Redo</button>
         <span className="text-[11px] text-gray-500">PDF / AI / SVG stay vector. Drag to move, drag a corner to size, the round knob to rotate. Shapes and the pen draw new vector art. {busy}</span>
@@ -275,6 +314,19 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
           {!cup && <label className="flex items-center gap-1.5"><input type="checkbox" checked={snapOpt.guides} onChange={(e) => setSnapOpt({ ...snapOpt, guides: e.target.checked })} />Panel centre lines and safe edges</label>}
           <label className="flex items-center gap-1.5">Grid<select value={snapOpt.grid} onChange={(e) => setSnapOpt({ ...snapOpt, grid: +e.target.value })} className="rounded border border-gray-300 px-1 py-0.5 text-xs dark:border-gray-700 dark:bg-gray-950"><option value={0}>off</option><option value={0.5}>0.5 mm</option><option value={1}>1 mm</option><option value={5}>5 mm</option></select></label>
           <span className="text-gray-500">The point's own path always snaps. Shift = 45° steps from the last point. Alt = no snapping. {!pen && "Drag the blue points of a drawn shape to move them."}</span>
+        </div>
+      )}
+      {house && house.kind && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:text-gray-300">
+          <span className="font-semibold">Aeros mark:</span>
+          {!house.channel && <span className="text-amber-700 dark:text-amber-300">choose who the job is sold to in step 4 (Print) first. Direct = the mark goes on; dealer = no Aeros mark at all.</span>}
+          {house.channel === "dealer" && <span>{hasMark ? "Dealer sale: delete the Aeros mark." : "Dealer sale: no Aeros mark on this pack."}</span>}
+          {house.channel === "direct" && (hasMark ? <span>on the pack ({cup ? (cup.wall === "double" ? "in the hem's white strip" : "upside down in the fold-in lip") : "front bottom flap"}), in the artwork's darkest ink. Add the artwork first: the mark takes its ink when it is added.</span> : <>
+            {house.bag && feet.length > 0 && <select value={footSku || feet[0].sku} onChange={(e) => setFootSku(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950">{feet.map((f2) => <option key={f2.sku} value={f2.sku}>{f2.sku}</option>)}</select>}
+            {(cup || feet.length > 0) ? <button className={`${btnCls} border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900`} onClick={addMark}>Add Aeros mark</button>
+              : <span>{hs0 ? "no Aeros footer is on file for this bag size (the house footers are made per SKU by the footer tool)." : "loading…"}</span>}
+            <span className="text-gray-500">{cup ? `"${house.cupText}", one line hidden in the fold.` : "The footer block of this SKU (recycle line, SKU, QR), taken from the house file."}</span>
+          </>)}
         </div>
       )}
       {err && <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-950/40 dark:text-red-300">{err}</p>}
@@ -299,7 +351,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
           </defs>
           <path d={board} fill={boardColour || "#f4f2ec"} fillRule="evenodd" />
           <g clipPath="url(#art-clip)">
-            {items.map((it) => it.kind === "flood" ? (
+            {items.filter((i) => !i.noClip).map((it) => it.kind === "flood" ? (
               <rect key={it.id} x={-BLEED} y={-BLEED} width={W + 2 * BLEED} height={H + 2 * BLEED} fill={it.colour} onPointerDown={(e) => { e.stopPropagation(); setSel(it.id); }} />
             ) : ((it0) => { const it = view(it0); return (
               <g key={it.id} transform={`translate(${it.x} ${it.y}) rotate(${it.rot || 0})`} onPointerDown={(e) => down(e, it0, "move")} style={{ cursor: "move" }}>
@@ -310,6 +362,17 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
               </g>
             ); })(it))}
           </g>
+          {/* the Aeros line in a cup's hem / lip sits outside the print area on purpose: drawn outside the clip */}
+                      {items.filter((i) => i.noClip).map((it) => it.kind === "flood" ? (
+              <rect key={it.id} x={-BLEED} y={-BLEED} width={W + 2 * BLEED} height={H + 2 * BLEED} fill={it.colour} onPointerDown={(e) => { e.stopPropagation(); setSel(it.id); }} />
+            ) : ((it0) => { const it = view(it0); return (
+              <g key={it.id} transform={`translate(${it.x} ${it.y}) rotate(${it.rot || 0})`} onPointerDown={(e) => down(e, it0, "move")} style={{ cursor: "move" }}>
+                <svg x={-it.w / 2} y={-it.h / 2} width={it.w} height={it.h} preserveAspectRatio="none" overflow="hidden"
+                  viewBox={it.curved ? `0 0 ${it.natW} ${it.natH}` : `${it.natW * it.crop.l} ${it.natH * it.crop.t} ${it.natW * (1 - it.crop.l - it.crop.r)} ${it.natH * (1 - it.crop.t - it.crop.b)}`}>
+                  {it.missing ? <rect width={it.natW} height={it.natH} fill="#f3d2d2" stroke="#c0392b" strokeWidth={it.natW / 100} strokeDasharray={`${it.natW / 30}`} /> : <image href={it.href} width={it.natW} height={it.natH} preserveAspectRatio="none" />}
+                </svg>
+              </g>
+            ); })(it))}
           {/* everything off the board fades: it is bleed or waste */}
           <path d={`M${-M} ${-M}H${W + M}V${H + M}H${-M}Z ${board}`} fill="#e9ebee" fillOpacity="0.72" fillRule="evenodd" pointerEvents="none" />
           <g clipPath="url(#board-clip)" pointerEvents="none">

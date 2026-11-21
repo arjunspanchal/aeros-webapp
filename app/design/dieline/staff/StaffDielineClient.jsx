@@ -20,7 +20,8 @@ import { vendorSheetPdf, describeArtwork } from "@/lib/dieline/designer/vendor-p
 import { cupNestPdf, fanPlacement } from "@/lib/dieline/designer/cup-nest-pdf";
 import { CUP_NEST_REFS } from "@/lib/dieline/cup-nest-refs";
 import { toPolar } from "@/lib/dieline/cup";
-import { cupGeometry, cupItemChecks, cupFormedChecks, cupFitChecks } from "@/lib/dieline/cup";
+import { cupGeometry, cupItemChecks, cupFormedChecks, cupFitChecks, cupMarkChecks } from "@/lib/dieline/cup";
+import { cupMarkText } from "@/lib/dieline/designer/house";
 import { curveItem } from "@/lib/dieline/designer/cup-warp";
 import ArtworkDesigner from "./ArtworkDesigner";
 import SolidViewer from "./SolidViewer"; // three.js runs only inside effects, safe on the server (as Fold3DViewer)
@@ -63,6 +64,7 @@ export default function StaffDielineClient() {
   const [process, setProcess] = useState("pantone");
   const [colours, setColours] = useState(2);
   const [job, setJob] = useState("");
+  const [channel, setChannel] = useState(""); // "" | "direct" | "dealer" - who the job is sold to (never defaulted)
 
   function pickTemplate(id) {
     const nt = TEMPLATES.find((x) => x.id === id);
@@ -93,7 +95,7 @@ export default function StaffDielineClient() {
   async function saveDesign(asNew) {
     setSaved((sv) => ({ ...sv, msg: "Saving…" }));
     try {
-      const body = { name: saved.name || fileStem({ template: res.template, values, board }), customer: saved.customer, job_ref: job, recipe: res.recipe, artwork: packArtwork(art), checks_ok: !!ok && !artBlocked };
+      const body = { name: saved.name || fileStem({ template: res.template, values, board }), customer: saved.customer, job_ref: job, recipe: { ...res.recipe, channel }, artwork: packArtwork(art), checks_ok: !!ok && !artBlocked };
       const upd = saved.id && !asNew;
       const r = await fetch(upd ? `/api/design/dieline-designs/${saved.id}` : "/api/design/dieline-designs", { method: upd ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await r.json();
@@ -110,7 +112,7 @@ export default function StaffDielineClient() {
       if (!nt) throw new Error("This design uses a template that no longer exists.");
       setTid(nt.id); setValues(rc.values || firstValues(nt));
       setBoardSel(rc.board?.id || defaultBoard(nt));
-      setProcess(rc.print?.process || "pantone"); setColours(rc.print?.colours || 1);
+      setProcess(rc.print?.process || "pantone"); setColours(rc.print?.colours || 1); setChannel(rc.channel || "");
       setJob(d.job_ref || ""); setArt(unpackArtwork(d.artwork)); hist.current = { past: [], future: [] };
       setSaved((sv) => ({ ...sv, id: d.id, name: d.name, customer: d.customer || "", list: null, msg: `Opened "${d.name}".` }));
     } catch (e) { setSaved((sv) => ({ ...sv, msg: e.message })); }
@@ -142,11 +144,23 @@ export default function StaffDielineClient() {
     const areas = prog?.areas || panelsAny.panels.filter((p) => p.area > total * 0.06).sort((p, q) => q.area - p.area).slice(0, 6)
       .map((p, k) => { const xs = p.outline.map((v) => v[0]), ys = p.outline.map((v) => v[1]); return { name: `Panel ${k + 1}`, box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }; });
     if (cupG) { const xs = cupG.limit.poly.map((q) => q[0]), ys = cupG.limit.poly.map((q) => q[1]);
-      return { edges: dieEdges(res.doc), blankBox: [0, 0, res.blankMm[0], res.blankMm[1]], family: "cup", topCutY: null, noInk: [], print, clipPoly: cupG.bleed.poly,
+      return { edges: dieEdges(res.doc), blankBox: [0, 0, res.blankMm[0], res.blankMm[1]], family: "cup", topCutY: null, noInk: [], print, clipPoly: cupG.bleed.poly, houseGeometry: (it) => cupMarkChecks(cupG, it),
         areas: [{ name: "Cup wall", box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }], customGeometry: (it) => cupItemChecks(cupG, it) }; }
     return { edges: dieEdges(res.doc), blankBox: [0, 0, res.blankMm[0], res.blankMm[1]], family: t.family, topCutY: prog?.topCutY ?? null, noInk: prog?.noInk || [], areas, print };
   }, [res, panelsAny, prog, process, colours]); // eslint-disable-line react-hooks/exhaustive-deps
-  const artChecks = useMemo(() => (artCtx ? checkArtwork(art, artCtx) : []), [art, artCtx]);
+  // WHO THE JOB IS SOLD TO decides if the Aeros mark goes on (cortex 2c): a choice per job, never a default
+  const houseKind = cupG ? "cup" : t.id === "sos-handmade" ? "bag" : null; // packs whose house mark this tool can add
+  const artChecks = useMemo(() => {
+    if (!artCtx) return [];
+    const base = checkArtwork(art, artCtx);
+    if (!art.length) return base;
+    const marks = art.filter((i) => i.house === "mark"), C = (id, ok, sev, title, detail) => ({ id, ok, severity: sev, title, detail });
+    const out = [C("CHANNEL", !!channel, "block", "Who the job is sold to is chosen", channel === "direct" ? "Sold direct to the end customer: the Aeros mark goes on the pack." : channel === "dealer" ? "Sold through a dealer: no Aeros branding anywhere on the pack." : "Choose it in step 4 (Print). It decides whether the Aeros mark goes on: direct = yes, dealer = none at all.")];
+    if (channel === "dealer") out.push(C("CHANNEL-MARK", !marks.length, "block", "Dealer sale: no Aeros mark on the pack", marks.length ? "Remove the Aeros mark - a pack sold through a dealer carries no Aeros branding." : "None on the artwork."));
+    if (channel === "direct" && houseKind) out.push(C("CHANNEL-MARK", marks.length === 1, "block", "Direct sale: the Aeros mark is on the pack", marks.length === 1 ? (houseKind === "cup" ? "One line, hidden in the fold." : "The footer block of this SKU, on the bottom flap.") : marks.length ? "Only one Aeros mark per pack." : 'Press "Add Aeros mark" in the artwork tools.'));
+    if (channel === "direct" && !houseKind) out.push(C("CHANNEL-MARK", true, "info", "Aeros mark for this pack", "No house mark for this item is in the tool yet (food boxes use the house base block). Add it with the house tool, or send Arjun the file."));
+    return [...base, ...out];
+  }, [art, artCtx, channel, houseKind]);
   // what is drawn and printed: curved items bent onto the cup
   const artOut = useMemo(() => (cupG ? art.map((it) => { if (!it.curve || it.kind !== "svg") return it; try { return curveItem(it, cupG, parseSvgDom); } catch { return it; } }) : art), [art, cupG]);
   const artBlocked = artChecks.some((c) => !c.ok && c.severity === "block");
@@ -226,6 +240,8 @@ export default function StaffDielineClient() {
   // cups: the printer's set on their own nested sheet (LAYOUT / ARTWORK-PUNCH / PUNCH), as made for Blueline and Lucky
   const cupNest = t.nest ? CUP_NEST_REFS[t.nest] : null;
   const [printerPick, setPrinter] = useState("BLUELINE");
+  const houseInfo = { channel, kind: houseKind, cupText: cupG ? cupMarkText(cupG.spec.label, cupG.wall) : "",
+    bag: houseKind === "bag" && blankMm ? { W: +values.W, G: +values.G, H: +values.H, flapMid: (+values.G / 2 + 29.6) / 2 } : null };
   const printer = (t.printers || ["BLUELINE"]).includes(printerPick) ? printerPick : (t.printers || ["BLUELINE"])[0]; // only printers whose file for this cup is on hand
   async function nestFile(mode) {
     setMaking(`nest-${mode}`);
@@ -415,6 +431,14 @@ export default function StaffDielineClient() {
               </label>
             )}
             <label className="mt-3 block">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Sold to (decides the Aeros mark)</span>
+              <select value={channel} onChange={(e) => setChannel(e.target.value)} className={`mt-1 w-full rounded-md border px-3 py-2 text-base dark:bg-gray-950 dark:text-gray-100 ${channel ? "border-gray-300 dark:border-gray-700" : "border-amber-500"}`}>
+                <option value="">Choose…</option>
+                <option value="direct">Direct to the end customer - Aeros mark ON</option>
+                <option value="dealer">Through a dealer - NO Aeros mark</option>
+              </select>
+            </label>
+            <label className="mt-3 block">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Job / customer tag for the file name (optional)</span>
               <input value={job} onChange={(e) => setJob(e.target.value)} placeholder="e.g. J-1042" className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" />
             </label>
@@ -490,7 +514,7 @@ export default function StaffDielineClient() {
           {res && res.doc && artCtx && (
             <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <h2 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Artwork</h2>
-              <ArtworkDesigner doc={res.doc} geom={panelsAny} family={t.family} areas={artCtx.areas} noInk={artCtx.noInk} items={art} setItems={setArt} boardColour={mat.colour3d.top} cup={cupG} clipPoly={artCtx.clipPoly || null} snap={snapArt} undo={undoArt} redo={redoArt} canUndo={histN >= 0 && hist.current.past.length > 0} canRedo={hist.current.future.length > 0} />
+              <ArtworkDesigner doc={res.doc} geom={panelsAny} family={t.family} areas={artCtx.areas} noInk={artCtx.noInk} items={art} setItems={setArt} boardColour={mat.colour3d.top} cup={cupG} clipPoly={artCtx.clipPoly || null} house={houseInfo} snap={snapArt} undo={undoArt} redo={redoArt} canUndo={histN >= 0 && hist.current.past.length > 0} canRedo={hist.current.future.length > 0} />
               {art.length > 0 && (
                 <>
                   <ul className="mt-3 space-y-1.5">
@@ -596,6 +620,7 @@ export default function StaffDielineClient() {
               {(solid || cupG) && (
                 <div className="flex gap-2">
                   <button onClick={() => save(`${stem}-3D.stl`, viewerRef.current.exportStl(), "model/stl")} className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">STL (mm)</button>
+                  <button onClick={() => { const a = document.createElement("a"); a.href = viewerRef.current.snapshot(); a.download = `${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`; a.click(); }} title="Saves the 3D view exactly as it is turned now" className="rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">Snapshot of this view (PNG)</button>
                   <button onClick={() => save(`${stem}-3D.obj`, viewerRef.current.exportObj(), "model/obj")} className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">OBJ (mm)</button>
                 </div>
               )}
