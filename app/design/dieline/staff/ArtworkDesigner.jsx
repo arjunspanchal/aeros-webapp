@@ -28,6 +28,21 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   const W = doc.blank.widthPt / PT_PER_MM, H = doc.blank.heightPt / PT_PER_MM, M = 14;
   const S = SAFE[family] || SAFE.box;
   const cur = items.find((i) => i.id === sel) || null;
+  // ZOOM + PAN of the artwork area: + / - / Fit, Ctrl or Cmd + mouse wheel zooms on the cursor, and when zoomed in a drag on
+  // empty board moves the view. Everything stays in die millimetres, so nothing about placement changes with the zoom.
+  const [zoom, setZoom] = useState(1), [centre, setCentre] = useState(null), pan = useRef(null);
+  const VW = (W + 2 * M) / zoom, VH = (H + 2 * M) / zoom;
+  const clampC = (c2, vw = VW, vh = VH) => [Math.max(-M + vw / 2, Math.min(W + M - vw / 2, c2[0])), Math.max(-M + vh / 2, Math.min(H + M - vh / 2, c2[1]))];
+  const viewC = clampC(centre || [W / 2, H / 2]);
+  const zoomBy = (k, at = null) => { const z = Math.max(1, Math.min(16, +(zoom * k).toFixed(3))), a = at || viewC; setZoom(z); setCentre(z === 1 ? null : clampC([a[0] + (viewC[0] - a[0]) * (zoom / z), a[1] + (viewC[1] - a[1]) * (zoom / z)], (W + 2 * M) / z, (H + 2 * M) / z)); };
+  const zoomSel = () => { const it = items.find((i) => i.id === sel); if (!it || it.kind === "flood") return; const b = bboxOf(corners(view(it))), z = Math.max(1, Math.min(16, 0.6 * Math.min((W + 2 * M) / Math.max(1, b[2] - b[0]), (H + 2 * M) / Math.max(1, b[3] - b[1])))); setZoom(+z.toFixed(2)); setCentre(clampC([(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], (W + 2 * M) / z, (H + 2 * M) / z)); };
+  useEffect(() => { setZoom(1); setCentre(null); }, [W, H]); // a new die starts fitted
+  useEffect(() => { // Ctrl / Cmd + wheel zooms on the cursor (a native listener: it must be able to stop the browser's own page zoom)
+    const el = svgRef.current; if (!el) return undefined;
+    const onWheel = (e) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); const q = new DOMPoint(e.clientX, e.clientY).matrixTransform(el.getScreenCTM().inverse()); zoomBy(e.deltaY < 0 ? 1.25 : 0.8, [q.x, q.y]); };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  });
 
   const die = useMemo(() => {
     const k = 1 / PT_PER_MM, P = (p) => `${(p[0] * k).toFixed(2)} ${(p[1] * k).toFixed(2)}`;
@@ -52,7 +67,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
         e.preventDefault();
         const st = e.shiftKey ? 5 : e.altKey ? 0.1 : 0.5, dx = e.key === "ArrowLeft" ? -st : e.key === "ArrowRight" ? st : 0, dy = e.key === "ArrowUp" ? -st : e.key === "ArrowDown" ? st : 0;
         if (!e.repeat) snap();
-        setItems((l) => l.map((i) => (i.id === sel && i.kind !== "flood" ? { ...i, x: Math.round((i.x + dx) * 10) / 10, y: Math.round((i.y + dy) * 10) / 10 } : i)));
+        setItems((l) => l.map((i) => (i.id === sel && i.kind !== "flood" && i.house !== "mark" ? { ...i, x: Math.round((i.x + dx) * 10) / 10, y: Math.round((i.y + dy) * 10) / 10 } : i)));
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
@@ -70,7 +85,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   /** where a pen / node point lands: raw = cursor in die mm; from = the previous point (for Shift); own = the path being drawn */
   function snapPoint(raw, e, { from = null, own = [], skipId = null } = {}) {
     if (e.altKey) return { p: raw.map(r2), kind: null };
-    const box = svgRef.current.getBoundingClientRect(), tol = 9 * ((W + 2 * M) / (box.width || 1)); // 9 screen pixels, in mm
+    const box = svgRef.current.getBoundingClientRect(), tol = 9 * (VW / (box.width || 1)); // 9 screen pixels, in mm
     let best = null;
     const tryPt = (q, kind) => { const d = Math.hypot(q[0] - raw[0], q[1] - raw[1]); if (d < tol && (!best || d < best.d)) best = { p: q, kind, d }; };
     own.forEach((q, k) => tryPt(q, k === 0 && own.length >= 3 ? "start: closes the shape" : "point"));
@@ -109,7 +124,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
       const it = await textItem({ content: "Your text" });
       snap();
       const spot = cup ? (() => { const a = cup.aLeft + cup.wrap / 2, r = (cup.floorR + cup.topR) / 2, [x, y] = fromPolar(cup, r, a); return { x: r1(x), y: r1(y), rot: r1((a * 180) / Math.PI), curve: true }; })() : { x: r1((a0[0] + a0[2]) / 2), y: r1((a0[1] + a0[3]) / 2) };
-      setItems((l) => [...l, { ...it, ...spot }]); setSel(it.id);
+      setItems((l) => [...l, sameInk({ ...it, ...spot })]); setSel(it.id);
     } catch (ex) { setErr(ex.message); }
   }
   const setText = async (p2) => { try { const n = await retext(cur, p2); patch(cur.id, () => n); } catch (ex) { setErr(ex.message); } };
@@ -123,11 +138,11 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     if (cup) { const a = cup.aLeft + cup.wrap / 2, r = (cup.floorR + cup.topR) / 2, [x, y] = fromPolar(cup, r, a); return { x: r1(x), y: r1(y), rot: r1((a * 180) / Math.PI) }; }
     const a0 = areas[0]?.box || [0, 0, W, H]; return { x: r1((a0[0] + a0[2]) / 2), y: r1((a0[1] + a0[3]) / 2) };
   };
-  const addShape = (type) => { snap(); const it = { ...shapeItem(type), ...landing() }; setItems((l) => [...l, it]); setSel(it.id); };
+  const addShape = (type) => { snap(); const it = sameInk({ ...shapeItem(type), ...landing() }); setItems((l) => [...l, it]); setSel(it.id); };
   const penRef = useRef(null); penRef.current = pen; // the latest pen path, for the keyboard and the click that closes the shape
   function finishPen(closed) {
     const q = penRef.current;
-    if (q && q.pts.length >= (closed ? 3 : 2)) { snap(); const it = penItem(q.pts, closed); setItems((l) => [...l, it]); setSel(it.id); }
+    if (q && q.pts.length >= (closed ? 3 : 2)) { snap(); const it = sameInk(penItem(q.pts, closed)); setItems((l) => [...l, it]); setSel(it.id); }
     setPen(null);
   }
   const setShape = (p2) => patch(cur.id, (i) => reshape(i, { shape: p2 }));
@@ -136,16 +151,50 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   // ---- pointer: move, and scale from a corner handle
   function down(e, it, mode, k = -1) {
     if (it.kind === "flood") { setSel(it.id); return; }
+    // THE AEROS MARK IS LOCKED IN ITS PLACE on every item (Arjun 21-Nov-2026: "User should not be able to drag it"): it can be
+    // selected (to change its ink to another job colour, or to delete it on a dealer job) but never moved, sized or turned
+    if (it.house === "mark") { e.stopPropagation(); setSel(it.id); return; }
     e.stopPropagation(); e.currentTarget.setPointerCapture?.(e.pointerId);
     snap();
     const [mx, my] = toMm(e);
     const upright = cup && Math.abs(((((it.rot || 0) - (toPolar(cup, [it.x, it.y]).a * 180) / Math.PI) + 540) % 360) - 180) <= 1;
-    drag.current = { id: it.id, mode, mx, my, x: it.x, y: it.y, w: it.w, h: it.h, d0: Math.hypot(mx - it.x, my - it.y), upright, k, nodes: mode === "node" ? nodesOf(it) : null };
+    drag.current = { id: it.id, mode, mx, my, x: it.x, y: it.y, w: it.w, h: it.h, d0: Math.hypot(mx - it.x, my - it.y), upright, k, nodes: mode === "node" ? nodesOf(it) : null,
+      side: mode === "edge" ? k : null, box: mode === "edge" ? bboxOf(corners(it)) : null,
+      anchor: mode === "scale" && k >= 0 && it.shape && it.shape.type !== "path" && !((it.rot || 0) % 180) && !cup ? corners(it)[(k + 2) % 4] : null };
     setSel(it.id);
+  }
+  // lines an edge can catch: [value, guide from, guide to]. at = where the layer is; bb = its box (for guide lengths)
+  const cur0 = (id) => items.find((i) => i.id === id) || null;
+  function snapLines(skipId, at, bb) {
+    const box = svgRef.current.getBoundingClientRect(), tol = 8 * (VW / (box.width || 1)), xs = [], ys = [];
+    for (const a of areas) if (at[0] > a.box[0] - tol && at[0] < a.box[2] + tol && at[1] > a.box[1] - tol && at[1] < a.box[3] + tol) {
+      xs.push([a.box[0], a.box[1], a.box[3]], [a.box[2], a.box[1], a.box[3]], [(a.box[0] + a.box[2]) / 2, a.box[1], a.box[3]], [a.box[0] + S.fold, a.box[1], a.box[3]], [a.box[2] - S.fold, a.box[1], a.box[3]]);
+      ys.push([a.box[1], a.box[0], a.box[2]], [a.box[3], a.box[0], a.box[2]], [(a.box[1] + a.box[3]) / 2, a.box[0], a.box[2]], [a.box[1] + S.topCut, a.box[0], a.box[2]], [a.box[3] - S.fold, a.box[0], a.box[2]]);
+    }
+    for (const v of [0, W, -BLEED, W + BLEED]) xs.push([v, -BLEED, H + BLEED]);
+    for (const v of [0, H, -BLEED, H + BLEED]) ys.push([v, -BLEED, W + BLEED]);
+    for (const o of items) if (o.id !== skipId && o.kind !== "flood") {
+      const ob = bboxOf(corners(o)), lo = Math.min(ob[1], bb[1]), hi = Math.max(ob[3], bb[3]), l2 = Math.min(ob[0], bb[0]), h2 = Math.max(ob[2], bb[2]);
+      xs.push([ob[0], lo, hi], [(ob[0] + ob[2]) / 2, lo, hi], [ob[2], lo, hi]); ys.push([ob[1], l2, h2], [(ob[1] + ob[3]) / 2, l2, h2], [ob[3], l2, h2]);
+    }
+    return { xs, ys, tol };
   }
   function move(e) {
     const d = drag.current; if (!d) return;
     const [mx, my] = toMm(e);
+    if (d.mode === "edge") { // ONE EDGE of a shape: only the width (left / right handle) or only the height (top / bottom) changes; it snaps
+      const b = d.box.slice(), horiz = d.side === "l" || d.side === "r", g = []; let v = horiz ? mx : my;
+      if (!e.altKey) {
+        const { xs, ys, tol } = snapLines(d.id, [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2], b);
+        const hit = (horiz ? xs : ys).reduce((best, c) => (Math.abs(c[0] - v) < tol && (!best || Math.abs(c[0] - v) < Math.abs(best[0] - v)) ? c : best), null);
+        if (hit) { v = hit[0]; g.push([horiz ? "v" : "h", hit[0], hit[1], hit[2]]); }
+      }
+      if (d.side === "l") b[0] = Math.min(v, b[2] - 0.3); else if (d.side === "r") b[2] = Math.max(v, b[0] + 0.3); else if (d.side === "t") b[1] = Math.min(v, b[3] - 0.3); else b[3] = Math.max(v, b[1] + 0.3);
+      d.box = b; setGuides(g);
+      const turned = Math.abs(((cur0(d.id)?.rot || 0) % 180)) === 90, bw = b[2] - b[0], bh = b[3] - b[1], w = turned ? bh : bw, h = turned ? bw : bh;
+      patch(d.id, (i) => ({ ...reshape(i, { w, h }), w: r2(w), h: r2(h), x: r2((b[0] + b[2]) / 2), y: r2((b[1] + b[3]) / 2) }));
+      return;
+    }
     if (d.mode === "node") { // drag one point of a drawn shape; it catches the same nodes the pen does
       const sp = snapPoint([mx, my], e, { skipId: d.id, own: d.nodes.filter((_, n) => n !== d.k), from: d.nodes[(d.k + d.nodes.length - 1) % d.nodes.length] });
       d.nodes = d.nodes.map((q, n) => (n === d.k ? sp.p : q));
@@ -156,17 +205,9 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     if (d.mode === "move") {
       let x = d.x + mx - d.mx, y = d.y + my - d.my; const g = [];
       if (!cup && !e.altKey) { // SNAP (hold Alt to switch off): this layer's left / centre / right and top / middle / bottom
-        // catch the panel's centre lines, its safe-area edges, and the edges and centres of every other layer
-        const me = items.find((i) => i.id === d.id), bb = bboxOf(corners({ ...me, x, y })), tol = Math.max(1.2, W / 260);
-        const xs = [], ys = []; // [value, guide from, guide to]
-        for (const a of areas) if (x > a.box[0] && x < a.box[2] && y > a.box[1] && y < a.box[3]) {
-          xs.push([(a.box[0] + a.box[2]) / 2, a.box[1], a.box[3]], [a.box[0] + S.fold, a.box[1], a.box[3]], [a.box[2] - S.fold, a.box[1], a.box[3]]);
-          ys.push([(a.box[1] + a.box[3]) / 2, a.box[0], a.box[2]], [a.box[1] + S.topCut, a.box[0], a.box[2]], [a.box[3] - S.fold, a.box[0], a.box[2]]);
-        }
-        for (const o of items) if (o.id !== d.id && o.kind !== "flood" && o.role === "content") {
-          const ob = bboxOf(corners(o)), lo = Math.min(ob[1], bb[1]), hi = Math.max(ob[3], bb[3]), l2 = Math.min(ob[0], bb[0]), h2 = Math.max(ob[2], bb[2]);
-          xs.push([ob[0], lo, hi], [(ob[0] + ob[2]) / 2, lo, hi], [ob[2], lo, hi]); ys.push([ob[1], l2, h2], [(ob[1] + ob[3]) / 2, l2, h2], [ob[3], l2, h2]);
-        }
+        // catch the folds and cuts of its panel, the panel's centre lines and safe-area edges, the blank's edge and bleed
+        // edge, and the edges and centres of every other layer
+        const me = items.find((i) => i.id === d.id), bb = bboxOf(corners({ ...me, x, y })), { xs, ys, tol } = snapLines(d.id, [x, y], bb);
         const pick = (mine, list) => { let best = null; for (const m of mine) for (const c of list) { const dd = c[0] - m; if (Math.abs(dd) < tol && (!best || Math.abs(dd) < Math.abs(best[0]))) best = [dd, c]; } return best; };
         const sx = pick([bb[0], (bb[0] + bb[2]) / 2, bb[2]], xs), sy = pick([bb[1], (bb[1] + bb[3]) / 2, bb[3]], ys);
         if (sx) { x += sx[0]; g.push(["v", sx[1][0], sx[1][1], sx[1][2]]); }
@@ -181,12 +222,28 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
       if (e.shiftKey) a = Math.round(a / 15) * 15;
       else for (const q of [0, 90, 180, 270, 360]) if (Math.abs(a - q) < 4) a = q % 360;
       patch(d.id, (i) => ({ ...i, rot: r1(a % 360) }));
+    } else if (d.anchor) {
+      // A SHAPE (rectangle, line, ...) square to the page: the opposite corner stays put and the dragged corner goes where
+      // the pointer is - so width and height change on their own - and each of its two edges snaps (Arjun 21-Nov-2026:
+      // "If I am making a rectangle on a paper bag, the edges should snap"). Alt = free.
+      let px = mx, py = my; const g = [];
+      if (!cup && !e.altKey) {
+        const bb = [Math.min(d.anchor[0], px), Math.min(d.anchor[1], py), Math.max(d.anchor[0], px), Math.max(d.anchor[1], py)], { xs, ys, tol } = snapLines(d.id, [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2], bb);
+        const near = (v, list) => list.reduce((best, c) => (Math.abs(c[0] - v) < tol && (!best || Math.abs(c[0] - v) < Math.abs(best[0] - v)) ? c : best), null);
+        const sx = near(px, xs), sy = near(py, ys);
+        if (sx) { px = sx[0]; g.push(["v", sx[0], sx[1], sx[2]]); }
+        if (sy) { py = sy[0]; g.push(["h", sy[0], sy[1], sy[2]]); }
+      }
+      setGuides(g);
+      const w = Math.max(0.3, Math.abs(px - d.anchor[0])), h = Math.max(0.3, Math.abs(py - d.anchor[1]));
+      patch(d.id, (i) => ({ ...reshape(i, { w, h }), w: r2(w), h: r2(h), x: r2((px + d.anchor[0]) / 2), y: r2((py + d.anchor[1]) / 2) }));
     } else {
       const k = Math.max(0.05, Math.hypot(mx - d.x, my - d.y) / (d.d0 || 1));
       patch(d.id, (i) => ({ ...i, w: r1(d.w * k), h: r1(d.h * k) }));
     }
   }
   const up = () => {
+    if (pan.current) { if (!pan.current.moved) setSel(null); pan.current = null; } // a click on empty board still deselects
     const d = drag.current;
     if (d && d.mode === "scale") patch(d.id, (i) => (i.shape ? reshape(i) : i)); // a stretched shape is redrawn at true line weight
     drag.current = null; setGuides([]); setMark(null);
@@ -233,6 +290,11 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     catch (ex) { setErr(ex.message || "Could not trace that picture."); }
     setBusy("");
   }
+  // ---- JOB COLOURS: every ink the artwork already prints (with its Pantone name). One click gives another object the SAME
+  // ink - same colour value, same plate name - so two objects meant to be one colour can never end up as two plates.
+  const jobInks = (() => { const seen = new Map(); for (const i of items) for (const c2 of (i.kind === "flood" ? [{ to: i.colour, name: i.pantone || "" }] : i.kind === "svg" ? i.colours || [] : [])) { const k = String(c2.to).toLowerCase(); if (/^#[0-9a-f]{6}$/.test(k) && k !== "#ffffff" && (!seen.has(k) || (!seen.get(k).name && c2.name))) seen.set(k, { to: k, name: c2.name || "" }); } return [...seen.values()]; })();
+  const lastInk = () => { for (let k = items.length - 1; k >= 0; k--) { const i = items[k]; if (i.house) continue; const c2 = i.kind === "flood" ? { to: i.colour, name: i.pantone || "" } : (i.colours || []).find((q) => /^#[0-9a-f]{6}$/i.test(q.to) && !/^#f{6}$/i.test(q.to)); if (c2) return { to: c2.to, name: c2.name || "" }; } return null; };
+  const sameInk = (it) => { const ink = lastInk(); return ink && it.colours?.length === 1 ? refreshSvg({ ...it, colours: [{ ...it.colours[0], to: ink.to, name: ink.name }] }) : it; }; // a new one-colour object starts in the job's last colour
   // ---- Aeros mark + ready symbols (lifted from the house files; lib/dieline/designer/house.js)
   const hasMark = items.some((i) => i.house === "mark");
   const feet = hs0 && house?.bag ? footersFor(hs0, house.bag.W, house.bag.G, house.bag.H) : [];
@@ -242,6 +304,20 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     return inks.sort((p2, q2) => lum(p2.to) - lum(q2.to))[0] || { to: "#000000", name: "" };
   };
   const inked = (it) => { const ink = darkest(); return refreshSvg({ ...it, colours: (it.colours || []).map((c2) => ({ ...c2, to: ink.to, name: ink.name || "" })) }); };
+  // THE MARK NEVER ADDS A COLOUR (Arjun 21-Nov-2026: "always in colour of one of the colour in the bag so we dont add black as an
+  // additional colour"): if its ink is not one the artwork prints, it moves to the darkest one by itself - also when the
+  // artwork is added or recoloured after the mark.
+  useEffect(() => {
+    const other = items.filter((i) => !i.house), marks = items.filter((i) => i.house === "mark");
+    if (!marks.length) return;
+    const inks = other.flatMap((i) => (i.kind === "flood" ? [{ to: i.colour, name: i.pantone || "" }] : i.kind === "svg" ? i.colours || [] : [])).filter((c2) => /^#[0-9a-f]{6}$/i.test(c2.to) && !/^#f{6}$/i.test(c2.to));
+    if (!inks.length) return;
+    const has = new Map(inks.map((c2) => [c2.to.toLowerCase(), c2.name || ""]));
+    const stale = marks.filter((mk) => (mk.colours || []).some((c2) => !has.has(String(c2.to).toLowerCase()) || (has.get(String(c2.to).toLowerCase()) || "") !== (c2.name || "")));
+    if (!stale.length) return;
+    const ink = darkest();
+    setItems((l) => l.map((i) => (stale.some((q) => q.id === i.id) ? refreshSvg({ ...i, colours: (i.colours || []).map((c2) => (has.has(String(c2.to).toLowerCase()) ? { ...c2, name: has.get(String(c2.to).toLowerCase()) } : { ...c2, to: ink.to, name: ink.name || "" })) }) : i)));
+  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
   async function addMark() {
     setErr("");
     try {
@@ -253,7 +329,9 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
       } else if (house?.bag) { // the locked footer block of this SKU, on the front's bottom flap
         const f = footerSvg(hs0, footSku || feet[0]?.sku);
         if (!f) throw new Error("No Aeros footer is on file for this bag size.");
-        const front = areas.find((a) => /^Front/.test(a.name)) || areas[0], wMax = front.box[2] - front.box[0] - 16, w = Math.min(f.w, wMax);
+        // SIZE IN PROPORTION TO THE BAG (Arjun 21-Nov-2026): the footer is 23 % of the front width - the proportion of the house
+        // files (58 mm on a 254 bag, 53 on a 230, 27 on the small one) - never under 27 mm (its small type) or over its drawn 60 mm
+        const front = areas.find((a) => /^Front/.test(a.name)) || areas[0], fw = front.box[2] - front.box[0], w = Math.round(Math.max(27, Math.min(f.w, fw * 0.23, fw - 16)) * 10) / 10;
         const it = inked({ ...vectorItem(f.svg, `Aeros footer ${footSku || feet[0].sku}`, w), h: Math.round(((w * f.h) / f.w) * 100) / 100, x: r1((front.box[0] + front.box[2]) / 2), y: r1(front.box[3] + house.bag.flapMid), house: "mark", source: "house" });
         snap(); setItems((l) => [...l, it]); setSel(it.id);
       }
@@ -275,7 +353,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   const remove = () => { setItems((l) => l.filter((i) => i.id !== sel)); setSel(null); };
   const recolour = (k, key, v) => patch(cur.id, (i) => refreshSvg({ ...i, colours: i.colours.map((c, n) => (n === k ? { ...c, [key]: v } : c)) }));
 
-  const hs = Math.max(2.2, W / 160); // handle size, mm
+  const hs = Math.max(2.2, W / 160) / Math.sqrt(zoom); // handle size, mm (a little smaller when zoomed in, so it never hides the art)
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -295,7 +373,14 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
         )}
         <button className={btnCls} onClick={undo} disabled={!canUndo} title="Ctrl/Cmd + Z">Undo</button>
         <button className={btnCls} onClick={redo} disabled={!canRedo} title="Ctrl/Cmd + Shift + Z">Redo</button>
-        <span className="text-[11px] text-gray-500">PDF / AI / SVG stay vector. Drag to move, drag a corner to size, the round knob to rotate. Shapes and the pen draw new vector art. {busy}</span>
+        <span className="ml-1 inline-flex items-center overflow-hidden rounded-md border border-gray-300 dark:border-gray-700">
+          <button className="px-2.5 py-1.5 text-sm font-semibold hover:bg-gray-100 disabled:opacity-40 dark:hover:bg-gray-800" onClick={() => zoomBy(0.8)} disabled={zoom <= 1} title="Zoom out">−</button>
+          <span className="w-14 border-x border-gray-300 px-1 py-1.5 text-center text-xs tabular-nums dark:border-gray-700">{Math.round(zoom * 100)}%</span>
+          <button className="px-2.5 py-1.5 text-sm font-semibold hover:bg-gray-100 disabled:opacity-40 dark:hover:bg-gray-800" onClick={() => zoomBy(1.25)} disabled={zoom >= 16} title="Zoom in">+</button>
+        </span>
+        <button className={btnCls} onClick={() => { setZoom(1); setCentre(null); }} disabled={zoom === 1} title="Show the whole die">Fit</button>
+        <button className={btnCls} onClick={zoomSel} disabled={!cur || cur.kind === "flood"} title="Zoom to the selected layer">Zoom to selection</button>
+        <span className="text-[11px] text-gray-500">Ctrl or Cmd + mouse wheel zooms; when zoomed in, drag empty board to move the view. PDF / AI / SVG stay vector. Drag to move, drag a corner to size, the round knob to rotate. Shapes and the pen draw new vector art. {busy}</span>
       </div>
       {pen && (
         <div className="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
@@ -339,11 +424,11 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
       )}
 
       <div className="rounded-md border border-gray-200 bg-[#e9ebee] p-1 dark:border-gray-800">
-        <svg ref={svgRef} viewBox={`${-M} ${-M} ${W + 2 * M} ${H + 2 * M}`} className="h-auto max-h-[620px] w-full touch-none select-none" onPointerMove={(e) => { if (pen) { const sp = snapPoint(toMm(e), e, { from: pen.pts[pen.pts.length - 1] || null, own: pen.pts }); setMark(sp.kind ? sp : null); setPen((q) => (q ? { ...q, at: sp.p } : q)); } else move(e); }} onPointerUp={up} onPointerLeave={up}
+        <svg ref={svgRef} viewBox={`${viewC[0] - VW / 2} ${viewC[1] - VH / 2} ${VW} ${VH}`} className="h-auto max-h-[620px] w-full touch-none select-none" onPointerMove={(e) => { if (pen) { const sp = snapPoint(toMm(e), e, { from: pen.pts[pen.pts.length - 1] || null, own: pen.pts }); setMark(sp.kind ? sp : null); setPen((q) => (q ? { ...q, at: sp.p } : q)); } else if (pan.current) { const bx = svgRef.current.getBoundingClientRect(), k = VW / (bx.width || 1), dx = (e.clientX - pan.current.x) * k, dy = (e.clientY - pan.current.y) * k; if (Math.abs(dx) + Math.abs(dy) > 0.5) pan.current.moved = true; setCentre(clampC([pan.current.c[0] - dx, pan.current.c[1] - dy])); } else move(e); }} onPointerUp={up} onPointerLeave={up}
           onPointerDownCapture={(e) => { if (!pen) return; e.stopPropagation(); e.preventDefault(); // pen: every click is a point; clicking the first point again closes the shape
             const at = snapPoint(toMm(e), e, { from: pen.pts[pen.pts.length - 1] || null, own: pen.pts }).p;
             if (pen.pts.length >= 3 && Math.hypot(at[0] - pen.pts[0][0], at[1] - pen.pts[0][1]) < 0.02) finishPen(true); else setPen((q) => ({ ...q, pts: [...q.pts, at] })); }}
-          onDoubleClick={() => { if (pen) finishPen(false); }} onPointerDown={() => setSel(null)} style={pen ? { cursor: "crosshair" } : undefined}>
+          onDoubleClick={() => { if (pen) finishPen(false); }} onPointerDown={(e) => { if (zoom > 1 && !pen) { pan.current = { x: e.clientX, y: e.clientY, c: viewC, moved: false }; e.currentTarget.setPointerCapture?.(e.pointerId); } else setSel(null); }} style={pen ? { cursor: "crosshair" } : zoom > 1 ? { cursor: "grab" } : undefined}>
           <defs>
             <clipPath id="art-clip">{clipPoly ? <polygon points={clipPoly.map((q) => q.join(",")).join(" ")} /> : <rect x={-BLEED} y={-BLEED} width={W + 2 * BLEED} height={H + 2 * BLEED} />}</clipPath>
             <clipPath id="board-clip"><path d={board} clipRule="evenodd" /></clipPath>
@@ -423,8 +508,14 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
             return (
               <g>
                 <polygon points={cs.map((p) => p.join(",")).join(" ")} fill="none" stroke="#2563eb" strokeWidth={0.4} pointerEvents="none" />
-                {cs.map((p, k) => <rect key={k} x={p[0] - hs / 2} y={p[1] - hs / 2} width={hs} height={hs} fill="#ffffff" stroke="#2563eb" strokeWidth={0.4} style={{ cursor: "nwse-resize" }} onPointerDown={(e) => down(e, cur, "scale")} />)}
-                {!cur.curve && (() => { // rotate handle: a round knob above the top edge
+                {cur.house !== "mark" && cs.map((p, k) => <rect key={k} x={p[0] - hs / 2} y={p[1] - hs / 2} width={hs} height={hs} fill="#ffffff" stroke="#2563eb" strokeWidth={0.4} style={{ cursor: "nwse-resize" }} onPointerDown={(e) => down(e, cur, "scale", k)} />)}
+                {cur.shape && cur.shape.type !== "path" && !((cur.rot || 0) % 90) && !cup && (() => { // edge handles: drag one to change only the width or only the height
+                  const b = bboxOf(cs), mxx = (b[0] + b[2]) / 2, myy = (b[1] + b[3]) / 2;
+                  return [["l", b[0], myy], ["r", b[2], myy], ["t", mxx, b[1]], ["b", mxx, b[3]]].map(([side, x, y]) => (
+                    <rect key={side} x={x - hs / 2} y={y - hs / 2} width={hs} height={hs} fill="#2563eb" stroke="#ffffff" strokeWidth={0.3} style={{ cursor: side === "l" || side === "r" ? "ew-resize" : "ns-resize" }} onPointerDown={(e) => down(e, cur, "edge", side)}><title>{side === "l" || side === "r" ? "Drag to change the width only (snaps to folds and edges; Alt = free)" : "Drag to change the height only (snaps to folds and edges; Alt = free)"}</title></rect>
+                  ));
+                })()}
+                {!cur.curve && cur.house !== "mark" && (() => { // rotate handle: a round knob above the top edge
                   const tm = [(cs[0][0] + cs[1][0]) / 2, (cs[0][1] + cs[1][1]) / 2], dx = tm[0] - cur.x, dy = tm[1] - cur.y, L = Math.hypot(dx, dy) || 1;
                   const hx = tm[0] + (dx / L) * hs * 3.2, hy = tm[1] + (dy / L) * hs * 3.2;
                   return (
@@ -460,7 +551,19 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
           </ul>
         </div>
 
-        {cur ? (
+        {cur && cur.house === "mark" ? (
+          <div className="space-y-2 rounded-md border border-gray-200 p-3 text-xs text-gray-700 dark:border-gray-800 dark:text-gray-300">
+            <p className="font-semibold text-gray-900 dark:text-gray-100">{cur.name} - locked in its place</p>
+            <p>The Aeros mark always sits in the same place on this item ({cup ? (cup.wall === "double" ? "the white strip of the hem" : "the fold-in lip, upside down") : "the front's bottom flap"}), at the house size. It cannot be moved, sized or turned.</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span>Ink (one of the job's own colours):</span>
+              {jobInks.filter((q) => items.some((i) => !i.house && (i.kind === "flood" ? i.colour.toLowerCase() === q.to : (i.colours || []).some((c2) => String(c2.to).toLowerCase() === q.to)))).map((q) => (
+                <button key={q.to} onClick={act(() => patch(cur.id, (i) => refreshSvg({ ...i, colours: (i.colours || []).map((c3) => ({ ...c3, to: q.to, name: q.name })) })))} className={`flex items-center gap-1 rounded border px-1.5 py-1 text-[11px] ${(cur.colours || []).every((c3) => String(c3.to).toLowerCase() === q.to) ? "border-blue-600" : "border-gray-300 dark:border-gray-700"}`}><span className="inline-block h-4 w-4 rounded-sm border border-gray-400" style={{ background: q.to }} />{q.name ? q.name.replace(/^PANTONE\s+/i, "") : q.to}</button>
+              ))}
+              <button className={`${btnCls} text-red-700`} onClick={act(remove)}>Delete (dealer job)</button>
+            </div>
+          </div>
+        ) : cur ? (
           <div className="space-y-3 rounded-md border border-gray-200 p-3 dark:border-gray-800" onFocusCapture={(e) => { if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) snap(); }}>
             <div className="flex flex-wrap items-center gap-2">
               <input value={cur.name} onChange={(e) => patch(cur.id, (i) => ({ ...i, name: e.target.value }))} className={`${inputCls} max-w-[220px]`} />
@@ -477,6 +580,9 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
               <div className="flex flex-wrap items-end gap-3 text-xs">
                 <label>Colour<br /><input type="color" value={cur.colour} onChange={(e) => patch(cur.id, (i) => ({ ...i, colour: e.target.value }))} className="h-9 w-14" /></label>
                 <label className="flex-1">Pantone name (U guide)<input value={cur.pantone} onChange={(e) => patch(cur.id, (i) => ({ ...i, pantone: e.target.value }))} placeholder="PANTONE 419 U" className={inputCls} /></label>
+                {jobInks.filter((q) => q.to !== String(cur.colour).toLowerCase()).slice(0, 6).map((q) => (
+                  <button key={q.to} title={`Use this job colour${q.name ? `: ${q.name}` : ""}`} onClick={act(() => patch(cur.id, (i) => ({ ...i, colour: q.to, pantone: q.name })))} className="flex items-center gap-1 rounded border border-gray-300 px-1.5 py-1 text-[11px] dark:border-gray-700"><span className="inline-block h-4 w-4 rounded-sm border border-gray-400" style={{ background: q.to }} />{q.name ? q.name.replace(/^PANTONE\s+/i, "") : "same"}</button>
+                ))}
                 <p className="w-full text-[11px] text-gray-500">Covers the whole blank with {BLEED} mm bleed; glue areas stay unprinted.</p>
               </div>
             ) : (
@@ -602,7 +708,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
                 ); })()}
                 {cur.kind === "svg" && (
                   <div>
-                    <p className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-300">Colours in this artwork ({cur.colours.length})</p>
+                    <p className="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-300">Colours in this artwork ({cur.colours.length}){jobInks.length > 0 && <span className="font-normal text-gray-500"> - the small swatches are the job's other colours: click one to print this in the same ink</span>}</p>
                     <div className="space-y-1">
                       {cur.colours.map((c, k) => (
                         <div key={c.from} className="flex items-center gap-2 text-xs">
@@ -611,6 +717,10 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
                           <input type="color" value={/^#[0-9a-f]{6}$/i.test(c.to) ? c.to : "#000000"} onChange={(e) => recolour(k, "to", e.target.value)} className="h-8 w-12" />
                           <input value={c.name} onChange={(e) => recolour(k, "name", e.target.value)} placeholder="PANTONE … U" className={`${inputCls} max-w-[200px]`} />
                           <button className={btnCls} onClick={act(() => recolour(k, "to", "#ffffff"))}>No ink</button>
+                          {jobInks.filter((q) => q.to !== String(c.to).toLowerCase() || q.name !== (c.name || "")).slice(0, 6).map((q) => (
+                            <button key={q.to} title={`Use this job colour${q.name ? `: ${q.name}` : ""}`} onClick={act(() => patch(cur.id, (i) => refreshSvg({ ...i, colours: i.colours.map((c3, n) => (n === k ? { ...c3, to: q.to, name: q.name } : c3)) })))}
+                              className="flex items-center gap-1 rounded border border-gray-300 px-1.5 py-1 text-[11px] dark:border-gray-700"><span className="inline-block h-4 w-4 rounded-sm border border-gray-400" style={{ background: q.to }} />{q.name ? q.name.replace(/^PANTONE\s+/i, "") : "same"}</button>
+                          ))}
                         </div>
                       ))}
                     </div>

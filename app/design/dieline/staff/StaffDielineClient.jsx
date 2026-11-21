@@ -24,6 +24,9 @@ import { cupGeometry, cupItemChecks, cupFormedChecks, cupFitChecks, cupMarkCheck
 import { cupMarkText } from "@/lib/dieline/designer/house";
 import { petGeometry, petItemChecks } from "@/lib/dieline/pet";
 import { petArtPdf } from "@/lib/dieline/designer/pet-pdf";
+import { cupProofPdf } from "@/lib/dieline/designer/proof-pdf";
+import { watermark } from "@/lib/dieline/designer/watermark";
+import { cmykOf } from "@/lib/dieline/designer/vector-pdf";
 import { corners as itemCorners } from "@/lib/dieline/designer/model";
 import { curveItem } from "@/lib/dieline/designer/cup-warp";
 import ArtworkDesigner from "./ArtworkDesigner";
@@ -74,6 +77,7 @@ export default function StaffDielineClient() {
     setTid(id);
     setValues(firstValues(nt));
     setBoardSel(defaultBoard(nt));
+    if (nt.family === "pet") { setProcess("pantone"); setColours(1); } // a PET cup prints one solid colour
     setArt([]);
     hist.current = { past: [], future: [] };
   }
@@ -160,7 +164,13 @@ export default function StaffDielineClient() {
   const artChecks = useMemo(() => {
     if (!artCtx) return [];
     const base = checkArtwork(art, artCtx);
-    if (!art.length || petG) return base; // a PET cup never carries an Aeros mark, whoever it is sold to
+    if (art.length && petG) { // PET: one solid colour (Arjun 21-Nov-2026) - every object must be in the SAME ink; no Aeros mark, whoever it is sold to
+      const ground = art.some((i) => i.kind === "flood");
+      const inks = new Set(art.flatMap((i) => (i.kind === "flood" ? [i.colour] : i.kind === "svg" ? (i.colours || []).map((c2) => c2.to) : ["picture"])).map((c2) => String(c2).toLowerCase()).filter((c2) => c2 !== "#ffffff"));
+      return [...base, ...(ground ? [{ id: "PET-NO-GROUND", ok: false, severity: "block", title: "PET cup: no full background patch", detail: "Remove the colour ground. A PET cup carries logos, text and line work only." }] : []), { id: "PET-ONE-COLOUR", ok: inks.size <= 1 && !inks.has("picture"), severity: "block", title: "PET cup: the whole artwork is ONE solid colour",
+        detail: inks.has("picture") ? "A picture cannot be printed on a PET cup. Use the vector logo in one colour (or trace it to one colour)." : inks.size <= 1 ? "One ink." : `${inks.size} colours on the artwork. A PET cup prints one solid colour only: give every object the same ink (click the job-colour swatch beside its colour).` }];
+    }
+    if (!art.length) return base;
     const marks = art.filter((i) => i.house === "mark"), C = (id, ok, sev, title, detail) => ({ id, ok, severity: sev, title, detail });
     const out = [C("CHANNEL", !!channel, "block", "Who the job is sold to is chosen", channel === "direct" ? "Sold direct to the end customer: the Aeros mark goes on the pack." : channel === "dealer" ? "Sold through a dealer: no Aeros branding anywhere on the pack." : "Choose it in step 4 (Print). It decides whether the Aeros mark goes on: direct = yes, dealer = none at all.")];
     if (channel === "dealer") out.push(C("CHANNEL-MARK", !marks.length, "block", "Dealer sale: no Aeros mark on the pack", marks.length ? "Remove the Aeros mark - a pack sold through a dealer carries no Aeros branding." : "None on the artwork."));
@@ -251,9 +261,63 @@ export default function StaffDielineClient() {
     } catch (e) { alert(`Could not make the file: ${e.message}`); }
     setMaking("");
   }
+  // CUSTOMER PROOF (paper cups): the house proof layout (designer/proof-pdf.js). Needs 3 or 4 shots taken from the 3D
+  // view (Arjun 21-Nov-2026: "Until those are clicked it cannot be exported"), the mesh view on page 2, and the cup's
+  // sizes from the product list - never from the die.
+  const artSig = useMemo(() => tid + "|" + JSON.stringify(art.map((i) => [i.id, i.x, i.y, i.w, i.h, i.rot, i.kind === "flood" ? i.colour : (i.colours || []).map((c2) => c2.to)])), [art, tid]);
+  const [shots, setShots] = useState([]), [prodRows, setProdRows] = useState(null), [proofPick, setProofPick] = useState(""), [proofNo, setProofNo] = useState(1);
+  useEffect(() => { // the cups in the product list, with their sizes
+    setProofPick(""); setProdRows(null); setShots([]);
+    if (!cupG) return;
+    let live = true;
+    fetch(`/api/design/product-dims?prefix=${cupG.wall === "double" ? "PC-DW" : "PC-SW"}`).then((r) => r.json()).then((j) => { if (live) setProdRows((j.products || []).filter((r) => r.td && r.bd && r.h && Math.abs(r.td - cupG.spec.TD) <= 1 && Math.abs(r.bd - cupG.spec.BD) <= 1 && Math.abs(r.h - cupG.spec.H) <= 6)); }).catch(() => { if (live) setProdRows([]); });
+    return () => { live = false; };
+  }, [tid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const loadImage = (src) => new Promise((ok2, bad) => { const im = new Image(); im.onload = () => ok2(im); im.onerror = () => bad(new Error("Could not read a picture for the proof.")); im.src = src; });
+  async function takeShot() {
+    const url = viewerRef.current.snapshot(2), im = await loadImage(url);
+    setShots((l) => [...l, { url, w: im.naturalWidth, h: im.naturalHeight, sig: artSig, caption: `View ${l.length + 1}` }].slice(0, 4));
+  }
+  const proofRow = (prodRows || []).find((r) => r.sku === proofPick) || null;
+  const freshShots = shots.filter((s2) => s2.sig === artSig);
+  const proofWhy = !cupG ? [] : [
+    !(ok && !artBlocked) && "every check on this screen must pass",
+    !art.length && "place the artwork",
+    !saved.customer.trim() && "type the customer / brand name (it heads every page)",
+    !proofRow && "choose the product from the product list (its sizes are the ones printed on the proof)",
+    freshShots.length < 3 && `take ${3 - freshShots.length} more shot${3 - freshShots.length === 1 ? "" : "s"} of the 3D view (3 or 4 are needed)${shots.length > freshShots.length ? " - the artwork changed since the old ones were taken" : ""}`,
+  ].filter(Boolean);
+  async function proofFile() {
+    setMaking("proof");
+    try {
+      const vec = await vectorArt(), views = [];
+      for (const s2 of freshShots) { const cv = watermark(await loadImage(s2.url)); views.push({ ...(await imageXObject(cv)), w: cv.width, h: cv.height, caption: s2.caption }); }
+      const gi = await loadImage("/house/proof-colour-page.jpg"), gc = document.createElement("canvas"); gc.width = gi.naturalWidth; gc.height = gi.naturalHeight; gc.getContext("2d").drawImage(gi, 0, 0);
+      const m = cupG.spec.label.match(/^(\d+) oz \((\d+ mL)\)/), sizeTxt = m ? `${m[2]} (${m[1]} oz)` : cupG.spec.label, dw = cupG.wall === "double";
+      const named = (k) => !/^Spot \d/.test(k.label), n = vec.inks.length;
+      const content = art.filter((i) => i.kind !== "flood" && !i.house && i.role === "content");
+      const pdf = cupProofPdf({ g: cupG, doc: res.doc, vector: vec, noun: "cup",
+        brand: saved.customer.trim().toUpperCase(), brandPlain: saved.customer.trim(), product: `${sizeTxt} ${dw ? "Double" : "Single"} Wall Paper Cup`, stage: `Proof ${proofNo}`,
+        date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
+        dims: { td: proofRow.td, bd: proofRow.bd, h: proofRow.h },
+        facts: [["Product", `${sizeTxt} ${dw ? "double" : "single"} wall paper cup`], ["Size", `top ${proofRow.td} mm  ·  base ${proofRow.bd} mm  ·  height ${proofRow.h} mm`],
+          ...(dw ? [["Outer wrap", "printed as drawn below; it wraps round the cup"], ["Inner cup", "plain white (no print) - its foot shows below the wrap; the rim you drink from stays white"]] : [["Cup wall", "printed as drawn below; the rim you drink from stays white"]]),
+          ["Printing", process === "pantone" ? `${n} colour${n === 1 ? "" : "s"}${vec.inks.every(named) ? `: ${vec.inks.map((k) => k.label).join(", ")}` : ""}` : "four-colour process (CMYK)"]],
+        colourNote: process === "pantone" ? `Printed in ${n} Pantone spot colour${n === 1 ? "" : "s"} on white board. Each colour is an ink mixed to its Pantone reference: please approve the references below, not the colour on your screen.` : "Printed in four-colour process (CMYK) on white board. The values below are the builds in the artwork; a screen or an office printer cannot show them truly.",
+        colours: vec.inks.map((k, i) => ({ name: named(k) ? k.label : `Colour ${i + 1}`, code: process === "pantone" && named(k) ? k.label : "", cmyk: cmykOf(k.hex) })),
+        checkList: ["Spelling and wording - every word on the artwork.", "The logo: the right version, complete, nothing cut off.", "The size and position of each element (page 2 gives the measurements).", "The colours: the references under COLOURS are the ones that will be printed.", `The item at the top of this page is the one you are ordering: ${sizeTxt}, ${dw ? "double" : "single"} wall.`],
+        meshFacts: content.map((i) => { const q = toPolar(cupG, [i.x, i.y]); return [i.name, `${i.w.toFixed(0)} mm wide x ${i.h.toFixed(0)} mm tall. Its top is ${(cupG.rTop - q.r - i.h / 2).toFixed(0)} mm below the top cut, its foot ${(q.r - i.h / 2 - cupG.rFold).toFixed(0)} mm above the bottom fold line; its centre is ${((q.a - cupG.aLeft) * q.r).toFixed(0)} mm in from the left edge.`]; }),
+        shots: views, colourPage: { ...(await imageXObject(gc)), w: gc.width, h: gc.height } });
+      const brand = saved.customer.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const nf = t.nestFile || { size: { sw8: "250ml-8oz", sw16: "450ml-16oz" }[t.cup] || "cup", item: "paper-cup-SW_cup" };
+      save(`${brand}_${nf.size}_${nf.item}_CUSTOMER-PROOF-v${proofNo}.pdf`, pdf, "application/pdf");
+    } catch (e) { alert(`Could not make the proof: ${e.message}`); }
+    setMaking("");
+  }
   // cups: the printer's set on their own nested sheet (LAYOUT / ARTWORK-PUNCH / PUNCH), as made for Blueline and Lucky
   const cupNest = t.nest ? CUP_NEST_REFS[t.nest] : null;
   const [printerPick, setPrinter] = useState("BLUELINE");
+  const [bg3d, setBg3d] = useState("#f3f4f6"), [scene3d, setScene3d] = useState("plain"), sec3d = useRef(null); // 3D viewer background (also used in snapshots and proof shots)
   const houseInfo = { channel, kind: houseKind, cupText: cupG ? cupMarkText(cupG.spec.label, cupG.wall) : "",
     bag: houseKind === "bag" && blankMm ? { W: +values.W, G: +values.G, H: +values.H, flapMid: (+values.G / 2 + 29.6) / 2 } : null };
   const printer = (t.printers || ["BLUELINE"]).includes(printerPick) ? printerPick : (t.printers || ["BLUELINE"])[0]; // only printers whose file for this cup is on hand
@@ -482,7 +546,6 @@ export default function StaffDielineClient() {
                 ["KLD SVG", () => save(`${stem}-KLD.svg`, toSvg(res.doc, { units: "both", showDims: true, title: kldTitle }), "image/svg+xml")],
                 ["Die file PDF", () => save(`${stem}-DIE-CUT.pdf`, toDiePdf(res.doc), "application/pdf")],
                 ["Die file SVG", () => save(`${stem}-DIE-CUT.svg`, toDieSvg(res.doc), "image/svg+xml")],
-                ["Recipe", () => save(`${stem}-recipe.json`, JSON.stringify(res.recipe, null, 2), "application/json")],
               ].map(([label, fn]) => (
                 <button
                   key={label}
@@ -561,6 +624,45 @@ export default function StaffDielineClient() {
             </section>
           )}
 
+          {res && res.doc && (
+            <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer proof</h2>
+              {!cupG ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">This tool makes customer proofs for paper cups so far. Bags, boxes and PET cups still go through the house proof tools.</p> : (
+                <div className="mt-2 space-y-3 text-xs text-gray-700 dark:text-gray-300">
+                  <p>The house proof: the artwork flat at full size, the same drawing on the mesh (page 2), your 3D shots (page 3) and the colours and timeline page. Every size printed on it comes from the product list.</p>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <label className="min-w-[260px] flex-1">Product (from the product list)
+                      <select value={proofPick} onChange={(e) => setProofPick(e.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
+                        <option value="">{prodRows == null ? "Loading…" : prodRows.length ? "Choose…" : "No cup of this size in the product list"}</option>
+                        {(prodRows || []).map((r) => <option key={r.sku} value={r.sku}>{r.sku} - {r.name} - {r.td} / {r.bd} / {r.h} mm</option>)}
+                      </select>
+                    </label>
+                    <label className="w-24">Proof no.<input type="number" min={1} value={proofNo} onChange={(e) => setProofNo(Math.max(1, +e.target.value || 1))} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" /></label>
+                  </div>
+                  {proofRow && proofRow.h !== cupG.spec.H && <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">The product list says height {proofRow.h} mm; the keyline says {cupG.spec.H} mm. The proof prints the product list's figure. If the keyline is the right one, the product list must be corrected first.</p>}
+                  <div>
+                    <p className="font-semibold">3D shots for page 3: {freshShots.length} of 3 to 4</p>
+                    <p className="text-gray-500">Turn the 3D cup the way you want it, then press the button under it. Take 3 or 4 different views (front, back, the seam side, from below).</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {shots.map((s2, k) => (
+                        <div key={k} className={`w-36 rounded-md border p-1 ${s2.sig === artSig ? "border-gray-300 dark:border-gray-700" : "border-red-400 opacity-60"}`}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={s2.url} alt="" className="h-20 w-full rounded object-cover" />
+                          <input value={s2.caption} onChange={(e) => setShots((l) => l.map((q, n2) => (n2 === k ? { ...q, caption: e.target.value } : q)))} className="mt-1 w-full rounded border border-gray-300 px-1 py-0.5 text-[11px] dark:border-gray-700 dark:bg-gray-950" />
+                          <button onClick={() => setShots((l) => l.filter((_, n2) => n2 !== k))} className="mt-1 text-[11px] text-red-700 underline">{s2.sig === artSig ? "Remove" : "Artwork changed - remove and retake"}</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button disabled={proofWhy.length > 0 || !!making} onClick={proofFile} className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">{making === "proof" ? "Making…" : "Customer proof (PDF)"}</button>
+                    {proofWhy.length > 0 && <span className="text-red-700 dark:text-red-300">Locked: {proofWhy.join("; ")}.</span>}
+                  </div>
+                  <p className="text-[11px] text-gray-500">After it downloads, file it in the customer's folder in Aeros Artworks before it is sent. This digital proof is for placement and the right item - never a colour approval.</p>
+                </div>
+              )}
+            </section>
+          )}
           {cupNest && cupG && res && res.doc && (
             <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -629,19 +731,32 @@ export default function StaffDielineClient() {
 
         {/* beside it on wide screens (under it otherwise): 3D, the dimensioned KLD, checks, sheet fit */}
         <div className="min-w-0 space-y-5 lg:col-start-2 2xl:col-start-3">
-          <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+          <section ref={sec3d} className="[&:fullscreen]:overflow-auto [&:fullscreen]:p-6 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{petG ? "3D cup (the moulded cup, print band wrapped 360°)" : cupG ? "3D cup (the real fan wrapped to its cone)" : `3D model (the real die folded at ${board.mm} mm caliper${board.caliperStatus === "assumed" ? ", assumed" : ""})`}</h2>
               {(solid || cupG || petG) && (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700" title="Standard views">
+                    {[["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"], ["top", "Top"], ["bottom", "Bottom"], ["iso", "3/4"]].map(([k, label]) => <button key={k} onClick={() => viewerRef.current?.view(k)} className="border-r border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 last:border-r-0 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">{label}</button>)}
+                  </span>
+                  <button onClick={() => { if (document.fullscreenElement) document.exitFullscreen(); else sec3d.current?.requestFullscreen?.(); }} title="The 3D panel fills the whole screen (Esc to leave)" className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">Full screen</button>
+                  <select value={scene3d} onChange={(e) => setScene3d(e.target.value)} title="What the product stands on" className="rounded-md border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                    <option value="plain">Scene: plain</option><option value="studio">Scene: studio floor with shadow</option>
+                  </select>
+                  <span className="flex items-center gap-1 rounded-md border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 dark:border-gray-700 dark:text-gray-300" title="Background of the 3D view (snapshots and proof shots use it too)">
+                    Background
+                    {["#ffffff", "#f3f4f6", "#d9dde3", "#3a3f47", "#111111"].map((c2) => <button key={c2} onClick={() => setBg3d(c2)} className={`h-4 w-4 rounded-sm border ${bg3d === c2 ? "border-blue-600 ring-1 ring-blue-600" : "border-gray-400"}`} style={{ background: c2 }} aria-label={`Background ${c2}`} />)}
+                    <input type="color" value={bg3d} onChange={(e) => setBg3d(e.target.value)} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" aria-label="Any background colour" />
+                  </span>
                   <button onClick={() => save(`${stem}-3D.stl`, viewerRef.current.exportStl(), "model/stl")} className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">STL (mm)</button>
                   <button onClick={() => { const a = document.createElement("a"); a.href = viewerRef.current.snapshot(); a.download = `${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`; a.click(); }} title="Saves the 3D view exactly as it is turned now" className="rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">Snapshot of this view (PNG)</button>
+                  {cupG && <button onClick={takeShot} disabled={shots.length >= 4} title="Adds this view to the customer proof (3 or 4 are needed)" className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40">Take proof shot ({shots.length}/4)</button>}
                   <button onClick={() => save(`${stem}-3D.obj`, viewerRef.current.exportObj(), "model/obj")} className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">OBJ (mm)</button>
                 </div>
               )}
             </div>
             {petG && blankMm ? (
-              <SolidViewer ref={viewerRef} pet={petG} colours={mat.colour3d} texture={tex} blank={blankMm} />
+              <SolidViewer ref={viewerRef} scene={scene3d} background={bg3d} pet={petG} colours={mat.colour3d} texture={tex} blank={blankMm} />
             ) : cupG && blankMm ? (
               <>
                 {innerG && (
@@ -651,7 +766,7 @@ export default function StaffDielineClient() {
                     ))}
                   </div>
                 )}
-                <SolidViewer ref={viewerRef} cone={cupG} coneInner={innerG && cupView === "full" ? innerG : null} caliper={board.mm} colours={mat.colour3d} texture={tex} blank={blankMm} />
+                <SolidViewer ref={viewerRef} scene={scene3d} background={bg3d} cone={cupG} coneInner={innerG && cupView === "full" ? innerG : null} caliper={board.mm} colours={mat.colour3d} texture={tex} blank={blankMm} />
                 <ul className="mt-3 space-y-1.5">
                   {[...cupFormedChecks(cupG), ...(innerG && cupView === "full" ? cupFitChecks(cupG, innerG, board.mm) : [])].map((c, k) => (
                     <li key={k} className={`rounded-md px-3 py-2 text-xs ${SEV[c.severity][c.ok ? "pass" : "fail"]}`}>
@@ -663,7 +778,7 @@ export default function StaffDielineClient() {
               </>
             ) : solid ? (
               <>
-                <SolidViewer ref={viewerRef} model={solid} lieFlat={t.family === "box"} colours={mat.colour3d} texture={tex} blank={blankMm} />
+                <SolidViewer ref={viewerRef} scene={scene3d} background={bg3d} model={solid} lieFlat={t.family === "box"} colours={mat.colour3d} texture={tex} blank={blankMm} />
                 <label className="mt-2 flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
                   Flat
                   <input type="range" min={0} max={1} step={0.01} value={foldT} onChange={(e) => setFoldT(+e.target.value)} className="flex-1" />

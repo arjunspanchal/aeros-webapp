@@ -78,7 +78,7 @@ export function wrapLift(wrap, inner) {
   return inner.formed.wallHeight - tube - wrap.formed.wallHeight;
 }
 
-const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, coneInner = null, pet = null, caliper, lieFlat = false }, ref) {
+const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, coneInner = null, pet = null, caliper, lieFlat = false, background = "#f3f4f6", scene: sceneKind = "plain" }, ref) {
   const host = useRef(null), st = useRef({});
 
   useEffect(() => {
@@ -109,17 +109,32 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     scene.add(camera);
     const group = new THREE.Group();
     scene.add(group);
-    const size = () => { const w = el.clientWidth, h = Math.max(320, Math.round(w * 0.62)); renderer.setSize(w, h, false); renderer.domElement.style.width = "100%"; renderer.domElement.style.height = `${h}px`; renderer.domElement.style.display = "block"; camera.aspect = w / h; camera.updateProjectionMatrix(); };
+    // full screen: the 3D panel (its buttons included) fills the screen and the view takes all the height that is left
+    const size = () => { const fs = !!document.fullscreenElement && document.fullscreenElement.contains(el), w = el.clientWidth, h = fs ? Math.max(320, window.innerHeight - 190) : Math.max(320, Math.round(w * 0.62)); renderer.setSize(w, h, false); renderer.domElement.style.width = "100%"; renderer.domElement.style.height = `${h}px`; renderer.domElement.style.display = "block"; camera.aspect = w / h; camera.updateProjectionMatrix(); };
     size();
     const ro = new ResizeObserver(size);
     ro.observe(el);
+    document.addEventListener("fullscreenchange", size); window.addEventListener("resize", size);
+    // STUDIO SET: a floor that only shows the model's shadow, so the product stands on something on any background colour
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.radius = 6;
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.22 }));
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; floor.visible = false; scene.add(floor);
+    // + a soft contact shadow right under the model (the cast shadow of a low box falls behind it, out of sight)
+    const bc = document.createElement("canvas"); bc.width = bc.height = 256;
+    const bg2 = bc.getContext("2d"), grad = bg2.createRadialGradient(128, 128, 20, 128, 128, 128);
+    grad.addColorStop(0, "rgba(0,0,0,0.42)"); grad.addColorStop(0.55, "rgba(0,0,0,0.16)"); grad.addColorStop(1, "rgba(0,0,0,0)");
+    bg2.fillStyle = grad; bg2.fillRect(0, 0, 256, 256);
+    const blob = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bc), transparent: true, depthWrite: false }));
+    blob.rotation.x = -Math.PI / 2; blob.visible = false; scene.add(blob);
     let raf;
     const loop = () => { controls.update(); renderer.render(scene, camera); raf = requestAnimationFrame(loop); };
     loop();
-    st.current = { renderer, scene, camera, controls, group, framed: false };
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); controls.dispose(); renderer.dispose(); el.removeChild(renderer.domElement); };
+    st.current = { renderer, scene, camera, controls, group, framed: false, sun, floor, blob };
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener("fullscreenchange", size); window.removeEventListener("resize", size); controls.dispose(); renderer.dispose(); el.removeChild(renderer.domElement); };
   }, []);
 
+  useEffect(() => { if (st.current.scene) st.current.scene.background = new THREE.Color(background); }, [background]);
   useEffect(() => {
     const s = st.current;
     if (!s.group || (!cone && !pet && (!model || !model.world))) return;
@@ -172,6 +187,12 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     s.group.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(s.group), c = box.getCenter(new THREE.Vector3()), d = box.getSize(new THREE.Vector3()).length();
     s.group.position.set(-c.x, -c.y, -c.z);
+    // studio floor under the model + the key light's shadow sized to it
+    s.group.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    const sz = box.getSize(new THREE.Vector3());
+    s.floor.visible = sceneKind === "studio"; s.floor.scale.set(d * 6, d * 6, 1); s.floor.position.set(0, -sz.y / 2 - 0.05, 0);
+    s.blob.visible = sceneKind === "studio"; s.blob.scale.set(sz.x * 1.7, sz.z * 1.7, 1); s.blob.position.set(0, -sz.y / 2 - 0.03, 0);
+    s.sun.position.set(d * 0.5, d * 1.3, d * 0.8); const sc = s.sun.shadow.camera; sc.left = -d; sc.right = d; sc.top = d; sc.bottom = -d; sc.near = 0.1; sc.far = d * 5; sc.updateProjectionMatrix();
     const key = pet ? `pet-${pet.id}` : cone ? `cup-${cone.id}-${coneInner ? "full" : "alone"}` : model.key;
     if (!s.framed || s.lastKey !== key) {
       s.camera.position.set(d * 1.1, d * 0.7, d * 1.5);
@@ -179,12 +200,27 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       s.camera.near = d / 100; s.camera.far = d * 20; s.camera.updateProjectionMatrix();
       s.framed = true; s.lastKey = key;
     }
-  }, [model, colours, texture, blank, cone, coneInner, pet, caliper, lieFlat]);
+  }, [model, colours, texture, blank, cone, coneInner, pet, caliper, lieFlat, sceneKind]);
 
   useImperativeHandle(ref, () => ({
     exportStl() { return new STLExporter().parse(st.current.group, { binary: false }); },
     exportObj() { return new OBJExporter().parse(st.current.group); },
-    snapshot() { return st.current.renderer.domElement.toDataURL("image/png"); },
+    // standard views, as in a CAD program: the camera goes straight onto that side, same distance, looking at the model's centre
+    view(name) {
+      const { camera, controls } = st.current, r = camera.position.distanceTo(controls.target) || 500;
+      const dir = { front: [0, 0, 1], back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0], top: [0, 1, 0.0005], bottom: [0, -1, 0.0005], iso: [0.55, 0.35, 0.75] }[name] || [0.55, 0.35, 0.75], l = Math.hypot(...dir);
+      controls.target.set(0, 0, 0); camera.position.set((dir[0] / l) * r, (dir[1] / l) * r, (dir[2] / l) * r); camera.lookAt(0, 0, 0); controls.update();
+    },
+    // the view exactly as it is turned now; scale > 1 re-renders it sharper (proof shots)
+    snapshot(scale = 1) {
+      const { renderer, scene, camera } = st.current;
+      if (scale <= 1) return renderer.domElement.toDataURL("image/png");
+      const pr = renderer.getPixelRatio();
+      renderer.setPixelRatio(Math.min(4, pr * scale)); renderer.render(scene, camera);
+      const url = renderer.domElement.toDataURL("image/png");
+      renderer.setPixelRatio(pr); renderer.render(scene, camera);
+      return url;
+    },
   }));
 
   return <div ref={host} className="w-full overflow-hidden rounded-md" />;
