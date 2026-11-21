@@ -351,6 +351,7 @@ export default function StaffDielineClient() {
   // MOCKUP PACK (Arjun 21-Nov-2026): everything sales sends a prospect, in one zip - the three standard views, the product
   // in each scene, and the turntable. All from the measured model, all watermarked; nothing is generated.
   const [pack, setPack] = useState("");
+  const [dress, setDress] = useState({ drink: "", lid: "", straw: "" }); // a drink, lid and straw on the 3D cup - for pictures only
   async function mockupPack() {
     const v = viewerRef.current, scene0 = scene3d, wait = (ms) => new Promise((r) => setTimeout(r, ms)), files = [];
     const shot = async (name) => { await wait(120); const cv = watermark(await loadImage(v.snapshot(2))); const b64 = atob((/\.jpg$/.test(name) ? cv.toDataURL("image/jpeg", 0.92) : cv.toDataURL("image/png")).split(",")[1]), data = new Uint8Array(b64.length); for (let i = 0; i < b64.length; i++) data[i] = b64.charCodeAt(i); files.push({ name, data }); }; // (toBlob can hang in a background tab)
@@ -912,6 +913,21 @@ export default function StaffDielineClient() {
                         </span>
                       )}
                   </div>
+                  {(petG || cupG) && (
+                    <div className="flex flex-wrap items-center gap-2" title="For pictures only: the cup is the measured part; the lid and straw are plain shapes sized from its brim">
+                      <span className={lab}>Dress</span>
+                      {petG && <select value={dress.drink} onChange={(e) => setDress((d) => ({ ...d, drink: e.target.value }))} className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                        <option value="">Empty cup</option>{[["#c9a27a", "Iced latte"], ["#3a2014", "Cold brew"], ["#8fb04a", "Matcha"], ["#e58aa0", "Strawberry"], ["#f0c64a", "Mango"], ["#f3ead2", "Lassi"], ["#5a1d12", "Cola"]].map(([c2, n2]) => <option key={c2} value={c2}>{n2}</option>)}
+                      </select>}
+                      <select value={petG ? dress.lid : ["white", "black"].includes(dress.lid) ? dress.lid : ""} onChange={(e) => setDress((d) => ({ ...d, lid: e.target.value }))} className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                        <option value="">No lid</option>{(petG ? [["flat", "Flat lid"], ["dome", "Dome lid"]] : [["white", "White sip lid"], ["black", "Black sip lid"]]).map(([k, n2]) => <option key={k} value={k}>{n2}</option>)}
+                      </select>
+                      {petG && <select value={dress.straw} onChange={(e) => setDress((d) => ({ ...d, straw: e.target.value }))} className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                        <option value="">No straw</option>{[["#1b1b1b", "Black straw"], ["#f5f5f2", "White straw"], ["#b98b5a", "Kraft paper straw"]].map(([c2, n2]) => <option key={c2} value={c2}>{n2}</option>)}
+                      </select>}
+                      <span className="text-[10px] text-gray-500">for pictures only</span>
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={lab}>Save</span>
                     <button onClick={() => saveShot(`${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`)} title="Saves the 3D view exactly as it is turned now, with the Aeros watermark" className={darkBtn}>Snapshot (PNG)</button>
@@ -926,7 +942,7 @@ export default function StaffDielineClient() {
               );
             })()}
             {petG && blankMm ? (
-              <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} background={bg3d} pet={petG} colours={mat.colour3d} texture={tex} blank={blankMm} />
+              <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} dress={dress} background={bg3d} pet={petG} colours={mat.colour3d} texture={tex} blank={blankMm} />
             ) : cupG && blankMm ? (
               <>
                 {innerG && (
@@ -936,7 +952,7 @@ export default function StaffDielineClient() {
                     ))}
                   </div>
                 )}
-                <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} background={bg3d} cone={cupG} coneInner={innerG && cupView === "full" ? innerG : null} caliper={board.mm} colours={mat.colour3d} texture={tex} blank={blankMm} />
+                <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} dress={["white", "black"].includes(dress.lid) ? dress : null} background={bg3d} cone={cupG} coneInner={innerG && cupView === "full" ? innerG : null} caliper={board.mm} colours={mat.colour3d} texture={tex} blank={blankMm} />
                 <CheckList checks={[...cupFormedChecks(cupG), ...(innerG && cupView === "full" ? cupFitChecks(cupG, innerG, board.mm) : [])]} className="mt-3" />
               </>
             ) : solid ? (

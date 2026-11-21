@@ -83,7 +83,7 @@ export function wrapLift(wrap, inner) {
   return inner.formed.wallHeight - tube - wrap.formed.wallHeight;
 }
 
-const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, coneInner = null, pet = null, caliper, lieFlat = false, background = "#f3f4f6", scene: sceneKind = "plain", sceneScale = 1 }, ref) {
+const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, coneInner = null, pet = null, caliper, lieFlat = false, background = "#f3f4f6", scene: sceneKind = "plain", sceneScale = 1, dress = null }, ref) {
   const host = useRef(null), st = useRef({});
 
   useEffect(() => {
@@ -181,6 +181,27 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       const floor = new THREE.Mesh(new THREE.CircleGeometry(pet.profile[0][0] / 2, 96), clear({ thickness: 1.4, roughness: 0.07 })); floor.rotation.x = -Math.PI / 2; floor.position.y = 0.05; // the base is the thickest part of the cup
       const rim = new THREE.Mesh(new THREE.TorusGeometry(pet.td / 2, 1.15, 16, 160), clear({ thickness: 2.3, attenuationDistance: 10 })); rim.rotation.x = Math.PI / 2; rim.position.y = pet.h; // rolled rim
       s.group.add(body, floor, rim);
+      // DRESSING, for pictures only (Arjun 21-Nov-2026): a drink, a lid and a straw. The cup stays the measured part; the lid
+      // and straw are plain shapes sized from the cup's own brim, not drawn from a lid's drawing.
+      if (dress?.drink) {
+        const zFill = pet.h * 0.84, pts = [new THREE.Vector2(0, 0.7)];
+        for (let k = 0; k <= 40; k++) { const z = 0.7 + ((zFill - 0.7) * k) / 40; pts.push(new THREE.Vector2(Math.max(0.1, pet.diaAt(z) / 2 - 0.55), z)); }
+        pts.push(new THREE.Vector2(0, zFill));
+        s.group.add(new THREE.Mesh(new THREE.LatheGeometry(pts, 128), new THREE.MeshStandardMaterial({ color: dress.drink, roughness: 0.22, envMap: s.env, envMapIntensity: 0.35 })));
+      }
+      const R = pet.td / 2;
+      if (dress?.lid === "flat") {
+        s.group.add(new THREE.Mesh(new THREE.LatheGeometry([[5, pet.h + 1.6], [R - 7, pet.h + 1.6], [R - 5, pet.h + 2.8], [R + 0.9, pet.h + 2.8], [R + 1.3, pet.h - 2.6]].map(([x, y]) => new THREE.Vector2(x, y)), 128), clear({ thickness: 0.8 })));
+      } else if (dress?.lid === "dome") {
+        const pts = [new THREE.Vector2(R + 1.3, pet.h - 2.6), new THREE.Vector2(R + 0.9, pet.h + 1)], domeH = pet.td * 0.36;
+        for (let k = 0; k <= 30; k++) { const a = (k / 30) * 1.33, r = R * Math.cos(a); if (r < 11) break; pts.push(new THREE.Vector2(r, pet.h + 1 + domeH * Math.sin(a))); }
+        s.group.add(new THREE.Mesh(new THREE.LatheGeometry(pts, 128), clear({ thickness: 0.8 })));
+      }
+      if (dress?.straw) {
+        const len = pet.h * 1.42, straw = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, len, 32, 1, true), new THREE.MeshStandardMaterial({ color: dress.straw, roughness: 0.55, side: THREE.DoubleSide }));
+        straw.rotation.z = -0.13; straw.position.set(4 + Math.sin(0.13) * (len / 2 - 6), 6 + Math.cos(0.13) * (len / 2), 0); // foot in the cup, a slight lean
+        s.group.add(straw);
+      }
       if (s.tex) {
         const nA = 192, nZ = 32, pos = [], uvs = [], idx = [];
         for (let j = 0; j <= nZ; j++) for (let i = 0; i <= nA; i++) {
@@ -198,6 +219,13 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       const lift = wrapLift(cone, coneInner);
       for (const m of cupMeshes(cone, blank, mats, caliper, true)) { m.position.y += lift; s.group.add(m); }
     } else if (cone) for (const m of cupMeshes(cone, blank, mats, caliper, !cone.hasRim)) s.group.add(m);
+    // a sip lid on a paper cup, for pictures only: a plain turned shape sized from the cup's own brim (not a lid drawing)
+    const rimmed = cone && (coneInner || cone.hasRim) ? (coneInner || cone) : null;
+    if (rimmed && dress?.lid && !pet) {
+      const R = rimmed.spec.TD / 2, y0 = (rimmed.rRim - rimmed.rFold) * rimmed.cosB;
+      const prof = [[R + 1.4, y0 - 4], [R + 1.9, y0 + 0.6], [R - 0.5, y0 + 3.2], [R - 4.5, y0 + 3.2], [R - 7, y0 + 9.5], [R - 12, y0 + 9.5], [R - 15, y0 + 5.2], [0, y0 + 5.8]];
+      s.group.add(new THREE.Mesh(new THREE.LatheGeometry(prof.map(([x, y]) => new THREE.Vector2(Math.max(0, x), y)), 128), new THREE.MeshStandardMaterial({ color: dress.lid === "black" ? "#1c1c1c" : "#f4f4f2", roughness: dress.lid === "black" ? 0.45 : 0.6, side: THREE.DoubleSide })));
+    }
     const panels = cone || pet ? [] : model.geom.panels;
     for (const w of cone || pet ? [] : model.world) {
       const P0 = panels[w.panel];
@@ -248,7 +276,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       s.camera.near = d / 100; s.camera.far = d * 20; s.camera.updateProjectionMatrix();
       s.framed = true; s.lastKey = key;
     }
-  }, [model, colours, texture, blank, cone, coneInner, pet, caliper, lieFlat, sceneKind, sceneScale]);
+  }, [model, colours, texture, blank, cone, coneInner, pet, caliper, lieFlat, sceneKind, sceneScale, dress?.drink, dress?.lid, dress?.straw]);
 
   useImperativeHandle(ref, () => ({
     exportStl() { return new STLExporter().parse(st.current.group, { binary: false }); },
