@@ -112,7 +112,9 @@ export default function AppHeader({ session }) {
   const available = MODULES.filter((m) => !!modules[m.key]);
   // Design module is open to every authenticated user — append it to
   // the nav unconditionally if the user is signed in.
-  if (session) {
+  // Design = the staff KLD + artwork tool: Aeros staff only (never vendor logins). Mirrors lib/auth/policy.js#requireInternal.
+  const isInternal = !!session && (session.isAdmin || ["admin", "factory_manager", "factory_executive", "warehouse", "account_manager"].includes(modules.factoryos));
+  if (isInternal) {
     available.push({ key: "design", label: "Design", href: "/design" });
   }
   const subTabs = subTabsFor(pathname, session);

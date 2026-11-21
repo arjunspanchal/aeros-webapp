@@ -15,7 +15,7 @@ const STATIC_ITEMS = [
   { kind: "module", label: "Sheets",       hint: "Shared team spreadsheets — saved online",  href: "/sheets",       internalOnly: true },
   { kind: "module", label: "Calculator",   hint: "Rate quoting — bag, box, cup, wrap, PP",   href: "/calculator",   module: "calculator" },
   { kind: "module", label: "Catalogue",    hint: "Full SKU master",                          href: "/catalog",      module: "catalogue" },
-  { kind: "module", label: "Design",       hint: "Keylines, KLDs, mockups",                  href: "/design",       always: true },
+  { kind: "module", label: "Design",       hint: "KLDs, artwork, 3D check, print files",     href: "/design",       internalOnly: true },
   { kind: "module", label: "Brand Kit",    hint: "Logos, palette, typography",               href: "/brand",        adminOnly: true },
   { kind: "module", label: "User Access",  hint: "Manage logins, roles, linked clients",     href: "/admin/access", adminOnly: true },
 
@@ -27,7 +27,7 @@ const STATIC_ITEMS = [
   { kind: "action", label: "Receive goods",      hint: "Warehouse inward",           href: "/factoryos/warehouse/inward",  module: "factoryos", roles: ["admin", "warehouse"] },
   { kind: "action", label: "Stock on the racks", hint: "What the warehouse holds",   href: "/factoryos/warehouse/stock",   module: "factoryos", roles: ["admin", "warehouse", "factory_manager", "factory_executive"] },
   { kind: "action", label: "Add a payout",       hint: "Log a vendor payment due",   href: "/payouts",                   module: "payouts" },
-  { kind: "action", label: "Dieline generator",  hint: "Parametric cake-box KLD",    href: "/design/dieline",            always: true },
+  { kind: "action", label: "Make a KLD",         hint: "Proven templates + artwork", href: "/design",                    internalOnly: true },
 
   { kind: "public", label: "Paper cups",         hint: "Public rate sheet",          href: "/paper-cups" },
   { kind: "public", label: "Paper bags",         hint: "Public rate sheet",          href: "/paper-bags" },

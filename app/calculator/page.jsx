@@ -51,9 +51,9 @@ export default function CalculatorPickerPage() {
       accent: "from-stone-600 to-stone-800",
     },
     {
-      href: "/design/dieline",
-      title: "Cake Box Dieline Generator",
-      desc: "Parametric KLD for lock-corner cake / snack boxes — any size, instant preview, PDF / SVG / DXF for the die maker.",
+      href: "/design",
+      title: "Make a KLD",
+      desc: "Keyline and artwork from proven templates (bags, boxes, cups), checked for printing and making, with a 3D model and print files.",
       accent: "from-neutral-700 to-neutral-900",
     },
     // Admin-only: AppHeader carries a PP sub-tab for admins; keep the picker

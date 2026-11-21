@@ -127,15 +127,15 @@ const TILES = [
     key: "design",
     href: "/design",
     title: "Design",
-    blurb: "Keylines, KLDs, mockups, artwork",
+    blurb: "KLDs, artwork, 3D check, print files",
     size: "lg",
     accent: "from-violet-600 to-indigo-700",
     sparkColor: "#8B5CF6",
-    always: true, // open to every authed user (designers / printers)
+    internalOnly: true, // the staff KLD + artwork tool (21-Nov-2026): Aeros staff only, never vendor logins
     metric: (s) => ({
       number: s?.design?.files ?? 0,
       label: "design files",
-      sub: "Download keylines",
+      sub: "Make a KLD, place artwork",
     }),
   },
   {
@@ -163,7 +163,7 @@ const TILES = [
 ];
 
 const QUICK_ACTIONS = [
-  { label: "Dieline generator", href: "/design/dieline",              always: true },
+  { label: "Make a KLD",        href: "/design",                      module: "factoryos", roles: ["admin", "factory_manager", "factory_executive", "warehouse", "account_manager"] },
   { label: "New job",           href: "/factoryos/admin/jobs/new",    module: "factoryos", roles: ["admin", "factory_manager"] },
   { label: "My jobs",           href: "/factoryos/manager",           module: "factoryos", roles: ["account_manager", "factory_executive"] },
   { label: "Load an invoice",   href: "/factoryos/warehouse/outward", module: "factoryos", roles: ["admin", "warehouse"] },

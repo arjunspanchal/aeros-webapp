@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/hub/session";
+import { getSession, requireInternal, requireAdminStrict } from "@/lib/auth/session";
 import AppHeader from "../../../components/AppHeader";
 import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
@@ -8,23 +8,31 @@ import StaffDielineClient from "./StaffDielineClient";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Make a KLD — Aeros",
-  description: "Staff keyline maker: proven Aeros templates only, every die checked for print and production limits before download.",
+  title: "Design — Aeros",
+  description: "KLD and artwork: proven Aeros templates only, every die and artwork checked for print and production limits before download.",
 };
 
 export default function StaffDielinePage() {
   const session = getSession();
   if (!session) redirect("/login");
+  if (!requireInternal(session)) redirect("/hub"); // staff only: proven sizes carry customer names and our printers
+  const isAdmin = requireAdminStrict(session);
 
   return (
     <>
       <AppHeader session={session} />
       <Header
-        title="Make a KLD"
-        subtitle="Pick a proven template, enter the size, board and colours. The die is checked against our printing and making limits; downloads open only when every check passes."
+        title="Design: KLD and artwork"
+        subtitle="Pick a proven template, enter the size, board and colours, place the artwork. Everything is checked against our printing and making limits; files open only when every check passes."
       />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <StaffDielineClient />
+        {isAdmin && (
+          <p className="mt-8 text-xs text-gray-500 dark:text-gray-400">
+            Admin: a die style that is not a template yet (cartons, pizza and gable boxes, sleeves, trays, carriers, non-woven bags) is in the{" "}
+            <a href="/design/dieline" className="underline">all-styles generator</a>. Its output is not checked like this screen.
+          </p>
+        )}
       </main>
       <Footer />
     </>
