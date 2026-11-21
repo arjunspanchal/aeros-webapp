@@ -77,7 +77,9 @@ function CheckList({ checks, className = "" }) {
   );
 }
 
+let CAPTURE = null; // while a pack is being made, files are collected here instead of being downloaded
 function save(name, text, type) {
+  if (CAPTURE) { CAPTURE.push({ name, data: text, type }); return; }
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = document.createElement("a");
   a.href = url;
@@ -153,6 +155,17 @@ export default function StaffDielineClient() {
       setSaved((sv) => ({ ...sv, id: d.id, name: d.name, customer: d.customer || "", list: null, msg: `Opened "${d.name}".` }));
     } catch (e) { setSaved((sv) => ({ ...sv, msg: e.message })); }
   }
+  // FACTORYOS JOB (Arjun 21-Nov-2026): the design is tied to its job, and the printer's set goes onto the job's own
+  // "Messages & files" thread, where the printer assigned to the job sees it - no download, rename and mail.
+  const [jobs, setJobs] = useState(null), [linked, setLinked] = useState(null), [jobFind, setJobFind] = useState(false), [sending, setSending] = useState("");
+  const loadJobs = async () => { if (jobs) return jobs; try { const j = await (await fetch("/api/design/jobs")).json(); const l = j.jobs || []; setJobs(l); return l; } catch { setJobs([]); return []; } };
+  const linkJob = (j) => { setLinked(j); setJob(j.jNumber); setJobFind(false); if (j.brand) setSaved((sv) => (sv.customer ? sv : { ...sv, customer: j.brand })); };
+  useEffect(() => { // opened from a job (…/staff?job=<id>): link it straight away
+    const id = new URLSearchParams(window.location.search).get("job");
+    if (id) loadJobs().then((l) => { const j = l.find((q) => q.id === id || q.jNumber === id); if (j) linkJob(j); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (linked && job !== linked.jNumber) setLinked(null); }, [job]); // eslint-disable-line react-hooks/exhaustive-deps -- the number was edited: no longer that job
+  const jobHits = jobFind && jobs ? jobs.filter((j) => { const q = job.trim().toLowerCase(); return !q || `${j.jNumber} ${j.brand} ${j.item} ${j.printer}`.toLowerCase().includes(q); }).slice(0, 8) : [];
   const viewerRef = useRef(null);
   const print = { process, colours: process === "plain" ? 0 : +colours };
 
@@ -451,6 +464,30 @@ export default function StaffDielineClient() {
     } catch (e) { alert(`Could not make the file: ${e.message}`); }
     setMaking("");
   }
+  // SEND TO THE JOB: the printer's set for this item - exactly the files the buttons make - goes onto the linked job's
+  // thread as artwork. Nothing is sent unless every file of the set was made, and the user sees the list first.
+  const jobSet = petG ? [["print", "petart"], ["print", "vendor"]] : cupG ? (cupNest ? [["nest", "layout"], ["nest", "artpunch"], ["nest", "punch"]] : [["print", "layout"], ["print", "artpunch"]])
+    : layFit ? [["lay", "punch"], ["lay", "print"], ["lay", "die"], ["print", "vendor"]] : [["print", "layout"], ["print", "artpunch"], ["print", "vendor"]];
+  async function sendToJob() {
+    if (!linked) return;
+    setSending("Making the files…"); CAPTURE = [];
+    let files = [];
+    try { for (const [fn, k] of jobSet) await (fn === "nest" ? nestFile(k) : fn === "lay" ? layoutFile(k) : printFile(k)); } finally { files = CAPTURE || []; CAPTURE = null; }
+    if (files.length !== jobSet.length) { setSending(""); alert("Not every file of the set could be made, so nothing was sent."); return; }
+    const who = linked.printer ? `The printer on this job (${linked.printer}) will see them in the vendor portal.` : "No printer is on this job yet: whoever is assigned will see them.";
+    if (!window.confirm(`Send these ${files.length} files to job ${linked.jNumber}${linked.brand ? ` (${linked.brand})` : ""}?\n\n${files.map((f) => `- ${f.name}`).join("\n")}\n\n${who}`)) { setSending(""); return; }
+    try {
+      for (let i = 0; i < files.length; i++) {
+        setSending(`Sending ${i + 1} of ${files.length}…`);
+        const f = files[i], bytes = new Uint8Array(await new Blob([f.data]).arrayBuffer());
+        let bin = ""; for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + 0x8000));
+        const r = await fetch(`/api/factoryos/jobs/${linked.id}/thread`, { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: i === 0 ? `Printer's set from the Design tool: ${t.name}${sizeText ? `, ${sizeText}` : ""} (${files.length} files).` : "", filename: f.name, contentType: f.type || "application/pdf", fileBase64: btoa(bin), kind: "artwork" }) });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `the job did not take file ${i + 1}`);
+      }
+      setSending(`Sent ${files.length} files to ${linked.jNumber} at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`);
+    } catch (e) { setSending(""); alert(`Stopped: ${e.message}. Look at the job's Messages & files before sending again.`); }
+  }
   const solid = useMemo(() => {
     if (!geom) return null;
     const m = solidModel(tid, values, res.doc, { thickness: board.mm, t: foldT, geom });
@@ -624,9 +661,19 @@ export default function StaffDielineClient() {
               </select>
             </label>
             <label className="mt-3 block">
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Job / customer tag for the file name (optional)</span>
-              <input value={job} onChange={(e) => setJob(e.target.value)} placeholder="e.g. J-1042" className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" />
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">FactoryOS job (optional; also goes in the file name)</span>
+              <input value={job} onChange={(e) => { setJob(e.target.value); setJobFind(true); loadJobs(); }} onFocus={() => { setJobFind(true); loadJobs(); }} placeholder="job number or brand" className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" />
             </label>
+            {linked ? (
+              <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">Linked: {linked.jNumber}{linked.brand ? ` · ${linked.brand}` : ""}{linked.item ? ` · ${linked.item}` : ""}{linked.printer ? ` · printer: ${linked.printer}` : " · no printer on the job yet"}{" "}
+                <button type="button" onClick={() => setLinked(null)} className="underline decoration-dotted">unlink</button></p>
+            ) : jobFind && (
+              <div className="mt-1 rounded-md border border-gray-200 text-xs dark:border-gray-800">
+                {jobs === null ? <p className="px-2 py-1.5 text-gray-500">Loading jobs…</p> : jobHits.length === 0 ? <p className="px-2 py-1.5 text-gray-500">No job matches. The text is still used in the file name.</p>
+                  : jobHits.map((j) => <button type="button" key={j.id} onClick={() => linkJob(j)} className="block w-full border-b border-gray-100 px-2 py-1.5 text-left last:border-b-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800"><span className="font-semibold">{j.jNumber}</span> · {j.brand || "-"} · {j.item}{j.itemSize ? ` ${j.itemSize}` : ""}<span className="text-gray-500">{j.printer ? ` · ${j.printer}` : ""}</span></button>)}
+                <button type="button" onClick={() => setJobFind(false)} className="block w-full px-2 py-1 text-left text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800">close</button>
+              </div>
+            )}
           </section>
         </div>
 
@@ -716,6 +763,12 @@ export default function StaffDielineClient() {
                       {making === "digital" ? "Making…" : `Digital sample, 13 × 19 in (${digPlan.split ? `${digPlan.pieces.length} pieces` : `${digPlan.ups}-up`})`}
                     </button>}
                     {digPlan?.error && <span className="text-[11px] text-amber-700 dark:text-amber-300">Digital sample: {digPlan.error}</span>}
+                    {linked && <button disabled={!ok || artBlocked || !!making || (!!sending && /…$/.test(sending))} onClick={sendToJob} title={`Makes the printer's set (${jobSet.length} files) and puts it on the job's Messages & files, where the printer sees it`}
+                      className="rounded-md border border-emerald-700 bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
+                      {sending && /…$/.test(sending) ? sending : `Send printer's set to ${linked.jNumber}`}
+                    </button>}
+                    {linked && sending && !/…$/.test(sending) && <span className="text-[11px] text-emerald-700 dark:text-emerald-300">{sending} <a className="underline" href={`/factoryos/manager/${linked.id}`} target="_blank" rel="noreferrer">Open the job</a></span>}
+                    {!linked && art.length > 0 && <span className="text-[11px] text-gray-500">Link a FactoryOS job (step 4) to send the printer's set straight to it.</span>}
                     {(!ok || artBlocked) && <span className="text-[11px] text-red-700 dark:text-red-300">Locked - to fix: {[...fails, ...artChecks.filter((c) => !c.ok && c.severity === "block")].map((c) => c.title).join("; ") || "see the checks"}.</span>}
                     {cupG && <p className="w-full text-[11px] text-gray-600 dark:text-gray-400">{cupNest ? "These are one-cup files for checking and approval. The printer's set is below." : "These are one-cup files for checking and approval. No offset nest is on file for this cup, so the printer's set is not made here."}</p>}
                   </div>

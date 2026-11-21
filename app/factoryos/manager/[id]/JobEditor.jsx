@@ -773,6 +773,9 @@ export default function JobEditor({
 
       <JobTasksCard jNumber={job.jNumber} />
 
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Artwork for this job: <a className="underline" href={`/design/dieline/staff?job=${encodeURIComponent(job.id)}`}>open the Design tool on this job</a> - the printer&apos;s set it makes lands in the messages below.
+      </p>
       <JobThread jobId={job.id} viewerRole="team" title="Messages & files (team + printer)" />
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 dark:bg-gray-900 dark:border-gray-800">
