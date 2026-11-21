@@ -98,6 +98,13 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
       }
       setGuides(g);
       patch(d.id, (i) => ({ ...i, x: r1(x), y: r1(y), ...(d.upright ? { rot: r1((toPolar(cup, [x, y]).a * 180) / Math.PI) } : {}) }));
+    } else if (d.mode === "rotate") {
+      // the handle sits above the element: straight up = 0 deg. Snaps to 0 / 90 / 180 / 270 within 4 deg; Shift = 15 deg steps.
+      let a = (Math.atan2(my - d.y, mx - d.x) * 180) / Math.PI + 90;
+      a = ((a % 360) + 360) % 360;
+      if (e.shiftKey) a = Math.round(a / 15) * 15;
+      else for (const q of [0, 90, 180, 270, 360]) if (Math.abs(a - q) < 4) a = q % 360;
+      patch(d.id, (i) => ({ ...i, rot: r1(a % 360) }));
     } else {
       const k = Math.max(0.05, Math.hypot(mx - d.x, my - d.y) / (d.d0 || 1));
       patch(d.id, (i) => ({ ...i, w: r1(d.w * k), h: r1(d.h * k) }));
@@ -137,7 +144,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
         <button className={btnCls} onClick={addFlood}>Add colour ground</button>
         <button className={btnCls} onClick={undo} disabled={!canUndo} title="Ctrl/Cmd + Z">Undo</button>
         <button className={btnCls} onClick={redo} disabled={!canRedo} title="Ctrl/Cmd + Shift + Z">Redo</button>
-        <span className="text-[11px] text-gray-500">PDF / AI / SVG stay vector. Drag to move, drag a corner to size. {busy}</span>
+        <span className="text-[11px] text-gray-500">PDF / AI / SVG stay vector. Drag to move, drag a corner to size, drag the round knob to rotate. {busy}</span>
       </div>
       {err && <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-950/40 dark:text-red-300">{err}</p>}
 
@@ -188,6 +195,16 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
               <g>
                 <polygon points={cs.map((p) => p.join(",")).join(" ")} fill="none" stroke="#2563eb" strokeWidth={0.4} pointerEvents="none" />
                 {cs.map((p, k) => <rect key={k} x={p[0] - hs / 2} y={p[1] - hs / 2} width={hs} height={hs} fill="#ffffff" stroke="#2563eb" strokeWidth={0.4} style={{ cursor: "nwse-resize" }} onPointerDown={(e) => down(e, cur, "scale")} />)}
+                {!cur.curve && (() => { // rotate handle: a round knob above the top edge
+                  const tm = [(cs[0][0] + cs[1][0]) / 2, (cs[0][1] + cs[1][1]) / 2], dx = tm[0] - cur.x, dy = tm[1] - cur.y, L = Math.hypot(dx, dy) || 1;
+                  const hx = tm[0] + (dx / L) * hs * 3.2, hy = tm[1] + (dy / L) * hs * 3.2;
+                  return (
+                    <g>
+                      <line x1={tm[0]} y1={tm[1]} x2={hx} y2={hy} stroke="#2563eb" strokeWidth={0.4} pointerEvents="none" />
+                      <circle cx={hx} cy={hy} r={hs * 0.75} fill="#ffffff" stroke="#2563eb" strokeWidth={0.5} style={{ cursor: "grab" }} onPointerDown={(e) => down(e, cur, "rotate")}><title>Drag to rotate (Shift = 15° steps)</title></circle>
+                    </g>
+                  );
+                })()}
               </g>
             );
           })()}
@@ -247,7 +264,8 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
                 </div>
                 <div className="flex flex-wrap items-end gap-2 text-xs">
                   <label className="w-24">Rotate °<input type="number" step="1" value={cur.rot} onChange={(e) => patch(cur.id, (i) => ({ ...i, rot: +e.target.value || 0 }))} className={inputCls} /></label>
-                  <button className={btnCls} onClick={act(() => patch(cur.id, (i) => ({ ...i, rot: ((i.rot || 0) + 90) % 360 })))}>+90°</button>
+                  <button className={btnCls} disabled={!!cur.curve} onClick={act(() => patch(cur.id, (i) => ({ ...i, rot: ((i.rot || 0) + 270) % 360 })))}>−90°</button>
+                  <button className={btnCls} disabled={!!cur.curve} onClick={act(() => patch(cur.id, (i) => ({ ...i, rot: ((i.rot || 0) + 90) % 360 })))}>+90°</button>
                   <button className={btnCls} onClick={act(() => patch(cur.id, (i) => ({ ...i, rot: ((i.rot || 0) + 180) % 360 })))}>180°</button>
                   {cup && <>
                     <button className={btnCls} onClick={act(standUp)}>Stand upright</button>

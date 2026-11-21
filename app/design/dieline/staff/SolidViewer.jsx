@@ -32,16 +32,19 @@ function panelGeometry(w, outline2d, holes2d, blank) {
   return g;
 }
 
-// THE FORMED CUP from its fan: a point of the fan at (radius R, angle a about the cone centre) lands on the cone at
-// 3D radius R * sinB (sinB = wrap angle / 2pi) and height (R - Rfold) * cosB. Texture coordinates = the fan itself, so
-// the artwork sits on the cup exactly where it sits on the die. Inside skin, rolled rim and base disc are for looks.
-function cupMeshes(g, blank, mats, tFold = 1) {
-  const out = [], nA = 120, nR = 28, wrapTo = g.aLeft + g.wrap; // one full turn: left cut .. seam line
-  const wall = (rIn, rOut, shrink, uv) => {
+// THE FORMED CUP from its fan. A point of the fan at (radius R, angle a about the cone centre) lands on the cone at
+// 3D radius R * sinB (sinB = wrap angle / 2pi) and height (R - Rfold) * cosB above the bottom fold; texture coordinates
+// are the fan itself, so artwork sits on the cup exactly where it sits on the die. What is exact (from the KLD lines):
+// the wall between the bottom fold and the rim line - diameters, height, taper. What is derived: wall thickness = the
+// board caliper; the bottom strip (bottom cut .. bottom fold) turned up inside the wall; the base disc on top of that
+// strip; the rolled rim as a tube whose size makes the finished rim equal the KLD's TD.
+function cupMeshes(g, blank, mats, caliper = 0.3) {
+  const out = [], nA = 144, nR = 32, t = caliper;
+  const wall = (rIn, rOut, shrink, uv, yOf = (R) => (R - g.rFold) * g.cosB) => {
     const pos = [], uvs = [], idx = [];
     for (let j = 0; j <= nR; j++) for (let i = 0; i <= nA; i++) {
       const a = g.aLeft + (g.wrap * i) / nA, R = rIn + ((rOut - rIn) * j) / nR, psi = 2 * Math.PI * (i / nA - 0.5);
-      const r3 = R * g.sinB - shrink, y = (R - g.rFold) * g.cosB;
+      const r3 = R * g.sinB - shrink, y = yOf(R);
       pos.push(r3 * Math.sin(psi), y, r3 * Math.cos(psi));
       const fx = g.cx + R * Math.sin(a), fy = g.cy - R * Math.cos(a);
       uvs.push(uv ? fx / blank.w : 0, uv ? 1 - fy / blank.h : 0);
@@ -51,16 +54,19 @@ function cupMeshes(g, blank, mats, tFold = 1) {
     geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); geo.setIndex(idx); geo.computeVertexNormals();
     return geo;
   };
-  void wrapTo; void tFold;
-  out.push(new THREE.Mesh(wall(g.rBot, g.rRim, 0, true), mats[0])); // printed outside
-  out.push(new THREE.Mesh(wall(g.rBot, g.rRim, 0.35, false), mats[1])); // inside
-  const yRim = (g.rRim - g.rFold) * g.cosB, rRim = g.rRim * g.sinB;
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(rRim + 1.2, 1.5, 12, 96), mats[1]); rim.rotation.x = Math.PI / 2; rim.position.y = yRim; out.push(rim);
-  const base = new THREE.Mesh(new THREE.CircleGeometry(g.rFold * g.sinB + 0.4, 64), mats[1]); base.rotation.x = -Math.PI / 2; base.position.y = 8 * g.cosB; out.push(base); // base disc sits about 8 mm up
+  const skirt = g.rFold - g.rBot; // the strip below the fold: it turns up inside and grips the base disc
+  out.push(new THREE.Mesh(wall(g.rFold, g.rRim, 0, true), mats[0])); // printed outside, bottom fold .. rim line
+  out.push(new THREE.Mesh(wall(g.rFold, g.rRim, t, false), mats[1])); // inside skin, one caliper in
+  out.push(new THREE.Mesh(wall(g.rFold, g.rFold + skirt, 3 * t, false), mats[1])); // bottom strip folded up inside (wall + base skirt between)
+  const yBase = skirt * g.cosB, rBase = (g.rFold + skirt) * g.sinB - t;
+  const base = new THREE.Mesh(new THREE.CircleGeometry(rBase, 96), mats[1]); base.rotation.x = -Math.PI / 2; base.position.y = yBase; out.push(base);
+  const foot = new THREE.Mesh(new THREE.RingGeometry(g.rFold * g.sinB - 3 * t, g.rFold * g.sinB, 96), mats[2]); foot.rotation.x = Math.PI / 2; out.push(foot); // the fold the cup stands on
+  const yRim = (g.rRim - g.rFold) * g.cosB, rBody = g.rRim * g.sinB, tube = Math.max(0.6, (g.spec.TD - 2 * rBody) / 4);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(rBody + tube, tube, 16, 144), mats[1]); rim.rotation.x = Math.PI / 2; rim.position.y = yRim; out.push(rim);
   return out;
 }
 
-const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone }, ref) {
+const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, caliper }, ref) {
   const host = useRef(null), st = useRef({});
 
   useEffect(() => {
@@ -102,7 +108,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       new THREE.MeshStandardMaterial({ color: colours?.back || "#e8e4da", roughness: 0.9, side: THREE.DoubleSide }), // inside
       new THREE.MeshStandardMaterial({ color: "#c9c3b5", roughness: 0.9, side: THREE.DoubleSide }), // cut edges
     ];
-    if (cone) for (const m of cupMeshes(cone, blank, mats)) s.group.add(m);
+    if (cone) for (const m of cupMeshes(cone, blank, mats, caliper)) s.group.add(m);
     const panels = cone ? [] : model.geom.panels;
     for (const w of cone ? [] : model.world) {
       const P0 = panels[w.panel];
@@ -124,7 +130,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       s.camera.near = d / 100; s.camera.far = d * 20; s.camera.updateProjectionMatrix();
       s.framed = true; s.lastKey = key;
     }
-  }, [model, colours, texture, blank, cone]);
+  }, [model, colours, texture, blank, cone, caliper]);
 
   useImperativeHandle(ref, () => ({
     exportStl() { return new STLExporter().parse(st.current.group, { binary: false }); },

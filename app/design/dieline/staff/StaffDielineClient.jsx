@@ -15,6 +15,8 @@ import { paintArtwork, rasteriseItem, parseSvgDom, packArtwork, unpackArtwork } 
 import { artworkToPdf } from "@/lib/dieline/designer/vector-pdf";
 import { sheetLayoutPdf } from "@/lib/dieline/designer/layout-pdf";
 import { layoutUps } from "@/lib/dieline/print-rules";
+import { vendorSheetPdf, describeArtwork } from "@/lib/dieline/designer/vendor-pdf";
+import { toPolar } from "@/lib/dieline/cup";
 import { cupGeometry, cupItemChecks, cupFormedChecks } from "@/lib/dieline/cup";
 import { curveItem } from "@/lib/dieline/designer/cup-warp";
 import ArtworkDesigner from "./ArtworkDesigner";
@@ -153,21 +155,36 @@ export default function StaffDielineClient() {
 
   // vector artwork (true paths + one plate per Pantone) for the print files
   const vectorArt = () => artworkToPdf(artOut, { box: [-BLEED, -BLEED, blankMm.w + BLEED, blankMm.h + BLEED], noInk: artCtx.noInk, spot: process === "pantone", rasterise: rasteriseItem, parse: parseSvgDom, clipPoly: artCtx.clipPoly || null });
+  const sizeText = t.inputs.filter((i) => i.type !== "bool" && +values[i.key] > 0).map((i) => `${i.label} ${values[i.key]} mm`).join(", ");
   const jobLines = (vec) => [
-    `${t.name} | ${t.inputs.filter((i) => i.type !== "bool").map((i) => `${i.label} ${values[i.key]} mm`).join(", ")}${res.piecesPerBag === 2 ? " | 2-PIECE: 2 halves per bag" : ""}`,
+    `${t.name}${sizeText ? ` | ${sizeText}` : ""}${res.piecesPerBag === 2 ? " | 2-PIECE: 2 halves per bag" : ""}`,
     `Material: ${board.label} (${board.mm} mm${board.caliperStatus === "assumed" ? ", assumed" : ""}) | Print: ${process === "pantone" ? `${colours} Pantone` : process.toUpperCase()} | Blank ${blankMm.w} x ${blankMm.h} mm | Bleed ${BLEED} mm`,
     `${process === "pantone" ? "Plates" : "Colours (CMYK)"}: ${vec.inks.map((k) => `${k.label}`).join("; ") || "-"}${vec.images.length ? " + CMYK image(s)" : ""}`,
     ...art.filter((i) => i.kind !== "flood").map((i) => `${i.name}: ${i.w} x ${i.h} mm, centre ${i.x} mm from left / ${i.y} mm from top${i.rot ? `, turned ${i.rot} deg` : ""}`),
     ...vec.notes,
   ];
+  // File names follow the Blueline / Lucky sets (checked 21-Nov-2026 against the real files): LAYOUT = artwork WITH the
+  // outlines, ARTWORK-PUNCH = artwork alone, PUNCH = outlines alone. kind: "layout" | "artpunch" | "vendor".
   async function printFile(kind) {
     setMaking(kind);
     try {
       const vec = await vectorArt();
-      const pdf = toPdf(res.doc, { units: kind === "vendor" ? "both" : "mm", showDims: kind === "vendor", showDie: kind !== "layout", vector: vec,
-        footerLines: kind === "vendor" ? [...jobLines(vec), "Sizes in mm (inches in brackets)."] : vec.notes,
-        title: `${kldTitle} | ${kind === "punch" ? "ARTWORK + OUTLINES" : kind === "layout" ? "ARTWORK, NO OUTLINES" : "VENDOR FILE"}` });
-      save(`${stem}-${kind === "punch" ? "ARTWORK-PUNCH" : kind === "layout" ? "LAYOUT" : "VENDOR"}.pdf`, pdf, "application/pdf");
+      let pdf;
+      if (kind === "vendor") {
+        const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+        pdf = vendorSheetPdf({ doc: res.doc, vector: vec,
+          head: { title: t.name, sub: [saved.name && `Design: ${saved.name}`, saved.customer && `Customer: ${saved.customer}`, job && `Job: ${job}`, today, "Sizes in mm, inches in brackets"].filter(Boolean).join("  |  ") },
+          job: [["Item", t.name], ...(sizeText ? [["Size", sizeText]] : []), ...(res.piecesPerBag === 2 ? [["Made as", "2 pieces: two identical halves per bag"]] : []), ["Blank", `${blankMm.w} x ${blankMm.h} mm`],
+            ["Material", `${board.label}, ${board.mm} mm thick${board.caliperStatus === "assumed" ? " (assumed)" : ""}`]],
+          print: [["Process", process === "pantone" ? `${vec.inks.length} Pantone colour${vec.inks.length === 1 ? "" : "s"}` : process === "cmyk" ? "CMYK" : "Plain"], ["Bleed", `${BLEED} mm past the cut`],
+            ...(layFit ? [["Sheet", `${layFit.sheet} (${Math.round(layFit.sw)} x ${Math.round(layFit.sh)} mm), ${layFit.ups}-up, gripper ${layFit.margins.gripper} mm on the ${layFit.gripperOn} edge, ${layFit.press}`]] : [])],
+          art: describeArtwork(art, { areas: cupG ? [] : artCtx.areas, blank: blankMm, cup: cupG, toPolar }),
+          notes: [...(artCtx.noInk.length || cupG ? ["Glue areas are left unprinted."] : []), "Plates are made from the artwork file without outlines, not from this sheet.", ...vec.notes] });
+      } else {
+        pdf = toPdf(res.doc, { units: "mm", showDims: false, showDie: kind === "layout", vector: vec, footerLines: vec.notes,
+          title: `${kldTitle} | ${kind === "layout" ? "ARTWORK + OUTLINES" : "ARTWORK, NO OUTLINES"}` });
+      }
+      save(`${stem}-${kind === "layout" ? "LAYOUT" : kind === "artpunch" ? "ARTWORK-PUNCH" : "VENDOR"}.pdf`, pdf, "application/pdf");
     } catch (e) { alert(`Could not make the file: ${e.message}`); }
     setMaking("");
   }
@@ -195,7 +212,7 @@ export default function StaffDielineClient() {
       const pdf = sheetLayoutPdf({ doc: res.doc, fit: layFit, ups: layUps, vector: vec, mode,
         title: `${kldTitle} | SHEET ${layFit.sheet} (${Math.round(layFit.sw)} x ${Math.round(layFit.sh)} mm), ${layFit.ups}-up${res.piecesPerBag === 2 ? " (halves)" : ""}, ${layFit.press}`,
         lines: [`Gripper ${layFit.margins.gripper} mm on the ${layFit.gripperOn} edge (top of this page) | sides ${layFit.margins.side} mm | gap ${layFit.margins.gap} mm${layFit.pairY || layFit.pairX ? ", bag tops butted" : ""} | ${Math.round(layFit.yield * 100)}% of the sheet used`, ...(vec ? jobLines(vec) : [])] });
-      save(`${stem}-${mode === "punch" ? "OFFSET-ARTWORK-PUNCH" : mode === "print" ? "OFFSET-LAYOUT" : "DIE-CUT"}-${tag}.pdf`, pdf, "application/pdf");
+      save(`${stem}-${mode === "punch" ? "OFFSET-LAYOUT" : mode === "print" ? "OFFSET-ARTWORK-PUNCH" : "OFFSET-PUNCH"}-${tag}.pdf`, pdf, "application/pdf");
     } catch (e) { alert(`Could not make the file: ${e.message}`); }
     setMaking("");
   }
@@ -442,7 +459,7 @@ export default function StaffDielineClient() {
                     ))}
                   </ul>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {[["punch", "Artwork + outlines (PDF)"], ["layout", "Artwork, no outlines (PDF)"], ["vendor", "Vendor file (PDF)"]].map(([k, label]) => (
+                    {[["layout", "Artwork + outlines (PDF)"], ["artpunch", "Artwork, no outlines (PDF)"], ...(cupG ? [] : [["vendor", "Vendor sheet: sizes + colours (PDF)"]])].map(([k, label]) => (
                       <button key={k} disabled={!ok || artBlocked || !!making} onClick={() => printFile(k)}
                         className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
                         {making === k ? "Making…" : label}
@@ -450,6 +467,7 @@ export default function StaffDielineClient() {
                     ))}
                     {(solid || cupG) && <button className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200" onClick={() => { const a = document.createElement("a"); a.href = viewerRef.current.snapshot(); a.download = `${stem}-3D-PROOF.png`; a.click(); }}>3D proof (PNG)</button>}
                     {(!ok || artBlocked) && <span className="text-[11px] text-red-700 dark:text-red-300">Print files are locked until every check passes.</span>}
+                    {cupG && <p className="w-full text-[11px] text-gray-600 dark:text-gray-400">Cups: these are one-cup files for checking and approval. The printer's set (LAYOUT, ARTWORK-PUNCH, PUNCH on their own nested sheet, as made for Blueline and Lucky) is not produced here yet.</p>}
                   </div>
                 </>
               )}
@@ -468,7 +486,7 @@ export default function StaffDielineClient() {
             </div>
             {cupG && blankMm ? (
               <>
-                <SolidViewer ref={viewerRef} cone={cupG} colours={mat.colour3d} texture={tex} blank={blankMm} />
+                <SolidViewer ref={viewerRef} cone={cupG} caliper={board.mm} colours={mat.colour3d} texture={tex} blank={blankMm} />
                 <ul className="mt-3 space-y-1.5">
                   {cupFormedChecks(cupG).map((c, k) => (
                     <li key={k} className={`rounded-md px-3 py-2 text-xs ${SEV[c.severity][c.ok ? "pass" : "fail"]}`}>
