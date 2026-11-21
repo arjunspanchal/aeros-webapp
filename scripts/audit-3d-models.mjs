@@ -13,7 +13,7 @@ let runs = 0, bad = 0;
 const notes = new Set();
 const summary = [];
 for (const t of TEMPLATES) {
-  if (t.route === "cup") continue;
+  if (t.route === "cup" || t.route === "pet") continue;
   const cal = t.family === "bag" ? CAL.bag : t.id === "mailer-0427" ? CAL.mailer : CAL.box;
   const variants = [];
   for (const p of t.proven) {
@@ -53,6 +53,20 @@ for (const t of TEMPLATES.filter((x) => x.route === "cup")) {
   runs++; if (badC.length) bad++;
   summary.push(`${badC.length ? "FAIL" : "PASS"}  ${t.id}: fan ${g.w} x ${g.h} mm -> ${g.wall === "double" ? "wrap" : "cup"} ${f.rimDia.toFixed(2)} / ${f.baseDia.toFixed(2)} x ${f.wallHeight.toFixed(2)} mm, taper ${f.taperDeg.toFixed(2)} deg (spec TD ${s.TD} / BD ${s.BD} / H ${s.H})`);
   console.log(badC.length ? badC.map((c) => `    FAIL ${t.id}: ${c.title} - ${c.detail}`).join("\n") : `    ${t.id}: clean`);
+}
+// PET cups: the 3D cup is turned from its measured profile - check the profile and the print band against the cup's own figures
+const { petGeometry } = await import("../lib/dieline/pet.js");
+console.log("\nPET cups (turned from the measured profile)");
+for (const t of TEMPLATES.filter((x) => x.route === "pet")) {
+  const g = petGeometry(t.pet), f = [];
+  if (Math.abs(g.diaAt(g.h) - g.td) > 0.05) f.push(`top of the profile ${g.diaAt(g.h)} vs TD ${g.td}`);
+  if (Math.abs(g.diaAt(0) - g.bd) > 0.05) f.push(`foot of the profile ${g.diaAt(0)} vs BD ${g.bd}`);
+  if (g.profile.some((q, i) => i && q[1] < g.profile[i - 1][1])) f.push("profile heights do not rise");
+  if (g.profile.some((q, i) => i && q[0] < g.profile[i - 1][0] - 0.01)) f.push("the cup gets narrower going up");
+  if (!(g.zFoot > 0 && g.zTop < g.h && g.zTop > g.zFoot)) f.push("print band is not inside the cup height");
+  runs++; if (f.length) bad++;
+  summary.push(`${f.length ? "FAIL" : "PASS"}  ${t.id}: cup ${g.td} / ${g.bd} x ${g.h} mm, band ${g.bandH} mm (${g.dFoot.toFixed(1)} to ${g.dTop.toFixed(1)} mm across), rectangle ${g.w} mm = ${(g.w / Math.PI).toFixed(1)} mm across`);
+  console.log(f.length ? `    FAIL ${t.id}: ${f.join("; ")}` : `    ${t.id}: clean`);
 }
 if (notes.size) console.log("\nLock parts shown unbent (reported on screen, not a fault):\n  " + [...notes].join("\n  "));
 console.log(`\n== ${runs} runs, ${bad} with findings ==\n` + summary.join("\n"));

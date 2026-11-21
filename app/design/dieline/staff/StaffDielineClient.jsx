@@ -22,6 +22,9 @@ import { CUP_NEST_REFS } from "@/lib/dieline/cup-nest-refs";
 import { toPolar } from "@/lib/dieline/cup";
 import { cupGeometry, cupItemChecks, cupFormedChecks, cupFitChecks, cupMarkChecks } from "@/lib/dieline/cup";
 import { cupMarkText } from "@/lib/dieline/designer/house";
+import { petGeometry, petItemChecks } from "@/lib/dieline/pet";
+import { petArtPdf } from "@/lib/dieline/designer/pet-pdf";
+import { corners as itemCorners } from "@/lib/dieline/designer/model";
 import { curveItem } from "@/lib/dieline/designer/cup-warp";
 import ArtworkDesigner from "./ArtworkDesigner";
 import SolidViewer from "./SolidViewer"; // three.js runs only inside effects, safe on the server (as Fold3DViewer)
@@ -35,7 +38,7 @@ const firstValues = (t) => {
   for (const i of t.inputs) v[i.key] = i.type === "bool" ? false : p[i.key] != null ? +(+p[i.key]).toFixed(1) : 0;
   return v;
 };
-const defaultBoard = (t) => (t.family === "bag" ? "bag-kraft-80" : t.family === "cup" ? (t.cup === "dw8" ? "cupstock-230" : "cupstock-230-1pe") : "fbb-300");
+const defaultBoard = (t) => (t.family === "pet" ? "fbb-300" : t.family === "bag" ? "bag-kraft-80" : t.family === "cup" ? (t.cup === "dw8" ? "cupstock-230" : "cupstock-230-1pe") : "fbb-300");
 const useOf = (t) => (t.family === "bag" ? "bag" : t.family === "cup" ? "cup" : "box");
 
 const SEV = {
@@ -124,13 +127,15 @@ export default function StaffDielineClient() {
   const res = useMemo(() => runStaffTemplate(tid, values, board, print), [tid, JSON.stringify(values), board.gsm, board.mm, process, colours]); // eslint-disable-line react-hooks/exhaustive-deps
   const ok = res && !res.error && !res.blocked;
   const preview = useMemo(() => (res && res.doc ? toSvg(res.doc, { units: "mm", showDims: true, title: "" }) : ""), [res]);
-  const stem = res && res.template ? fileStem({ template: res.template, values, board }) + (job.trim() ? `-${job.trim().replace(/[^A-Za-z0-9-]+/g, "-")}` : "") : "kld";
+  const stem = res && res.template ? fileStem({ template: res.template, values, board: res.template.family === "pet" ? null : board }) + (job.trim() ? `-${job.trim().replace(/[^A-Za-z0-9-]+/g, "-")}` : "") : "kld";
 
   const show = (mm) => (unit === "mm" ? +(+mm).toFixed(1) : +(mm / IN).toFixed(3));
   const setVal = (key, raw, isBool) =>
     setValues((v) => ({ ...v, [key]: isBool ? raw : raw === "" ? "" : unit === "mm" ? +raw : +(+raw * IN).toFixed(2) }));
 
   const cupG = useMemo(() => (t.cup ? cupGeometry(t.cup) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const petG = useMemo(() => (t.pet ? petGeometry(t.pet) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps -- PET cups: direct print, the die is the print rectangle
   const innerG = useMemo(() => (t.innerCup ? cupGeometry(t.innerCup) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps
   const [cupView, setCupView] = useState("full"); // double wall: "full" = wrap on its inner cup, "wrap" = the outer fan alone
   const prog = useMemo(() => (res && res.doc ? programFor(tid, values, res.doc) : null), [res]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -143,6 +148,8 @@ export default function StaffDielineClient() {
     const total = panelsAny.panels.reduce((s2, p) => s2 + p.area, 0);
     const areas = prog?.areas || panelsAny.panels.filter((p) => p.area > total * 0.06).sort((p, q) => q.area - p.area).slice(0, 6)
       .map((p, k) => { const xs = p.outline.map((v) => v[0]), ys = p.outline.map((v) => v[1]); return { name: `Panel ${k + 1}`, box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }; });
+    if (petG) return { edges: dieEdges(res.doc), blankBox: [0, 0, petG.w, petG.bandH], family: "box", topCutY: null, noInk: [], print, clipPoly: [[0, 0], [petG.w, 0], [petG.w, petG.bandH], [0, petG.bandH]],
+      areas: [{ name: "Print band", box: [0, 0, petG.w, petG.bandH] }], customGeometry: (it) => petItemChecks(petG, it, itemCorners) };
     if (cupG) { const xs = cupG.limit.poly.map((q) => q[0]), ys = cupG.limit.poly.map((q) => q[1]);
       return { edges: dieEdges(res.doc), blankBox: [0, 0, res.blankMm[0], res.blankMm[1]], family: "cup", topCutY: null, noInk: [], print, clipPoly: cupG.bleed.poly, houseGeometry: (it) => cupMarkChecks(cupG, it),
         areas: [{ name: "Cup wall", box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }], customGeometry: (it) => cupItemChecks(cupG, it) }; }
@@ -153,7 +160,7 @@ export default function StaffDielineClient() {
   const artChecks = useMemo(() => {
     if (!artCtx) return [];
     const base = checkArtwork(art, artCtx);
-    if (!art.length) return base;
+    if (!art.length || petG) return base; // a PET cup never carries an Aeros mark, whoever it is sold to
     const marks = art.filter((i) => i.house === "mark"), C = (id, ok, sev, title, detail) => ({ id, ok, severity: sev, title, detail });
     const out = [C("CHANNEL", !!channel, "block", "Who the job is sold to is chosen", channel === "direct" ? "Sold direct to the end customer: the Aeros mark goes on the pack." : channel === "dealer" ? "Sold through a dealer: no Aeros branding anywhere on the pack." : "Choose it in step 4 (Print). It decides whether the Aeros mark goes on: direct = yes, dealer = none at all.")];
     if (channel === "dealer") out.push(C("CHANNEL-MARK", !marks.length, "block", "Dealer sale: no Aeros mark on the pack", marks.length ? "Remove the Aeros mark - a pack sold through a dealer carries no Aeros branding." : "None on the artwork."));
@@ -167,13 +174,13 @@ export default function StaffDielineClient() {
   useEffect(() => { // artwork on the 3D model
     let live = true;
     if (!art.length || !blankMm || !artCtx) { setTex(null); return; }
-    const px = Math.min(5, 4096 / Math.max(blankMm.w, blankMm.h));
-    paintArtwork(artOut, { box: [0, 0, blankMm.w, blankMm.h], pxPerMm: cupG ? Math.min(12, px * 2) : px, noInk: artCtx.noInk, background: mat.colour3d.top, clipPoly: artCtx.clipPoly || null }).then((cv) => { if (live) setTex(cv); }).catch(() => {});
+    const px = petG ? 12 : Math.min(5, 4096 / Math.max(blankMm.w, blankMm.h));
+    paintArtwork(artOut, { box: [0, 0, blankMm.w, blankMm.h], pxPerMm: cupG ? Math.min(12, px * 2) : px, noInk: artCtx.noInk, background: petG ? null : mat.colour3d.top, clipPoly: artCtx.clipPoly || null }).then((cv) => { if (live) setTex(cv); }).catch(() => {});
     return () => { live = false; };
   }, [artOut, artCtx, mat.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // vector artwork (true paths + one plate per Pantone) for the print files
-  const vectorArt = () => artworkToPdf(artOut, { box: [-BLEED, -BLEED, blankMm.w + BLEED, blankMm.h + BLEED], noInk: artCtx.noInk, spot: process === "pantone", rasterise: rasteriseItem, parse: parseSvgDom, clipPoly: artCtx.clipPoly || null });
+  const vectorArt = () => artworkToPdf(artOut, { box: petG ? [0, 0, petG.w, petG.bandH] : [-BLEED, -BLEED, blankMm.w + BLEED, blankMm.h + BLEED], noInk: artCtx.noInk, spot: process === "pantone", rasterise: rasteriseItem, parse: parseSvgDom, clipPoly: artCtx.clipPoly || null });
   const sizeText = t.inputs.filter((i) => i.type !== "bool" && +values[i.key] > 0).map((i) => `${i.label} ${values[i.key]} mm`).join(", ");
   const jobLines = (vec) => [
     `${t.name}${sizeText ? ` | ${sizeText}` : ""}${res.piecesPerBag === 2 ? " | 2-PIECE: 2 halves per bag" : ""}`,
@@ -189,13 +196,19 @@ export default function StaffDielineClient() {
     try {
       const vec = await vectorArt();
       let pdf;
+      if (kind === "petart") { // the plate file: one page = the print rectangle, artwork only
+        const brand = (saved.customer || saved.name || "aeros").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "aeros";
+        save(`${brand}_${t.petFile.size}_${t.petFile.item}_print_ART-v1-VENDOR.pdf`, petArtPdf(vec, petG.w, petG.bandH), "application/pdf");
+        setMaking(""); return;
+      }
       if (kind === "vendor") {
         const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
         pdf = vendorSheetPdf({ doc: res.doc, vector: vec,
           head: { title: t.name, sub: [saved.name && `Design: ${saved.name}`, saved.customer && `Customer: ${saved.customer}`, job && `Job: ${job}`, today, "Sizes in mm, inches in brackets"].filter(Boolean).join("  |  ") },
           job: [["Item", t.name], ...(sizeText ? [["Size", sizeText]] : []), ...(res.piecesPerBag === 2 ? [["Made as", "2 pieces: two identical halves per bag"]] : []), ["Blank", `${blankMm.w} x ${blankMm.h} mm`],
-            ["Material", `${board.label}, ${board.mm} mm thick${board.caliperStatus === "assumed" ? " (assumed)" : ""}`]],
-          print: [["Process", process === "pantone" ? `${vec.inks.length} Pantone colour${vec.inks.length === 1 ? "" : "s"}` : process === "cmyk" ? "CMYK" : "Plain"], ["Bleed", `${BLEED} mm past the cut`],
+            petG ? ["Cup", `${petG.label}: top ${petG.td} x base ${petG.bd} x height ${petG.h} mm, clear PET. Print band ${petG.band[0]} to ${petG.band[1]} mm below the brim (${petG.bandH} mm tall).`]
+              : ["Material", `${board.label}, ${board.mm} mm thick${board.caliperStatus === "assumed" ? " (assumed)" : ""}`]],
+          print: petG ? [["Process", `Dry offset, direct on the cup: ${vec.inks.length} solid spot colour${vec.inks.length === 1 ? "" : "s"}`], ["Print rectangle", `${petG.w} x ${petG.bandH} mm - width to match your plate blank. Wraps 360 deg, no bleed.`]] : [["Process", process === "pantone" ? `${vec.inks.length} Pantone colour${vec.inks.length === 1 ? "" : "s"}` : process === "cmyk" ? "CMYK" : "Plain"], ["Bleed", `${BLEED} mm past the cut`],
             ...(layFit ? [["Sheet", `${layFit.sheet} (${Math.round(layFit.sw)} x ${Math.round(layFit.sh)} mm), ${layFit.ups}-up, gripper ${layFit.margins.gripper} mm on the ${layFit.gripperOn} edge, ${layFit.press}`]] : [])],
           art: describeArtwork(art, { areas: cupG ? [] : artCtx.areas, blank: blankMm, cup: cupG, toPolar }),
           notes: [...(artCtx.noInk.length || cupG ? ["Glue areas are left unprinted."] : []), "Plates are made from the artwork file without outlines, not from this sheet.", ...vec.notes] });
@@ -203,13 +216,14 @@ export default function StaffDielineClient() {
         pdf = toPdf(res.doc, { units: "mm", showDims: false, showDie: kind === "layout", vector: vec, footerLines: vec.notes,
           title: `${kldTitle} | ${kind === "layout" ? "ARTWORK + OUTLINES" : "ARTWORK, NO OUTLINES"}` });
       }
-      save(`${stem}-${kind === "layout" ? "LAYOUT" : kind === "artpunch" ? "ARTWORK-PUNCH" : "VENDOR"}.pdf`, pdf, "application/pdf");
+      const petBrand = (saved.customer || saved.name || "aeros").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "aeros";
+      save(petG && kind === "vendor" ? `${petBrand}_${t.petFile.size}_${t.petFile.item}_print_ART-DIM-v1-VENDOR.pdf` : `${stem}-${kind === "layout" ? "LAYOUT" : kind === "artpunch" ? "ARTWORK-PUNCH" : "VENDOR"}.pdf`, pdf, "application/pdf");
     } catch (e) { alert(`Could not make the file: ${e.message}`); }
     setMaking("");
   }
   // DIGITAL SAMPLE: the 13 x 19 in sheet for the digital press (skill aeros-digital-samples): art as a 450 dpi image,
   // solid pink CutContour + green Crease lines, an info box with paper / side / assembly on every sheet.
-  const digPlan = useMemo(() => (res && res.doc && blankMm ? planDigital({ doc: res.doc, blank: blankMm, bleed: BLEED, cup: cupG }) : null), [res, blankMm?.w, blankMm?.h, cupG]); // eslint-disable-line react-hooks/exhaustive-deps
+  const digPlan = useMemo(() => (res && res.doc && blankMm && !petG ? planDigital({ doc: res.doc, blank: blankMm, bleed: BLEED, cup: cupG }) : null), [res, blankMm?.w, blankMm?.h, cupG]); // eslint-disable-line react-hooks/exhaustive-deps
   async function digitalFile() {
     setMaking("digital");
     try {
@@ -526,13 +540,14 @@ export default function StaffDielineClient() {
                     ))}
                   </ul>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {[["layout", "Artwork + outlines (PDF)"], ["artpunch", "Artwork, no outlines (PDF)"], ...(cupG ? [] : [["vendor", "Vendor sheet: sizes + colours (PDF)"]])].map(([k, label]) => (
+                    {(petG ? [["petart", "ART: the print rectangle, exact size (PDF)"], ["vendor", "ART-DIM: sizes + colours for the printer (PDF)"], ["layout", "Artwork + outline, for checking (PDF)"]]
+                      : [["layout", "Artwork + outlines (PDF)"], ["artpunch", "Artwork, no outlines (PDF)"], ...(cupG ? [] : [["vendor", "Vendor sheet: sizes + colours (PDF)"]])]).map(([k, label]) => (
                       <button key={k} disabled={!ok || artBlocked || !!making} onClick={() => printFile(k)}
                         className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
                         {making === k ? "Making…" : label}
                       </button>
                     ))}
-                    {(solid || cupG) && <button className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200" onClick={() => { const a = document.createElement("a"); a.href = viewerRef.current.snapshot(); a.download = `${stem}-3D-PROOF.png`; a.click(); }}>3D proof (PNG)</button>}
+                    {(solid || cupG || petG) && <button className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200" onClick={() => { const a = document.createElement("a"); a.href = viewerRef.current.snapshot(); a.download = `${stem}-3D-PROOF.png`; a.click(); }}>3D proof (PNG)</button>}
                     {digPlan && !digPlan.error && <button disabled={!ok || artBlocked || !!making} onClick={digitalFile} title={`${digPlan.note} on ${digPlan.sheets.length} sheet${digPlan.sheets.length === 1 ? "" : "s"}`}
                       className="rounded-md border border-fuchsia-700 bg-fuchsia-700 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
                       {making === "digital" ? "Making…" : `Digital sample, 13 × 19 in (${digPlan.split ? `${digPlan.pieces.length} pieces` : `${digPlan.ups}-up`})`}
@@ -616,8 +631,8 @@ export default function StaffDielineClient() {
         <div className="min-w-0 space-y-5 lg:col-start-2 2xl:col-start-3">
           <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{cupG ? "3D cup (the real fan wrapped to its cone)" : `3D model (the real die folded at ${board.mm} mm caliper${board.caliperStatus === "assumed" ? ", assumed" : ""})`}</h2>
-              {(solid || cupG) && (
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{petG ? "3D cup (the moulded cup, print band wrapped 360°)" : cupG ? "3D cup (the real fan wrapped to its cone)" : `3D model (the real die folded at ${board.mm} mm caliper${board.caliperStatus === "assumed" ? ", assumed" : ""})`}</h2>
+              {(solid || cupG || petG) && (
                 <div className="flex gap-2">
                   <button onClick={() => save(`${stem}-3D.stl`, viewerRef.current.exportStl(), "model/stl")} className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">STL (mm)</button>
                   <button onClick={() => { const a = document.createElement("a"); a.href = viewerRef.current.snapshot(); a.download = `${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`; a.click(); }} title="Saves the 3D view exactly as it is turned now" className="rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">Snapshot of this view (PNG)</button>
@@ -625,7 +640,9 @@ export default function StaffDielineClient() {
                 </div>
               )}
             </div>
-            {cupG && blankMm ? (
+            {petG && blankMm ? (
+              <SolidViewer ref={viewerRef} pet={petG} colours={mat.colour3d} texture={tex} blank={blankMm} />
+            ) : cupG && blankMm ? (
               <>
                 {innerG && (
                   <div className="mb-2 flex w-fit overflow-hidden rounded-md border border-gray-300 text-xs dark:border-gray-700">

@@ -78,7 +78,7 @@ export function wrapLift(wrap, inner) {
   return inner.formed.wallHeight - tube - wrap.formed.wallHeight;
 }
 
-const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, coneInner = null, caliper, lieFlat = false }, ref) {
+const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, coneInner = null, pet = null, caliper, lieFlat = false }, ref) {
   const host = useRef(null), st = useRef({});
 
   useEffect(() => {
@@ -122,7 +122,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
 
   useEffect(() => {
     const s = st.current;
-    if (!s.group || (!cone && (!model || !model.world))) return;
+    if (!s.group || (!cone && !pet && (!model || !model.world))) return;
     for (const c of [...s.group.children]) { s.group.remove(c); c.geometry?.dispose(); }
     s.tex?.dispose();
     s.tex = null;
@@ -133,15 +133,33 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       new THREE.MeshStandardMaterial({ color: "#c9c3b5", roughness: 0.9, side: THREE.DoubleSide }), // cut edges
     ];
     LIE_FLAT = !!lieFlat && !cone;
-    if (cone && coneInner) {
+    if (pet) {
+      // PET CUP: the moulded cup turned from its measured profile (clear), with the print band wrapped a full 360 deg.
+      // The artwork rectangle is stretched round the cup at every height, as the printer's cone distortion does.
+      const body = new THREE.Mesh(new THREE.LatheGeometry(pet.profile.map(([d, z]) => new THREE.Vector2(d / 2, z)), 128),
+        new THREE.MeshStandardMaterial({ color: "#cfe3ee", transparent: true, opacity: 0.3, roughness: 0.08, metalness: 0, side: THREE.DoubleSide, depthWrite: false }));
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(pet.profile[0][0] / 2, 96), body.material); floor.rotation.x = -Math.PI / 2;
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(pet.td / 2, 0.9, 12, 128), new THREE.MeshStandardMaterial({ color: "#dbe9f1", transparent: true, opacity: 0.55, roughness: 0.1 })); rim.rotation.x = Math.PI / 2; rim.position.y = pet.h;
+      s.group.add(body, floor, rim);
+      if (s.tex) {
+        const nA = 192, nZ = 32, pos = [], uvs = [], idx = [];
+        for (let j = 0; j <= nZ; j++) for (let i = 0; i <= nA; i++) {
+          const z = pet.zFoot + ((pet.zTop - pet.zFoot) * j) / nZ, r = pet.diaAt(z) / 2 + 0.06, psi = 2 * Math.PI * (i / nA - 0.5);
+          pos.push(r * Math.sin(psi), z, r * Math.cos(psi)); uvs.push(i / nA, j / nZ);
+        }
+        for (let j = 0; j < nZ; j++) for (let i = 0; i < nA; i++) { const a = j * (nA + 1) + i, b = a + 1, c = a + nA + 1, d = c + 1; idx.push(a, b, c, b, d, c); }
+        const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2)); g.setIndex(idx); g.computeVertexNormals();
+        s.group.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: s.tex, transparent: true, alphaTest: 0.03, roughness: 0.6, side: THREE.DoubleSide })));
+      }
+    } else if (cone && coneInner) {
       // FULL DOUBLE-WALL CUP: the plain inner cup stands on its bottom fold; the wrap hangs just under its rolled rim
       const white = [0, 1, 2].map((k) => new THREE.MeshStandardMaterial({ color: k === 2 ? "#d9d6cc" : "#f6f5f0", roughness: 0.85, side: THREE.DoubleSide }));
       for (const m of cupMeshes(coneInner, blank, white, caliper)) s.group.add(m);
       const lift = wrapLift(cone, coneInner);
       for (const m of cupMeshes(cone, blank, mats, caliper, true)) { m.position.y += lift; s.group.add(m); }
     } else if (cone) for (const m of cupMeshes(cone, blank, mats, caliper, !cone.hasRim)) s.group.add(m);
-    const panels = cone ? [] : model.geom.panels;
-    for (const w of cone ? [] : model.world) {
+    const panels = cone || pet ? [] : model.geom.panels;
+    for (const w of cone || pet ? [] : model.world) {
       const P0 = panels[w.panel];
       const g = panelGeometry(w, P0.outline, P0.holes, texture ? blank : null);
       const mesh = new THREE.Mesh(g, mats);
@@ -154,14 +172,14 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     s.group.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(s.group), c = box.getCenter(new THREE.Vector3()), d = box.getSize(new THREE.Vector3()).length();
     s.group.position.set(-c.x, -c.y, -c.z);
-    const key = cone ? `cup-${cone.id}-${coneInner ? "full" : "alone"}` : model.key;
+    const key = pet ? `pet-${pet.id}` : cone ? `cup-${cone.id}-${coneInner ? "full" : "alone"}` : model.key;
     if (!s.framed || s.lastKey !== key) {
       s.camera.position.set(d * 1.1, d * 0.7, d * 1.5);
       s.controls.target.set(0, 0, 0);
       s.camera.near = d / 100; s.camera.far = d * 20; s.camera.updateProjectionMatrix();
       s.framed = true; s.lastKey = key;
     }
-  }, [model, colours, texture, blank, cone, coneInner, caliper, lieFlat]);
+  }, [model, colours, texture, blank, cone, coneInner, pet, caliper, lieFlat]);
 
   useImperativeHandle(ref, () => ({
     exportStl() { return new STLExporter().parse(st.current.group, { binary: false }); },
