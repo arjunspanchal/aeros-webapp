@@ -3,15 +3,16 @@ import { getSession } from "@/lib/hub/session";
 import AppHeader from "../components/AppHeader";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import { canUseStudio } from "@/lib/design/artwork-studio";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Design — Aeros",
-  description: "Dieline Generator and Artwork Studio.",
+  description: "Dieline Generator.",
 };
 
+// Artwork Studio (AI cup / deli wrap artworks) removed 21-Nov-2026 (Arjun: "Remove the old artwork studio"); its Supabase
+// tables (artwork_studio_*) are kept untouched. The designer will live in the dieline tool.
 // The per-product keyline / mockup browser (DesignClient) is off the page
 // for now (Arjun 2026-10-25: "I don't need these dielines online now") —
 // its files stay in the design-files bucket and the API routes still work.
@@ -27,6 +28,15 @@ export default function DesignPage() {
       <AppHeader session={session} />
       <Header title="Design" subtitle="Make keylines and customer artwork." />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <a href="/design/dieline/staff" className={cardCls}>
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Make a KLD (staff)</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Proven templates only: SOS + D-cut bags, food, burger, cake, cup-holder and mailer boxes. Every die checked for print and production limits.
+            </p>
+          </div>
+          <span aria-hidden className="text-gray-400">→</span>
+        </a>
         <a href="/design/dieline" className={cardCls}>
           <div>
             <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Dieline Generator</p>
@@ -36,17 +46,6 @@ export default function DesignPage() {
           </div>
           <span aria-hidden className="text-gray-400">→</span>
         </a>
-        {canUseStudio(session) && (
-          <a href="/design/artwork-studio" className={cardCls}>
-            <div>
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Artwork Studio</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Make customer artwork for 8 / 12 / 16 oz paper cups, U-shape PP / PET cups and deli wrap sheets — upload the logo, get a proof on the real keyline.
-              </p>
-            </div>
-            <span aria-hidden className="text-gray-400">→</span>
-          </a>
-        )}
       </main>
       <Footer />
     </>

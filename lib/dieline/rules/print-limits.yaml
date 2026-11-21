@@ -1,0 +1,2256 @@
+# Aeros HARD print + production limits (21-Nov-2026), reconciled against Aeros Artworks/ARTWORK-CORTEX.md (which outranks the KLD skill).
+# Items changed by the cortex carry overridden_by + was; items the cortex confirms carry confirmed_by. severity block/warn; status per source.
+artwork_cortex_reconciled: 2026-11-21 (ARTWORK-CORTEX.md, 5,671 lines; rule sections L1-1604 + L2654-3024 read in full, job log L1605-2653 and L3025-5671 grepped
+  for general rules)
+sources:
+  FLX: ~/Library/Application Support/Claude/local-agent-mode-sessions/.../rpm/plugin_01YEMuAGJHK3SG6HJHG8BxFX/skills/aeros-flexo-plates/SKILL.md
+  KLD: ~/Library/Application Support/Claude/local-agent-mode-sessions/.../rpm/plugin_01Fzgj1sYvH6Vc4QWrZXanXJ/skills/aeros-kld-artwork/SKILL.md
+  CPF: ~/Library/Application Support/Claude/local-agent-mode-sessions/.../rpm/plugin_01UPApnxC7EeWWe7wHpRFYK3/skills/aeros-customer-proof-format/SKILL.md
+  DIG: ~/Library/Application Support/Claude/local-agent-mode-sessions/.../rpm/plugin_01Wo7GZWTuuygbcsbR5d6FYQ/skills/aeros-digital-samples/SKILL.md
+  BAG: ~/Desktop/Aeros Webapp/.claude/skills/aeros-bag-calculator/SKILL.md
+  ENV: ~/Desktop/Aeros Webapp/.claude/skills/aeros-bag-calculator/scripts/envelope_check.py
+  CUS: ~/Desktop/Aeros Webapp/.claude/skills/aeros-custom-costing/SKILL.md
+  CUP: ~/Desktop/Aeros Webapp/.claude/skills/aeros-cup-tub-rate-calc/SKILL.md
+  DIE: ~/Desktop/Aeros Webapp/.claude/skills/aeros-dieline/SKILL.md
+  CTX: ~/Desktop/Aeros Webapp/cortex/aeros-db-cortex.yaml (L = line)
+  CYL: ~/Desktop/Aeros Webapp/Aeros Artworks/KLD Templates/Paper Bags/_VENDOR-CYLINDERS.json
+  MEM: ~/.claude/projects/-Users-arjunpanchal-Desktop-Aeros-Webapp/memory/<file>
+offset_sheet:
+- id: OS-01
+  rule: Blueline press maximum sheet is 25 x 36 in; nothing wider than 635 mm runs there.
+  check: min(sheet_w, sheet_h) <= 635 and max(sheet_w, sheet_h) <= 914.4
+  values:
+    max_in:
+    - 25
+    - 36
+    max_mm:
+    - 635
+    - 914.4
+  applies_to:
+  - all offset boxes
+  - cup holders
+  - hand-made bags
+  - cup sheets at Blueline
+  severity: block
+  source: CTX L979-981 die_cutting_sheet_limits; CUS 'Sheet + nesting rules'; DIE 'Hand-made bags on offset' step 3
+  status: confirmed
+- id: OS-02
+  rule: Blueline prints within 24.5 x 35.5 in (622.3 x 901.7) inside the 25 x 36 sheet.
+  check: print_block_w <= 622.3 and print_block_h <= 901.7
+  values:
+    print_mm:
+    - 622.3
+    - 901.7
+    print_in:
+    - 24.5
+    - 35.5
+  applies_to:
+  - Blueline offset jobs
+  severity: block
+  source: CUS 'Blueline prints 622 x 902 inside it'; CTX L973-978 blueline_offset_sheet (called 'max/std sheet'); DIE CHB '~1.9 mm bleed past the outer cuts inside
+    Blueline's 622 print width'
+  status: confirmed
+- id: OS-03
+  rule: Lucky Offset press maximum is 27.5 x 38 in.
+  check: sheet_w <= 698.5 and sheet_h <= 965
+  values:
+    max_in:
+    - 27.5
+    - 38
+    max_mm:
+    - 698.5
+    - 965
+  applies_to:
+  - Lucky Offset jobs
+  severity: block
+  source: CUS 'Lucky Offset press max = 27.5 x 38 in (Arjun 4-Nov-2026)'; MEM aeros_mill_reel_widths.md; CTX L2849 torta_haus lucky_27_5x38
+  status: confirmed
+- id: OS-04
+  rule: Lucky runs the NATIVE holder on 635 x 980 sheets (roll 63.5 cut at 98).
+  check: lucky_sheet in [[635, 980]] for that job
+  values:
+    sheet_mm:
+    - 635
+    - 980
+    gripper_mm: 12.5
+  applies_to:
+  - NATIVE double cup holder
+  severity: warn
+  source: CTX L2185 lucky_offset_635x980; DIE 'Hand-made bags' step 3 'Lucky runs 635x980'
+  status: confirmed
+- id: OS-05
+  rule: 25 x 36 and 30 x 40 in are the limits of our offset machines; paper is bought smaller, cut to the job.
+  check: sheet <= [762, 1016] (any machine); prefer 25 x 36 when the count is the same
+  values:
+    limits_in:
+    - - 25
+      - 36
+    - - 30
+      - 40
+    limits_mm:
+    - - 635
+      - 914.4
+    - - 762
+      - 1016
+  applies_to:
+  - Aeros-derived offset nests
+  severity: block
+  source: KLD 'OFFSET PRESS LIMITS (Arjun 2026-09-28)'
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L216-224
+  cortex_note: '30 x 40 runs exist: 135 mailer 4-up on 29 x 37 in and tray 20-up on 28.5 x 35.5 in, both "30 x 40 machine" (L4352)'
+- id: OS-06
+  rule: 28 x 40 / 30 x 40 only when the printer confirms the press; Blueline is 25 x 36 max.
+  check: 'if sheet > 25x36: printer_press_confirmed == true else block'
+  values: {}
+  applies_to:
+  - hand-made bags
+  - boxes
+  severity: warn
+  source: DIE 'Hand-made bags on offset' step 3; CUS 'Exceptions need his call'
+  status: confirmed
+- id: OS-07
+  rule: Gripper on one edge, at least 10 mm; other edges at least 5 mm (Aeros-derived nests).
+  check: gripper_mm >= 10 and tail_mm >= 5 and side_mm >= 5
+  values:
+    gripper_min: 10
+    other_edges_min: 5
+  applies_to:
+  - Aeros-derived offset nests
+  severity: block
+  source: KLD 'OFFSET PRESS LIMITS' (>= 10 mm gripper / long edges, >= 5 mm elsewhere)
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L221-222
+- id: OS-08
+  rule: 'Costing allowances: 12 mm gripper on one edge, ~6 mm side lay, 3 mm between blanks; gripper edge needs >= 10 mm clear.'
+  check: blank_block_w + 2*6 <= sheet_w and blank_block_h + 12 <= sheet_h and gap_between_blanks >= 3
+  values:
+    gripper: 12
+    side_lay: 6
+    gap_between_blanks: 3
+    gripper_edge_clear_min: 10
+  applies_to:
+  - custom boxes
+  severity: block
+  source: CUS 'Sheet + nesting rules'
+  status: confirmed
+- id: OS-09
+  rule: Hand-made bag sheet fit uses 12 mm gripper + 5 tail + 5 per side + 3 mm between blanks.
+  check: blank_block_h + 12 + 5 <= sheet_h and blank_block_w + 2*5 <= sheet_w and gap >= 3
+  values:
+    gripper: 12
+    tail: 5
+    side: 5
+    gap: 3
+  applies_to:
+  - hand-made SOS
+  - D-cut
+  - rope/flat handle bags
+  severity: block
+  source: DIE 'Hand-made bags on offset' step 1 (offset_bag_fit.py)
+  status: confirmed
+- id: OS-10
+  rule: Lucky grips a 25 in edge with 12-13 mm; ask the vendor's gripper edge and depth before nesting.
+  check: gripper_edge == short (25 in) and gripper_mm >= 12
+  values:
+    gripper_mm:
+    - 12
+    - 13
+  applies_to:
+  - Lucky Offset jobs
+  severity: block
+  source: CTX L2186 glue12_and_vendor_gripper; DIE 'Sheet nesting' step 8
+  status: confirmed
+- id: OS-11
+  rule: 'Production nests: rows BUTT on a common straight cut (0 gap); only coincident straight cuts may be shared; curves, tucks and lock slits never touch.'
+  check: shared_edges all straight and coincident; curved/slit edges gap > 0; no crossing cuts
+  values:
+    row_gap: 0
+  applies_to:
+  - cup holders
+  - cartons
+  - any multi-up die
+  severity: block
+  source: DIE 'Sheet nesting - production practice' steps 2 and 6; CTX L2234
+  status: confirmed
+- id: OS-12
+  rule: Where blanks cannot interlock, leave a 10 mm channel.
+  check: non_interlocking_gap >= 10
+  values:
+    channel_mm: 10
+  applies_to:
+  - cup holders
+  - header cards
+  severity: warn
+  source: DIE 'Sheet nesting - production practice' step 4
+  status: confirmed
+- id: OS-13
+  rule: Food-box nests keep >= 5 mm between pieces; mailer 0427 nests keep cut-to-cut gap >= 6 and margin >= 5.
+  check: foodbox_gap >= 5; mailer_gap >= 6 and mailer_margin >= 5
+  values:
+    foodbox_gap: 5
+    mailer_gap: 6
+    mailer_margin: 5
+  applies_to:
+  - food boxes
+  - 0427 mailers
+  severity: block
+  source: KLD food boxes 'Nest spacing follows the master die'; KLD mailer 'Offset nesting (Aeros-derived)'
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L2901, L2991
+  cortex_note: 'food-box press gate also: every piece >= 5 mm inside the sheet (L2991)'
+- id: OS-14
+  rule: 'Derived tub/fan nests: >= 5.8 mm in a column, >= 4.76 mm diagonal, >= 5 mm to the sheet edge.'
+  check: col_gap >= 5.8 and diag_gap >= 4.76 and edge_margin >= 5
+  values:
+    col: 5.8
+    diag: 4.76
+    edge: 5
+  applies_to:
+  - paper tubs (derived nests)
+  severity: block
+  source: KLD 'No team layout at all (750 / 350 mL)'
+  status: derived
+  confirmed_by: ARTWORK-CORTEX.md L193-196
+  cortex_note: 350 mL tub uses the team-400 spacing 2.2 mm column / 1.65 mm diagonal, margin 3 (L203-211)
+- id: OS-15
+  rule: Aeros-derived sheet = block + margins rounded UP to the next half inch, never AT a machine limit, never an odd metric sheet.
+  check: sheet = ceil_half_inch(block + margins) and sheet < machine_limit
+  values:
+    round_to_in: 0.5
+  applies_to:
+  - Aeros-derived offset nests
+  severity: warn
+  source: KLD 'OFFSET PRESS LIMITS' (800 x 600 rejected)
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L221-224
+- id: OS-16
+  rule: 'Standard offset sheets for hand-made bags: 18x23, 20x30, 22x28, 23x36, 25x36, 28x40 in.'
+  check: sheet in [[18,23],[20,30],[22,28],[23,36],[25,36],[28,40]] (in)
+  values:
+    sheets_in:
+    - - 18
+      - 23
+    - - 20
+      - 30
+    - - 22
+      - 28
+    - - 23
+      - 36
+    - - 25
+      - 36
+    - - 28
+      - 40
+  applies_to:
+  - hand-made bags
+  severity: block
+  source: DIE 'Hand-made bags on offset' step 1
+  status: confirmed
+- id: OS-17
+  rule: Cup holders run on 23 x 36 in at Blueline; always test 23 x 36 and 25 x 36 and pick on board per piece.
+  check: evaluate both sheets; choose min(sheet_g / ups)
+  values:
+    sheet_in:
+    - 23
+    - 36
+    sheet_mm:
+    - 584.2
+    - 914.4
+  applies_to:
+  - CHC cup holders
+  - cartons
+  severity: warn
+  source: DIE 'Sheet nesting - production practice' step 1; CTX L625
+  status: confirmed
+- id: OS-18
+  rule: 'Big one-piece blanks (cake boxes) are 1-up on 25 x 36: quote cut-to-size beside it.'
+  check: 'if ups_on_25x36 == 1 and yield < 0.6: show cut_to_size option'
+  values:
+    yield_range:
+    - 0.45
+    - 0.58
+  applies_to:
+  - cake boxes
+  - 4-cup carriers
+  - large blanks
+  severity: warn
+  source: CUS 'Big one-piece blanks'
+  status: confirmed
+- id: OS-19
+  rule: Utilisation under 70% must be explained and a better sheet shown.
+  check: 'if sheet_use < 0.70: warn'
+  values:
+    min_use: 0.7
+  applies_to:
+  - custom boxes
+  severity: warn
+  source: CUS Workflow step 4
+  status: confirmed
+- id: OS-20
+  rule: 'A blank longer than 914 mm cannot run at Blueline: split into two halves at a fold (box: + one 22 mm glue flap).'
+  check: 'if blank_long_side > 914.4: require 2-piece'
+  values:
+    limit: 914.4
+    added_glue_flap: 22
+  applies_to:
+  - gable boxes
+  - large boxes
+  - hand-made bags
+  severity: block
+  source: CUS 'Gable box, handle lock'; DIE gablelock '1022 mm exceeds Blueline's 914'; BAG 'If the sheet is longer than 914 mm'
+  status: confirmed
+- id: OS-21
+  rule: Blueline walk-in minimum billing is 1,000 sheets; below it the 1,000-sheet charge is spread over the qty.
+  check: billed_sheets = max(sheets, 1000)
+  values:
+    min_sheets: 1000
+  applies_to:
+  - Blueline offset boxes
+  - stickers on offset
+  severity: warn
+  source: CUS 'Minimum billing 1,000 sheets'; CTX L1045
+  status: confirmed
+- id: OS-22
+  rule: Blueline locked rate only at >= 25,000 sheets per run.
+  check: 'if sheets >= 25000: locked rate else walk-in'
+  values:
+    locked_min_sheets: 25000
+  applies_to:
+  - Blueline offset
+  severity: warn
+  source: CTX L656-665 blueline_locked_zepto_z3
+  status: confirmed
+- id: OS-23
+  rule: Max 4 Pantone on our machines; a 5th colour moves the job to CMYK.
+  check: 'if n_pantone > 4: route = CMYK'
+  values:
+    max_pantone: 4
+  applies_to:
+  - all printed jobs (customer proof colour page)
+  severity: block
+  source: KLD 'Checklist before a proof leaves' COLOURS + TIMELINE page
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L684-685
+- id: OS-24
+  rule: Printing both sides = 2 passes + 2 plates.
+  check: passes = sides_printed; plates = colours_per_side summed
+  values: {}
+  applies_to:
+  - boxes printed inside and out
+  severity: warn
+  source: CUS 'Repeat customers' (Roggenart)
+  status: confirmed
+- id: OS-25
+  rule: Glue-seam strips must stay unlaminated (de-lam window).
+  check: lamination ∩ glue_zone == empty
+  values: {}
+  applies_to:
+  - laminated boxes
+  - cup holders
+  - mailers
+  severity: block
+  source: CTX L830-845 lamination_finishes; CUS 'Lamination'
+  status: confirmed
+- id: OS-26
+  rule: Lamination is applied to the whole printed sheet before die-cut; rates gloss 0.45 / matt 0.55 / PVC 0.35 / blister 0.25 per (in2/100)/side; PVC is not food
+    grade.
+  check: 'if lamination == PVC and food_contact: warn'
+  values:
+    gloss: 0.45
+    matt: 0.55
+    pvc: 0.35
+    blister: 0.25
+  applies_to:
+  - boxes
+  severity: warn
+  source: CTX L830-845 lamination_finishes
+  status: confirmed
+- id: OS-27
+  rule: 'Gloss varnish has no rate on file: flag, don''t invent.'
+  check: 'if finish == gloss_varnish: warn ''no rate'''
+  values: {}
+  applies_to:
+  - boxes
+  severity: warn
+  source: CUS 'Lamination'
+  status: confirmed
+- id: OS-28
+  rule: Offset is not viable at 40 GSM (pastry sleeve went flexo only).
+  check: 'if gsm <= 40 and route == offset: warn (see contradictions C-09)'
+  values:
+    gsm: 40
+  applies_to:
+  - sleeves
+  - wraps
+  severity: warn
+  source: CUS 'Sleeves / wraps / partitions'
+  status: confirmed
+- id: OS-29
+  rule: Unprinted parts get a DIE layout (cut/crease only), and its C M Y K plates must be empty.
+  check: 'if printed == false: plates_cmyk_ink == 0'
+  values: {}
+  applies_to:
+  - plain inserts
+  - trays
+  severity: block
+  source: KLD 'OFFSET PRESS LIMITS'
+  status: confirmed
+- id: OS-30
+  rule: 'One rotated (90 deg) blank runs the grain the other way: flag it for the die maker.'
+  check: 'if any blank rotated 90: warn grain'
+  values: {}
+  applies_to:
+  - all offset nests
+  severity: warn
+  source: CUS 'Check interlock'; DIE 'Hand-made bags' step 8
+  status: confirmed
+- id: OS-31
+  rule: 'Nesting files: only the CUT goes over the artwork; frame, dimensions and title never sit on a piece; dimension figures sit on the waste; no title / notes
+    / swatches / fonts on the press page; state the registration tolerance per edge (e.g. 15 A.D. top 2.0, left 2.3, bottom 1.9 mm before white shows).'
+  check: non-cut strokes ∩ pieces == empty; fonts == 0
+  values:
+    example_reg_tol_mm:
+      top: 2.0
+      left: 2.3
+      bottom: 1.9
+  applies_to:
+  - all offset press files
+  severity: block
+  source: ARTWORK-CORTEX.md L73-77; L2380; L2385
+  status: confirmed
+- id: OS-32
+  rule: 'Black must not be an extra plate on a punch-KLD job: /All marks -> the job spots, 100 K KLD lines -> non-printing "Dieline" separation (kld_job_colours.py).'
+  check: 'tiffsep: ARTWORK-PUNCH = job spots only; LAYOUT = spots + Dieline; PUNCH = Dieline only'
+  values:
+    spot_px_tol_pct: 0.01
+  applies_to:
+  - offset cups on Blueline punch KLDs
+  severity: block
+  source: ARTWORK-CORTEX.md L4505
+  status: confirmed
+flexo_reel:
+- id: FX-01
+  rule: Repeat = teeth x 3.175 and the teeth must be a cylinder the printing vendor owns; never a computed tooth count.
+  check: repeat_mm == teeth * 3.175 and teeth in vendor.cylinders
+  values:
+    tooth_pitch_mm: 3.175
+  applies_to:
+  - flexo bags
+  - food boxes
+  - cups
+  - cup holders
+  severity: block
+  source: CTX L1886 / L2454 flexo_repeat_must_be_an_existing_cylinder; FLX 'Common to every flexo plate'; DIE 'Flexo repeat = an EXISTING cylinder'
+  status: confirmed
+- id: FX-02
+  rule: 'Viana Packaging working cylinders (teeth: count), 95 in 28 sizes.'
+  check: teeth in keys(values.viana) and count_available > 0
+  values:
+    viana:
+      83: 2
+      86: 2
+      88: 2
+      92: 2
+      96: 4
+      97: 4
+      98: 4
+      100: 3
+      102: 5
+      104: 4
+      106: 2
+      109: 5
+      112: 4
+      113: 5
+      115: 4
+      116: 4
+      117: 4
+      121: 4
+      124: 2
+      126: 3
+      129: 4
+      130: 1
+      134: 4
+      135: 4
+      144: 4
+      147: 2
+      151: 3
+      155: 4
+    repeat_mm_range:
+    - 263.525
+    - 492.125
+    gone_entirely:
+    - 93
+    - 99
+    - 101
+    - 110
+    scrapped_2026_09_28:
+      93: 2
+      97: 2
+      98: 2
+      99: 2
+      101: 2
+      110: 2
+      112: 2
+  applies_to:
+  - all Viana flexo
+  severity: block
+  source: CYL; FLX PART D; KLD 'Vendor cylinders'
+  status: confirmed
+  cortex_note: Unicorn Flexo runs the 250 mL SW master plate on 108 T / 342.90, reel 870 (ARTWORK-CORTEX.md L26-39); Unicorn has no full cylinder list.
+- id: FX-03
+  rule: 'Viana runs 83-155 T only: a repeat outside 263.5-492.1 mm has no cylinder.'
+  check: 263.525 <= repeat_mm <= 492.125
+  values:
+    min_repeat: 263.525
+    max_repeat: 492.125
+  applies_to:
+  - Viana flexo
+  severity: block
+  source: CTX L1886; DIE 'Flexo repeat'; KLD food box step 1 (528.5 mm -> 167 T, beyond Viana's 155 T)
+  status: confirmed
+- id: FX-04
+  rule: Cylinders of the chosen teeth must cover the number of inks (3 of 3 = no spare).
+  check: vendor.count[teeth] >= n_inks (warn if ==)
+  values:
+    example: Viana 3 x 100 T, 4 x 121 T, 3 x 126 T; only 2 x 106 T
+  applies_to:
+  - all Viana flexo
+  severity: block
+  source: FLX PART C step 0; FLX 12 oz DW note 'Viana holds only 2 x 106 T'; CUS NATIVE 'not enough 109T cylinders'
+  status: confirmed
+- id: FX-05
+  rule: Viana machine max web is 950 mm; print width <= reel <= machine max.
+  check: print_w <= reel_w <= 950
+  values:
+    max_web: 950
+  applies_to:
+  - Viana flexo bags and food-box board
+  severity: block
+  source: CYL max_web_width_mm; FLX PART C step 4 + PART D; KLD food box flexo
+  status: confirmed
+- id: FX-06
+  rule: Food-box board reel to record now is 865 mm (RM in stock); 80 cm also mentioned; ask which.
+  check: reel_w in stocked_reels (865 default)
+  values:
+    reel_mm: 865
+  applies_to:
+  - food boxes on Viana flexo
+  severity: warn
+  source: FLX PART C; KLD food box flexo
+  status: confirmed
+- id: FX-07
+  rule: 'Bags: repeat = H + bottom (D-cut: flap + H + bottom); bag height axis is the repeat and blank width must fit the deckle; never rotate a blank to put width
+    on the repeat.'
+  check: teeth*3.175 == H + bottom (+flap for D-cut); blank_w <= reel_w
+  values: {}
+  applies_to:
+  - SOS
+  - PTH
+  - FH
+  - D-cut bags on flexo
+  severity: block
+  source: CTX L1886; FLX PART B step 1; DIE 'Flexo repeat'
+  status: confirmed
+- id: FX-08
+  rule: Bag bottom on a flexo plate is what the cylinder leaves after H; team plates sit in the window G/2 + 13 to G/2 + 25.
+  check: G/2 + 13 <= teeth*3.175 - H <= G/2 + 25
+  values:
+    window:
+    - G/2 + 13
+    - G/2 + 25
+  applies_to:
+  - SOS on flexo
+  severity: block
+  source: FLX PART D (register fit table); KLD 'Vendor cylinders'; DIE machine PTH note
+  status: confirmed
+- id: FX-09
+  rule: '11 listing SOS sizes have no Viana cylinder in that window: ask before building.'
+  check: sku not in [SOS-001, SOS-101, SOS-102, SOS-103, SOS-111, SOS-114, SOS-115, SOS-116, SOS-118, SOS-119, SOS-120]
+  values:
+    skus:
+    - SOS-001
+    - SOS-101
+    - SOS-102
+    - SOS-103
+    - SOS-111
+    - SOS-114
+    - SOS-115
+    - SOS-116
+    - SOS-118
+    - SOS-119
+    - SOS-120
+  applies_to:
+  - SOS listing sizes
+  severity: block
+  source: FLX PART D; KLD 'Vendor cylinders'
+  status: confirmed
+- id: FX-10
+  rule: Bag plate panel order GLUE | GUSSET | FRONT | GUSSET | BACK, glue 20 (25 on HOB).
+  check: panel_order == [glue, gusset, front, gusset, back] and glue in [20, 25]
+  values:
+    glue: 20
+    glue_hob: 25
+  applies_to:
+  - flexo bag plates
+  severity: block
+  source: FLX PART B step 2
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L1015
+- id: FX-11
+  rule: 'Food box: the WHOLE nest column fits inside one repeat incl. the interlock offset; the plate shows whole boxes only; the seam runs in the die gap of every
+    lane.'
+  check: column_len + interlock_offset <= repeat; no die fragment crosses repeat line; seam_clear > 0
+  values:
+    example: 1000 mL 375.3 + 17.6 = 392.9 -> 126 T 400.05 (seam 3.57 clear)
+  applies_to:
+  - food boxes
+  - board items on flexo
+  severity: block
+  source: FLX PART C step 3; KLD food box flexo step 3
+  status: confirmed
+- id: FX-12
+  rule: 'No gripper on flexo: 5 mm left and right of the boxes; print centred on the reel, rest is trim.'
+  check: side_clear_each >= 5
+  values:
+    side_mm: 5
+  applies_to:
+  - food boxes on flexo
+  severity: block
+  source: FLX PART C step 4
+  status: confirmed
+- id: FX-13
+  rule: 3 mm between boxes across lanes (this job; ask before reusing).
+  check: lane_gap == 3.00
+  values:
+    lane_gap: 3.0
+  applies_to:
+  - Zepto 1000 mL food box; others only on approval
+  severity: warn
+  source: FLX PART C step 2
+  status: confirmed
+- id: FX-14
+  rule: 'Food box flexo: 0 ink within 1 mm of the seam; eye-mark and registration inside the layout waste, >= 1.5 mm from every cut.'
+  check: ink_within_1mm_of_seam == 0 and mark_clearance_to_cut >= 1.5
+  values:
+    seam_ink_free: 1.0
+    mark_to_cut: 1.5
+  applies_to:
+  - food boxes on flexo
+  severity: block
+  source: FLX PART C steps 5 and 8
+  status: confirmed
+- id: FX-15
+  rule: Food box eye-mark 8 across x 15 around in the darkest job ink; registration target dia 6 with an 8 mm cross in every plate + one 3 x 3 patch per plate at
+    both edges.
+  check: eye_mark == [8, 15]; reg_target_d == 6; reg_cross == 8
+  values:
+    eye_mark:
+    - 8
+    - 15
+    reg_dia: 6
+    reg_cross: 8
+    patch:
+    - 3
+    - 3
+  applies_to:
+  - food boxes on flexo
+  severity: block
+  source: FLX PART C step 5
+  status: confirmed
+- id: FX-16
+  rule: Bag eye-mark K100 15 x 8 on the glue flap, flush with the left cut, below the bottom fold; /All registration crosshair just outside left and right cuts at
+    mid-height.
+  check: eye_mark == [15, 8] and colour == K100 (or darkest spot on a no-K job)
+  values:
+    eye_mark:
+    - 15
+    - 8
+  applies_to:
+  - flexo bag plates
+  severity: block
+  source: FLX PART B steps 5-6; FLX dealer precedent (darkest spot)
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L1027-1032
+  cortex_note: Burma Burma team file carried a 15 x 5 mm eye-mark 10 mm above the bottom cut (L822)
+- id: FX-17
+  rule: Bag art runs to the top and right cuts, 5-12 mm (use 10) past the bottom fold, and into the glue flap by half its width; outer half of the glue flap ink-free;
+    bottom flaps otherwise blank.
+  check: art_past_bottom_fold in [5, 12]; glue_flap_ink_width <= glue_w / 2
+  values:
+    past_bottom_fold:
+    - 5
+    - 12
+    default: 10
+    glue_flap_ink: half width
+  applies_to:
+  - flexo bag plates
+  severity: block
+  source: FLX PART B step 4
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L1023-1025
+- id: FX-18
+  rule: 'Cup plate edges (8 oz DW template): glue side 0.50-0.65 past the side-seam line (seam 6.0 in from glue-flap cut), open side 2.1 past cut, rim 2.0 past cut,
+    hem stops ~3.0 above bottom cut; bleed within 0.1 mm of the template.'
+  check: abs(edge_bleed - template_bleed) <= 0.1
+  values:
+    glue_side_past_seam:
+    - 0.5
+    - 0.65
+    seam_in_from_glue_cut: 6.0
+    open_side: 2.1
+    rim: 2.0
+    hem_above_cut: 3.0
+    tol: 0.1
+  applies_to:
+  - DW cup outer wraps on flexo
+  severity: block
+  source: FLX PART A RULE 4 + RULE 7 gates
+  status: confirmed
+- id: FX-19
+  rule: 'Shared knife: ink runs to the cut from both sides, never across; real gap: ink >= 1.0 mm off the neighbour''s cut.'
+  check: shared_knife_cross_ink == 0 and nonshared_neighbour_clear >= 1.0
+  values:
+    neighbour_clear: 1.0
+  applies_to:
+  - cup flexo plates
+  severity: block
+  source: FLX PART A RULE 4
+  status: confirmed
+- id: FX-20
+  rule: 'Ink never past the reel edge (it prints on the impression roller): clip to the reel.'
+  check: ink_bbox within reel_w
+  values: {}
+  applies_to:
+  - all flexo plates
+  severity: block
+  source: FLX PART A RULE 6; RULE 7 gate 'ink inside the reel'
+  status: confirmed
+- id: FX-21
+  rule: 'Cups: one eye-mark 12 x 6 PER ROW on both reel edges; one reel bar per edge exactly one repeat long with 3 notched crosses at 3.49% of the repeat from each
+    end + the middle; a plus in every notch.'
+  check: eye_marks == rows * 2; bar_len == repeat; notches == 3 and notch_count == plus_count
+  values:
+    eye_mark:
+    - 12
+    - 6
+    notch_pos_pct: 3.49
+  applies_to:
+  - cup flexo plates
+  severity: block
+  source: FLX PART A RULE 6; PART E 'So, from now on'
+  status: confirmed
+- id: FX-22
+  rule: Die line, title and dims in RGB (removed before plates); never a CMYK die colour; 0 fonts; only the job's plates + /All carry ink.
+  check: die_colourspace == RGB; fonts == 0; tiffsep plates == job_inks + All
+  values: {}
+  applies_to:
+  - all flexo plates
+  severity: block
+  source: FLX 'Common to every flexo plate'; FLX PART B step 3; RULE 7 gates
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L1018-1021
+- id: FX-23
+  rule: 'Art fit to each slot''s cut: median <= 0.03 mm, max <= 0.20 mm (supplier layouts 0.20 / 0.80).'
+  check: fit_median <= 0.03 and fit_max <= 0.20
+  values:
+    median: 0.03
+    max: 0.2
+    supplier_layout:
+    - 0.2
+    - 0.8
+  applies_to:
+  - cup plates and offset cup nests
+  severity: block
+  source: FLX PART A RULE 3; KLD 'Fit limits belong to the blueline's provenance'
+  status: confirmed
+- id: FX-24
+  rule: 'SW band (patch) print: varnish is mandatory (BLACK + VARNISH plates) and varnish stays out of the side-seal zone.'
+  check: 'if SW band: plates include VARNISH and varnish ∩ side_seal == empty'
+  values: {}
+  applies_to:
+  - SW cups flexo
+  severity: block
+  source: FLX PART A RULE 4
+  status: confirmed
+- id: FX-25
+  rule: Small type / QRs on flexo are K100, never rich black (75/68/67/90); no RGB in the art; process CMYK (SWOP) or spot + K.
+  check: small_text_and_qr colour == K100; rgb_in_art == 0
+  values:
+    rich_black_flagged:
+    - 75
+    - 68
+    - 67
+    - 90
+  applies_to:
+  - flexo bag plates
+  severity: block
+  source: FLX PART B step 9
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L1044-1045; L45-47
+- id: FX-26
+  rule: Offset sheet layouts cannot run on flexo as they are; a food box is nested turned 90 deg so offset rows become lanes.
+  check: flexo layout != offset sheet layout
+  values: {}
+  applies_to:
+  - food boxes
+  severity: block
+  source: FLX PART C step 1
+  status: confirmed
+- id: FX-27
+  rule: The die stays as supplied on flexo; a die change needs Arjun + the die maker.
+  check: die_strokes match supplied die to 0.02 mm
+  values:
+    match_tol: 0.02
+  applies_to:
+  - food boxes on flexo
+  severity: block
+  source: FLX PART C steps 8-9
+  status: confirmed
+- id: FX-28
+  rule: Printed V-bottom bags are flexo only, MOQ 50,000 (start point; Arjun sets per job).
+  check: 'if VB printed: route == flexo; qty >= moq_job (default 50000)'
+  values:
+    moq: 50000
+  applies_to:
+  - V-bottom bags
+  severity: warn
+  source: BAG 'V-bottom bags (14-Nov-2026)'; CTX L1651 crossover_by_family
+  status: confirmed
+- id: FX-29
+  rule: 'Bag print route by family: SOS-001 flexo-only MOQ 50k; SOS-002/003 flexo-only 25k; SOS-004..011 offset 1k-15k then flexo 15k+; SOS-012 + PTH/FHB offset 1k-10k
+    then flexo 10,001+; DCB offset from 1k.'
+  check: route = f(family, qty) per values
+  values:
+    SOS-001:
+      flexo_moq: 50000
+    SOS-002_003:
+      flexo_moq: 25000
+    SOS-004_011:
+      offset:
+      - 1000
+      - 15000
+      flexo_from: 15000
+    SOS-012_PTH_FHB:
+      offset:
+      - 1000
+      - 10000
+      flexo_from: 10001
+    DCB:
+      offset_from: 1000
+  applies_to:
+  - catalogue bag SKUs
+  severity: warn
+  source: CTX L1651 crossover_by_family; MEM aeros_sos_domestic_framework.md
+  status: confirmed
+- id: FX-30
+  rule: Pastry sleeve on 40 GSM is flexo only.
+  check: 'if gsm <= 40 sleeve: route == flexo'
+  values:
+    gsm: 40
+  applies_to:
+  - sleeves
+  - light wraps
+  severity: warn
+  source: CUS 'Sleeves / wraps / partitions'
+  status: confirmed
+- id: FX-31
+  rule: Teeth are shown only on a flexo PLATE file, never on a keyline.
+  check: 'if file_type == keyline: no ''NNN Teeth'''
+  values: {}
+  applies_to:
+  - all keylines
+  severity: warn
+  source: FLX PART D; KLD 'Vendor cylinders'
+  status: confirmed
+- id: FX-32
+  rule: '250 mL / 8 oz SW flexo plate must match the Unicorn master: 108 T / 342.90, reel 870, 12-up (4 lanes x 3 rows), K100 only, eye-marks 12 x 6, 3 per side,
+    114.21 apart; any non-K100 colour (rich black) is rejected; gate < 0.02 mm vs master.'
+  check: check_250sw_flexo_plate.py PASS (cuts, eye-marks, strips identical < 0.02 mm; colours K100 or white)
+  values:
+    teeth: 108
+    repeat: 342.9
+    reel: 870
+    ups: 12
+    band:
+    - 184.1
+    - 35.44
+    tol: 0.02
+  applies_to:
+  - 250 mL SW cups flexo
+  severity: block
+  source: ARTWORK-CORTEX.md L26-47
+  status: confirmed
+- id: FX-33
+  rule: D-cut roll-fed repeat = teeth x 3.175 = flap + H + bottom must be a WHOLE tooth count (DCB-002 = 146.44 T, flagged).
+  check: (flap + H + bottom)/3.175 is integer and in vendor list
+  values: {}
+  applies_to:
+  - D-cut bags flexo
+  severity: block
+  source: ARTWORK-CORTEX.md L922; L926
+  status: confirmed
+bag_machine:
+- id: BM-01
+  rule: Gusset hard limit 178 mm in-house; a few mm over (e.g. 180) is made 178; well over (200+) goes to a vendor.
+  check: G <= 178 (180 -> 178 allowed with note)
+  values:
+    g_max: 178
+  applies_to:
+  - SOS
+  - PTH
+  - FHB on the bag machine
+  severity: block
+  source: BAG 'The size check'; CTX L3109-3112 gusset_limit; MEM aeros_bag_machine_limits.md; DIE 'Bag machine'
+  status: confirmed
+- id: BM-02
+  rule: FJ11(13) chart gusset range 70-180 mm (FJ13S 60-~150).
+  check: '70 <= G <= 180 (FJ13S: 60 <= G <= 150)'
+  values:
+    fj11_13:
+    - 70
+    - 180
+    fj13s:
+    - 60
+    - 150
+  applies_to:
+  - SOS
+  - handle bags
+  severity: block
+  source: BAG 'Machine envelope'; ENV G_MIN/G_MAX; CTX L3143-3147
+  status: derived
+- id: BM-03
+  rule: Tube (cut-off) length 270-530 mm, tube ~ H + G/2 + 40.
+  check: 270 <= H + G/2 + 40 <= 530
+  values:
+    tube_min: 270
+    tube_max: 530
+    tube: H + G/2 + 40
+  applies_to:
+  - SOS
+  - handle bags
+  severity: block
+  source: ENV T_MIN/T_MAX; BAG 'Machine envelope'; CTX L3143
+  status: derived
+- id: BM-04
+  rule: 'Minimum tube rises with gusset: 270 up to G 104, then 270 + 1.95 x (G - 104) (420 at G 180).'
+  check: H + G/2 + 40 >= (270 if G <= 104 else 270 + 1.95*(G - 104))
+  values:
+    knee_g: 104
+    slope: 1.95
+    at_g180: 420
+  applies_to:
+  - SOS
+  - handle bags
+  severity: block
+  source: ENV min_tube(); BAG 'Machine envelope'; CTX L3114 machine_envelope
+  status: derived
+- id: BM-05
+  rule: Bag height on the chart 200-480 mm; nothing under ~H 180 runs at all; G 150 needs H >= ~245; H 178 only with G <= ~104.
+  check: 200 <= H <= 480 (chart)
+  values:
+    h_chart:
+    - 200
+    - 480
+    h_floor_approx: 180
+  applies_to:
+  - SOS
+  - handle bags
+  severity: block
+  source: BAG 'Machine envelope' table + rule of thumb; CTX L3144
+  status: derived
+- id: BM-06
+  rule: 'Width is set by a stocked forming plate: bag widths 130, 150, 230, 240 (x2), 254, 280, 295, 300, 305; NO 180 plate. New plate = one-time charge.'
+  check: W in [130, 150, 230, 240, 254, 280, 295, 300, 305] else needs new plate
+  values:
+    widths:
+    - 130
+    - 150
+    - 230
+    - 240
+    - 254
+    - 280
+    - 295
+    - 300
+    - 305
+    plate_actual:
+      130: 126
+      150: 146
+      230: 226
+      240: 236
+      254: 251
+      280: 276
+      295: 291
+      300: 296
+      305: 300
+    no_plate:
+    - 180
+    - 127
+    - 203
+  applies_to:
+  - machine bags
+  severity: warn
+  source: ENV PLATE_ACTUAL; BAG 'Machine envelope' width; CTX L3117-3121 forming_plates; MEM aeros_bag_machine_limits.md
+  status: confirmed
+- id: BM-07
+  rule: Bag comes out ~4 mm wider than the plate.
+  check: bag_w ~= plate_actual + 4
+  values:
+    offset: 4
+  applies_to:
+  - machine bags
+  severity: warn
+  source: ENV comment; BAG 'Machine envelope'
+  status: confirmed
+- id: BM-08
+  rule: Reel width runs from the exact deckle up to deckle + 50 mm, never wider (680 deckle -> max 730; 750 failed).
+  check: deckle <= reel_w <= deckle + 50
+  values:
+    max_over_deckle: 50
+  applies_to:
+  - all machine bags
+  severity: block
+  source: BAG 'Machine envelope' reel width; CTX L3105-3108; MEM aeros_bag_machine_limits.md
+  status: confirmed
+- id: BM-09
+  rule: Deckle = 2W + 2G + pasting lap; lap 15 if W <= 100, 20 if W <= 300, 25 above.
+  check: deckle = 2*W + 2*G + (15 if W<=100 else 20 if W<=300 else 25)
+  values:
+    lap:
+      W<=100: 15
+      W<=300: 20
+      W>300: 25
+  applies_to:
+  - machine bags
+  severity: block
+  source: BAG 'Geometry (engine formulas)'
+  status: confirmed
+- id: BM-10
+  rule: Machine-made only, MOQ 15,000 pcs per size; hand-made only when Arjun asks.
+  check: qty >= 15000
+  values:
+    moq: 15000
+  applies_to:
+  - custom machine bags
+  severity: warn
+  source: BAG 'How it's made, and the MOQ'; CTX L3122-3125
+  status: confirmed
+- id: BM-11
+  rule: Serrated top and thumb notch come from the machine; plate die top edge is drawn straight.
+  check: machine bag die top == straight
+  values: {}
+  applies_to:
+  - machine SOS
+  severity: warn
+  source: FLX PART B step 3
+  status: confirmed
+- id: BM-12
+  rule: 'D-cut bag: face - gusset >= 92 mm or the handle clashes with the gusset fold.'
+  check: W - G >= 92
+  values:
+    min: 92
+  applies_to:
+  - D-cut bags
+  severity: block
+  source: DIE 'D-cut bags'; CTX L1960 / L2528
+  status: confirmed
+- id: BM-13
+  rule: 'Don''t quote a GSM too light for the bag (handle bags guide: <= 220 wide 60 OK / 70 better; 240-260 wide 70 min; 280+ wide 80+; 300+ wide 110-120).'
+  check: gsm >= guide(W)
+  values:
+    W<=220: 60
+    240-260: 70
+    280+: 80
+    300+:
+    - 110
+    - 120
+  applies_to:
+  - handle bags
+  severity: warn
+  source: BAG 'Is the GSM heavy enough?'; CTX gsm_too_light (working_guide assumed)
+  status: assumed
+- id: BM-14
+  rule: The FJ11(13)S envelope is the SOS/handle machine; it does not apply to flat V-bottom bags (gusset floor 70). Machine V-bottom is outsourced (Sree Packaging).
+  check: 'if style == V-bottom: skip envelope; route = vendor'
+  values: {}
+  applies_to:
+  - V-bottom bags
+  severity: warn
+  source: BAG 'V-bottom bags'; MEM aeros_bag_machine_limits.md
+  status: confirmed
+- id: BM-15
+  rule: Base paper is always white or brown kraft, never coloured; a coloured bag is a printed flood.
+  check: paper_colour in [white, brown]
+  values: {}
+  applies_to:
+  - all bags
+  severity: block
+  source: BAG 'Base paper is always white or brown kraft' (Arjun 16-Nov-2026)
+  status: confirmed
+- id: BM-16
+  rule: Regular mill reels are 700-750 mm.
+  check: reel_w in [700, 750] unless a custom deckle is ordered
+  values:
+    reel_range:
+    - 700
+    - 750
+  applies_to:
+  - paper orders
+  severity: warn
+  source: MEM aeros_mill_reel_widths.md; BAG 'Regular mill reels'
+  status: confirmed
+- id: BM-17
+  rule: Ajit supplies on set deckles (1026, 740 on file) and wants reels set to suit a 3800-3900 mm jumbo.
+  check: 'if mill == Ajit: deckle in [1026, 740] or fits 3800-3900 jumbo'
+  values:
+    deckles:
+    - 1026
+    - 740
+    jumbo:
+    - 3800
+    - 3900
+  applies_to:
+  - paper from Ajit
+  severity: warn
+  source: BAG 'Paper - truths worth remembering'
+  status: confirmed
+- id: BM-18
+  rule: US-bound bags never on Jodhani paper.
+  check: 'if market == USA: mill != Jodhani'
+  values: {}
+  applies_to:
+  - export bags
+  severity: block
+  source: 'BAG ''USA bags: no Jodhani paper'''
+  status: confirmed
+hand_made_bags:
+- id: HM-01
+  rule: Hand-made bags printed offset go on a STANDARD sheet only; never cut-to-size.
+  check: sheet in OS-16 list
+  values: {}
+  applies_to:
+  - hand-made SOS
+  - D-cut
+  - rope/flat handle bags
+  severity: block
+  source: BAG 'Sheet = a STANDARD offset sheet, NEVER cut-to-size'; DIE 'Hand-made bags on offset' step 3
+  status: confirmed
+- id: HM-02
+  rule: One-piece blank = (20 + 2W + 2G) x (top + H + G/2 + 29.6); 2-piece half = (20 + W + G) x same height, two halves per bag.
+  check: blank_w, blank_h per formula
+  values:
+    seam: 20
+    bottom: G/2 + 29.6
+  applies_to:
+  - hand-made SOS / PTH
+  severity: block
+  source: DIE 'Hand-made bags on offset' step 2; CTX rope_bag_half_punch L2065
+  status: confirmed
+- id: HM-03
+  rule: 'A one-piece blank wider than ~890 mm (W + G > ~435) cannot go on 25 x 36 or 23 x 36: make it 2-piece.'
+  check: 'if 20 + 2W + 2G > 890: two_piece = true'
+  values:
+    max_one_piece_w: 890
+  applies_to:
+  - hand-made bags
+  severity: block
+  source: DIE 'Hand-made bags on offset' step 4
+  status: derived
+- id: HM-04
+  rule: 'Pick per bag: most bags/sheet, then highest paper use, then one-piece over 2-piece at a tie or within ~3%.'
+  check: rank(bags_per_sheet desc, use desc, pieces asc within 3%)
+  values:
+    tie_band_pct: 3
+  applies_to:
+  - hand-made bags
+  severity: warn
+  source: DIE 'Hand-made bags on offset' step 3
+  status: confirmed
+- id: HM-05
+  rule: Hand-made bags NEVER get the serrated top; straight top; thumb notch only when the job asks; default no hem.
+  check: top == straight and serrated == false
+  values: {}
+  applies_to:
+  - hand-made SOS
+  severity: block
+  source: DIE 'Hand-made SOS bag (no handle)' + 'Hand-made SOS builder'
+  status: confirmed
+- id: HM-06
+  rule: The print keyline must use the same bottom as the die (G/2 + 29.6).
+  check: print_bottom == die_bottom
+  values:
+    bottom: G/2 + 29.6
+  applies_to:
+  - hand-made PTH / SOS
+  severity: block
+  source: DIE 'Hand-made twisted-handle (PTH) bag die'
+  status: confirmed
+- id: HM-07
+  rule: 'D-cut die: flap D-cut and BACK D-cut full cut; FRONT body D-cut half cut; supports = exactly two rectangles over the gussets; die file = cut + crease only,
+    10 mm margin.'
+  check: front_dcut == half_cut; supports == 2 over gussets; die colours only red/green
+  values:
+    dcut:
+    - 80
+    - 25.66
+    r: 12.47
+    margin: 10
+  applies_to:
+  - D-cut bags
+  severity: block
+  source: DIE 'D-cut bag die-cutting file' steps 4-6
+  status: confirmed
+- id: HM-08
+  rule: 'Within 3 mm of fitting: butt rows top-to-top on a common cut; bottom flaps facing each other keep the 3 mm gap.'
+  check: 'if top_edges face: gap 0 allowed; bottom-to-bottom gap >= 3'
+  values:
+    bottom_gap: 3
+  applies_to:
+  - hand-made bags
+  severity: block
+  source: DIE 'Hand-made bags on offset' step 7
+  status: confirmed
+- id: HM-09
+  rule: 'Reel-cut exception: a sheet cut from a 700-750 mm reel may be shown BESIDE the standard sheet; the standard-sheet rule is not formally lifted.'
+  check: 'if reel_sheet option: also show standard sheet'
+  values:
+    reels:
+    - 700
+    - 750
+  applies_to:
+  - hand-made bags
+  severity: warn
+  source: BAG 'Regular mill reels'; MEM aeros_mill_reel_widths.md; CTX L2850 reel_750
+  status: confirmed
+- id: HM-10
+  rule: Heavy board bags (~250 GSM) may run on FBB cut from Ashtavinayak reels, only when Arjun asks.
+  check: 'if gsm >= 250 and reel_board: arjun_ok == true'
+  values:
+    gsm: 250
+  applies_to:
+  - heavy board bags
+  severity: warn
+  source: BAG 'Heavy board bags'
+  status: confirmed
+- id: HM-11
+  rule: 'Rope-handle half-punch: half-blank (20 + W + G) x (30 + H + G/2 + 29.6), two impressions per bag; gusset > 178 is fine here; rope holes dia 5 on the hem
+    crease at 105 mm.'
+  check: two impressions per bag; holes 5 dia @ 105
+  values:
+    hem: 30
+    hole_d: 5
+    hole_spacing: 105
+  applies_to:
+  - rope / strap carry bags
+  severity: warn
+  source: DIE 'Rope / strap carry bags'; CTX rope_bag_half_punch
+  status: confirmed
+- id: HM-12
+  rule: Small-qty SOS (1k-5k) that also fails the machine envelope goes hand-made.
+  check: 'if qty <= 5000 and envelope_fail: route = hand-made'
+  values:
+    qty_max: 5000
+  applies_to:
+  - SOS
+  severity: warn
+  source: BAG 'Hand-made / offset small-run model'
+  status: confirmed
+- id: HM-13
+  rule: Screen-printed bag = ONE colour, solids and line work only, no tints / gradients / gusset print unless told.
+  check: 'if method == screen: n_inks == 1 and tints == 0 and gradients == 0'
+  values:
+    inks: 1
+  applies_to:
+  - screen-printed bags
+  severity: block
+  source: KLD 'Bag Customer Proofs, screen print and ink changes'
+  status: confirmed
+- id: HM-14
+  rule: 'Small SOS ship in bales, never cartons (small = SOS #1-#8 until confirmed).'
+  check: 'if small_sos: pack == bale'
+  values: {}
+  applies_to:
+  - small SOS
+  severity: warn
+  source: MEM feedback_small_sos_bales.md; BAG Cartons
+  status: assumed
+artwork:
+- id: AW-01
+  rule: Glue flap / glue seam stays ink-free (cups); nothing important in the glue flap.
+  check: ink ∩ glue_flap == empty (cups); critical content ∩ glue_flap == empty
+  values:
+    cup_glue_flap: ~7.5
+  applies_to:
+  - cups
+  - tubs
+  - bowls
+  severity: block
+  source: KLD 'Reading a die'; KLD Checklist item 11
+  status: confirmed
+- id: AW-02
+  rule: 'Glue holes / round glue points on food boxes are never printed: bleed = grown contour minus every hole.'
+  check: ink_px in holes == 0
+  values:
+    holes: dia 5 / dia 10
+  applies_to:
+  - food boxes
+  severity: block
+  source: KLD food boxes 'Round holes are GLUE POINTS'
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L2891-2895
+- id: AW-03
+  rule: 'Joint keep-clear: no text, logo, QR or panel within 8 mm of the LEFT cut on every paper fan (ground may run to the cut).'
+  check: critical_content distance to left_cut >= 8
+  values:
+    joint: 8
+  applies_to:
+  - cups
+  - tubs
+  - bowls
+  severity: block
+  source: KLD 'Placing artwork' JOINT KEEP-CLEAR
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L409-414
+- id: AW-04
+  rule: Customer artwork guide safe line 3 mm (8 mm on the left joint); tub/lid safe top = rim line - 5 or the lid line, fold 3.
+  check: content inside safe (3 mm; 8 left; top rim-5 or lid line)
+  values:
+    safe: 3
+    left: 8
+    top_below_rim: 5
+    bottom_fold: 3
+  applies_to:
+  - cups
+  - tubs
+  - bowls
+  - lids
+  severity: block
+  source: KLD 'Checklist before a proof leaves' (artwork guide + tub proof p2)
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L413-414; L695
+- id: AW-05
+  rule: 'Brim / rim curl is never printed: 0 fills and 0 glyphs above the print top (rim line or curl start).'
+  check: ink_above_print_top == 0 (2 px tol)
+  values:
+    tol_px: 2
+  applies_to:
+  - cups
+  - tubs
+  - bowls
+  severity: block
+  source: KLD Paper tubs 'The BRIM is never printed'; Checklist item 7
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L2702-2710; L424; L3075
+- id: AW-06
+  rule: 'SW cup: bottom 3 mm white fold-in lip; content >= 15 mm clear of the bottom cut (fills may run to the fold).'
+  check: content distance to bottom_cut >= 15
+  values:
+    lip: 3
+    content_clear: 15
+  applies_to:
+  - SW cups
+  severity: block
+  source: KLD 'Cup anatomy (SW vs DW)'
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L420-421; L1668
+- id: AW-07
+  rule: 'DW wrap: 5 mm hem never seen; content floor 5 mm above the hem fold and top margin 5 mm (generic system); customer text near the cut is lifted to >= 4.0
+    mm above the hem fold (house minimum).'
+  check: content distance above hem_fold >= 4 (customer) / 5 (generic); top margin >= 5
+  values:
+    hem: 5
+    content_floor_above_hem_fold_generic: 5
+    house_minimum_customer_text: 4.0
+    dw_top_margin: 5
+  applies_to:
+  - DW cup wraps
+  severity: block
+  source: KLD 'Cup anatomy'; 'Customer fans with NO hem'
+  status: confirmed
+  was:
+    above_fold: 4
+  overridden_by: ARTWORK-CORTEX.md L1797; L3603
+- id: AW-08
+  rule: 'Bowls: art centred and gated inside the VISIBLE band (printed wall - crimp 3.00 - bead); ground runs 8 mm above it into the curl and 2.0 mm past the fold
+    (6.00 white strip); seam never printed; left side bleeds 1.5 mm past the cut.'
+  check: art inside visible band; 0 fills above ground top; 0 ink right of seam line
+  values:
+    past_fold: 2.0
+    ground_above_visible_band: 8
+    visible_band_B128H66: 60.01
+    white_strip: 6.0
+    left_bleed_past_cut: 1.5
+    seam: never printed
+  applies_to:
+  - bowls
+  - tubs
+  severity: warn
+  source: KLD Paper bowls; 150 mL tub
+  status: confirmed
+  was:
+    past_fold: 2.0
+  overridden_by: ARTWORK-CORTEX.md L1283-1298; L2680-2684
+- id: AW-09
+  rule: 'Food-box team files carry no bleed: add 3 mm round the cut contour; 3 mm derived safe per display panel.'
+  check: bleed == 3; content inset from panel edge >= 3
+  values:
+    bleed: 3
+    safe: 3
+  applies_to:
+  - food boxes
+  - mailers
+  severity: block
+  source: KLD food boxes 'Team food-box files ... add 3 mm'; FOLDCHECK '3 mm derived safe per display panel'; KLD mailers 'clipped to cut + 3 mm'
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L2865; L2889
+- id: AW-10
+  rule: 'Tight multi-up: bleed stops at the mid-line to each neighbour (Voronoi clip); ink to the neighbour knife >= 1.417 mm on the 350 mL punch, >= 1.174 mm on
+    the 450 mL punch.'
+  check: ink_to_neighbour_knife >= 1.417 (350) / 1.174 (450); bleed <= gap/2
+  values:
+    neighbour_knife_min_350ml: 1.417
+    neighbour_knife_min_450ml: 1.174
+    designed_min_bleed_past_own_knife_350ml: 0.88
+  applies_to:
+  - food boxes
+  - cup offset nests
+  severity: block
+  source: KLD food boxes 'Tight multi-up'; KLD 'Cup punch nests'
+  status: confirmed
+  was:
+    neighbour_knife_min: 1.17
+  overridden_by: ARTWORK-CORTEX.md L122; L139
+- id: AW-11
+  rule: White board food boxes (single-colour die, no ink near the cut) carry no bleed; gate no ink outside the pieces.
+  check: ink outside pieces == 0
+  values: {}
+  applies_to:
+  - food boxes
+  severity: block
+  source: KLD food boxes 'Single-colour dies'
+  status: confirmed
+- id: AW-12
+  rule: Bag footer LOCKED at 60 x 29.8 mm, never scaled down (QR module 0.32-0.36 mm); K100, but on a job without a K plate it is recoloured to the job ink so it
+    adds no plate.
+  check: footer == [60, 29.8]; footer ink in job plate set
+  values:
+    footer:
+    - 60
+    - 29.8
+    qr_module:
+    - 0.32
+    - 0.36
+  applies_to:
+  - every Aeros bag (direct channel)
+  severity: block
+  source: KLD 'Bag bottom text - LOCKED'; FLX PART B step 7 (see contradiction C-06)
+  status: confirmed
+  was:
+    colour: K100 one colour
+  overridden_by: ARTWORK-CORTEX.md L884; L2596-2597; L1060
+- id: AW-13
+  rule: 'Maker''s mark: one 2.8 pt line (cap ~0.99 mm) on bare white board in the fold strip; it NEVER adds a colour - 100 K only when K is already a plate, else
+    the darkest job ink.'
+  check: tiffsep plate set with mark == plate set without mark; mark ∩ ground == empty
+  values:
+    size_pt: 2.8
+    cap_mm: 0.99
+    dw_baseline: RB + 1.5
+  applies_to:
+  - cups
+  - tubs
+  - bowls (direct channel)
+  severity: block
+  source: KLD 'The Aeros maker's mark'
+  status: confirmed
+  was:
+    ink: 100 K on a CMYK job; darkest job spot on a spot-only job
+  overridden_by: ARTWORK-CORTEX.md L578-589
+- id: AW-14
+  rule: Varnish is mandatory on offset printed cups.
+  check: 'if cup and route == offset: varnish == true'
+  values: {}
+  applies_to:
+  - printed cups offset
+  severity: block
+  source: CTX L550 blueline_cup_offset_final decisions; MEM aeros_dw_cup_offset_print.md
+  status: confirmed
+- id: AW-15
+  rule: 'Pantone or CMYK: confirmed Pantone = real Separation; max 4 Pantone (5th -> CMYK); spot alternate DeviceCMYK, never Lab.'
+  check: spots are /Separation; n_spots <= 4; alternate == DeviceCMYK
+  values:
+    max_pantone: 4
+  applies_to:
+  - all printed jobs
+  severity: block
+  source: KLD 'Colour'; KLD mailers 'Spot alternate = DeviceCMYK'; KLD checklist colour page
+  status: confirmed
+- id: AW-16
+  rule: 'Knockout white is not an ink; never build a white plate for it. Brown kraft: no white plate, ''white'' in art = bare kraft.'
+  check: 'if white == knockout: white_plate == false'
+  values: {}
+  applies_to:
+  - all; brown kraft bags
+  severity: block
+  source: KLD 'Colour' (Penguin Bean); KLD 'Paper bags'
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L829-831 (kraft ground, no white plate); L3817 (keep it white = knock-out to bare board)
+- id: AW-17
+  rule: 'Foil is not a plate: needs a foil block spec; every foiled shape one closed path, merge slivers under ~0.5 mm.'
+  check: foil paths closed; sliver_w >= 0.5
+  values:
+    sliver_min: 0.5
+  applies_to:
+  - foiled jobs
+  severity: block
+  source: KLD 'Colour'
+  status: confirmed
+- id: AW-18
+  rule: Raster art >= 300 dpi at size; no RGB in the print file; type at 100 K.
+  check: raster_dpi >= 300; rgb_ops == 0
+  values:
+    min_dpi: 300
+  applies_to:
+  - all print files
+  severity: block
+  source: KLD 'Colour'
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L638; L3029 (house floor 300)
+- id: AW-19
+  rule: No dates anywhere on the printed fan / plate art.
+  check: printed_dates == 0
+  values: {}
+  applies_to:
+  - all printed items
+  severity: block
+  source: KLD 'Colour'
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L1866
+- id: AW-20
+  rule: 0 live fonts at PRINT; art fills only before nesting (strokes outlined).
+  check: fonts == 0; art_strokes == 0 before nesting
+  values: {}
+  applies_to:
+  - all press files
+  severity: block
+  source: KLD 'Art must be fills only before nesting'; FLX gates
+  status: confirmed
+- id: AW-21
+  rule: PP and PET lids cannot be printed (plain only; DB trigger enforces).
+  check: 'if category == Lids and material in [PP, PET]: printed == false'
+  values: {}
+  applies_to:
+  - PP / PET lids
+  severity: block
+  source: MEM aeros_pp_pet_lid_no_print.md (trg_pp_pet_lid_plain_only)
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L1449-1451 (no Aeros mark on PP/PET cups); lids per memory
+- id: AW-22
+  rule: Nothing Aeros printed on a PET / PP cup; no Aeros branding on a dealer pack.
+  check: 'if PET/PP cup or channel == dealer: aeros_marks == 0'
+  values: {}
+  applies_to:
+  - PET/PP cups
+  - dealer jobs
+  severity: block
+  source: CPF 'Every customer proof, before it leaves'; KLD maker's mark IF
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L1449-1451; L561-562
+- id: AW-23
+  rule: 'Ø115 tubs: printed is WHITE only (brown kraft cannot be made in-house); 250 mL and 1000 mL tubs cannot be printed.'
+  check: 'if tub printed: board == white and size not in [250, 1000]'
+  values: {}
+  applies_to:
+  - paper tubs
+  severity: block
+  source: CTX L470-476
+  status: confirmed
+- id: AW-24
+  rule: Food boxes printed one side only; every inner face white; corner flaps' printed face goes against the end wall.
+  check: print_sides == 1
+  values: {}
+  applies_to:
+  - food boxes
+  severity: warn
+  source: KLD food boxes 'The board is printed ONE SIDE ONLY'
+  status: confirmed
+- id: AW-25
+  rule: End-wall type sits between the rim and the glue holes, never through them.
+  check: text ∩ hole_band == empty
+  values: {}
+  applies_to:
+  - food boxes
+  severity: warn
+  source: KLD food boxes (Layrd)
+  status: confirmed
+- id: AW-26
+  rule: Customer's own die cut line drawn as art must be removed (strokes > 20 mm span, >= 90% within ~3 mm of our cut).
+  check: art_strokes matching die == 0
+  values:
+    span: 20
+    within_mm: 3
+    share: 0.9
+  applies_to:
+  - customer art on cups / boxes
+  severity: block
+  source: KLD 'Placing artwork' item 8
+  status: confirmed
+- id: AW-27
+  rule: 'Plate / artwork page is never sized exactly to the blank: 10 mm bleed all round + corner trim marks; die files 10 mm margin.'
+  check: page >= blank + 2*10
+  values:
+    page_margin: 10
+  applies_to:
+  - all plate / die files
+  severity: warn
+  source: DIE 'Artwork placement'; DIE D-cut die step 6
+  status: confirmed
+- id: AW-28
+  rule: 'Die colours: RED cut, GREEN crease, orange dash safe, blue dims (cup KLDs black cut / red safe); die file = cut + crease only.'
+  check: die layer colours per convention
+  values: {}
+  applies_to:
+  - all dies
+  severity: block
+  source: CTX L1890 layer_colours; DIE 'Construction rules'
+  status: confirmed
+- id: AW-29
+  rule: 'PANTONE U codes always while we print on UNCOATED board: every spot named and separated as PANTONE xxxx U in print file, proof, chips and BRAND.md; proposals
+    checked against a printed U chip. Stickers are the exception (ALL PANTONE C, L2567).'
+  check: spot_names endwith ' U' (cups/boxes/bags); stickers ' C'
+  values: {}
+  applies_to:
+  - paper cups
+  severity: block
+  source: KLD 'Colour'
+  status: confirmed
+  was:
+    rule: 'Cupstock prints like a coated sheet: match against the Pantone C guide (KLD Colour, Mag St. 2026-09-30)'
+  overridden_by: ARTWORK-CORTEX.md L666
+- id: AW-30
+  rule: 'Minimum line / knock-out weights at FINAL print size: reversed type thinnest stroke >= 0.15 mm; reverse-out minimums 0.6 pt (line) / 3.3 pt (type); knock-out
+    line art at logo size >= ~0.12 mm; 0.08-0.084 mm lines are below press minimum (rebuilt to a 0.20 mm wall).'
+  check: min_stroke_reversed >= 0.15 and line_pt >= 0.6 and reversed_type_pt >= 3.3 and knockout_line >= 0.12
+  values:
+    reversed_type_min_stroke_mm: 0.15
+    reverse_out_line_pt: 0.6
+    reverse_out_type_pt: 3.3
+    knockout_line_mm: 0.12
+    rebuilt_wall_mm: 0.2
+  applies_to:
+  - paper cups
+  - boxes
+  - bags (offset/flexo)
+  severity: block
+  source: ARTWORK-CORTEX.md L788 (5 7e); L617; L3664; L2220
+  status: confirmed
+- id: AW-31
+  rule: 'Dry-offset (PP/PET) minimums: knock-outs, gaps and white lines >= 0.25 mm at final size (~0.2 mm noted on PP).'
+  check: min_gap_mm >= 0.25 and white_line_mm >= 0.25
+  values:
+    min_mm: 0.25
+    pp_note_mm: 0.2
+  applies_to:
+  - PP / PET direct-print cups
+  severity: block
+  source: ARTWORK-CORTEX.md L3166; L3215; L3417
+  status: confirmed
+- id: AW-32
+  rule: 'Ink coverage: no hard TAC limit is stated; builds of ~270-317 % are FLAGGED to the press, and near-black grounds are rebuilt as single-ink K100 instead of
+    a ~284 % FOGRA build.'
+  check: 'if TAC > 270: warn (flag to press); near-black ground -> K100'
+  values:
+    flagged_examples_pct:
+    - 270
+    - 281
+    - 283
+    - 285
+    - 317
+  applies_to:
+  - all CMYK jobs
+  severity: warn
+  source: ARTWORK-CORTEX.md L1928; L2440; L3029; L3853; L3925
+  status: derived
+- id: AW-33
+  rule: 'Bags: content-safe 10 mm from the top cut and 5 mm from every fold; SOS listing keylines 15 mm from the tooth tips; on bottom flaps only the visible depth
+    counts (front flap all, back flap G - BOTTOM, gusset flaps nothing).'
+  check: 'content to top_cut >= 10 (SOS serrated: >= 15 from tips) and content to any fold >= 5'
+  values:
+    top: 10
+    sos_serrated_top: 15
+    fold: 5
+  applies_to:
+  - SOS
+  - FH
+  - PTH
+  - D-cut bags
+  severity: block
+  source: ARTWORK-CORTEX.md L823-826; L874-875; L953
+  status: derived
+- id: AW-34
+  rule: 'Bag glue flap: no ink except the flexo eye-mark (proof rule); on flexo plates art enters half the flap width (FX-17).'
+  check: ink on glue flap only eye-mark (+ half-width bleed on plates)
+  values: {}
+  applies_to:
+  - bags
+  severity: block
+  source: ARTWORK-CORTEX.md L822; L875; L1024-1025
+  status: confirmed
+- id: AW-35
+  rule: 'Paper cup fan zones: brim ~10.5 mm (RT - 10.5) always white; right 7.5 mm glue seam - nothing important; crimp fold -> 15 mm content-free (SW); backgrounds
+    / bands bleed >= 1.5 mm past the side cuts; nothing bleeds into the crimp unless intended.'
+  check: 0 ink above RT-10.5; critical content to right cut >= 7.5; bleed past side cuts >= 1.5
+  values:
+    brim: 10.5
+    glue_seam: 7.5
+    crimp_content_free: 15
+    side_bleed_min: 1.5
+  applies_to:
+  - SW cups
+  - inner cups
+  severity: block
+  source: ARTWORK-CORTEX.md L418-426; L780-781; L3075
+  status: confirmed
+- id: AW-36
+  rule: 'Front/back orientation: food-box wall text tops point AWAY from the base (toward rim/hinge); lid art tops toward the HINGE (reads from the tuck side); 0427
+    mailer side-wall art on BOTH side walls - left wall as drawn, right wall turned 180, tops away from the base; folding is a 180 deg turn, never a mirror.'
+  check: per-panel up-vector per rule
+  values: {}
+  applies_to:
+  - food boxes
+  - mailers
+  severity: block
+  source: ARTWORK-CORTEX.md L2883-2888; L3627; L1592-1595
+  status: confirmed
+- id: AW-37
+  rule: 'QR codes: a QR never reverses out - give it a knockout panel (footer + 2 mm); where a light-on-dark QR is unavoidable, state the measured contrast and have
+    the customer scan it off the proof.'
+  check: QR dark-on-light, or inverted with recorded contrast and decode
+  values:
+    knockout_panel_margin_mm: 2
+    example_contrast: 0.81
+  applies_to:
+  - bags
+  - boxes
+  severity: warn
+  source: ARTWORK-CORTEX.md L4138; L4160 (see C-18)
+  status: disputed
+- id: AW-38
+  rule: 'Stickers: bleed 2 mm all round (art page = trim + 4), safe 1.5 mm inside the cut, kiss-cut as a separate CutContour spot (alt M100, 0.25 pt, overprint);
+    no Aeros mark.'
+  check: bleed == 2 and safe >= 1.5
+  values:
+    bleed: 2
+    safe: 1.5
+    cut_stroke_pt: 0.25
+  applies_to:
+  - printed stickers
+  severity: block
+  source: ARTWORK-CORTEX.md L2566-2568
+  status: confirmed
+- id: AW-39
+  rule: 'Deli wrap sheets: bleed 3 mm, no content-safe zone; art is an all-over repeat whose tile divides the sheet exactly (half-drop rows, ny even); 4-up with BUTT
+    cuts; 4-up sheet = 2W x 2H + 2 x (3 bleed + 12 margin); offset below 20,000 pcs, flexo above.'
+  check: W % Px == 0 and H % Py == 0; ny even
+  values:
+    bleed: 3
+    margin: 12
+    offset_max_pcs: 20000
+  applies_to:
+  - deli wrap sheets
+  severity: block
+  source: ARTWORK-CORTEX.md L2656-2661
+  status: confirmed
+- id: AW-40
+  rule: 'Flat sheets (mats/liners): print file TrimBox = cut, BleedBox = cut + bleed; at +/-1 mm guillotine drift a 5 mm margin reads 4 and 6 - ask the press for
+    +/-0.5 mm or scale a further 2 %.'
+  check: TrimBox/BleedBox set; margin symmetry
+  values:
+    guillotine_drift_mm: 1
+    ask_mm: 0.5
+  applies_to:
+  - tray mats
+  - liners
+  severity: warn
+  source: ARTWORK-CORTEX.md L1083-1084; L1112-1114
+  status: confirmed
+- id: AW-41
+  rule: Tuck-end box flood = cut + 3 mm and stops 2 mm past the glue-flap fold; on lock ends only the band from the top edge to H/2 of the lid end flap is seen (place
+    end art centred at H/4 from the crease).
+  check: flood stops at glue fold + 2
+  values:
+    bleed: 3
+    past_glue_fold: 2
+  applies_to:
+  - tuck-end cake / pastry boxes
+  severity: block
+  source: ARTWORK-CORTEX.md L799-804
+  status: confirmed
+- id: AW-42
+  rule: No live transparency in a press file (flatten to opaque CMYK); raster logos under 300 dpi at size are rebuilt as vector when geometric (PROVISIONAL, ask for
+    master).
+  check: transparency groups == 0; raster_dpi >= 300
+  values:
+    min_dpi: 300
+  applies_to:
+  - all
+  severity: block
+  source: ARTWORK-CORTEX.md L2965-2969
+  status: confirmed
+- id: AW-43
+  rule: Flat paper handles are ALWAYS white (never dyed or printed).
+  check: handle colour == white
+  values: {}
+  applies_to:
+  - FHB bags
+  severity: block
+  source: ARTWORK-CORTEX.md L868-870
+  status: confirmed
+cups_tubs:
+- id: CT-01
+  rule: All printed cups up to 25,000 pcs are offset; above 25k flexo at Viana. Printed DW and SW MOQ 2,000.
+  check: route = offset if qty <= 25000 else flexo; qty >= 2000
+  values:
+    offset_max: 25000
+    moq: 2000
+  applies_to:
+  - SW
+  - DW cups
+  severity: block
+  source: CTX L545 print_route_rule + L550; MEM aeros_dw_cup_offset_print.md
+  status: confirmed
+- id: CT-02
+  rule: 'Offset cup print basis: 3 Pantone + varnish; make-ready waste max 50 sheets/job.'
+  check: waste_sheets <= 50
+  values:
+    pantone: 3
+    waste_max: 50
+  applies_to:
+  - printed cups offset
+  severity: warn
+  source: CTX L550-557
+  status: confirmed
+- id: CT-03
+  rule: 'Blueline punch KLDs (the offset lines): 250 mL 675.9 x 414.9 12-up (3 x 4); 350 mL 750.9 x 380.9 9-up (3 x 3); 450 mL 750.9 x 440.9 9-up; middle column turned.'
+  check: use the punch KLD as supplied (Rule Zero)
+  values:
+    '250':
+    - 675.9
+    - 414.9
+    - 12
+    '350':
+    - 750.9
+    - 380.9
+    - 9
+    '450':
+    - 750.9
+    - 440.9
+    - 9
+  applies_to:
+  - DW cup offset
+  severity: block
+  source: KLD offset recipes table
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L58, L100, L117, L135
+- id: CT-04
+  rule: 'DW outer flexo layouts: 8 oz 116 T 3 x 4 reel 675; 12 oz 144 T 3 x 4 reel 740 (no spare width); 16 oz 129 T 3 x 3 reel 750.'
+  check: teeth/reel per size as values
+  values:
+    8oz:
+      teeth: 116
+      ups: 12
+      reel: 675
+      cut_to_cut: 665.9
+    12oz:
+      teeth: 144
+      ups: 12
+      reel: 740
+      cut_to_cut: 733.4
+    16oz:
+      teeth: 129
+      ups: 9
+      reel: 750
+      cut_to_cut: 742.7
+  applies_to:
+  - DW cups flexo
+  severity: block
+  source: CTX L314-319; FLX PART A table; MEM aeros_dw_outer_flexo_layout.md
+  status: confirmed
+- id: CT-05
+  rule: 'SW flexo templates: 8 oz 108 T 12-up reel 870 (Unicorn) / 865 (Wikas); 12 oz 134 T 9-up reel 740 (Viana).'
+  check: teeth/reel per template
+  values:
+    8oz_sw:
+      teeth: 108
+      ups: 12
+      reel:
+      - 870
+      - 865
+    12oz_sw:
+      teeth: 134
+      ups: 9
+      reel: 740
+  applies_to:
+  - SW cups flexo
+  severity: block
+  source: FLX PART A table
+  status: confirmed
+- id: CT-06
+  rule: 'Fans: all fans face the same way on a bowl/cup fan nest (no 180 turn); pitch set by the inner-arc corner.'
+  check: fan_rotation == 0 for annulus nests
+  values: {}
+  applies_to:
+  - bowls
+  - fan digital nests
+  severity: block
+  source: KLD 'Nesting an ANNULUS SECTOR'
+  status: confirmed
+- id: CT-07
+  rule: '250 mL DW offset print area (proven): 2.0 mm over the top cut, 2.3 mm past the left cut, stops 3.1 mm above the bottom cut, stops short of the glue flap.'
+  check: print area == die path 0 (R 332.44 -> 417.84, -17.10 -> +15.88 deg)
+  values:
+    top: 2.0
+    left: 2.3
+    bottom_stop: 3.1
+  applies_to:
+  - 8 oz DW outer wrap offset
+  severity: block
+  source: ARTWORK-CORTEX.md L103
+  status: confirmed
+- id: CT-08
+  rule: 'Derived safe allowances when a die has no safe line (mark DERIVED - CONFIRM WITH PRESS): 12 oz SW H110-59.94 top 10.60 / bottom 8.06 / seam 7.00; 8 oz SW
+    top 10.5 / bottom 8 / seam 7.5 / left 3; bowls use the cup convention 10.60 / 8.06 / left 3.00 / seam 7.00.'
+  check: safe inset per values unless supplier printing area exists
+  values:
+    12oz_sw:
+    - 10.6
+    - 8.06
+    - 7.0
+    8oz_sw:
+    - 10.5
+    - 8
+    - 7.5
+    - 3
+  applies_to:
+  - cups
+  - bowls
+  severity: warn
+  source: ARTWORK-CORTEX.md L403-405; L1200-1203
+  status: derived
+- id: CT-09
+  rule: 'Olive supplier safe zone (draw exactly as the red line): 5.6 mm in from top and bottom cuts, ~5.5 mm in from the right cut (glue flap), ~1.7 mm beyond the
+    left cut; no ink on the glue flap.'
+  check: red line == supplier printing area
+  values:
+    top_bottom: 5.6
+    right: 5.5
+    left_beyond: 1.7
+  applies_to:
+  - Olive 4020 dies
+  severity: block
+  source: ARTWORK-CORTEX.md L1723-1728
+  status: confirmed
+- id: CT-10
+  rule: 'PP / PET direct print: art is a plain RECTANGLE whose width the printer issues (not pi x TD); centred on the PRINT BAND; 3 mm clearance to crease and band
+    foot; top safe = crease + 3; nothing on the rim curl or the U; no Aeros mark; wide lockups ~80-86 mm on PET-CUP-006, tall elements capped at 38 mm.'
+  check: element within band - 3 mm each side; width <= 86 (PET-CUP-006 wide) / height <= 38 (tall)
+  values:
+    clearance: 3
+    pet_cup_006_band:
+    - 9
+    - 74
+    pet_wide_max: 86
+    tall_cap: 38
+    u16oz_band:
+    - 10
+    - 105
+  applies_to:
+  - PP / PET cups
+  severity: block
+  source: ARTWORK-CORTEX.md L1424-1451; L1523-1524; L3672; L3183
+  status: confirmed
+digital:
+- id: DG-01
+  rule: 'Digital sample sheet 13 x 19 in (330.2 x 482.6). Cups/tubs: ONE vertical stack, every fan the same way up, sheet PORTRAIT; 8 oz DW = 5-up. Flats too big
+    are split on folds / into labelled sticker pieces.'
+  check: blank fits [330.2, 482.6] else split at folds
+  values:
+    sheet:
+    - 330.2
+    - 482.6
+    cup_8oz_dw_ups: 5
+  applies_to:
+  - digital samples
+  severity: block
+  source: DIG 'Sheet'
+  status: confirmed
+  was:
+    note: flat split on folds
+  overridden_by: ARTWORK-CORTEX.md L258-267
+- id: DG-02
+  rule: 'Split blank: 12 mm UNPRINTED joining tab on one piece; bleed past the split repeats that panel''s own colour.'
+  check: join_tab == 12 and tab ink == 0
+  values:
+    tab: 12
+  applies_to:
+  - digital samples split over 2 sheets
+  severity: block
+  source: DIG 'Corel-ready files'
+  status: confirmed
+- id: DG-03
+  rule: Every cut / crease line SOLID, never dotted or dashed (creasing machine cannot read dashes); perforations become one solid crease.
+  check: dash ops other than '[] 0 d' == 0
+  values: {}
+  applies_to:
+  - digital samples
+  severity: block
+  source: DIG 'Cut and crease lines'
+  status: confirmed
+- id: DG-04
+  rule: Art as CMYK raster 450-600 dpi, never vector; images Flate DeviceCMYK with no /Decode.
+  check: 450 <= dpi <= 600; image.filter == Flate; no Decode
+  values:
+    dpi:
+    - 450
+    - 600
+  applies_to:
+  - digital samples
+  severity: block
+  source: DIG 'Artwork' + 'Corel-ready files'
+  status: confirmed
+- id: DG-05
+  rule: 'Tissue / napkin samples are never printed digitally: A4 transparent PVC sticker sheet, no white ink, no bleed.'
+  check: 'if item == tissue: sheet == [210, 297] and bleed == 0'
+  values:
+    sheet:
+    - 210
+    - 297
+  applies_to:
+  - tissues
+  - napkins
+  severity: block
+  source: DIG 'Exception - TISSUES / NAPKINS'
+  status: confirmed
+- id: DG-06
+  rule: 'Digital stickers: 13 x 19 chromo sheet, digital MOQ 1 sheet; digital route under 10,000 per design.'
+  check: 'if qty < 10000: route == digital'
+  values:
+    sheet:
+    - 330.2
+    - 482.6
+    moq_sheets: 1
+    max_qty: 10000
+  applies_to:
+  - stickers
+  severity: warn
+  source: CUS 'Printed stickers'; CTX L1030-1044
+  status: confirmed
+- id: DG-07
+  rule: 'Bowl on a 13 x 19 digital sheet fed landscape: B128H66 is 3-up max at a 3 mm gap.'
+  check: ups <= 3
+  values:
+    ups: 3
+    gap: 3.0
+  applies_to:
+  - salad bowls digital
+  severity: block
+  source: KLD 'Nesting an ANNULUS SECTOR'
+  status: confirmed
+  confirmed_by: ARTWORK-CORTEX.md L539-541 (KLD); L265
+- id: DG-08
+  rule: 'Digital sample nest gates: cut-to-cut >= 3.0 mm, every bleed >= 0.5 mm off a neighbour cut, margin >= 5 mm, 0 fonts, sheet plates = ARTONLY plates.'
+  check: cut_gap >= 3.0 and bleed_to_neighbour_cut >= 0.5 and margin >= 5
+  values:
+    cut_gap: 3.0
+    bleed_clear: 0.5
+    margin: 5
+  applies_to:
+  - cups / tubs digital samples
+  severity: block
+  source: ARTWORK-CORTEX.md L262-264
+  status: confirmed
+contradictions:
+- id: C-01
+  topic: Blueline maximum sheet
+  a: 25 x 36 in = 635 x 914.4 is the MAX (CTX L979-981 die_cutting_sheet_limits, confirmed; CUS)
+  b: '24.5 x 35.5 in = 622.3 x 901.7 ''Blueline offset printer max/std sheet'' (CTX L973-978 blueline_offset_sheet, confirmed); CUS: ''prints 622 x 902 inside it'''
+  note: Likely sheet vs printable area; the cortex itself calls 24.5 x 35.5 the 'max/std sheet'. Needs one wording.
+- id: C-02
+  topic: 30 x 40 in machine
+  a: 'KLD: ''25 x 36 and 30 x 40 in are the LIMITS of our machines'''
+  b: 'DIE + CUS: Blueline max 25 x 36; 28 x 40 / 30 x 40 only when the printer confirms the press; Jallo 4-cup ''30 x 40 3-up'' is an offered route (CUS); MEM aeros_offset_bag_costing:
+    740 x 960 ''needs a 30 x 40 press'''
+  note: No source names which printer owns a 30 x 40 press.
+  cortex: ARTWORK-CORTEX.md L216-224 says 25 x 36 and 30 x 40 are our machine limits, and L4352 ran a 135 mailer on 29 x 37 in and a tray on 28.5 x 35.5 in on the
+    "30 x 40 machine" - which printer owns it still not named.
+- id: C-03
+  topic: Lucky press size
+  a: Lucky max 27.5 x 38 in = 698.5 x 965 (CUS, MEM aeros_mill_reel_widths, CTX L2849)
+  b: Lucky runs 635 x 980 sheets for NATIVE (CTX L2185, DIE step 3) - 980 > 965; vendor also suggested 25.5 x 38 (CTX L2187)
+- id: C-04
+  topic: Offset gripper / margins
+  a: 'KLD: gripper >= 10, other edges >= 5'
+  b: 'CUS: gripper 12, side lay ~6, 3 mm between blanks; DIE offset_bag_fit: 12 gripper + 5 tail + 5 side + 3 gap; Lucky 12-13 (CTX L2186); Blueline production nests:
+    rows butted 0 gap, 36 in edges only 3.7-6.7 mm (DIE, CTX L2234)'
+  c: Old allowances gripper 12 / tail 20 / side 10 + 3 mm gaps marked SUPERSEDED (CTX L2237) but still quoted in header card / HomeRun notes (CTX L2049, L1880)
+  d: 'Lucky 635 x 980 approved die: gripper 12.5, tail 39, sides 10.45 (CTX L2183) vs same sheet decided layout gripper 12.5, tail 13.1, sides 6.0 (CTX L2185)'
+  cortex: ARTWORK-CORTEX.md L221-222 = >= 10 gripper / long edges, >= 5 elsewhere (matches KLD); Lucky approved 6-up gripper 12.5 / tail 39 / sides 10.45 also cited
+    at L2183 of the db cortex.
+- id: C-05
+  topic: Bag gusset maximum
+  a: 178 mm hard limit (BAG, CTX gusset_limit, MEM aeros_bag_machine_limits, ENV G > 178 = hard limit)
+  b: FJ11(13) chart gusset 70-180 (ENV G_MAX 180, CTX bag_machine_envelope_fj11_13s)
+- id: C-06
+  topic: Bag footer size
+  a: LOCKED 60 x 29.8 mm, never scale down (KLD 'Bag bottom text - LOCKED'; FLX PART B step 7)
+  b: 'CPF rule 6: bag footer from sos_footer.py / <SKU>-FOOTER.pdf ''(now 40 x 20 mm)'''
+  cortex: ARTWORK-CORTEX.md L1060 = 60 x 29.8 (supports a); the 40 x 20 figure appears only in the customer-proof skill.
+- id: C-07
+  topic: Bag bottom allowance
+  a: 'SOS listing keylines: glue 20 + bottom G/2 + 20 (KLD ''Paper bags'', noted as NOT matching plate practice)'
+  b: 'Flexo plates: bottom = repeat - H, team window G/2 + 13 to G/2 + 25 (FLX PART B/D)'
+  c: 'Hand-made die: G/2 + 29.6; old PTH print formula G/2 + 20 is 9.6 mm short (DIE)'
+  d: ARTWORK-CORTEX.md L815 flat-handle family BOTTOM ~ G/2 + 20; L1010-1011 plate BOTTOM = repeat - H, NOT G/2 + 20; L951 SOS listing G/2 + 20.
+- id: C-08
+  topic: Glue / pasting flap width on bags
+  a: Flexo plate glue 20 (25 on HOB) (FLX PART B)
+  b: Engine lap 15 / 20 / 25 by W (BAG geometry); hand-made seam 20 (DIE); hand-made pouch 25.4 (CTX L1874-1878)
+- id: C-09
+  topic: Offset on 30-40 GSM
+  a: 'CUS: pastry sleeve on 40 GSM = flexo only (offset not viable at 40 GSM)'
+  b: 'CUS: Blueline rate card for OFFSET deli wraps / tissue / butter paper 30-40 GSM (use whenever we print offset deli wraps)'
+- id: C-10
+  topic: Offset minimum run
+  a: Blueline walk-in minimum billing 1,000 sheets (CUS, CTX L1045)
+  b: 'Cup offset: ''Printer bills per sheet (no minimum)'' (CTX L546, MEM aeros_dw_cup_offset_print); Lucky cup quote priced ''under 1,000 sh'' (CTX L560)'
+- id: C-11
+  topic: Cup print route by quantity
+  a: All cups up to 25,000 pcs offset; flexo above 25k (CTX L545, MEM)
+  b: Generic printed cups (our stock design) flexo 1 colour 'at every quantity' (CUP, 19-Nov-2026)
+- id: C-12
+  topic: DW cup offset sheet sizes
+  a: 'CTX L578-582 dw_cup_inhouse_offset_print: 8 oz 678 x 415 (measured), 12 oz 740 x 380.5 (measured), 16 oz 750 x 440 (assumed)'
+  b: 'KLD (6-Oct-2026, newer): Blueline punch KLDs 675.9 x 414.9 / 750.9 x 380.9 / 750.9 x 440.9; old 740 x 380.5 and ''250ml DW cups layout plain'' SUPERSEDED'
+- id: C-13
+  topic: Ink at the reel edge
+  a: 'FLX RULE 6: ink never past the reel edge, clip to the reel'
+  b: '12 oz DW 144 T template: reel-edge bars overhang the 740 reel by 0.4 mm a side, kept as the plate maker''s choice (CTX L318, MEM aeros_dw_outer_flexo_layout)'
+- id: C-14
+  topic: Minimum bag height on the machine
+  a: Chart bag height 200-480 (BAG, CTX L3144)
+  b: '''Nothing under ~H 180 runs at all (tube floor 270)'' (BAG); tube formula gives H min = 230 - G/2 (e.g. 195 at G 70)'
+- id: C-15
+  topic: Customer-proof safe line on the left
+  a: 'Artwork guide: safe 3 mm (KLD checklist)'
+  b: Joint keep-clear 8 mm on the left 'supersedes any 3 mm left safe' (KLD Placing artwork) - resolved in favour of 8, listed so the generator does not use 3 on
+    the left
+- id: C-16
+  topic: DW content floor above the hem fold
+  ruled: '4 mm above the hem fold (5 mm retired) (Arjun 2026-11-21)'
+  a: 5 mm (generic DW system, ARTWORK-CORTEX.md L1797)
+  b: 4.0 mm house minimum for customer text (ARTWORK-CORTEX.md L3603); KLD skill also 4 mm
+- id: C-17
+  topic: Pantone guide C vs U
+  a: PANTONE U codes always on uncoated board (ARTWORK-CORTEX.md L666, 2026-10-12)
+  b: 'KLD skill Colour: cupstock prints like coated, match the C guide (2026-09-30); stickers ALL PANTONE C (ARTWORK-CORTEX.md L2567); flexo plates name spots e.g.
+    292 U (FLX)'
+- id: C-18
+  topic: QR on a dark flood
+  ruled: 'REVERSED is first priority; knockout panel only if a reversed QR will not scan (Arjun 2026-11-21)'
+  a: '"a QR never reverses out - give it a knockout panel" (ARTWORK-CORTEX.md L4138, 2026-10-07)'
+  b: Aeros block reversed WHITE on the flood, never a white patch; inverted QR must decode (ARTWORK-CORTEX.md L914, L2613-2617, 2026-10-20; KLD food boxes)
+- id: C-19
+  topic: Default logo size on 8 oz DW
+  ruled: '~42 mm (Arjun 2026-11-21)'
+  a: ~42 mm (~53 % of the 81 mm visible wrap), 55 read oversized (ARTWORK-CORTEX.md L2173, Quick Bean)
+  b: 55 mm = 99 deg of visible wrap (KLD skill Other mappings); Aramm / Oi Cafe lockups 55 mm at az 90 / 270 (ARTWORK-CORTEX.md L359, L363)
+- id: C-20
+  topic: B128H66 bowl rim curl
+  ruled: '12.00 mm (Arjun 2026-11-21)'
+  a: 12.00 measured (ARTWORK-CORTEX.md L1333, 2026-09-29)
+  b: 14.00 measured on a printed sample, keyline v2 (ARTWORK-CORTEX.md L2680, 2026-10-08)
+  c: KLD skill 18.00 - cortex L2680 says the 18 "was a number moved to close a sum, never measured"
+- id: C-21
+  topic: Ink-to-neighbour-knife on DW punch nests
+  a: KLD skill >= 1.17 mm general
+  b: ARTWORK-CORTEX.md L122 >= 1.417 (350 mL), L139 >= 1.174 (450 mL) - per size, not one number
+gaps:
+  offset_sheet:
+  - Blueline gripper edge and depth (only Lucky's 12-13 mm is stated); non-printing gripper zone per press
+  - Colours per pass / number of print units on Blueline and Lucky (only 'max 4 Pantone on our machines')
+  - Minimum sheet size per press; minimum and maximum GSM / caliper per press
+  - Registration tolerance on offset (no mm figure)
+  - 'Lamination: max sheet size, which vendor laminates, min/max GSM'
+  - Standard offset bleed for boxes outside food boxes (3 mm) and cups (2 mm); no general figure
+  - Which printer has a 30 x 40 press (C-02)
+  flexo_reel:
+  - Unicorn and Wikas cylinder lists (only Viana is in _VENDOR-CYLINDERS.json); Unicorn/Wikas max web
+  - Viana minimum web width; plate maximum size / plate width
+  - Number of colour stations on Viana (only cylinder counts per teeth limit inks)
+  - Flexo registration tolerance, min screen / halftone, min dot, trapping figure
+  - 'Repeat tolerance: how close H + bottom must be to the cylinder outside the G/2 + 13..25 window'
+  - Food-box reel stock other than 865 (80 cm mentioned, not confirmed)
+  bag_machine:
+  - Min and max bag width on the machine (only the plate list)
+  - 'Handle limits on the machine: handle patch size, handle position, max bag weight per handle'
+  - Which model runs (FJ11(13) vs FJ13S) - the skill says ASK
+  - Whether the bag machine prints in-line or all print is outsourced
+  - Max H beyond the chart (480) and the envelope is DERIVED from a photo - operator to confirm
+  - 'D-cut bags: machine route limits (only hand-made die rules given)'
+  hand_made_bags:
+  - Gripper edge per printer for bag sheets (step 6 says ask)
+  - Which sizes count as small SOS for bales; bale cost
+  - Whether reel-sheeted stock lifts the standard-sheet rule
+  artwork:
+  - Minimum line weight and minimum text size (only the 2.8 pt maker's mark and QR module 0.32-0.36 mm)
+  - Total area coverage (TAC) limit (only 283% flagged as a problem)
+  - Safe zone from creases / folds on boxes and bags (10 mm FOLDCHECK grid is a check, not a limit)
+  - Glue zone width on boxes (folder-gluer seam, 4-corner spots) that must stay ink-free
+  - White ink / opaque white on brown kraft limits (only a ₹20/kg rate)
+  - Minimum die feature sizes (slit length, notch, bridge/tie width)
+  digital:
+  - Printable margin on the 13 x 19 sheet
+  - Max board GSM / caliper the digital press takes
+  closed_or_narrowed_by_artwork_cortex:
+  - 'Minimum line / text size: AW-30 (reversed 0.15 mm stroke, 0.6 pt / 3.3 pt reverse-out, 0.12 mm knock-out line) and AW-31 (dry offset 0.25 mm). Still no minimum
+    POSITIVE text size for flexo bags or offset boxes.'
+  - 'Ink coverage: only flag levels (AW-32), still no hard TAC limit.'
+  - 'Front/back mirroring: AW-36 for food boxes and mailers; bags still not specified beyond panel order.'
+  - 'Safe distance from creases: bags 5 mm (AW-33), food boxes / mailers 3 mm per panel (AW-09); D-cut and tuck-end boxes partly (AW-41).'
+  - 'Glue zones on boxes: glue holes white (AW-02), tuck-end flood stops 2 mm past glue fold (AW-41), laminate-free glue strips (OS-25); folder-gluer seam width that
+    must stay ink-free still not given.'
+  - 'Default logo size: datapoints only (C-19; tubs = band minus 3 mm margin, two logos at 1/4 and 3/4 of the visible wall, ARTWORK-CORTEX.md L2852-2853; PET caps
+    CT-10). No % rule for bags or boxes.'
+  - 'Offset registration tolerance: only a per-job statement (OS-31); no press figure.'
+reconcile_log:
+  changed:
+  - AW-10
+  - AW-12
+  - AW-13
+  - AW-29
+  - AW-07
+  - AW-08
+  - DG-01
+  added:
+  - AW-30
+  - AW-31
+  - AW-32
+  - AW-33
+  - AW-34
+  - AW-35
+  - CT-07
+  - CT-08
+  - CT-09
+  - CT-10
+  - FX-32
+  - FX-33
+  - OS-31
+  - OS-32
+  - DG-08
+  - AW-36
+  - AW-37
+  - AW-38
+  - AW-39
+  - AW-40
+  - AW-41
+  - AW-42
+  - AW-43

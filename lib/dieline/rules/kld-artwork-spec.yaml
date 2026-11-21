@@ -1,0 +1,936 @@
+# aeros-kld-artwork skill as a DESIGNER SPECIFICATION (21-Nov-2026), reconciled against Aeros Artworks/ARTWORK-CORTEX.md (outranks the skill).
+# Changed items carry overridden_by + was. Source keys: KLD skill section names; ARTWORK-CORTEX.md line numbers.
+artwork_cortex_reconciled: 2026-11-21 (ARTWORK-CORTEX.md, 5,671 lines; rule sections L1-1604 + L2654-3024 read in full, job log grepped for general rules)
+meta:
+  precedence:
+  - Aeros Artworks/ARTWORK-CORTEX.md (always newer)
+  - aeros-flexo-plates skill (all flexo plate files, from 21-Oct-2026)
+  - this skill
+  rule_zero: The supplied die / keyline / offset layout goes into the file EXACTLY as supplied, on its own layer; only artwork is added underneath. A layout that
+    arrives WITH art is split on its content stream, never redrawn. (KLD 'Read the Cortex first')
+  artwork_root: ~/Desktop/Aeros Webapp/Aeros Artworks/ (Customer Artwork/<Brand>/<Product>/, KLD Templates/<Category>/, Aeros Generic/<Product>/)
+  listing_root: ~/Desktop/Aeros Webapp/Aeros Listing/<Category>/<SKU>/design/ (separate folder; blank assets only)
+  precedence_note: 'This pass read ARTWORK-CORTEX.md (5,671 lines): rule sections L1-1604 and L2654-3024 in full; the job log (L1605-2653, L3025-5671) grepped for
+    general rules. Where it differs it wins and the item carries overridden_by + was.'
+workflow:
+- step: 0a
+  name: Customer record + brand folder
+  do: 'Read Customer Artwork/<Brand>/_brand/BRAND.md (create the folder if missing; when the paying customer is not the brand, the brand folder sits inside Customer
+    Artwork/<Customer>/<Brand>/). Then run aeros-customer-records: open or create cortex/customers/<id>.yaml, type direct|trader (ask), the art folder in its art
+    list; a job is not filed until the folder is in that list.'
+  src: ARTWORK-CORTEX.md L228-229; L307
+- step: 1
+  name: Read the rules
+  do: Read Aeros Artworks/ARTWORK-CORTEX.md (outranks the skill); ARTWORKS-KNOWLEDGE.md = history, PROTOCOL.md = folder rules. On a customer job read Customer Artwork/<Brand>/_brand/BRAND.md
+    first (colours, Pantone status, element sizes, layout rules, open questions, CHANNEL, press route).
+  src: KLD 'Read the Cortex first'
+- step: 2
+  name: Get the source files
+  do: '.ai attached in chat arrives CORRUPTED (U+FFFD bytes; qpdf: xref not found) -> take the original from Arjun''s Mac Downloads. Pull the SKU''s blank keyline
+    + plain OBJ from Aeros Listing/<Category>/<SKU>/design/; if missing, building it is step one. Find the leaf folder by product name / size, not by an old SKU code
+    (codes move, e.g. ICT-018 -> PT-052). OVERRIDE: new artwork takes its die files from the AEROS LISTING ONLY (never an old customer job folder or KLD Templates),
+    and the listing path is stated on the PROOF.'
+  src: KLD 'Read the Cortex first'
+  overridden_by: ARTWORK-CORTEX.md L230
+  was: Pull the SKU blank keyline from the Listing design/ folder (no exclusivity stated)
+- step: 3
+  name: Ask the standing questions (record answers in BRAND.md + placement json)
+  ask:
+  - 'LID (every tub / cup / bowl), in this order: 1. lid yes/no? 2. PET or PAPER? 3. how much wall does it cover (sets the lid line); paper lid: two-part disc + ring
+    or one-piece pleated, and does the lid carry art? Get lid photos + vendor lid KLD.'
+  - Do you need a DIGITAL SAMPLE file as well? (13 x 19 in sheet; cups / tubs stacked vertically)
+  - 'Channel: DIRECT (maker''s mark on) or DEALER (no Aeros branding at all)'
+  - 'Inks: Pantone spots or CMYK (''Pantone or CMYK?'' before keeping a customer''s spots)'
+  - 'Double wall: is the inner cup printed (two print files) or plain white (one file)?'
+  - 'Which printing vendor (offset: Blueline / Lucky Offset; flexo: Viana; finished tubs: Packwingz)'
+  - 'When Arjun questions a dimension: ask for the MEASUREMENT (ruler over the rim, brim-to-bottom height) and put it in the tubgeo (rim_od, overall_h)'
+  - Which die is master when a single-up and a team layout disagree (run DIECHECK overlay first)
+  src: KLD 'Read the Cortex first', 'Cup anatomy', 'PRINTING VENDOR FILES', 'Food boxes'
+- step: 4
+  name: Read and verify the die
+  do: Select cut paths by COLOUR, never by size/index; chain subpaths by endpoint (angular-sort fan points); fit both arcs of a fan with ONE common centre; supplier
+    printing-area polygon reproduced exactly as the red line; measured allowances replace drawn ones; list every path OUTSIDE the die (hidden near-white art). A team
+    file already on our die is translated only.
+  src: KLD 'Reading a die', 'Measure, never derive', Checklist 1-2, 10
+- step: 5
+  name: Measure the source art
+  do: 'Segment letters, fit baseline radius vs arc position about THEIR fan centre; report tilt and bow separately on flat-footed glyphs (foot span >= 0.55 mm); classify
+    state: already on arc / straight chord / rigidly rotated block; read the deviation-plot SHAPE.'
+  src: KLD 'Measure the source first', 'Read the SHAPE'
+- step: 6
+  name: Place the art
+  do: Apply the geometry rule per element (baseline = true arc, edge = radial, width = constant arc length), re-seat glyphs rigidly (rotation + uniform scale, never
+    shear), clip everything to the print area (print area U piece where the mark sits on bare board), keep die + safe on a locked layer, keep glue seam clean, joint
+    keep-clear 8 mm on the left cut, maker's mark in the white fold strip (direct only).
+  src: KLD 'The three geometry rules', 'RE-SEAT EACH GLYPH RIGIDLY', 'Placing artwork', 'The Aeros maker's mark'
+- step: 7
+  name: Colour
+  do: 'State colour codes on the file (swatch per ink: Pantone SPOT/process + confirmed?, CMYK, source RGB/HEX, coverage note) + same in header and BRAND.md; confirmed
+    Pantone = real /Separation; RGB team files rebuilt via FOGRA39; type at 100 K; check TAC and that builds match named Pantones.'
+  src: KLD 'Colour'
+- step: 8
+  name: Build with one command (cups)
+  do: 'python3 cup_pipeline.py <generator.py> <geo.json> <SKU> <label> -> PROOF, CURVECHECK, ARTONLY, textured OBJ, MESHCHECK, PANELVIEW, VIEWSHEET, render_prompt,
+    MANIFEST. Generator kept in <Product>/_src/ so v+1 is a re-run. Build the OBJ before any render. Ask before spending Higgsfield credits. OVERRIDE: rendering is
+    AUTOMATIC for every cup proof (VIEWSHEET -> Higgsfield gpt_image_2_5, 1:1, count 2, prompt = render_prompt.txt); Higgsfield OUTSIDE this pipeline still needs
+    Arjun''s OK. Read RENDER-CORTEX.md before any render; every image that leaves is watermarked (-WM.png).'
+  src: KLD 'Building it'
+  was: Ask before spending Higgsfield credits
+  overridden_by: ARTWORK-CORTEX.md L248-256
+- step: 9
+  name: Run the checks
+  do: Checklist before a proof leaves (see checks:).
+  src: KLD 'Checklist before a proof leaves'
+- step: 10
+  name: Customer proof
+  do: Built by the family's proof builder (make_customer_proof.py etc.); every number computed from VERIFY / PLACEMENT json, never retyped; last page COLOURS + TIMELINE
+    (proof_colour_guide.py); proof_scan.py clean; renders gated; no construction wording; send REVIEW PDF to Arjun (print file + curve check + mesh), not loose PNGs.
+  src: KLD 'Building it', 'Checklist before a proof leaves'
+- step: 11
+  name: Approval -> PRINT
+  do: A PRINT file exists only after the customer approves the matching PROOF IN WRITING.
+  src: KLD 'Naming and versions'
+- step: 12
+  name: Press files
+  do: 'Offset: run the size''s LOCKED recipe; ship THREE files (LAYOUT, ARTWORK-PUNCH, PUNCH) + the same three as the vendor set (corel_export.py, verify_corel.py
+    PASS) in Printing Vendor Files/<Vendor>/. Flexo plates: aeros-flexo-plates skill. Any gate FAIL renames the file -FAILED; nothing delivered.'
+  src: KLD 'Offset nesting for the blueline', 'PRINTING VENDOR FILES'
+- step: 13
+  name: File and record
+  do: Save in Customer Artwork/<Brand>/<Product>/ (_checks/, _3d/, _src/, Printing Vendor Files/<Vendor>/, _superseded/); save BLANK keyline + BLANK nesting (+ tubs/bowls
+    blank DIMENSIONED-OUTLINE) to the SKU design/ folder; keep a copy of the blank keyline in _src/ as <SKU>-KEYLINE-from-Aeros-Listing.pdf; insert a row per finished
+    file into Supabase public.customer_artworks (supersede old row); update cortex/customers/<id>.yaml art list same turn; append to cortex §6, ARTWORKS-KNOWLEDGE.md,
+    _INDEX.md, Aeros Listing/_DESIGN-ASSETS.md, re-run _build_design_status.py, propose skill update. Then python3 _tools/normalise_names.py . --apply; fix the corrected
+    rule IN PLACE in the cortex body (not only §6); add any render row to RENDER-CORTEX.md Part 4.
+  src: KLD 'Read the Cortex first', 'Folders', Checklist 16f + 17
+  also_from: ARTWORK-CORTEX.md L269; L276-285
+- step: 14
+  name: Commit as you go
+  do: File each deliverable as finished (bridge to the Mac drops); after a drop grep that the last edit landed before re-running.
+  src: KLD 'Building it'
+- step: 15
+  name: Close the loop
+  do: Append to §6, fix the rule in place, update ARTWORKS-KNOWLEDGE.md, _INDEX.md, RENDER-CORTEX.md, re-run _build_design_status.py, propose the SKILL.md update
+    the same session ("if you would say next time we should..., it goes in both, now").
+  src: ARTWORK-CORTEX.md L276-285
+per_product:
+  paper_cup_SW:
+    template: Listing SKU design/ keyline; die records die-paths json (e.g. 8oz-dw-H92-55.91KT-die-paths.json); Olive dies 4020 SW when made at Olive
+    areas: single fan (annulus sector); print area = red safe / team print area
+    placement: polar coordinates about the fan centre; baselines true arcs (sag w^2/8R matters above ~20 mm width); edges radial; widths constant arc length; size
+      elements in DEGREES of the cup (99 deg of visible wrap = 55.0 mm on 8 oz DW, 60.3 mm on 12 oz DW); 55 mm width limit came from an 8 oz job only
+    safe: inside the red line; content >= 15 mm clear of the bottom cut (fills may run to the fold); joint keep-clear 8 mm off the LEFT cut
+    bleed: 'to the cut only where the die allows; supplier die: fill their printing-area polygon exactly, stop at the flap'
+    no_ink:
+    - glue seam flap (~7.5 mm, right)
+    - brim above the print top
+    marks: 'maker''s mark (direct): bottom 3 mm white fold-in lip, printed INVERTED'
+    colour: spots or CMYK per job; cupstock matched against Pantone C guide
+    outputs:
+    - PROOF
+    - CURVECHECK
+    - ARTONLY
+    - OBJ + MESHCHECK + PANELVIEW + VIEWSHEET
+    - REVIEW
+    - CUSTOMER-PROOF
+    - OFFSET-LAYOUT x3 (+ VENDOR set)
+    - DIGITAL-SAMPLE (on request)
+    src: KLD 'Cup anatomy', 'The three geometry rules', 'Other mappings and sizing', 'Placing artwork'
+    zones_from_cortex:
+      bottom_lip: 3 mm white fold-in lip; caption 2.8 pt black, baseline ~0.9 mm from the cut
+      crimp_to_15mm: content-free (fills may run through)
+      base_band: optional black bottom, from the crimp fold +1 mm overlap, bleed 1.5 mm past side cuts
+      brim: ~10.5 mm always WHITE - no ink, not even a ground (RT - 10.5)
+      glue_seam: right 7.5 mm, nothing important
+      left_edge: joint keep-clear 8 mm (supersedes 3 mm cut tolerance)
+      src: ARTWORK-CORTEX.md L407-427
+    generic_aeros_system:
+      wordmark: DejaVu Sans Bold ~46 pt on 8 oz, centred, mid-radius +4 mm
+      icons: 0.5 pt strokes, 3.5-5 mm, >= 13 mm spacing, +/-25 deg jitter, seeded
+      order_panel: 30 x 48 mm (on a coloured flood redrawn white-on-ground in the brand type)
+      caution_ring: 4.3 pt mono
+      reverse_out_minimums: 0.6 pt line / 3.3 pt type
+      src: ARTWORK-CORTEX.md L604-627
+    flexo_250_master: Every 250 mL / 8 oz SW flexo plate starts from and matches the Unicorn master (108 T, reel 870, 12-up, K100 only, eye-marks 12 x 6 x 3 per side);
+      date of making set with set_plate_date.py; gate check_250sw_flexo_plate.py (< 0.02 mm). ARTWORK-CORTEX.md L26-47
+  paper_cup_DW:
+    template: wrap die (e.g. H92-55.91KT 8 oz, H110-59.94KT 12 oz, PC-DW-16-PE); offset = Blueline PUNCH KLD 250 / 350 / 450 mL (675.9 x 414.9 12-up; 750.9 x 380.9
+      9-up; 750.9 x 440.9 9-up)
+    areas: OUTER WRAP fan; visible wrap = hem fold -> top cut; ~10 mm foot of the inner cup shows
+    two_files_rule: DW = TWO print files (wrap on wrap die + inner on SW die) unless inner is plain white -> ONE file, one plate; never re-set wrap art onto the SW
+      die
+    print_area_note: 'side offsets are ANGULAR: 12 oz DW print area 0.9864 deg past left cut / 0.2669 deg inside right = 5.45/1.48 mm at bottom radius, 7.23/1.96
+      at top'
+    safe: 'joint 8 mm left; customer fans with no hem: lift content to >= 4 mm above our hem fold'
+    no_ink:
+    - 5 mm hem (folds inward, never seen) except the maker's mark
+    - glue flap
+    marks:
+      value: 'maker''s mark in the white hem strip at RB + 1.5, 2.8 pt (cap ~0.99), in one of the job''s OWN inks - 100 K only when K is already a plate, else the
+        darkest job ink; gate: tiffsep plate set with and without the mark identical'
+      was: 'maker''s mark in the white hem strip: H92-55.91KT strip RB -> RB+3.11, baseline RB + 1.5; H110-59.94KT strip 3.07 mm, RB + 1.5'
+      overridden_by: ARTWORK-CORTEX.md L572; L578-589
+    nesting:
+      value: offset on the Blueline PUNCH KLD (250 / 350 / 450 mL); middle column turned (rotated, never mirrored for art); mid-line Voronoi clip; ink to neighbour
+        knife >= 1.417 (350) / >= 1.174 (450)
+      was: 'offset: middle column turned (rotated 180, never mirrored); bleed stops at mid-line to neighbours (Voronoi clip), >= 1.17 mm to any neighbour knife'
+      overridden_by: ARTWORK-CORTEX.md L94-141
+    src: KLD 'Cup anatomy', 'The Aeros maker's mark', 'Offset nesting' table, 'Reading a die'
+    margins_from_cortex:
+      content_floor: 4 mm above the hem fold (RULED Arjun 2026-11-21; 5 mm retired)
+      top_margin: 5 mm (no rim curl on the wrap)
+      offset_print_area_250: 2.0 over the top cut, 2.3 past the left cut, stops 3.1 above the bottom cut, stops short of the glue flap (PROVEN)
+      src: ARTWORK-CORTEX.md L1797; L3603; L103
+    default_placement_from_cortex:
+      logo_8oz_dw: ~42 mm (RULED Arjun 2026-11-21; ~53 % of the 81 mm visible wrap, 19 mm clear each way; 55 retired)
+      three_elements: 'equal gaps round the cup: panel on the a = 0 radial, gap = (SL + SR - 2 logo_w)/3, all at one mid-height'
+      two_logos: at az 90 / 270 (Aramm, Oi Cafe) or at 1/4 and 3/4 of the visible wall so the seam falls in a gap (tubs)
+      front_composition: front composition centred at az 180, opposite the seam
+      between_sizes: 'scale proportionally by the ratio of the two content windows (8 -> 12 oz: 87.8 / 71.1 = 1.235)'
+      centre: the artwork should always feel at the centre of the cup
+      src: ARTWORK-CORTEX.md L2173-2176; L359; L363; L2852-2853; L3045; L2230; L2108
+  paper_tub:
+    template: house fans in KLD Templates/Paper Tubs/ (400 mL H59-95.27; 500 mL H73.66-89.92; 750 mL H103.64-90.32; 350 mL H53-96.64; 150 mL ice-cream; 350 mL 98
+      mm; 250 mL 95 mm; 100 mL); team single fans split with tub_split_fan.py
+    areas: fan; printed wall = fold -> print top (rim line, or CURL START when a measured neck shows)
+    made_like: 'single-wall cup: rolled rim, fold-in lip under the base, glue seam on the right'
+    placement: 'lidded tub: logos centred in the VISIBLE band (lid line = rim line - lid coverage -> fold); e.g. 95 mm lid hides 15 mm; logo size carried across a
+      family as a share of visible circumference (~97 deg on 250 -> SCALE 0.736 on 100 mL); one uniform scale S = our band / their band'
+    allowances_examples: 400 mL lip 8.18 curl 9.74; 500 mL lip 9.00 curl 14.00; 750 mL lip 7.00 brim 14.00 seam 8.00; 150 mL knurl 9 fold 8 pasting 8; 350 mL 98 knurl
+      15 fold 8 pasting 8; 250 mL 95 knurl 12.5 fold 9 pasting 8; 100 mL roll 7 fold 8 pasting ~8
+    no_ink:
+    - brim / roll above print top (gate 0 ink, 2 px tol)
+    - glue seam
+    gates: 0 ink above curl start AND 0 white gap below it
+    marks: maker's mark in the fold-in lip, inverted (400 mL baseline RB + 4.6; 500 mL white strip 3.77 baseline RB + 2.24, 1.5 mm clear of cut and ground)
+    safe: 'customer proof: top = rim line - 5 (or LID LINE), fold 3, joint 8'
+    nesting: 400 mL 8-up 670 x 415; 500 mL 6-up 670 x 415; 750 mL 6-up 680 x 450; 350 mL 8-up 680 x 415; right column turned
+    vendor: 'Packwingz makes finished printed tubs: SINGLE-UP 1:1 CMYK print file only, editable vector + physical colour reference'
+    src: KLD 'Paper tubs', 150/350/250/100 mL sections, 'PRINTING VENDOR FILES'
+    default_placement_from_cortex: 'When WE design the art: size = print band minus a 3 mm clear margin (54 mm tall on the 400 mL); two logos at 1/4 and 3/4 of the
+      visible wall (left cut -> glue line) so the seam falls in a gap; logo applied by POLAR WARP about the die centre. ARTWORK-CORTEX.md L2843-2854'
+    badge_from_taller_cup: When a badge from a taller cup does not fit the tub band, scale the badge only and say so on the proof note. ARTWORK-CORTEX.md L3986
+  paper_bowl:
+    template: KLD Templates/Paper Bowls/README.md; dies B128H54 / B128H66 / B128H76 / 500 mL H71; master toolchain Customer Artwork/drnk/Salad Bowls 150 dia (Eco
+      Plus)/_src/
+    allowances:
+      ruled: 'B128H66 rim curl = 12.00 mm (Arjun 2026-11-21); 14.00 / 18.00 retired'
+      value: 'B128H66: rim curl 14.00 (measured on a printed sample 2026-10-08, keyline v2), lip 8.00, seam 8.00, left tolerance 0.00; 500 H71 and 1000 H97: curl
+        18.00 (their own samples)'
+      was: MEASURED rim curl 18.00, lip 8.00, seam 8.00; 500 mL H71 printed band 45.13
+      overridden_by: ARTWORK-CORTEX.md L2680 (also L1329-1338 recorded curl 12.00 on 2026-09-29)
+    placement: re-roll each rigid group at constant physical size (r' = r + dr, a' = a_c + (a - a_s)*r_s/r_c), placed by BOWL ROTATION; drawing moved between fans
+      of different radius goes RIGID
+    bleed:
+      value: 'VISIBLE band (printed wall - crimp 3.00 - bead) is the artwork area: 60.01 mm on B128H66 (R 571.17 -> 631.18); every element centred and gated inside
+        it; ground runs 8 mm ABOVE it into the curl (top 8.97 of the fan white) and 2.0 mm past the fold (6.00 white strip); seam NEVER printed (ground stops at the
+        seam line, sharp corner); only the left side bleeds 1.5 mm past the cut'
+      was: ground clipped AT the rim line (Rt - curl); runs 2.0 mm past the fold into the lip
+      overridden_by: ARTWORK-CORTEX.md L1283-1299; L2681-2684
+    marks: 6.00 mm white strip RB -> RB+6, caps centred r = RB + strip/2 + CAP/2 (B128H66 baseline RB + 3.356)
+    proof_sheet: customer proof + ARTONLY share 600 x 400 mm, apex y 105
+    capacity: only from bowl_kld.finished_bowl() (raw cone overstates 25-30 %)
+    digital: 13 x 19 in fed LANDSCAPE, 3-up, all fans same way up, gap 3.0
+    src: KLD 'Paper bowls', 'Nesting an ANNULUS SECTOR'
+    renders: 3D views and renders show the ground colour right down to the bottom edge (lip crimped under); print file keeps the white lip strip. ARTWORK-CORTEX.md
+      L1300-1304
+    double_wall_exception: 'DW bowl (750 first): inner = SW die plain white; outer = hand-pasted snug sleeve, NO hem, 8 mm white foot; mark on the inner lip. ARTWORK-CORTEX.md
+      L1132-1136'
+    customer_proof_sheet: 'No side column on a bowl: facts above the fan, everything else below, taller sheet (520 x 340 for this family; 600 x 400 apex y 105 for
+      the drnk toolchain). ARTWORK-CORTEX.md L1384-1393; L2693-2698'
+  paper_lid_95mm_two_piece:
+    template: lid95_kld.py -> TOP-DISC KEYLINE-DRAFT (draft until confirmed against lid machine die)
+    areas: printed top disc only; 15 mm skirt plain white unless customer says otherwise (ask)
+    dims: visible ~D 95, flange tabs to ~D 125, print area D 100 (visible + 2.5 bleed), safe D 89
+    placement: FLAT, no polar warp; one uniform scale about lid centre so farthest ink sits on safe circle - 0.5 mm; keep customer composition and up direction
+    customer_view: 'TWO circles only: ARTWORK AREA + SAFE LINE + side picture'
+    src: KLD 'Paper lids', 'LIDS DIFFER BY SIZE'
+  paper_lid_76mm_pleated:
+    template: lid76_kld.py v2 (cut D 102 = vendor KLD, print D 106 = cut + 2 bleed, visible top 74, safe 68)
+    areas: whole blank printed incl. pleated side
+    rule: get the vendor's lid KLD before drawing (photo blank was 10 mm small)
+    src: KLD 'LIDS DIFFER BY SIZE'
+  pp_pet_cups:
+    value:
+      art: plain RECTANGLE, no fan, no curve check, no glue flap, no bleed; wraps 360 deg (art may cross the join); printer applies the cone distortion
+      width: issued by the printer, never pi x TD (218 x 115 for a Ø90 cup); ask every size
+      band: 'top = moulded crease, foot = what the press can reach (ask); 16 oz U: crease 10, foot 105 = 95 band; 12 oz U PET listing model H 89: band 9 -> 74 below
+        rim = 65 mm'
+      placement: centred on the PRINT BAND (supersedes centre-on-cup, 2026-10-22); 3 mm clearance to crease and foot; top safe = crease + 3; per element cap HMAX
+        (38 mm tall on PET-CUP-006; wide lockups sized by width ~80-86 mm)
+      never: nothing on the rim curl or the U; NO Aeros mark/logo/watermark printed on PP or PET (renders still watermarked)
+      colour: white on clear = Separation Opaque White; show the clear body dark (PET_BODY 0.62,0.63,0.65) so white reads; key the logo by brand colour, never by
+        alpha
+      minimums: dry-offset knock-outs / gaps / white lines >= 0.25 mm at final size
+      graduations: computed from the cup volume or MEASURED (measured wins); provisional until water-filled; dropped if inside the crease
+      proof: page 2 = WHERE EACH ELEMENT SITS, heights from the BASE
+      tools: KLD Templates/PP Cups/_src/pp_cup_artwork.py, make_customer_proof_pp.py
+    was:
+      note: not specified in this skill; rules live in aeros-customer-proof-format (print band centred, 12 oz U PET band 9 -> 74 below rim = 65 mm, nothing Aeros
+        printed, screen-print vendor files). PP/PET lids are never printed (memory aeros_pp_pet_lid_no_print).
+      src: KLD n/a; customer-proof-format skill
+    overridden_by: ARTWORK-CORTEX.md L1416-1544; L1519-1524; L3166; L3215; L3672
+  food_box_tuck_lid:
+    template: Listing Food Boxes/<SKU>/design/ (KEYLINE, BLANK nesting, DIE single-up, OBJ); masters KLD Templates/Food Boxes/; 500 mL 144x104x40 blank 292.0 x 241.0;
+      750 mL 164x114x45 blank 322.0 x 271.0; 1000 mL 200x139x50 blank 375.3 x 310.1
+    areas: flat panels (panel map from the die); lid, walls, rim flaps, base; corner flaps pasted INSIDE end walls (printed face against the wall)
+    placement: 'lid art reads upright from the TUCK side (letter tops toward the hinge); end-wall type between rim and glue holes, never through them; Aeros base
+      block on the base underside (dealer drops it); flooded panel: Aeros block reversed WHITE on the flood, never a white patch'
+    safe: 3 mm derived safe per display panel clipped to the real cut incl. notches/holes
+    bleed: 'team files carry none -> add 3 mm round the cut; tight multi-up: bleed to the mid-line (Mezziki 4.69 gap -> 2.34); white board single-colour die: no bleed'
+    no_ink:
+    - round glue holes (dia 5 end walls, dia 10 corner flaps on melt) - always white
+    - every inner face (printed one side only)
+    colour: near-black base text = 3rd plate -> move to darkest job spot
+    nesting: 500 mL 6-up 711.2 x 609.6 (middle col turned); 750 mL 4-up 660.4 x 533.4; 1000 mL 4-up 800 x 600 (rows interlocked 4.35); keep >= 5 mm between pieces
+    extras: brand contact QR rebuilt clean (segno ECC M), never the customer's Instagram nametag
+    src: KLD 'Food boxes', 'Offset nesting' table
+    rules_from_cortex:
+      die_master: Arjun decides which die is master; run the DIECHECK overlay first (parts > 0.3 mm off coloured)
+      relay_other_size: a team sample on ANOTHER size die = RE-LAY per panel with its own ratio (lid lockup x new/old lid L, centred; decorative columns x lid H ratio
+        anchored to their crease; wall logo box x wall H ratio), never scale the whole flat
+      wall_text: tops of letters point AWAY from the base on walls; on the lid toward the hinge
+      element_dims: brand logo on lid + Aeros block on base dimensioned (w x h as read + clearance to all four panel edges) on a NOT FOR PRINT layer
+      transparency: flattened to opaque CMYK before print
+      two_colour_bleed: grow each colour piece outward in 0.25 mm steps; BLEED GATE probes 2.5 mm outside every inked cut edge
+      raster_logo: < 300 dpi at size -> rebuild as vector from the pixel geometry, PROVISIONAL
+      base_block_new_size: never redraw the block; place the nearest block in clipped pieces, re-set only the size line, decode the QR
+      logo_name: reset foodbox_geo.json logo_name per brand; grep proof text for other brands (proof_scan BRAND=)
+      smaller_die: one uniform COVER scale on the lid (max of the two ratios); lockups inside safe
+      src: ARTWORK-CORTEX.md L2878-2980; L3627; L4351
+  mailer_0427:
+    template: die from mailer_geo.py (15 faces classified off the supplied cut + crease)
+    placement: Aeros block on BASE underside, 100 K, turned to read upright from below; tuck-flap art hidden when closed (flag); side-wall RETURN printed face is
+      INSIDE; ONE uniform scale
+    bleed: spot ground clipped to cut + 3 mm
+    nesting:
+      value: 'Aeros-derived, paper = block + >= 10 mm rounded UP to the half inch below the machine limit: 156 mailer 2-up on 19.5 x 31 in (25 x 36 machine); 135
+        mailer 4-up on 29 x 37 in (30 x 40 machine)'
+      was: 2-up max (B turned 180, gap 6.0, margin >= 5) on 19.5 x 31 in (495.3 x 787.4)
+      overridden_by: ARTWORK-CORTEX.md L1584-1591; L4352
+    proof: Customer Proof A2 at 75 %
+    src: KLD 'Mailer boxes'
+    side_walls: Side-wall art goes on the SIDE WALL face (base-attached), never the return; on BOTH side walls unless told one; tops of letters away from the base
+      - left wall as drawn, right wall turned 180. ARTWORK-CORTEX.md L1592-1598
+  insert_tray_plain:
+    outputs: KEYLINE ('PLAIN, NOT PRINTED'), 2-page A3 Customer Proof, REVIEW, DIE-LAYOUT sheet; no AI renders; C M Y K plates empty
+    nesting: '154 x 143 x 20: 15-up on 24.5 x 38 in, straight grid, knife gap 5.0'
+    src: KLD 'Mailer boxes', 'OFFSET PRESS LIMITS'
+  cup_holders:
+    note: not specified in this skill (dieline skill covers CHC / NATIVE / sling dies).
+    src: KLD n/a
+  paper_bag_SOS:
+    template: Listing SOS-001..012 / 101..120 design/ DERIVED keyline (serrated top + thumb notch on FRONT); 134 SKUs with a Viana cylinder also carry <stem>_FLEXO-KEYLINE-v2.pdf;
+      masters KLD Templates/Paper Bags/SOS/
+    caveat: listing keylines use glue 20 + bottom G/2 + 20 + FRONT first - do NOT match plate practice; rebuild from the vendor cylinder when chosen
+    areas: flat panels; check = FOLDCHECK (10 mm grid from every fold), no curve check
+    placement_flexo: panel order GLUE | GUSSET | FRONT | GUSSET | BACK, glue 20 (25 HOB); art to top and right cuts, 5-12 mm (use 10) past bottom fold, half the glue
+      flap; bottom flaps blank except footer
+    footer:
+      value: 'LOCKED bag bottom text 60 x 29.8 mm K100 one colour, centred on the FRONT bottom flap, (BOTTOM - 29.8)/2 above the bottom cut; QR module 0.32-0.36 mm;
+        never scaled; direct channel only (dealer: recycle logo + size + Made in India, no Aeros) Colour: K100, or the JOB INK on a job without K (bag_footer_ink.py;
+        recoloured, adds no plate). On a flooded flap the cortex says a QR never reverses out - knock out a white panel (footer + 2 mm) (L4138) - but later box rules
+        reverse the block white (L2613). RULED Arjun 2026-11-21: REVERSED first; knockout panel only if it will not scan.'
+      was: 'LOCKED bag bottom text 60 x 29.8 mm K100 one colour, centred on the FRONT bottom flap, (BOTTOM - 29.8)/2 above the bottom cut; QR module 0.32-0.36 mm;
+        never scaled; direct channel only (dealer: recycle logo + size + Made in India, no Aeros)'
+      overridden_by: ARTWORK-CORTEX.md L884; L2596-2597; L4138
+    colour: kraft is the ground on brown bags - no white plate; 'white' in art = bare kraft
+    src: KLD 'Paper bags', 'Flexo plate file for a BAG', 'Bag bottom text - LOCKED'
+    safe_from_cortex: 'Derived content-safe: 10 mm from the top cut, 5 mm from every fold (flat-handle family); SOS listing keylines 15 mm from the tooth tips, 5
+      mm from every fold; on bottom flaps only the visible depth counts. ARTWORK-CORTEX.md L823-826; L874-875; L953'
+    glue_flap: No ink except the flexo eye-mark (proof rule); plate art enters half the flap width. ARTWORK-CORTEX.md L822; L1024-1025
+    proof_rule: No derived red safe lines on a PROOF of a CUSTOMER file (margins stated in the title block; safe + fold grid on the FOLDCHECK only); blank keylines
+      keep the red layer. Panel names (GLUE / FRONT ...) never printed inside the blank. ARTWORK-CORTEX.md L860-864; L4164
+  paper_bag_FH_PTH:
+    template: same footer tool (sos_footer.py) with its own size line ('FH ...'); flexo per cylinder
+    src: KLD 'Bag bottom text - LOCKED'
+    rules_from_cortex: PTH built in plate practice (GLUE 20 | GUSSET | FRONT | GUSSET | BACK, bottom = repeat - H inside G/2 + 13..25); white twisted cord handles;
+      flat paper handles ALWAYS white; kraft = no white plate, colours print darker/duller - say so on the proof; screen print = one colour. ARTWORK-CORTEX.md L878-894;
+      L868-870; L829-833
+  paper_bag_D_cut:
+    placement: flood runs to the TOP of the handle flap (+ bleed), no white band anywhere outside; 35 mm glue strip drawn on FLAT files only; 3D/renders show flap
+      printed to its top edge
+    tools: team marks + geo reused (Luckd _src/), gen_layrd_dcut_art.py, shared gen_dcut_bag.py (PROOF / --guides / --artonly)
+    src: KLD 'Paper bags' D-cut
+    rules_from_cortex: 'Team die split, never redrawn (bag_split_team.py); construction: flap folds DOWN over the FRONT top edge, 35 mm peel-and-seal strip on its
+      printed side; flap D-cut lands on a FRONT body D-cut (mirror about the flap fold) and the BACK has the same D-cut; Aeros additions on their own layers (dcb_additions.py);
+      checks: repeat whole teeth, W - G vs D-cut width, 0 ink under body D-cuts, tiffsep -dOverrideICC, hidden objects. ARTWORK-CORTEX.md L896-941'
+  bag_screen_print:
+    rule: ONE-COLOUR artwork, solids + line work only; reduce logos by rewriting colour operands, never redraw; drop doodles, gradients, gusset print unless told;
+      avoid tints (flag any needed); 'screen printed, one colour' on proof; switching back = rebuild from multi-ink version
+    src: KLD 'Bag Customer Proofs, screen print and ink changes'
+  bag_customer_proof:
+    rule: page 1 LINE ART with W x G x H; cut layer = keyline WITHOUT red safe (_KEYLINE-NOSAFE); page 2 OPEN grid every 50 mm (10 mm ticks top/left only); 10 mm
+      FOLDCHECK grid internal only
+    src: KLD 'Bag Customer Proofs'
+  wrap_sheets:
+    value:
+      sizes: 254 x 254 (WRAP-031/032), 305 x 305 (WRAP-015/016), 300 x 360 (WRAP-035/036)
+      routes: plain white in stock; 4-up offset at Blueline below 20,000 pcs; flexo above 20,000
+      pattern: ALL-OVER REPEAT, tile divides the sheet exactly (Px = W/nx, Py = H/ny, ny even, half-drop rows); rows A = full lockup centred in the tile (always whole),
+        rows B = small mark on tile corners
+      safe_bleed: no content-safe zone; bleed 3 mm; 4-up = one continuous field with BUTT cuts; sheet = 2W x 2H + 2 x (3 + 12)
+      marks: no maker's mark (no hidden strip)
+      outputs: PROOF, OFFSET-LAYOUT-4up, ARTONLY, GRIDCHECK, GATES, CUSTOMER-PROOF (always with renders; page 2 "ARTWORK ON THE GRID"), REVIEW, MODEL
+      checks: check_wrap.py G1-G7 (G2 at 10 px/mm; G5 non-CMYK images fail)
+      home: KLD Templates/Wrap Sheets/README.md + _src/
+    was:
+      note: not specified in this skill beyond the tiling-pattern rule (expand patterns to plain vector in vendor files).
+      src: KLD 'Other mappings and sizing'
+    overridden_by: ARTWORK-CORTEX.md L2654-2666
+  flat_sheets_mats:
+    template: mat_kld.py geo = W, H, bleed, safe; black cut, grey dashed bleed, red dashed safe (off when art is placed; margin stated in title), corner trim marks
+      outward
+    check: 'GRIDCHECK: 10 mm grid from the cut on all four sides + blue centre lines (squareness, margin symmetry)'
+    print_file: 'ARTONLY: media = cut + bleed + 5 mm mark zone, TrimBox = cut, BleedBox = cut + bleed'
+    reseat: read the customer trim off its crop marks, not its MediaBox; one uniform scale to the tighter dimension, re-centre; state the %
+    colour: merge near-duplicate builds (normalise_source.py); kraft = multiply texture
+    tolerance: +/-1 mm guillotine drift on a 5 mm margin; ask +/-0.5 or scale 2 %
+    src: ARTWORK-CORTEX.md L1064-1118
+  stickers:
+    rules: bleed 2 mm (art page = trim + 4, TrimBox/BleedBox set), safe 1.5 mm, kiss-cut as separate CutContour spot (alt M100, 0.25 pt, overprint), glyphs outlined
+      at source, spots real /Separation, ALL PANTONE C, no Aeros mark; per-sticker print files = ARTONLY + DIE on one page, PDF 1.4 + EPS, tiffsep on both
+    src: ARTWORK-CORTEX.md L2562-2575
+  tuck_end_box:
+    rules: one-piece tuck-end (glue | LID | side | BASE | side); only the band from the top edge to H/2 of each lid end flap is seen - place end art centred at H/4
+      from the crease; "brown" from a customer may mean a PRINTED brand-colour flood, ask; flood = cut + 3 mm, stops 2 mm past the glue-flap fold; type knocked out
+      white; reversed QR decodes on the inverted image only (record it)
+    src: ARTWORK-CORTEX.md L799-807
+  paper_bag_customer_line_art: Every Customer Proof page 1 carries to-scale ISOMETRIC line art of the formed product, size in mm AND inches (bags W x G x H). ARTWORK-CORTEX.md
+    L672; L872
+logo_handling:
+  intake:
+  - .ai from chat is corrupted - take the original from the Mac
+  - Customer brand elements stored in _brand/*.pdf as upright, outlined, 100 K vector PDFs (logo, tagline, info/QR); new jobs pull from there, never from an old cup
+    file
+  - Another maker's source file goes in _brand/_source/ as received
+  - 'Customer brief on a LOOSE fan with a STRAIGHT logo (CorelDRAW export): lift the logo PATH BY PATH (get_drawings; outline live text first with gs -dNoOutputFonts
+    when no tiling pattern), POLAR-WARP about our die centre (x -> arc length on the logo''s centre radius, y -> radius; curves split x4, lines <= 1 mm)'
+  - 'Splitting elements out of a warped team file: unwrap each run about its own fitted arc centre; offset every run of one lockup into ONE reference frame'
+  - src: KLD 'Read the Cortex first', 'Folders', 250 mL tub section
+  vector_vs_raster:
+  - Raster >= 300 dpi at size
+  - 'Art must be FILLS only before nesting (outline strokes: shapely buffer, round caps, same width)'
+  - 'Tiling-pattern ground: never run ghostscript over it (re-phases); in a VENDOR file expand to plain vector with pikepdf (one solid ground + each cell unclipped
+    without bg rects); customer proofs may keep the pattern'
+  - 'Random-scatter pattern: no re-roll; copy byte for byte, keep Matrix scale, shift translation with the logo, clip to our print area'
+  - src: KLD 'Colour', 'Art must be fills only', 'Other mappings and sizing'
+  cleaning:
+  - Customer file may carry the DIE CUT LINE as strokes -> drop subpaths with span > 20 mm and >= 90 % of flattened points within ~3 mm of our cut (flatten beziers
+    first)
+  - Strip the source file's own keyline strokes from its content stream
+  - List paths outside the die (near-white hidden copies)
+  - 'Logo built for a light ground on a dark flood: recolour operands only; background square -> no paint; counters take the ground colour; shapes seen THROUGH letters
+    traced (600 dpi, seal radius 2 pt) and painted as knockout; one ink: tints keep detail'
+  - Knockout white = bare board (DeviceCMYK 0 0 0 0 knock-out on a spot job), never a white plate
+  - 'Unclipped illustrations: wrap the whole art stream in ONE clip of the print-area path'
+  - src: KLD 'Placing artwork', 'Bag Customer Proofs', 'Colour'
+  colour_conversion:
+  - 'RGB team art: rgb_to_cmyk.py swaps every rg/RG (page + forms) for its FOGRA39 build (LittleCMS rel. col. + BPC, whole %; white -> 0000, black -> K100), writes
+    HEX/CMYK/TAC table'
+  - 'Rich-RGB blacks: rebuild as CMYK, type at 100 K, never reuse their black values'
+  - 'Pantone -> CMYK job: convert each Separation from its OWN Lab alternate (Lab D50 -> FOGRA39L_coated), rewrite inside pattern resources too, delete Separations,
+    gate 0 spot plates'
+  - 'Spot job: spot_convert.py swaps named CMYK builds for real /Separation in page + every painted form XObject (soft masks left alone); alternate = art''s own build'
+  - 'Ink reduction CMYK -> Pantone -> 2 -> 1 ink: map every colour into ONE DeviceN with a type-4 overprint tint transform (spot4.py); unmapped build = error; a /Separation
+    cannot mix two inks (gradient -> solid + fading second ink, or flat)'
+  - 'Ghostscript requantises colour (0.98 -> 0.980469): match on VALUE after a gs pass'
+  - src: KLD 'Paper tubs' RGB team art / Spot jobs, 'Colour', 'Bag Customer Proofs'
+  fonts:
+  - ARTONLY 0 live text (assert in the generator); fonts embedded at PROOF, outlined at PRINT
+  - Outline per layer (mark on its own page); never gs the art page when it has a tiling pattern
+  - src: KLD 'Offset nesting' bullets, Checklist 13-14
+  sizing:
+  - Keep the approved size as a fraction of the visible wrap (degrees), not mm
+  - Element same size on every cup -> S = 1, centred on mid-height; cropped at rim/hem and grown with the cup -> S = our visible height / theirs
+  - Customer logo centred in the visible band of a lidded tub
+  - Script faces and QR blocks move rigidly (QR must stay square)
+  - src: KLD 'Other mappings and sizing', 'Re-seating customer art drawn on ANOTHER maker's die'
+  qr:
+  - Never place a customer's Instagram nametag QR; rebuild clean vector QR (segno, ECC M) and decode on every file
+  - 'Inverted (light-on-dark) QR: decode on the inverted raster (OpenCV, 1200 dpi, Otsu), say so on the proof'
+  - Bag footer QR module 0.32-0.36 mm; team 31 mm footers too small to scan on flexo
+  - src: KLD 'Food boxes', 'Bag bottom text - LOCKED'
+  from_cortex:
+  - Live-text check on EVERY customer source (get_texttrace / pdffonts) before a path-only rebuild; outline with outline_live_text.py (fontTools, glyph-exact) and
+    compare a raster of the rebuild with the source. A Canva mockup with live text is a vector source (outline with gs -dNoOutputFonts, never retype in a substitute
+    font). L786; L2210-2212
+  - 'Canva exports draw every box twice: drop fill_opacity < 0.5 paths or tick boxes print solid black; fill glyphs even-odd. L2213-2215'
+  - 'Measure line weights at the PLACED size (measure_min_line.py): 0.08 mm lines are below press minimum -> rebuild (0.20 mm wall) or thicken; designed hairline
+    serifs are flagged, not redrawn. L2219-2222'
+  - 'Raster-only logo: trace (potracer, 4x upsample + blur, even-odd), drop the bitmap-frame path, PROVE the trace by rasterising back and XOR-ing / pixel diff (diff.py)
+    before it goes on a proof; mark PROVISIONAL and ask for the master. Small type is re-typeset, never traced; a QR is decoded and regenerated. L2177-2181; L1216-1224;
+    L2648-2652'
+  - 'Raster placed on a cone: inverse-map it (cv2.remap, 18 px/mm) and place as one CMYK image; check effective resolution at size (house floor 300 dpi). L3027-3029'
+  - 'The colour in a logo FILE is not the brand colour: ask the brand''s current hex / Pantone before matching a spot off an export. L2191-2193'
+  - Mask a supplied logo by BRAND COLOUR, never by its alpha channel (internal highlights flood). L1526-1530
+  - ONE uniform scale for all faces from a mockup (set by the tallest face fitting the content window); state on the proof when it differs from the mockup size. L2216-2218
+  - 'TM on a plain wordmark: TM cap = 0.20 x wordmark cap, 0.08 cap clear of the last letter, cap tops aligned, same ink / knock-out. L3592'
+  - Customer files state the logo SIZE, dimensioned on the artwork, in the product block and in the check list. L2155-2157
+colour_system:
+  pantone:
+  - 'Ask ''Pantone or CMYK?'' before keeping a customer''s spots (Jallo: 9 Pantones -> CMYK)'
+  - Confirmed Pantone = real Separation colourspace + swap of fill AND stroke operators, CMYK alternate for screen only; colour count drives plate cost
+  - Max 4 PANTONE on our machines; a 5th moves the job to CMYK; no Pantone numbers given -> colour selection, chargeable
+  - Spot alternate = DeviceCMYK, never Lab (gs turned Lab into ICCBased and Preview drew the base white)
+  - Spot colourspace always an INDIRECT object (page + form resources) for Corel
+  - 'Cupstock: match the C guide, not U; final call = customer-approved standard strip under D50 or spectro Lab'
+  cmyk:
+  - CMYK = photos / gradients / > 4 colours; CMYK codes expected from the customer
+  - 'Check total area coverage: drnk ''PANTONE 3500 U'' ground was C78 M54 Y80 K71 = 283 % TAC (flag); heavy-K grounds flagged for the press (15 A.D. #005787 -> C87
+    M44 Y3 K39)'
+  - '4-colour file with rich blacks for a 2-colour house brand: rebuild to the house build, state the substitution'
+  - Classify ink by COLOUR when gating a ground (antialiased small type is grey)
+  white_and_kraft:
+  - Knockout white is not an ink; no white plate (Penguin Bean)
+  - 'Brown bags: kraft is the ground, no white plate, ''white'' = bare kraft'
+  foil:
+  - 'Foil is not a plate: needs a foil block spec; each foiled shape one closed path; merge slivers under ~0.5 mm'
+  separations_gate:
+  - 'tiffsep: only the job''s plates may appear; 0 CMYK left on a spot job / 0 spot on a CMYK job'
+  colour_names_on_files:
+  - 'Swatch per ink on the INFO layer: Pantone (SPOT or process, confirmed?), CMYK, source RGB/HEX, coverage note; same in header line and BRAND.md'
+  - 'Customer proof with art: chip per ink (CMYK build + role, or Pantone on a spot job)'
+  - CMYK job proof lists builds with roles, never Pantone names
+  proof_colour_page:
+  - 'Every Customer Proof ends with the COLOURS + TIMELINE page (proof_colour_guide.py): screen is not print; PANTONE max 4, 5th -> CMYK; CMYK codes expected; production
+    starts only when product, digital artwork AND colours approved; THE DIGITAL PROOF IS NOT A COLOUR APPROVAL'
+  src: KLD 'Colour', 'Checklist before a proof leaves', 'Mailer boxes', 'PRINTING VENDOR FILES'
+  pantone_U_rule:
+    value: PANTONE U codes ALWAYS while printing on uncoated board (print file, PROOF, chips, BRAND.md); proposals checked against a printed U chip; stickers ALL
+      PANTONE C
+    was: Cupstock prints like a coated sheet - match against the C guide (KLD Colour)
+    overridden_by: ARTWORK-CORTEX.md L666; L2567
+  mark_never_adds_colour: The maker's mark / footer is printed in one of the job's own inks; 100 K only when K is already a plate. ARTWORK-CORTEX.md L578-583; L884
+  black_not_extra_plate: 'On punch-KLD offset jobs run kld_job_colours.py: /All marks -> job spots, 100 K KLD lines -> non-printing Dieline separation. ARTWORK-CORTEX.md
+    L4505'
+  white_ink: White on clear PET/PP = Separation Opaque White; white print on brown kraft board = one Separation Opaque White; on paper board "keep it white" = knock-out
+    to bare board, no white ink. ARTWORK-CORTEX.md L3207; L3236; L3817; L4408
+  kraft: 'Kraft is the ground: CMYK flexo with no white plate, every colour darker and duller - say so on the proof and check no white base is wanted; texture by
+    MULTIPLY over kraft. "Kraft look" on a mockup = a choice between kraft board and a printed kraft flood on white. ARTWORK-CORTEX.md L829-833; L3245'
+  tac_flags: No TAC limit stated; 270-317 % builds flagged to the press; near-black ground as single-ink K100. ARTWORK-CORTEX.md L1928; L2440; L3029; L3925
+  layers: 'OCG layers: Dieline (cut + safe) / Artwork / Info-dims; die never merged into art. ARTWORK-CORTEX.md L636-637'
+outputs:
+  naming_pattern: <brand>_<size>_<product>_<part>_<STAGE>[-<detail>]-v<N>[<letter>][-WM].<ext>; underscore between fields, hyphen inside, STAGE uppercase; _tools/normalise_names.py
+    enforces
+  naming_examples:
+  - qmin_400ml_paper-tub_tub_CUSTOMER-PROOF-v1.pdf
+  - 15-ad_250ml-8oz_paper-cup-DW_outer-wrap_PROOF-v4.pdf
+  - qmin_400ml_paper-tub_tub_OFFSET-LAYOUT-8up-670x415mm-v5.pdf (+ _OFFSET-ARTWORK-PUNCH-, _OFFSET-PUNCH-)
+  - '..._OFFSET-LAYOUT-12up-676x415mm-v1-VENDOR-BLUELINE.pdf (-VENDOR-LUCKY-OFFSET, -VENDOR-VIANA)'
+  - drnk_salad-bowl-B128H66_DIGITAL-SAMPLE-3up-483x330mm-v1.pdf
+  - 66-chuim_154x143x20_insert-tray_DIE-LAYOUT-15up-622x965mm-v1.pdf
+  - <brand>_<WxGxH>_<style>-bag_body_FLEXO-PLATE-<vendor>-<NNN>T-v<N>.pdf
+  - <brand>_<size>_<product>_<part>_FLEXO-PLATE-<NNN>T-<N>up-interlock-v<N>.pdf
+  - <brand>_<size>-tub-and-<dia>-lid_CUSTOMER-PROOF-v<N>.pdf
+  - 'Blank KLDs: {oz}-{ml}-{type}-{wall}-{dia}.pdf in KLD Templates/<Category>/'
+  versioning: bump vN on every change, never overwrite; construction change (inner cup, board, channel) re-issues even with byte-identical art; wrong-Pantone or defect
+    versions moved to _superseded/ once fixed; files sent for review before approval keep TEST in the name
+  files:
+    PROOF: 'print file with layers intact: die + safe on own locked OCG layer, artwork above, info layer (colour swatches, title block e.g. ''250 mL (8 oz) Paper
+      Cup DW - AEROS (H92-55.91KT)'', channel + decision); proof date only in the info block'
+    CURVECHECK: 'guide layer on: arcs every 10 mm from bottom cut, radials every 15 mm of arc; tilt and bow reported separately; in _checks/'
+    ARTONLY: art only, 0 live text, 0 unconverted CMYK on a spot job; carries the maker's mark (mark belongs in ARTONLY, not the nesting tool)
+    OBJ_and_views: textured OBJ on the SKU geometry, MESHCHECK, PANELVIEW, VIEWSHEET (azimuth AZ = 360 x (a - aL)/(aSeam - aL)), ELEMENTVIEWS-<N>.png
+    REVIEW: 'assemble_review.py <MANIFEST.json>: p1 print file, p2 curve check, p3 mesh (4-view sheet, each element straight-on, 3-view with underside, renders if
+      any; element strip side by side)'
+    CUSTOMER_PROOF_cups_tubs:
+      value: 'p1 art 1:1 with visible-wall outline, ink chips, logo SIZE + position, approval box, customer line art (with artwork + logo dims); p2 curve mesh + safe
+        line; p3 3D watermarked; p4 studio renders; p5 lifestyle renders; last = COLOURS + TIMELINE; dealer jobs keep AEROS header on proof; zones as grey bands +
+        rim line with NO wording Cortex specifics: guides drawn twice (soft dark 0.75 pt then white 0.32 pt); text blocks BELOW the fan; mesh views AMB 0.62; art
+        may be translated (art_shift_mm) never rescaled; sign-off box anchored (BOX_TOP 256, 24 mm), blocks shrunk to fit; layout pass asserts 0 text collisions;
+        banned-term scan reads text + metadata; no supplier / die code / SKU / method talk; page 1b INNER CUP when the inner is printed; page 5 IN USE lifestyle.'
+      overridden_by: ARTWORK-CORTEX.md L710-775
+      was: (skill summary only)
+    ARTWORK_GUIDE: 'no artwork yet: p1 artwork area 1:1 (peach, black outline) + safe line (3 mm; 8 left) + area size along curve + line art; p2 with mesh; p3 3D
+      shaded watermarked; no cut/knurl/fold/die/supplier; never ''template'' or ''keyline'' on it'
+    CUSTOMER_PROOF_bags: p1 W x G x H line art + NOSAFE keyline; p2 open 50 mm grid; 3D; renders
+    CUSTOMER_PROOF_lids: two circles only + side picture; page 2 = lid on tub in 3D (renders mandatory)
+    CUSTOMER_PROOF_boxes: 'flats larger than A3 minus margins go on pages 1-2 scaled (750: 85 %, 1000: 75 %), scale stated, every figure true mm; mailer A2 at 75
+      %; isometric closed-box line art L x B x H; element dims (size + clearance to four panel edges) on NOT-FOR-PRINT layer'
+    OFFSET_LAYOUT: artwork + full blueline; cut (or fillets) + sheet frame only, no dims/title/swatches; frame UNDER art clipped even-odd off every piece; sheet size
+      in the name
+    OFFSET_ARTWORK_PUNCH: artwork + yellow punch / corner lines (+ blue sheet marks), every black outline removed
+    OFFSET_PUNCH: 'yellow punch / corner lines + blue sheet marks only, no art (on Blueline punch KLDs: the punch KLD exactly as supplied)'
+    VENDOR_SET: 'the three offset files via corel_export.py: PDF 1.4, 0 OCGs, 0 fonts, Pantone plates kept, indirect colourspaces, no ObjStm; + _OFFSET-COREL-NOTES-*.txt;
+      EPS (gs eps2write, never split per layer) if still rejected'
+    DIE_LAYOUT: 'unprinted parts: cut / crease only'
+    DIGITAL_SAMPLE: 13 x 19 in sheet (330.2 x 482.6)
+    SPEC_FRAME: 'spec_frame.py: ~60 x 76 mm vector frame + PNG, side profile TD x BD x H to true proportion, ''TD x BD x H · mm · not to scale''; tubs/bowls use tub_lineart.py
+      instead'
+    LISTING_SIZE_GUIDE: 2048 sq px, one px/mm per family (tallest fills frame, same base y), real profile, black 6 px outline, Liberation Sans Bold 39 px labels mm
+      + inch, content above caption bar (bottom 8.8 % + 3 %)
+    LISTING_DESIGN_FOLDER: 'EMPTY files only: blank keyline, blank nesting, plain OBJ (no texture), preview, README (no customer names, no provenance like ''built
+      for <brand>'')'
+    OFFSET_DELIVERABLE_COUNT:
+      value: 'cortex top section: FOUR files - LAYOUT, ARTWORK (art only, no blueline), ARTWORK-PUNCH, PUNCH'
+      was: THREE files (LAYOUT, ARTWORK-PUNCH, PUNCH; artwork-only "We don't need that") per the KLD skill
+      overridden_by: ARTWORK-CORTEX.md L79-92
+      status: disputed - the cortex job log says THREE (LAYOUT + ARTWORK + PUNCH, L3615) and "No artwork-only file (house rule)" (L3681); ask Arjun
+    PAGE_AND_FILE: A3 landscape, fan 1:1 centred; header (product, SKU, stage, date, colours, seam/crimp note, die name); title "250 mL (8 oz) Paper Cup SW - AEROS
+      (H95 · TD 80 · BD 56)"; "Place the artwork inside the red line"; footer with file name; spec frame beside the art. ARTWORK-CORTEX.md L629-634
+    WATERMARK: 'House lattice: alternating Aeros (bold) / aeros-x.com, rotated -12 deg, cell 180 x 145 px on a 2048 px frame, rows staggered half a cell; clean render
+      kept as RENDER-vNa.png, WM copy as -WM.png goes out. ARTWORK-CORTEX.md L664'
+    NAMING_FIELDS: brand = folder name lowercase, spaces -> hyphens; size mL first (250ml-8oz) or mm for flat goods (355x250mm); product (paper-cup-DW, paper-tub,
+      pp-cup-U, flat-handle-bag, tray-mat, flat-salad-bowl-SW ...); part (outer-wrap, inner-cup, cup, tub, bag, mat, print, sleeve, -olive, -plain); STAGE list incl.
+      PLACEMENT-REPORT, CUSTOMER-PROOF-SCAN, FOLDCHECK, GRIDCHECK, OFFSET-DIELINE; detail lowercase; customer files never carry a supplier name. ARTWORK-CORTEX.md
+      L640-663
+  saved_where: Customer Artwork/<Brand>/<Product>/ (+ _checks/, _3d/, _src/, Printing Vendor Files/<Vendor>/, _superseded/); KLD Templates/<Category>/ (+ _source/,
+    _INDEX.md, README per family); supplier dies KLD Templates/<Supplier> Keylines/
+  supabase:
+  - 'public.customer_artworks: one row per finished file (customer_id, customer, brand, item, size, stage, version, status ready/sent/approved/superseded/on_hold,
+    channel, paper, print_process, inks jsonb, file_path, folder, open_points, quote_ref, vendor, notes); new version supersedes old is_current row; approval sets
+    approved_at/by'
+  - 'product_design_files: file_type Keyline / Artwork / Proof; bytes in private bucket design-files at {product_id}/{timestamp}-{filename}; verify size_bytes and
+    %PDF on download (SUPA)'
+  src: KLD 'Naming and versions', 'Building it', 'Checklist', 'PRINTING VENDOR FILES', 'Spec frame', 'Listing size guides', 'Supabase'; SUPA; SPEC
+checks:
+- name: closed outline
+  what: cut paths selected by colour; every endpoint pairs within 0.05 mm; 0 open ends
+  type: deterministic
+- name: ink containment
+  what: rasterise print-area polygon, dilate 2 px, 0 ink outside; ground and black measured separately by colour
+  type: deterministic
+- name: clip check
+  what: every illustration stops at print area; customer die-line copy removed
+  type: deterministic
+- name: curve check
+  what: baselines on arcs, edges on radials; tilt + bow separately on flat feet; house threshold <= 0.10 mm drift after re-seat; |bow| <= 0.15 mm under ~25 mm line
+    is noise, threshold that matters 0.3 mm
+  type: deterministic
+- name: letterform gate
+  what: 'rigid_gate.py: affine per glyph source -> ours; rigid = 1.0000/1.0000; limit 0.5 % anisotropy; exclude elements < ~0.5 mm across'
+  type: deterministic
+- name: glyph seat gate
+  what: 'each glyph''s lowest point vs baseline: placed worst <= source worst + 0.03 mm (descenders listed, not scored)'
+  type: deterministic
+- name: baseline per glyph
+  what: per connected glyph lowest radius (spread e.g. 0.129 mm)
+  type: deterministic
+- name: brim gate
+  what: 0 fills / 0 glyphs above print top (rim line or curl start); 0 white gap under curl start when a neck exists; 2 px tol
+  type: deterministic
+- name: unrolled views
+  what: each re-seated element unrolled about fan centre with grid, BEFORE/AFTER + bottom band (mark on white board)
+  type: deterministic render, visual review
+- name: element mesh check
+  what: straight-on panel view at each element's azimuth
+  type: deterministic render, visual review
+- name: outside-die paths
+  what: list every path outside the die before trusting a team file
+  type: deterministic
+- name: glue / joint
+  what: nothing important in glue flap; glue points unprinted; nothing important within 8 mm of left cut
+  type: deterministic
+- name: maker's mark
+  what: channel asked; one line on white board, caps centred in strip; glyph radius spread ~0; above bottom cut, below ground edge and fold; inversion checked by
+    turning raster 180
+  type: deterministic + visual
+- name: ARTONLY
+  what: '0 live text; 0 unconverted CMYK on spot job (cmyk_left: {}); 0 spot on CMYK job'
+  type: deterministic
+- name: colour block
+  what: codes present and matching BRAND.md; spot separations real (tiffsep); fonts embedded at PROOF, outlined at PRINT; single page; QR decode
+  type: deterministic
+- name: QR decode
+  what: OpenCV at 600 dpi (footers) / 1200 dpi Otsu inverted; decodes to that SKU's URL
+  type: deterministic
+- name: footer placeholder
+  what: no 'AEROS FOOTER' placeholder text left on any keyline
+  type: deterministic
+- name: proof_scan.py
+  what: banned terms (incl. 'plate', 'keyline' substrings on artwork guides) + text collisions; ALLOW=Pantone on spot jobs
+  type: deterministic
+- name: proof dims vs DB
+  what: proof_dims_check.py (customer-proof skill) PASS dims = DB
+  type: deterministic
+- name: offset nesting gates
+  what: slot count + turned count; fit median/max (0.03 / 0.20 same-die; 0.20 / 0.80 supplier layouts); 0 fonts; every blueline stroke present and unmoved (expect
+    blueline + art strokes x slots); 0 colour ink outside print areas; 0 black outside cut pieces; maker's mark in every lip (direct) or none (dealer)
+  type: deterministic
+- name: offset split gates
+  what: 'offset_layout_split(.py|_punchkld.py): PUNCH strokes identical, ARTWORK-PUNCH marks identical, outlines removed count (250: 43/31/12; 350: 63/27/36; 450:
+    64/28/36 + 10 label fills); 0 black blueline strokes in companions; PUNCH 0 art ink; any FAIL renames all three -FAILED'
+  type: deterministic
+- name: verify_corel.py
+  what: page size identical; stroke count identical, worst move <= 0.01 mm; tiffsep per plate within a few px; render diff < 0.05 % px; colourspaces indirect, PDF
+    1.4, no ObjStm
+  type: deterministic
+- name: listing gate
+  what: gs inkcov <= ~0.10 total per PDF; pdfimages -list empty; pdftotext no brand; no map_Kd in MTL; READMEs grep clean of customer names
+  type: deterministic
+- name: 500 mL tub die proof
+  what: single fan cut corners on layout fillets <= 0.20 mm (Meltin 0.119)
+  type: deterministic
+- name: derived tub nests
+  what: shared-cut coincidence, no overlap beyond the shared line, >= 5.8 mm in a column, >= 4.76 mm diagonal, >= 5 mm to sheet edge
+  type: deterministic
+- name: food box
+  what: HOLE GATE 0 ink px; ROUND HOLES WHITE in every slot; FOLDCHECK (panel map, crease map, 3 mm safe, 10 mm grid)
+  type: deterministic
+- name: mailer nest
+  what: gap >= 6, margin >= 5, bleed never reaches other cut, 0 fonts, plates CMYK + spot only, 0 ink outside mitred cut + 3 mm (>= 50 dpi)
+  type: deterministic
+- name: spot job second renderer
+  what: check a spot job in a second renderer (Lab alternate drew white)
+  type: visual
+- name: render pre-flight
+  what: foodbox_render_prompt.py checklist ticked against same-angle mesh views; every small type on a render read
+  type: judgment / AI review
+- name: renders white strip
+  what: look for white strip under the rim (print top below curl start)
+  type: visual
+- name: split blueline
+  what: sorted (rect, item-count) set of strokes equal before and after split
+  type: deterministic
+- name: live-text check
+  what: get_texttrace / pdffonts on every customer source before a path-only rebuild
+  type: deterministic
+  src: ARTWORK-CORTEX.md L786
+- name: reversed-type weight
+  what: 'ARTONLY at 40 px/mm, white parts inside the print area, distance transform: thinnest part max stroke >= 0.15 mm'
+  type: deterministic
+  src: ARTWORK-CORTEX.md L788
+- name: mark plate set
+  what: tiffsep plate list with and without the maker's mark identical
+  type: deterministic
+  src: ARTWORK-CORTEX.md L582-583
+- name: digital sample nest
+  what: cut-to-cut >= 3.0, bleed >= 0.5 off neighbour cut, margin >= 5, 0 fonts, plates = ARTONLY plates
+  type: deterministic
+  src: ARTWORK-CORTEX.md L262-264
+- name: 250 SW flexo master
+  what: 'check_250sw_flexo_plate.py: page, 48 cut strokes, 6 eye-marks, strips identical < 0.02 mm; colours K100 or white; 0 fonts / images; no new separations'
+  type: deterministic
+  src: ARTWORK-CORTEX.md L33-35
+- name: offset colour gates
+  what: 'kld_job_colours.py: ARTWORK-PUNCH = job spots only; LAYOUT = spots + Dieline; PUNCH = Dieline only; spot px <= 0.01 %'
+  type: deterministic
+  src: ARTWORK-CORTEX.md L4505
+- name: bleed probes (food box)
+  what: probes 2.5 mm outside every inked cut edge must all be inked
+  type: deterministic
+  src: ARTWORK-CORTEX.md L2971-2972
+- name: proof layout pass
+  what: 'every text span bbox: 0 collisions, nothing past the margin; ARTONLY sheet == proof sheet'
+  type: deterministic
+  src: ARTWORK-CORTEX.md L766-770; L1397-1399
+- name: other-brand grep
+  what: proof text grepped for OTHER brands (whole words, BRAND env)
+  type: deterministic
+  src: ARTWORK-CORTEX.md L2973-2974
+- name: bowl audit
+  what: concentric (two-centre distance), true arcs (radial spread), square (side azimuths), equal sides, fillet radii; drawn-arc ratio vs labelled width ratio; DIECHECK
+    overlay on the received axis
+  type: deterministic
+  src: ARTWORK-CORTEX.md L1184-1198; L1154-1160
+- name: group-movement table
+  what: on every re-issue pair element groups old vs new ARTONLY and list movement
+  type: deterministic
+  src: ARTWORK-CORTEX.md L4067
+- name: tilt calibration
+  what: any tilt measure reads 0.00 deg on the die's own cut arc before it is trusted
+  type: deterministic
+  src: ARTWORK-CORTEX.md L540-543
+checks_src: KLD 'Checklist before a proof leaves', 'Gate the letterforms', 'Offset nesting', 'PRINTING VENDOR FILES', 'Food boxes', 'Mailer boxes', 'Read the Cortex
+  first'
+tools:
+- tool: scripts/spec_frame.py (in the skill)
+  does: TD x BD x H side-profile frame, vector PDF + PNG
+  kind: D
+- tool: cup_pipeline.py <generator> <geo> <SKU> <label>
+  does: PROOF, CURVECHECK, ARTONLY, OBJ, MESHCHECK, PANELVIEW, VIEWSHEET, render_prompt, MANIFEST
+  kind: D (render_prompt text needs J)
+- tool: rigid_gate.py <source> <SCX> <SCY> <ours> <geo>
+  does: per-glyph affine, anisotropy
+  kind: D
+- tool: make_offset_layout.py / make_offset_layout_dw12.py
+  does: cup offset nests on Blueline punch KLDs (ICP fit, mid-line clip)
+  kind: D
+- tool: offset_layout_split.py / offset_layout_split_punchkld.py
+  does: ARTWORK-PUNCH + PUNCH companions
+  kind: D
+- tool: corel_export.py / verify_corel.py
+  does: Corel-safe vendor PDF + flatten proof
+  kind: D
+- tool: split_blueline_dw12.py / tub_split_layout.py / tub_split_fan.py / fb_split_source.py / split_layout_rgb_blueline
+  does: split team files on content stream into ART / CUT / GUIDES / OUTLINE
+  kind: 'D (which text/blocks to drop: J)'
+- tool: blank_layout.py
+  does: strip fills/text/images, keep strokes -> blank nesting
+  kind: D
+- tool: tub_kld / tub_kld_fan / make_keyline_tub(_fan) / tub_sheet / tub150_kld / tub350_98_kld / tub100_kld
+  does: tub fan keylines from dies / control dims
+  kind: D
+- tool: nest_tub_offset.py / nest_tub_offset_clipfit.py / nest_tub_offset_derived.py / fit_slots_clip.py
+  does: tub offset nests
+  kind: D
+- tool: bowl_kld (build, finished_bowl) / make_keyline_bowl.py / make_bowl_dimdrawing.py / bowl_obj.py / nest_bowl_digital.py
+  does: bowl keylines, dim drawings, capacity, OBJ, digital nest
+  kind: D
+- tool: fan_zones.py
+  does: curl / lip / seam bands + labels from geo json
+  kind: D
+- tool: tub_lineart.py (draw_tub_lineart, draw_logo_dims) / tub_lineart_fill.py
+  does: formed-tub line art, logo dims, project ARTONLY onto elevation
+  kind: D
+- tool: tub_obj.py (rim_solve) / tub_render.py / lid_obj.py / lid_scene.py / lid_scene_pleated.py
+  does: 3D models and mesh renders
+  kind: D
+- tool: lid95_kld.py / lid76_kld.py / make_lid_customer_guide.py
+  does: lid keylines + two-circle guide / proof
+  kind: D
+- tool: rgb_to_cmyk.py <in> <out> <builds.json>
+  does: RGB -> FOGRA39 builds
+  kind: D
+- tool: spot_convert.py <in> <out> <spots.json>
+  does: CMYK builds -> real /Separation incl. forms
+  kind: D
+- tool: spot4.py run(in, out, inks, mapfn) (Dirty Bib _src/)
+  does: ink reduction into one DeviceN
+  kind: 'D (mapfn colour mapping: J)'
+- tool: nest_cup_digital.py --stack
+  does: cups / tubs on 13 x 19 digital sheet
+  kind: D
+- tool: sos_kld.py / sos_obj.py / gen_sos_listing.py / bag_render.py / flexo_keyline.py / gen_sos_flexo_keylines.py
+  does: SOS listing keylines, OBJ, flexo keylines (--plate, --footer, --no-footer, --ink-only)
+  kind: D
+- tool: sos_footer.py <team plate> <out> <SKU> '<size line>' <url> [60] / gen_sos_footers.py / dealer_footer.py
+  does: locked 60 x 29.8 bag footer per SKU
+  kind: D
+- tool: make_customer_proof.py (+ _bag, _pet, _foodbox, family copies) / proof_colour_guide.py / proof_scan.py / proof_scan_spot.py / assemble_review.py
+  does: customer proofs, colour page, scans, review PDF
+  kind: D
+- tool: foodbox_render_prompt.py <geo> <open.obj> <stem> [holes]
+  does: render prompt + mesh views + checklist
+  kind: D builds prompt; render itself AI
+- tool: patch_wall_art.py
+  does: warp true panel art onto a render wall by homography
+  kind: D (on an AI render)
+- tool: foodbox_kld / make_keyline_foodbox / foodbox_obj / fb_fit_slots / nest_foodbox_offset / foodbox_render (melt _src/)
+  does: food box keylines, OBJ, nests
+  kind: D
+- tool: mailer_geo.py / aeros_block.py / nest_mailer_offset.py / mailer_obj.py (66 Chuim _src/)
+  does: mailer panels, base block, nest, OBJ
+  kind: D
+- tool: normalise_names.py
+  does: enforces naming pattern
+  kind: D
+- tool: _build_design_status.py
+  does: rebuilds listing design status
+  kind: D
+- tool: 'Higgsfield (media_upload -> PUT with Content-Type + If-None-Match: * -> media_confirm)'
+  does: AI studio / lifestyle renders
+  kind: J
+- tool: gs (-dNoOutputFonts, tiffsep, inkcov, eps2write), pikepdf, PyMuPDF (show_pdf_page), segno, OpenCV, LittleCMS
+  does: outline fonts, separations, coverage, EPS, PDF surgery, QR, decode, colour
+  kind: D
+- tool: _src/outline_live_text.py
+  does: outline live text glyph-exact (fontTools)
+  kind: D
+- tool: _src/measure_min_line.py
+  does: line weights at placed size (skeleton x distance transform)
+  kind: D
+- tool: _tools/kld_job_colours.py
+  does: KLD lines -> Dieline separation, /All -> job spots
+  kind: D
+- tool: _src/watermark.py
+  does: house watermark lattice on renders
+  kind: D
+- tool: KLD Templates/Paper Cups/flexo/check_250sw_flexo_plate.py + set_plate_date.py
+  does: 250 SW flexo master gate; plate date swap
+  kind: D
+- tool: _tools/bag_split_team.py / dcb_additions.py / gen_dcut_bag.py / dcb_obj.py
+  does: D-cut team file split, Aeros additions, generator, OBJ
+  kind: D
+- tool: KLD Templates/PP Cups/_src/pp_cup_artwork.py / make_customer_proof_pp.py
+  does: PP/PET rectangle art, keyline, graduations, proof
+  kind: D
+- tool: mat_kld.py / make_keyline_mat.py / mat_obj.py / mat_texture.py / normalise_source.py (Burma Burma Tray Mat _src/)
+  does: flat sheet keyline, model, texture, colour merge
+  kind: D
+- tool: KLD Templates/Wrap Sheets/_src/ check_wrap.py
+  does: wrap-sheet gates G1-G7
+  kind: D
+- tool: _src/scan_customer_proof.py
+  does: banned-term scan of text + metadata
+  kind: D
+- tool: curve_gate.py / unroll.py / make_compare.py
+  does: baseline / edge gates, unrolled views, two-version overlap sheet
+  kind: D
+- tool: bowl_kld.py / bowl_diecheck.py
+  does: bowl geometry from control dims, audit overlay, visible band
+  kind: D
+tools_src: KLD 'Paper tubs' tools list, 'Offset nesting', 'Bag bottom text', 'Food boxes', 'Mailer boxes', 'Building it'; SPEC
+judgment_calls:
+  ask_customer_or_arjun:
+  - Lid yes/no, PET/paper, coverage, lid build, lid art
+  - Digital sample yes/no
+  - Channel direct vs dealer (maker's mark / Aeros footer on or off)
+  - Pantone vs CMYK; which Pantone (colour selection is chargeable); approve substitution of house builds
+  - DW inner printed or plain
+  - Printing vendor (Blueline / Lucky / Viana / Packwingz)
+  - Which die is master when single-up and team layout disagree
+  - Measurements when a dimension is questioned (rim OD, overall H)
+  - 'Sheet size for a derived nest (750: 680 x 450; 350: 680 x 415); press / die maker to confirm before first run'
+  - Where a knurl sits when a measured knurl and a guide disagree (settle on brim capacity)
+  - Mark position where no hidden white strip exists
+  - Unknown labels on a team file; wording errors in a layout title (e.g. 'Flexo' on an offset sheet)
+  - Lid skirt printed or white
+  - Customer method switch (screen <-> offset)
+  - Tints needed on a screen-printed bag
+  - Bag footer QR URL pattern (aeros-x.com/products/<SKU> NOT confirmed live)
+  - 'RULED 2026-11-21: cup offset = 3 files (ARTWORK-PUNCH with outlines, LAYOUT without, VENDOR with all dimensions + colours)'
+  - Whether a QR on a flood gets a knockout panel or goes inverted (disputed)
+  - Default logo size on 8 oz DW (42 vs 55 mm datapoints)
+  - Brown box = kraft board or printed brand-colour flood
+  - Inner-cup colour for renders (render only the chosen option)
+  - Mockup size vs our scale (state the difference on the proof)
+  model_judgment_today:
+  - Classifying a source element's state (on arc / chord / rotated block) from the deviation plot and choosing the fix
+  - 'Which mapping per element group: arc re-seat, rigid, re-roll at constant size, or leave alone (distressed type, intrinsic slant)'
+  - Scale S per element (S = 1 vs height ratio) from how the customer treated it across sizes
+  - Grouping lines of a rotated block (by baseline radius), attaching small parts
+  - Logo size as a fraction of visible wrap carried across a family
+  - Which strokes in a customer file are the die cut line vs art (rule given, edge cases judged)
+  - Tracing shapes seen through letters for dark-flood knockouts; tint levels in one-ink reductions (e.g. 50 / 60 / 35 %)
+  - Colour mapping for ink reductions and gradients on 2 inks
+  - Customer proof layout positions on wide fans (spec_frame, art_shift_mm, check_y)
+  - 'Reading renders: proportions, invented small print, white liners, inner faces; render prompts written from THIS artwork'
+  - 'Whether an Arjun complaint (''looks stretched'', ''not along the mesh'') is real: rule = go and measure before defending'
+  - Trusting a supplier vector guide over a ruler reading on a crinkled sample
+  - Re-lay ratios per panel when a sample sits on another size die
+  - 'Splitting customer files: which fills/text are art vs die vs captions'
+  - Tracing raster logos (thresholds, which parts re-typeset)
+  src: KLD throughout, esp. 'Read the Cortex first', 'Measure the source first', 'Other mappings and sizing', 'Bag Customer Proofs', 'Checklist'
+gaps_for_the_designer:
+- 'Default logo size: datapoints only (8 oz DW 42 or 55 mm; tubs band - 3 mm, two logos at 1/4 and 3/4; PET caps 38 tall / ~80-86 wide); no % rule for bags or boxes'
+- Minimum positive text size for flexo bags and offset boxes not given (only reverse-out 3.3 pt, reversed stroke 0.15 mm, knock-out 0.12 mm, dry offset 0.25 mm, maker's
+  mark 2.8 pt)
+- No TAC limit number (only 270-317 % flagged)
+- Front/back mirroring for bags not specified (boxes and mailers now covered)
+- Folder-gluer seam width on cartons that must stay ink-free not given
+- Cup holders not specified in the KLD skill or the artwork cortex
+reconcile_log:
+  changed:
+  - workflow 2
+  - workflow 8
+  - paper_cup_DW.nesting
+  - paper_cup_DW.marks
+  - paper_bowl.allowances
+  - paper_bowl.bleed
+  - pp_pet_cups
+  - wrap_sheets
+  - mailer_0427.nesting
+  - paper_bag_SOS.footer
+  - colour_system.pantone_U_rule
+  - outputs.OFFSET_DELIVERABLE_COUNT
+  - outputs.CUSTOMER_PROOF_cups_tubs
+  added:
+  - workflow 0a
+  - workflow 15
+  - flat_sheets_mats
+  - stickers
+  - tuck_end_box
+  - checks x12
+  - tools x12
