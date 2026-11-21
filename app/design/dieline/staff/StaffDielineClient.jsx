@@ -28,6 +28,7 @@ import { wrapGeometry, tilePlan, expandWrap, wrapArtChecks } from "@/lib/dieline
 import { wrapSheetPdf } from "@/lib/dieline/designer/wrap-pdf";
 import { petArtPdf } from "@/lib/dieline/designer/pet-pdf";
 import { cupProofPdf } from "@/lib/dieline/designer/proof-pdf";
+import { bagProofPdf } from "@/lib/dieline/designer/proof-bag-pdf";
 import { SCENES, sceneOf } from "@/lib/dieline/designer/scenes";
 import { watermark, watermarkLayer } from "@/lib/dieline/designer/watermark";
 import { zipBlob } from "@/lib/dieline/designer/zip";
@@ -405,11 +406,12 @@ export default function StaffDielineClient() {
   }
   const proofRow = (prodRows || []).find((r) => r.sku === proofPick) || null;
   const freshShots = shots.filter((s2) => s2.sig === artSig);
-  const proofWhy = !cupG ? [] : [
+  const bagProof = t.family === "bag"; // bags: the house bag proof (flat + grid + 3D), ported in proof-bag-pdf.js
+  const proofWhy = !cupG && !bagProof ? [] : [
     !(ok && !artBlocked) && "every check on this screen must pass",
     !art.length && "place the artwork",
     !saved.customer.trim() && "type the customer / brand name (it heads every page)",
-    !proofRow && "choose the product from the product list (its sizes are the ones printed on the proof)",
+    cupG && !proofRow && "choose the product from the product list (its sizes are the ones printed on the proof)",
     freshShots.length < 3 && `take ${3 - freshShots.length} more shot${3 - freshShots.length === 1 ? "" : "s"} of the 3D view (3 or 4 are needed)${shots.length > freshShots.length ? " - the artwork changed since the old ones were taken" : ""}`,
   ].filter(Boolean);
   async function proofFile() {
@@ -417,6 +419,32 @@ export default function StaffDielineClient() {
     try {
       const vec = await vectorArt(), views = [];
       for (const s2 of freshShots) { const im2 = await loadImage(s2.url), cv = document.createElement("canvas"); cv.width = im2.naturalWidth; cv.height = im2.naturalHeight; cv.getContext("2d").drawImage(im2, 0, 0); views.push({ ...(await imageXObject(cv)), w: cv.width, h: cv.height, caption: s2.caption }); }
+      if (bagProof) { // PAPER BAG: the house bag proof. Every size on it is the size of this die, as entered in step 2.
+        const Wb = +values.W, Gb = +values.G, Hb = +values.H, inch = (mm) => (mm / 25.4).toFixed(1), dcut = t.id === "dcut-bag", brown = /brown/i.test(mat.top || "");
+        const body = [...artCtx.areas].sort((a, b) => a.box[0] - b.box[0]), lab = (n2) => (/front/i.test(n2) && /back/i.test(n2) ? "FRONT / BACK" : /front/i.test(n2) ? "FRONT" : /back/i.test(n2) ? "BACK" : "SIDE");
+        const panels = [...(body[0].box[0] > 1 ? [{ label: "GLUE", a: 0, b: body[0].box[0] }] : []), ...body.map((a) => ({ label: lab(a.name), a: a.box[0], b: a.box[2] })), ...(blankMm.w - body[body.length - 1].box[2] > 1 ? [{ label: "GLUE", a: body[body.length - 1].box[2], b: blankMm.w }] : [])];
+        const named = (k) => !/^Spot \d/.test(k.label), n = vec.inks.length, noun = dcut ? "D-Cut Handle Paper Bag" : "SOS Paper Bag", paperTxt = `${brown ? "brown" : "white"} kraft paper, ${mat.gsm} GSM`;
+        const content = art.filter((i) => i.kind !== "flood" && !i.house), hasMark = art.some((i) => i.house === "mark"), ground = art.some((i) => i.kind === "flood");
+        const where = (i) => { const pn = panels.find((q) => i.x >= q.a && i.x <= q.b) || panels[0], l = i.x - i.w / 2 - pn.a, r = pn.b - (i.x + i.w / 2), top = i.y - i.h / 2 - body[0].box[1]; return `${i.name} - ${i.w.toFixed(1)} x ${i.h.toFixed(1)} mm (${inch(i.w)} x ${inch(i.h)} in), on the ${pn.label}: ${l.toFixed(1)} mm from its left fold, ${r.toFixed(1)} mm from its right fold, top ${top.toFixed(1)} mm (${inch(top)} in) below the top edge.`; };
+        const flat = await artworkToPdf(artOut, { box: [-BLEED, -BLEED, blankMm.w + BLEED, blankMm.h + BLEED], noInk: [], spot: process === "pantone", rasterise: rasteriseItem, parse: parseSvgDom }); // the glue areas are shown as bare paper by the proof itself
+        const pdf = bagProofPdf({ doc: res.doc, blank: blankMm, vector: flat, noInk: artCtx.noInk, panels, body: { top: body[0].box[1], fold: body[0].box[3] }, size: { W: Wb, G: Gb, H: Hb }, dcut, notch: 0,
+          paper: brown ? [1, 3, 5].map((k) => (parseInt(mat.colour3d.top.slice(k, k + 2), 16) / 255).toFixed(3)).join(" ") : null,
+          brand: saved.customer.trim().toUpperCase(), brandPlain: saved.customer.trim(), product: `${noun}  ·  ${Wb} x ${Gb} x ${Hb} mm  (${inch(Wb)} W x ${inch(Gb)} D x ${inch(Hb)} H in)`, stage: `Customer Proof v${proofNo}`, date: new Date().toISOString().slice(0, 10),
+          readNote: "The flat bag as it is printed - your artwork on our bag outline. Shown smaller than actual size.",
+          key: [`Left to right: ${panels.map((q) => (q.label === "GLUE" ? "glue strip" : q.label)).join(" · ")}. The flaps under the body fold under to make the base.`, dcut ? "The handle is a D-shaped cut-out near the top of the front and the back; the top edge is turned in." : "Straight top edge, open top, no handles.", `The glue strip is left unprinted.${res.piecesPerBag === 2 ? " The bag is made from two printed pieces joined at the corners; this drawing shows one of them." : ""}`],
+          facts: [["SIZE", `${Wb} mm wide x ${Gb} mm deep x ${Hb} mm tall (${inch(Wb)} x ${inch(Gb)} x ${inch(Hb)} in)`], ["PAPER", paperTxt], ["PRINT", process === "pantone" ? `${n} spot colour${n === 1 ? "" : "s"}${vec.inks.every(named) ? `: ${vec.inks.map((k) => k.label).join(", ")}` : ""}` : "full colour (CMYK)"], ["ARTWORK", "your artwork, placed as shown on this page"]],
+          colourNote: `${process === "pantone" ? `Printed in ${n} Pantone spot colour${n === 1 ? "" : "s"}` : "Printed in four-colour process (CMYK)"} on ${brown ? "brown kraft. There is no white under the inks: every colour lays over the brown paper and prints darker than on white" : "white paper"}. Please approve the references below, not the colour on your screen.`,
+          colours: vec.inks.map((k, i) => ({ name: named(k) ? k.label : `Colour ${i + 1}`, cmyk: cmykOf(k.hex) })),
+          checkList: ["Spelling and wording - every word on the artwork.", "The logo: the right version, complete, nothing cut off.", "The size and position of each element (page 2 gives the measurements).", "The colours: the references under COLOURS are the ones that will be printed.", `Size ${Wb} x ${Gb} x ${Hb} mm (${inch(Wb)} x ${inch(Gb)} x ${inch(Hb)} in), ${paperTxt}.`, ...(hasMark ? ["The small block on the bottom flap (recycling line, product code, QR code) is ours. It sits under the bag."] : [])],
+          gridNote: "The same flat bag with a guide every 50 mm (about 2 in) measured from every fold. Check the position of each element on the front and the back.",
+          elements: [...content.map(where), ...(ground ? ["Colour ground - over every panel to the cut edge; the glue strip stays unprinted."] : [])],
+          threeDNote: "The bag built to its true size from the print file, so you can see where the artwork sits on the finished bag. Colours on these views are approximate.",
+          threeDNote2: "These views are taken from the measured model of this bag: every panel is the size it will be made. They show placement and size, not colour.",
+          shots: views });
+        const brandSlug = saved.customer.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        save(`${brandSlug}_${Math.round(Wb)}x${Math.round(Gb)}x${Math.round(Hb)}mm_${dcut ? "d-cut-bag" : "sos-bag"}_CUSTOMER-PROOF-v${proofNo}.pdf`, pdf, "application/pdf");
+        setMaking(""); return;
+      }
       const gi = await loadImage("/house/proof-colour-page.jpg"), gc = document.createElement("canvas"); gc.width = gi.naturalWidth; gc.height = gi.naturalHeight; gc.getContext("2d").drawImage(gi, 0, 0);
       const m = cupG.spec.label.match(/^(\d+) oz \((\d+ mL)\)/), sizeTxt = m ? `${m[2]} (${m[1]} oz)` : cupG.spec.label, dw = cupG.wall === "double";
       const named = (k) => !/^Spot \d/.test(k.label), n = vec.inks.length;
@@ -804,22 +832,22 @@ export default function StaffDielineClient() {
           {res && res.doc && (
             <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer proof</h2>
-              {!cupG ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">This tool makes customer proofs for paper cups so far. Bags, boxes and PET cups still go through the house proof tools.</p> : (
+              {!cupG && !bagProof ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">This tool makes customer proofs for paper cups, tubs and paper bags so far. Boxes, PET / PP cups and wrap sheets still go through the house proof tools.</p> : (
                 <div className="mt-2 space-y-3 text-xs text-gray-700 dark:text-gray-300">
-                  <p>The house proof: the artwork flat at full size, the same drawing on the mesh (page 2), your 3D shots (page 3) and the colours and timeline page. Every size printed on it comes from the product list.</p>
+                  <p>{bagProof ? "The house bag proof: the flat bag with the artwork, the bag's W x G x H drawing and the sign-off box (page 1), the same flat on a 50 mm grid with where each element sits (page 2), and your 3D shots (page 3). Every size printed on it is the size of this die." : "The house proof: the artwork flat at full size, the same drawing on the mesh (page 2), your 3D shots (page 3) and the colours and timeline page. Every size printed on it comes from the product list."}</p>
                   <div className="flex flex-wrap items-end gap-3">
-                    <label className="min-w-[260px] flex-1">Product (from the product list)
+                    {cupG && <label className="min-w-[260px] flex-1">Product (from the product list)
                       <select value={proofPick} onChange={(e) => setProofPick(e.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
                         <option value="">{prodRows == null ? "Loading…" : prodRows.length ? "Choose…" : "No cup of this size in the product list"}</option>
                         {(prodRows || []).map((r) => <option key={r.sku} value={r.sku}>{r.sku} - {r.name} - {r.td} / {r.bd} / {r.h} mm</option>)}
                       </select>
-                    </label>
+                    </label>}
                     <label className="w-24">Proof no.<input type="number" min={1} value={proofNo} onChange={(e) => setProofNo(Math.max(1, +e.target.value || 1))} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" /></label>
                   </div>
-                  {proofRow && proofRow.h !== cupG.spec.H && <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">The product list says height {proofRow.h} mm; the keyline says {cupG.spec.H} mm. The proof prints the product list's figure. If the keyline is the right one, the product list must be corrected first.</p>}
+                  {cupG && proofRow && proofRow.h !== cupG.spec.H && <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">The product list says height {proofRow.h} mm; the keyline says {cupG.spec.H} mm. The proof prints the product list's figure. If the keyline is the right one, the product list must be corrected first.</p>}
                   <div>
                     <p className="font-semibold">3D shots for page 3: {freshShots.length} of 3 to 4</p>
-                    <p className="text-gray-500">Turn the 3D cup the way you want it, then press the button under it. Take 3 or 4 different views (front, back, the seam side, from below).</p>
+                    <p className="text-gray-500">{bagProof ? "Turn the 3D bag the way you want it, then press Proof shot above the 3D view. Take 3 or 4 different views (three-quarter, front, side, from below)." : "Turn the 3D cup the way you want it, then press the button under it. Take 3 or 4 different views (front, back, the seam side, from below)."}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {shots.map((s2, k) => (
                         <div key={k} className={`w-36 rounded-md border p-1 ${s2.sig === artSig ? "border-gray-300 dark:border-gray-700" : "border-red-400 opacity-60"}`}>
@@ -954,7 +982,7 @@ export default function StaffDielineClient() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={lab}>Save</span>
                     <button onClick={() => saveShot(`${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`)} title="Saves the 3D view exactly as it is turned now, with the Aeros watermark" className={darkBtn}>Snapshot (PNG)</button>
-                    {cupG && <button onClick={takeShot} disabled={shots.length >= 4} title="Adds this view to the customer proof (3 or 4 are needed)" className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40">Proof shot ({shots.length}/4)</button>}
+                    {(cupG || bagProof) && <button onClick={takeShot} disabled={shots.length >= 4} title="Adds this view to the customer proof (3 or 4 are needed)" className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40">Proof shot ({shots.length}/4)</button>}
                     <button onClick={mockupPack} disabled={!!pack || spin > 0} title="One zip for sales: 3/4, front and back views, the product in each scene, and the turntable video - all with the Aeros watermark" className={darkBtn}>{pack ? `Mockup pack: ${pack}` : "Mockup pack (zip)"}</button>
                     <button onClick={() => { setSpin(8); turntable(8); }} disabled={spin > 0 || !!pack} title="One full turn of the model as it stands now, 8 seconds, with the Aeros watermark" className={plainBtn}>{spin > 0 ? `Recording… ${Math.ceil(spin)} s` : "Turntable video"}</button>
                     <select value="" onChange={(e) => { const k = e.target.value; if (k === "stl") save(`${stem}-3D.stl`, viewerRef.current.exportStl(), "model/stl"); if (k === "obj") save(`${stem}-3D.obj`, viewerRef.current.exportObj(), "model/obj"); }} title="The 3D model as a CAD file, in mm" className="rounded-md border border-gray-300 px-1.5 py-1 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
