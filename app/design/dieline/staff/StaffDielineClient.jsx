@@ -25,7 +25,7 @@ import { cupMarkText } from "@/lib/dieline/designer/house";
 import { petGeometry, petItemChecks } from "@/lib/dieline/pet";
 import { petArtPdf } from "@/lib/dieline/designer/pet-pdf";
 import { cupProofPdf } from "@/lib/dieline/designer/proof-pdf";
-import { watermark } from "@/lib/dieline/designer/watermark";
+import { watermark, watermarkLayer } from "@/lib/dieline/designer/watermark";
 import { cmykOf } from "@/lib/dieline/designer/vector-pdf";
 import { corners as itemCorners } from "@/lib/dieline/designer/model";
 import { curveItem } from "@/lib/dieline/designer/cup-warp";
@@ -274,9 +274,42 @@ export default function StaffDielineClient() {
     return () => { live = false; };
   }, [tid]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadImage = (src) => new Promise((ok2, bad) => { const im = new Image(); im.onload = () => ok2(im); im.onerror = () => bad(new Error("Could not read a picture for the proof.")); im.src = src; });
+  // TURNTABLE VIDEO: one full turn of the model as it stands in the 3D view (background, scene and height as set), recorded
+  // off the view frame by frame with the Aeros watermark on every frame. MP4 where the browser can write it, else WebM.
+  const [spin, setSpin] = useState(0); // 0 = idle, else seconds left
+  async function turntable(seconds = 8) {
+    const v = viewerRef.current, fps = 30;
+    const type = ["video/mp4;codecs=avc1.42E01E", "video/mp4", "video/webm;codecs=vp9", "video/webm"].find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
+    if (!type) { alert("This browser cannot record video. Use Chrome or Edge."); return; }
+    v.spinStart(1920); // about 1920 px wide for the recording
+    const src = v.canvas(), W2 = src.width & ~1, H2 = src.height & ~1;
+    const out = document.createElement("canvas"); out.width = W2; out.height = H2;
+    const g2 = out.getContext("2d"), wm = watermarkLayer(W2, H2), chunks = [];
+    const rec = new MediaRecorder(out.captureStream(fps), { mimeType: type, videoBitsPerSecond: 10_000_000 });
+    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    const done = new Promise((ok2) => { rec.onstop = ok2; });
+    try {
+      const frames = seconds * fps, t0 = performance.now();
+      const draw = (k) => { v.spinTo(k / frames); g2.drawImage(src, 0, 0, W2, H2); g2.drawImage(wm, 0, 0); };
+      draw(0); rec.start();
+      for (let k = 1; k <= frames; k++) { // paced by the clock, so the turn takes exactly `seconds`
+        await new Promise((r) => setTimeout(r, Math.max(0, t0 + (k * 1000) / fps - performance.now())));
+        draw(k); if (k % fps === 0) setSpin(seconds - k / fps);
+      }
+      await new Promise((r) => setTimeout(r, 120));
+      rec.stop(); await done;
+      const a2 = document.createElement("a"); a2.href = URL.createObjectURL(new Blob(chunks, { type: type.split(";")[0] })); a2.download = `${stem}-3D-TURNTABLE.${type.includes("mp4") ? "mp4" : "webm"}`; a2.click();
+    } catch (e) { alert(`Could not record the video: ${e.message}`); }
+    v.spinEnd(); setSpin(0);
+  }
+  // EVERY SNAPSHOT of the 3D view carries the Aeros house watermark (Arjun 21-Nov-2026) - downloads and proof shots alike
+  async function saveShot(name) {
+    try { const cv = watermark(await loadImage(viewerRef.current.snapshot(2))), a2 = document.createElement("a"); a2.href = cv.toDataURL("image/png"); a2.download = name; a2.click(); }
+    catch (e) { alert(`Could not save the picture: ${e.message}`); }
+  }
   async function takeShot() {
-    const url = viewerRef.current.snapshot(2), im = await loadImage(url);
-    setShots((l) => [...l, { url, w: im.naturalWidth, h: im.naturalHeight, sig: artSig, caption: `View ${l.length + 1}` }].slice(0, 4));
+    const cv = watermark(await loadImage(viewerRef.current.snapshot(2))), url = cv.toDataURL("image/png"); // watermarked the moment it is taken
+    setShots((l) => [...l, { url, w: cv.width, h: cv.height, sig: artSig, caption: `View ${l.length + 1}` }].slice(0, 4));
   }
   const proofRow = (prodRows || []).find((r) => r.sku === proofPick) || null;
   const freshShots = shots.filter((s2) => s2.sig === artSig);
@@ -291,7 +324,7 @@ export default function StaffDielineClient() {
     setMaking("proof");
     try {
       const vec = await vectorArt(), views = [];
-      for (const s2 of freshShots) { const cv = watermark(await loadImage(s2.url)); views.push({ ...(await imageXObject(cv)), w: cv.width, h: cv.height, caption: s2.caption }); }
+      for (const s2 of freshShots) { const im2 = await loadImage(s2.url), cv = document.createElement("canvas"); cv.width = im2.naturalWidth; cv.height = im2.naturalHeight; cv.getContext("2d").drawImage(im2, 0, 0); views.push({ ...(await imageXObject(cv)), w: cv.width, h: cv.height, caption: s2.caption }); }
       const gi = await loadImage("/house/proof-colour-page.jpg"), gc = document.createElement("canvas"); gc.width = gi.naturalWidth; gc.height = gi.naturalHeight; gc.getContext("2d").drawImage(gi, 0, 0);
       const m = cupG.spec.label.match(/^(\d+) oz \((\d+ mL)\)/), sizeTxt = m ? `${m[2]} (${m[1]} oz)` : cupG.spec.label, dw = cupG.wall === "double";
       const named = (k) => !/^Spot \d/.test(k.label), n = vec.inks.length;
@@ -610,7 +643,7 @@ export default function StaffDielineClient() {
                         {making === k ? "Making…" : label}
                       </button>
                     ))}
-                    {(solid || cupG || petG) && <button className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200" onClick={() => { const a = document.createElement("a"); a.href = viewerRef.current.snapshot(); a.download = `${stem}-3D-PROOF.png`; a.click(); }}>3D proof (PNG)</button>}
+                    {(solid || cupG || petG) && <button className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200" onClick={() => saveShot(`${stem}-3D-PROOF.png`)}>3D proof (PNG)</button>}
                     {digPlan && !digPlan.error && <button disabled={!ok || artBlocked || !!making} onClick={digitalFile} title={`${digPlan.note} on ${digPlan.sheets.length} sheet${digPlan.sheets.length === 1 ? "" : "s"}`}
                       className="rounded-md border border-fuchsia-700 bg-fuchsia-700 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
                       {making === "digital" ? "Making…" : `Digital sample, 13 × 19 in (${digPlan.split ? `${digPlan.pieces.length} pieces` : `${digPlan.ups}-up`})`}
@@ -739,6 +772,7 @@ export default function StaffDielineClient() {
                   <span className="inline-flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700" title="Standard views">
                     {[["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"], ["top", "Top"], ["bottom", "Bottom"], ["iso", "3/4"]].map(([k, label]) => <button key={k} onClick={() => viewerRef.current?.view(k)} className="border-r border-gray-300 px-2 py-1 text-[11px] font-semibold text-gray-700 last:border-r-0 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">{label}</button>)}
                   </span>
+                  <button onClick={() => { setSpin(8); turntable(8); }} disabled={spin > 0} title="One full turn of the model as it stands now, 8 seconds, with the Aeros watermark" className="rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">{spin > 0 ? `Recording… ${Math.ceil(spin)} s` : "Turntable video"}</button>
                   <button onClick={() => { if (document.fullscreenElement) document.exitFullscreen(); else sec3d.current?.requestFullscreen?.(); }} title="The 3D panel fills the whole screen (Esc to leave)" className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">Full screen</button>
                   <select value={scene3d} onChange={(e) => setScene3d(e.target.value)} title="What the product stands on" className="rounded-md border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
                     <option value="plain">Scene: plain</option><option value="studio">Scene: studio floor with shadow</option>
@@ -749,7 +783,7 @@ export default function StaffDielineClient() {
                     <input type="color" value={bg3d} onChange={(e) => setBg3d(e.target.value)} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" aria-label="Any background colour" />
                   </span>
                   <button onClick={() => save(`${stem}-3D.stl`, viewerRef.current.exportStl(), "model/stl")} className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">STL (mm)</button>
-                  <button onClick={() => { const a = document.createElement("a"); a.href = viewerRef.current.snapshot(); a.download = `${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`; a.click(); }} title="Saves the 3D view exactly as it is turned now" className="rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">Snapshot of this view (PNG)</button>
+                  <button onClick={() => saveShot(`${stem}-3D-VIEW-${new Date().toISOString().slice(11, 19).replace(/:/g, "")}.png`)} title="Saves the 3D view exactly as it is turned now" className="rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">Snapshot of this view (PNG)</button>
                   {cupG && <button onClick={takeShot} disabled={shots.length >= 4} title="Adds this view to the customer proof (3 or 4 are needed)" className="rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-40">Take proof shot ({shots.length}/4)</button>}
                   <button onClick={() => save(`${stem}-3D.obj`, viewerRef.current.exportObj(), "model/obj")} className="rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200">OBJ (mm)</button>
                 </div>

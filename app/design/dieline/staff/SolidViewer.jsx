@@ -205,6 +205,16 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
   useImperativeHandle(ref, () => ({
     exportStl() { return new STLExporter().parse(st.current.group, { binary: false }); },
     exportObj() { return new OBJExporter().parse(st.current.group); },
+    // TURNTABLE: the camera goes once round the model at its present height and distance. spinStart() notes where it is,
+    // spinTo(0..1) puts it that fraction of a turn further round and draws the frame, spinEnd() hands the view back.
+    canvas() { return st.current.renderer.domElement; },
+    spinStart(targetW = 1920) { // the view is drawn sharper while it is recorded (about targetW pixels wide), then put back
+      const { camera, controls, renderer } = st.current, o = camera.position.clone().sub(controls.target), cssW = host.current.clientWidth || 640;
+      controls.enabled = false; st.current.spin0 = { r: Math.hypot(o.x, o.z), y: o.y, a: Math.atan2(o.x, o.z), pr: renderer.getPixelRatio() };
+      renderer.setPixelRatio(Math.max(1, Math.min(4, targetW / cssW)));
+    },
+    spinTo(frac) { const { camera, controls, renderer, scene, spin0: s0 } = st.current, a = s0.a + frac * 2 * Math.PI; camera.position.set(controls.target.x + s0.r * Math.sin(a), controls.target.y + s0.y, controls.target.z + s0.r * Math.cos(a)); camera.lookAt(controls.target); renderer.render(scene, camera); },
+    spinEnd() { const { controls, renderer, spin0 } = st.current; renderer.setPixelRatio(spin0.pr); this.spinTo(0); controls.enabled = true; controls.update(); },
     // standard views, as in a CAD program: the camera goes straight onto that side, same distance, looking at the model's centre
     view(name) {
       const { camera, controls } = st.current, r = camera.position.distanceTo(controls.target) || 500;
