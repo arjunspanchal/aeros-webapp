@@ -12,14 +12,15 @@ import { solidModel } from "@/lib/dieline/solid";
 import { dieEdges } from "@/lib/dieline/solid/arrangement";
 import { checkArtwork, BLEED } from "@/lib/dieline/designer/model";
 import { paintArtwork, rasteriseItem, parseSvgDom, packArtwork, unpackArtwork } from "@/lib/dieline/designer/io";
-import { artworkToPdf } from "@/lib/dieline/designer/vector-pdf";
+import { artworkToPdf, imageXObject } from "@/lib/dieline/designer/vector-pdf";
+import { planDigital, digitalSamplePdf, DIGITAL } from "@/lib/dieline/designer/digital-pdf";
 import { sheetLayoutPdf } from "@/lib/dieline/designer/layout-pdf";
 import { layoutUps } from "@/lib/dieline/print-rules";
 import { vendorSheetPdf, describeArtwork } from "@/lib/dieline/designer/vendor-pdf";
 import { cupNestPdf, fanPlacement } from "@/lib/dieline/designer/cup-nest-pdf";
 import { CUP_NEST_REFS } from "@/lib/dieline/cup-nest-refs";
 import { toPolar } from "@/lib/dieline/cup";
-import { cupGeometry, cupItemChecks, cupFormedChecks } from "@/lib/dieline/cup";
+import { cupGeometry, cupItemChecks, cupFormedChecks, cupFitChecks } from "@/lib/dieline/cup";
 import { curveItem } from "@/lib/dieline/designer/cup-warp";
 import ArtworkDesigner from "./ArtworkDesigner";
 import SolidViewer from "./SolidViewer"; // three.js runs only inside effects, safe on the server (as Fold3DViewer)
@@ -128,6 +129,8 @@ export default function StaffDielineClient() {
     setValues((v) => ({ ...v, [key]: isBool ? raw : raw === "" ? "" : unit === "mm" ? +raw : +(+raw * IN).toFixed(2) }));
 
   const cupG = useMemo(() => (t.cup ? cupGeometry(t.cup) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const innerG = useMemo(() => (t.innerCup ? cupGeometry(t.innerCup) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [cupView, setCupView] = useState("full"); // double wall: "full" = wrap on its inner cup, "wrap" = the outer fan alone
   const prog = useMemo(() => (res && res.doc ? programFor(tid, values, res.doc) : null), [res]); // eslint-disable-line react-hooks/exhaustive-deps
   const panelsAny = useMemo(() => (res && res.doc ? panelsFromDie(res.doc, { rootPoint: prog?.rootPoint }) : null), [res, prog]);
   const geom = prog ? panelsAny : null;
@@ -190,9 +193,40 @@ export default function StaffDielineClient() {
     } catch (e) { alert(`Could not make the file: ${e.message}`); }
     setMaking("");
   }
+  // DIGITAL SAMPLE: the 13 x 19 in sheet for the digital press (skill aeros-digital-samples): art as a 450 dpi image,
+  // solid pink CutContour + green Crease lines, an info box with paper / side / assembly on every sheet.
+  const digPlan = useMemo(() => (res && res.doc && blankMm ? planDigital({ doc: res.doc, blank: blankMm, bleed: BLEED, cup: cupG }) : null), [res, blankMm?.w, blankMm?.h, cupG]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function digitalFile() {
+    setMaking("digital");
+    try {
+      const images = [];
+      for (const pc of digPlan.pieces) {
+        if (!art.length) { images.push(null); continue; }
+        const cv = await paintArtwork(artOut, { box: pc.box, pxPerMm: DIGITAL.dpi / 25.4, noInk: artCtx.noInk, background: "#ffffff", clipPoly: artCtx.clipPoly || null });
+        images.push(await imageXObject(cv));
+      }
+      const today = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+      const fam = t.family, dg = t.digital || {};
+      const paper = fam === "cup" ? `${board.label} - cup stock, ONE side poly` : fam === "bag" ? `${board.label}` : `${board.label} - NO poly`;
+      const inks = process === "pantone" ? [...new Set(art.flatMap((i) => (i.kind === "flood" ? [i.pantone] : (i.colours || []).map((c2) => c2.name))).filter(Boolean))] : [];
+      const pdf = digitalSamplePdf({ doc: res.doc, plan: digPlan, images, cutOnly: !!cupG,
+        head: { title: `AEROS - ${saved.customer || "customer not named"} - ${t.name}${sizeText ? ` (${sizeText})` : ""} - DIGITAL SAMPLE - ${DIGITAL.name} - ${today}`,
+          lines: [
+            ["ITEM", `${t.name}. ${digPlan.note}. Cut size ${blankMm.w} x ${blankMm.h} mm${cupG ? "" : `, ${BLEED} mm bleed all round`}.${res.piecesPerBag === 2 ? " 2-PIECE bag: this flat is ONE half; two are needed per bag." : ""}`],
+            ["PAPER", `${paper}${board.caliperStatus === "assumed" ? "" : ""}`],
+            ["PRINT", art.length ? `full colour digital - the art is one ${DIGITAL.dpi} dpi image (never vector).${inks.length ? ` Production is ${inks.length} PANTONE (${inks.join(", ")}): match as close as the digital press allows.` : ""}` : "nothing to print - blank keyline sample"],
+            ["CUT", cupG ? "on the solid pink line only. Nothing else on the sheet is a cut or a fold." : "on the solid pink line all round."],
+            ...(cupG ? [] : [["CREASE", "every solid green line, then fold away from the printed side."]]),
+          ],
+          assembly: [...(dg.assembly || []), ...(digPlan.split ? ["This flat is in lettered pieces: tape them together on the back, edge to edge, in letter order, before folding."] : [])] } });
+      save(`${stem}-DIGITAL-SAMPLE-${digPlan.split ? `${digPlan.pieces.length}pc` : `${digPlan.ups}up`}-330x483mm.pdf`, pdf, "application/pdf");
+    } catch (e) { alert(`Could not make the file: ${e.message}`); }
+    setMaking("");
+  }
   // cups: the printer's set on their own nested sheet (LAYOUT / ARTWORK-PUNCH / PUNCH), as made for Blueline and Lucky
   const cupNest = t.nest ? CUP_NEST_REFS[t.nest] : null;
-  const [printer, setPrinter] = useState("BLUELINE");
+  const [printerPick, setPrinter] = useState("BLUELINE");
+  const printer = (t.printers || ["BLUELINE"]).includes(printerPick) ? printerPick : (t.printers || ["BLUELINE"])[0]; // only printers whose file for this cup is on hand
   async function nestFile(mode) {
     setMaking(`nest-${mode}`);
     try {
@@ -247,14 +281,14 @@ export default function StaffDielineClient() {
       {/* 1. template */}
       <section>
         <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">1. Template</h2>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6">
           {TEMPLATES.map((x) => (
             <button
               key={x.id}
               onClick={() => pickTemplate(x.id)}
-              className={`rounded-lg border p-3 text-left transition ${x.id === tid ? "border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" : "border-gray-200 bg-white hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-600"}`}
+              className={`rounded-lg border px-3 py-2 text-left transition ${x.id === tid ? "border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" : "border-gray-200 bg-white hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-600"}`}
             >
-              <p className="text-sm font-semibold">{x.name}</p>
+              <p className="text-[13px] font-semibold leading-snug">{x.name}</p>
               <p className={`text-xs ${x.id === tid ? "opacity-80" : "text-gray-500 dark:text-gray-400"}`}>
                 {x.proven.length} proven size{x.proven.length > 1 ? "s" : ""} · {x.family === "bag" ? "hand-made, offset sheet" : x.family === "cup" ? "fixed KLD die" : "offset sheet, die-cut"}
               </p>
@@ -263,9 +297,9 @@ export default function StaffDielineClient() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
-        {/* 2-4. inputs */}
-        <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)_minmax(400px,30%)]">
+        {/* 2-4. inputs: stay in view while the work area scrolls */}
+        <div className="space-y-4 lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
           <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">2. Size</h2>
@@ -387,8 +421,8 @@ export default function StaffDielineClient() {
           </section>
         </div>
 
-        {/* result */}
-        <div className="space-y-5">
+        {/* work area: status, save, artwork, printer files */}
+        <div className="min-w-0 space-y-5">
           <section className={`rounded-lg border p-4 ${ok ? "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30" : "border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30"}`}>
             {res && res.error ? (
               <p className="text-sm font-semibold text-red-800 dark:text-red-300">Cannot build: {res.error}</p>
@@ -453,13 +487,6 @@ export default function StaffDielineClient() {
             )}
           </section>
 
-          {preview && (
-            <section className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white">
-              <div className="w-full overflow-hidden [&>svg]:h-auto [&>svg]:max-h-[560px] [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: preview.replace(/^<\?xml[^>]*>/, "") }} />
-              <p className="mt-1 text-[11px] text-gray-500">Red = cut, green = crease. Sizes in mm.</p>
-            </section>
-          )}
-
           {res && res.doc && artCtx && (
             <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <h2 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Artwork</h2>
@@ -482,6 +509,11 @@ export default function StaffDielineClient() {
                       </button>
                     ))}
                     {(solid || cupG) && <button className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200" onClick={() => { const a = document.createElement("a"); a.href = viewerRef.current.snapshot(); a.download = `${stem}-3D-PROOF.png`; a.click(); }}>3D proof (PNG)</button>}
+                    {digPlan && !digPlan.error && <button disabled={!ok || artBlocked || !!making} onClick={digitalFile} title={`${digPlan.note} on ${digPlan.sheets.length} sheet${digPlan.sheets.length === 1 ? "" : "s"}`}
+                      className="rounded-md border border-fuchsia-700 bg-fuchsia-700 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
+                      {making === "digital" ? "Making…" : `Digital sample, 13 × 19 in (${digPlan.split ? `${digPlan.pieces.length} pieces` : `${digPlan.ups}-up`})`}
+                    </button>}
+                    {digPlan?.error && <span className="text-[11px] text-amber-700 dark:text-amber-300">Digital sample: {digPlan.error}</span>}
                     {(!ok || artBlocked) && <span className="text-[11px] text-red-700 dark:text-red-300">Print files are locked until every check passes.</span>}
                     {cupG && <p className="w-full text-[11px] text-gray-600 dark:text-gray-400">{cupNest ? "These are one-cup files for checking and approval. The printer's set is below." : "These are one-cup files for checking and approval. No offset nest is on file for this cup, so the printer's set is not made here."}</p>}
                   </div>
@@ -490,6 +522,74 @@ export default function StaffDielineClient() {
             </section>
           )}
 
+          {cupNest && cupG && res && res.doc && (
+            <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Printer's set: {cupNest.fans.length}-up on {cupNest.page[0].toFixed(1)} × {cupNest.page[1].toFixed(1)} mm</h2>
+                <select value={printer} onChange={(e) => setPrinter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
+                  {(t.printers || ["BLUELINE"]).map((pr) => <option key={pr} value={pr}>{pr === "BLUELINE" ? "Blueline" : "Lucky Offset"}</option>)}
+                </select>
+              </div>
+              <svg viewBox={`-4 -4 ${cupNest.page[0] + 8} ${cupNest.page[1] + 8}`} className="h-auto max-h-[460px] w-full rounded-md bg-[#e9ebee]">
+                <rect x={0} y={0} width={cupNest.page[0]} height={cupNest.page[1]} fill="#ffffff" stroke="#8a8a8a" strokeWidth={0.6} />
+                <defs><clipPath id="nest-bleed"><polygon points={cupG.bleed.poly.map((q) => q.join(",")).join(" ")} /></clipPath></defs>
+                {cupNest.fans.map((fan, k) => { const m = fanPlacement(cupG, fan); return (
+                  <g key={k}>
+                    {tex && <g transform={`matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`} clipPath="url(#nest-bleed)"><image href={texUrl} x={0} y={0} width={blankMm.w} height={blankMm.h} preserveAspectRatio="none" /></g>}
+                    <path d={fan.segs.map((sg) => (sg[0] === "l" ? `M${sg[1].join(" ")}L${sg[2].join(" ")}` : `M${sg[1].join(" ")}C${sg[2].join(" ")} ${sg[3].join(" ")} ${sg[4].join(" ")}`)).join("")} fill="none" stroke="#1d1d1b" strokeWidth={0.5} />
+                  </g>
+                ); })}
+                <path d={cupNest.marks.map((sg) => `M${sg[1].join(" ")}L${sg[2].join(" ")}`).join("")} fill="none" stroke="#1d1d1b" strokeWidth={0.4} />
+              </svg>
+              <p className="mt-1 text-[11px] text-gray-500">The printer's own punch layout, taken line for line from their file: middle column turned 180°, register marks and size labels kept. Artwork is stamped once per cup (each cup placed on the printer's own outline by best fit: within {cupNest.fit ? Math.max(0.02, cupNest.fit.max).toFixed(2) : "0.10"} mm), clipped to the KLD's bleed line and held 1.2 mm clear of every neighbouring knife.{cupNest.style?.spot ? " This printer's file carries its outlines in a 'Dieline' spot colour; the set keeps that." : ""}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {[["layout", "LAYOUT: artwork + outlines", ok && art.length > 0 && !artBlocked], ["artpunch", "ARTWORK-PUNCH: artwork only", ok && art.length > 0 && !artBlocked], ["punch", "PUNCH: outlines only", ok]].map(([k, label, can]) => (
+                  <button key={k} disabled={!can || !!making} onClick={() => nestFile(k)}
+                    className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
+                    {making === `nest-${k}` ? "Making…" : label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {res && res.doc && layFit && (
+            <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Sheet layout: {layFit.ups}-up{res.piecesPerBag === 2 ? " (halves)" : ""} on {layFit.sheet}</h2>
+                <select value={layFit.sheet} onChange={(e) => setSheetPick(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
+                  {pressFits.map((f2) => <option key={f2.sheet} value={f2.sheet}>{f2.sheet} · {f2.ups}-up · {Math.round(f2.yield * 100)}% · {f2.press}</option>)}
+                </select>
+              </div>
+              <svg viewBox={`-6 -6 ${layFit.sw + 12} ${layFit.sh + 12}`} className="h-auto max-h-[520px] w-full rounded-md bg-[#e9ebee]">
+                <rect x={0} y={0} width={layFit.sw} height={layFit.sh} fill="#ffffff" stroke="#8a8a8a" strokeWidth={0.8} />
+                <rect x={0} y={0} width={layFit.sw} height={layFit.margins.gripper} fill="#d9d9d9" />
+                <text x={4} y={layFit.margins.gripper - 3} fontSize={8} fill="#555" fontFamily="Helvetica, Arial, sans-serif">GRIPPER {layFit.margins.gripper} mm</text>
+                {layUps.map((u) => (
+                  <g key={`${u.i}-${u.j}`} transform={`translate(${u.cx} ${u.cy}) rotate(${u.rot}) translate(${-blankMm.w / 2} ${-blankMm.h / 2})`}>
+                    {tex && <image href={texUrl} x={0} y={0} width={blankMm.w} height={blankMm.h} preserveAspectRatio="none" />}
+                    <path d={layDie.crease} fill="none" stroke="#0aa10a" strokeWidth={0.6} />
+                    <path d={layDie.cut} fill="none" stroke="#e11d1d" strokeWidth={0.6} />
+                  </g>
+                ))}
+              </svg>
+              <p className="mt-1 text-[11px] text-gray-500">
+                Gripper {layFit.margins.gripper} mm on the {layFit.gripperOn} edge, sides {layFit.margins.side} mm, gap {layFit.margins.gap} mm{layFit.pairY || layFit.pairX ? ", bag tops butted" : ""}. Straight grid, no interlock: a proven interlocked nest can only add ups.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {[["die", "Sheet die, all ups (PDF)", ok], ["punch", "Sheet: artwork + outlines (PDF)", ok && art.length > 0 && !artBlocked], ["print", "Sheet: artwork only, for plates (PDF)", ok && art.length > 0 && !artBlocked]].map(([k, label, can]) => (
+                  <button key={k} disabled={!can || !!making} onClick={() => layoutFile(k)}
+                    className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
+                    {making === `lay-${k}` ? "Making…" : label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* beside it on wide screens (under it otherwise): 3D, the dimensioned KLD, checks, sheet fit */}
+        <div className="min-w-0 space-y-5 lg:col-start-2 2xl:col-start-3">
           <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{cupG ? "3D cup (the real fan wrapped to its cone)" : `3D model (the real die folded at ${board.mm} mm caliper${board.caliperStatus === "assumed" ? ", assumed" : ""})`}</h2>
@@ -502,9 +602,16 @@ export default function StaffDielineClient() {
             </div>
             {cupG && blankMm ? (
               <>
-                <SolidViewer ref={viewerRef} cone={cupG} caliper={board.mm} colours={mat.colour3d} texture={tex} blank={blankMm} />
+                {innerG && (
+                  <div className="mb-2 flex w-fit overflow-hidden rounded-md border border-gray-300 text-xs dark:border-gray-700">
+                    {[["full", "Full cup (wrap on the inner cup)"], ["wrap", "Outer fan only"]].map(([k, l]) => (
+                      <button key={k} onClick={() => setCupView(k)} className={`px-3 py-1.5 ${cupView === k ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`}>{l}</button>
+                    ))}
+                  </div>
+                )}
+                <SolidViewer ref={viewerRef} cone={cupG} coneInner={innerG && cupView === "full" ? innerG : null} caliper={board.mm} colours={mat.colour3d} texture={tex} blank={blankMm} />
                 <ul className="mt-3 space-y-1.5">
-                  {cupFormedChecks(cupG).map((c, k) => (
+                  {[...cupFormedChecks(cupG), ...(innerG && cupView === "full" ? cupFitChecks(cupG, innerG, board.mm) : [])].map((c, k) => (
                     <li key={k} className={`rounded-md px-3 py-2 text-xs ${SEV[c.severity][c.ok ? "pass" : "fail"]}`}>
                       <span className="font-semibold">{c.ok ? (c.severity === "info" ? "ℹ" : "✓") : "!"} {c.title}</span> <span className="opacity-60">[{c.id}]</span>
                       <div className="mt-0.5">{c.detail}</div>
@@ -549,6 +656,13 @@ export default function StaffDielineClient() {
             )}
           </section>
 
+          {preview && (
+            <section className="rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white">
+              <div className="w-full overflow-hidden [&>svg]:h-auto [&>svg]:max-h-[560px] [&>svg]:w-full" dangerouslySetInnerHTML={{ __html: preview.replace(/^<\?xml[^>]*>/, "") }} />
+              <p className="mt-1 text-[11px] text-gray-500">Red = cut, green = crease. Sizes in mm.</p>
+            </section>
+          )}
+
           {res && res.checks && (
             <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Checks</h2>
@@ -561,71 +675,6 @@ export default function StaffDielineClient() {
                   </li>
                 ))}
               </ul>
-            </section>
-          )}
-
-          {cupNest && cupG && res && res.doc && (
-            <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Printer's set: {cupNest.fans.length}-up on {cupNest.page[0].toFixed(1)} × {cupNest.page[1].toFixed(1)} mm</h2>
-                <select value={printer} onChange={(e) => setPrinter(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
-                  <option value="BLUELINE">Blueline</option><option value="LUCKY-OFFSET">Lucky Offset</option>
-                </select>
-              </div>
-              <svg viewBox={`-4 -4 ${cupNest.page[0] + 8} ${cupNest.page[1] + 8}`} className="h-auto max-h-[460px] w-full rounded-md bg-[#e9ebee]">
-                <rect x={0} y={0} width={cupNest.page[0]} height={cupNest.page[1]} fill="#ffffff" stroke="#8a8a8a" strokeWidth={0.6} />
-                <defs><clipPath id="nest-bleed"><polygon points={cupG.bleed.poly.map((q) => q.join(",")).join(" ")} /></clipPath></defs>
-                {cupNest.fans.map((fan, k) => { const m = fanPlacement(cupG, fan); return (
-                  <g key={k}>
-                    {tex && <g transform={`matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`} clipPath="url(#nest-bleed)"><image href={texUrl} x={0} y={0} width={blankMm.w} height={blankMm.h} preserveAspectRatio="none" /></g>}
-                    <path d={fan.segs.map((sg) => (sg[0] === "l" ? `M${sg[1].join(" ")}L${sg[2].join(" ")}` : `M${sg[1].join(" ")}C${sg[2].join(" ")} ${sg[3].join(" ")} ${sg[4].join(" ")}`)).join("")} fill="none" stroke="#1d1d1b" strokeWidth={0.5} />
-                  </g>
-                ); })}
-                <path d={cupNest.marks.map((sg) => `M${sg[1].join(" ")}L${sg[2].join(" ")}`).join("")} fill="none" stroke="#1d1d1b" strokeWidth={0.4} />
-              </svg>
-              <p className="mt-1 text-[11px] text-gray-500">The printer's own punch layout, taken line for line from their file: middle column turned 180°, register marks and size labels kept. Artwork is stamped once per cup, clipped to the KLD's bleed line and held 1.2 mm clear of every neighbouring knife.</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {[["layout", "LAYOUT: artwork + outlines", ok && art.length > 0 && !artBlocked], ["artpunch", "ARTWORK-PUNCH: artwork only", ok && art.length > 0 && !artBlocked], ["punch", "PUNCH: outlines only", ok]].map(([k, label, can]) => (
-                  <button key={k} disabled={!can || !!making} onClick={() => nestFile(k)}
-                    className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
-                    {making === `nest-${k}` ? "Making…" : label}
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {res && res.doc && layFit && (
-            <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Sheet layout: {layFit.ups}-up{res.piecesPerBag === 2 ? " (halves)" : ""} on {layFit.sheet}</h2>
-                <select value={layFit.sheet} onChange={(e) => setSheetPick(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
-                  {pressFits.map((f2) => <option key={f2.sheet} value={f2.sheet}>{f2.sheet} · {f2.ups}-up · {Math.round(f2.yield * 100)}% · {f2.press}</option>)}
-                </select>
-              </div>
-              <svg viewBox={`-6 -6 ${layFit.sw + 12} ${layFit.sh + 12}`} className="h-auto max-h-[520px] w-full rounded-md bg-[#e9ebee]">
-                <rect x={0} y={0} width={layFit.sw} height={layFit.sh} fill="#ffffff" stroke="#8a8a8a" strokeWidth={0.8} />
-                <rect x={0} y={0} width={layFit.sw} height={layFit.margins.gripper} fill="#d9d9d9" />
-                <text x={4} y={layFit.margins.gripper - 3} fontSize={8} fill="#555" fontFamily="Helvetica, Arial, sans-serif">GRIPPER {layFit.margins.gripper} mm</text>
-                {layUps.map((u) => (
-                  <g key={`${u.i}-${u.j}`} transform={`translate(${u.cx} ${u.cy}) rotate(${u.rot}) translate(${-blankMm.w / 2} ${-blankMm.h / 2})`}>
-                    {tex && <image href={texUrl} x={0} y={0} width={blankMm.w} height={blankMm.h} preserveAspectRatio="none" />}
-                    <path d={layDie.crease} fill="none" stroke="#0aa10a" strokeWidth={0.6} />
-                    <path d={layDie.cut} fill="none" stroke="#e11d1d" strokeWidth={0.6} />
-                  </g>
-                ))}
-              </svg>
-              <p className="mt-1 text-[11px] text-gray-500">
-                Gripper {layFit.margins.gripper} mm on the {layFit.gripperOn} edge, sides {layFit.margins.side} mm, gap {layFit.margins.gap} mm{layFit.pairY || layFit.pairX ? ", bag tops butted" : ""}. Straight grid, no interlock: a proven interlocked nest can only add ups.
-              </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {[["die", "Sheet die, all ups (PDF)", ok], ["punch", "Sheet: artwork + outlines (PDF)", ok && art.length > 0 && !artBlocked], ["print", "Sheet: artwork only, for plates (PDF)", ok && art.length > 0 && !artBlocked]].map(([k, label, can]) => (
-                  <button key={k} disabled={!can || !!making} onClick={() => layoutFile(k)}
-                    className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
-                    {making === `lay-${k}` ? "Making…" : label}
-                  </button>
-                ))}
-              </div>
             </section>
           )}
 

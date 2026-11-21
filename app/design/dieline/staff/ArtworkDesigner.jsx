@@ -4,11 +4,11 @@
 // frame, so what is placed here is what prints and what the 3D model shows. Rules live in lib/dieline/designer/model.js.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PT_PER_MM } from "@/lib/dieline/cakebox";
-import { corners, effectiveDpi, newId, BLEED, SAFE, MIN_DPI } from "@/lib/dieline/designer/model";
+import { corners, bboxOf, effectiveDpi, newId, BLEED, SAFE, MIN_DPI } from "@/lib/dieline/designer/model";
 import { parseSvgDom } from "@/lib/dieline/designer/io";
 import { curveItem, curveBlocker } from "@/lib/dieline/designer/cup-warp";
 import { toPolar, fromPolar, CUP_RULES } from "@/lib/dieline/cup";
-import { importFile, refreshSvg, textItem, retext, FONTS, addCustomFont, svgParts, hideParts, replaceFile } from "@/lib/dieline/designer/io";
+import { importFile, refreshSvg, textItem, retext, FONTS, addCustomFont, svgParts, hideParts, replaceFile, SHAPES, shapeItem, penItem, reshape, traceItem } from "@/lib/dieline/designer/io";
 
 const inputCls = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100";
 const btnCls = "rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200";
@@ -17,6 +17,9 @@ const r1 = (v) => Math.round(v * 10) / 10;
 export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items, setItems, boardColour, snap, undo, redo, canUndo, canRedo, cup = null, clipPoly = null }) {
   const svgRef = useRef(null), drag = useRef(null);
   const [sel, setSel] = useState(null), [busy, setBusy] = useState(""), [err, setErr] = useState(""), [guides, setGuides] = useState([]);
+  const [pen, setPen] = useState(null); // null = off; { pts: [[x, y]], at: [x, y] } while drawing with the pen
+  const [alignTo, setAlignTo] = useState("safe"); // what Align lines things up with: "safe" | "panel" | "blank" | a layer id
+  const [tr, setTr] = useState({ colours: 1, detail: 0.9, keepPaper: false }), [trInfo, setTrInfo] = useState(null);
   const W = doc.blank.widthPt / PT_PER_MM, H = doc.blank.heightPt / PT_PER_MM, M = 14;
   const S = SAFE[family] || SAFE.box;
   const cur = items.find((i) => i.id === sel) || null;
@@ -34,6 +37,19 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   useEffect(() => { // Ctrl/Cmd+Z, Shift+Z; Delete removes the selected layer (not while typing in a field)
     const onKey = (e) => {
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+      if (pen) { // pen: Enter = finish as a line, Escape = cancel, Backspace = take the last point back
+        if (e.key === "Enter") { e.preventDefault(); finishPen(false); }
+        else if (e.key === "Escape") { e.preventDefault(); setPen(null); }
+        else if (e.key === "Backspace") { e.preventDefault(); setPen((q) => (q ? { ...q, pts: q.pts.slice(0, -1) } : q)); }
+        return;
+      }
+      if (sel && /^Arrow/.test(e.key)) { // nudge the selected layer: 0.5 mm, Shift = 5 mm, Alt = 0.1 mm
+        e.preventDefault();
+        const st = e.shiftKey ? 5 : e.altKey ? 0.1 : 0.5, dx = e.key === "ArrowLeft" ? -st : e.key === "ArrowRight" ? st : 0, dy = e.key === "ArrowUp" ? -st : e.key === "ArrowDown" ? st : 0;
+        if (!e.repeat) snap();
+        setItems((l) => l.map((i) => (i.id === sel && i.kind !== "flood" ? { ...i, x: Math.round((i.x + dx) * 10) / 10, y: Math.round((i.y + dy) * 10) / 10 } : i)));
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && sel) { e.preventDefault(); snap(); setItems((l) => l.filter((i) => i.id !== sel)); setSel(null); }
     };
@@ -48,7 +64,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     try {
       const a0 = areas[0]?.box || [0, 0, W, H], cx = (a0[0] + a0[2]) / 2, cy = (a0[1] + a0[3]) / 2, startW = Math.min(90, (a0[2] - a0[0]) * 0.55);
       const added = [];
-      const spot = cup ? (() => { const a = cup.aLeft + cup.wrap / 2, r = (cup.rFold + CUP_RULES.floor + cup.limit.rMax) / 2, [x, y] = fromPolar(cup, r, a); return { x: r1(x), y: r1(y), rot: r1((a * 180) / Math.PI) }; })() : { x: cx, y: cy };
+      const spot = cup ? (() => { const a = cup.aLeft + cup.wrap / 2, r = (cup.floorR + cup.topR) / 2, [x, y] = fromPolar(cup, r, a); return { x: r1(x), y: r1(y), rot: r1((a * 180) / Math.PI) }; })() : { x: cx, y: cy };
       for (const f of files) for (const it of await importFile(f, { startW: cup ? Math.min(startW, 40) : startW })) added.push({ ...it, ...spot });
       snap();
       setItems((list) => [...list, ...added]);
@@ -62,7 +78,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
       const a0 = areas[0]?.box || [0, 0, W, H];
       const it = await textItem({ content: "Your text" });
       snap();
-      const spot = cup ? (() => { const a = cup.aLeft + cup.wrap / 2, r = (cup.rFold + CUP_RULES.floor + cup.limit.rMax) / 2, [x, y] = fromPolar(cup, r, a); return { x: r1(x), y: r1(y), rot: r1((a * 180) / Math.PI), curve: true }; })() : { x: r1((a0[0] + a0[2]) / 2), y: r1((a0[1] + a0[3]) / 2) };
+      const spot = cup ? (() => { const a = cup.aLeft + cup.wrap / 2, r = (cup.floorR + cup.topR) / 2, [x, y] = fromPolar(cup, r, a); return { x: r1(x), y: r1(y), rot: r1((a * 180) / Math.PI), curve: true }; })() : { x: r1((a0[0] + a0[2]) / 2), y: r1((a0[1] + a0[3]) / 2) };
       setItems((l) => [...l, { ...it, ...spot }]); setSel(it.id);
     } catch (ex) { setErr(ex.message); }
   }
@@ -72,6 +88,19 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     if (!f2) return;
     try { const id = await addCustomFont(f2); setFontTick((n) => n + 1); snap(); await setText({ fontId: id }); } catch { setErr("Could not read that font. Use a TTF or OTF file."); }
   }
+  // shapes land where new artwork lands; the pen draws exactly where you click
+  const landing = () => {
+    if (cup) { const a = cup.aLeft + cup.wrap / 2, r = (cup.floorR + cup.topR) / 2, [x, y] = fromPolar(cup, r, a); return { x: r1(x), y: r1(y), rot: r1((a * 180) / Math.PI) }; }
+    const a0 = areas[0]?.box || [0, 0, W, H]; return { x: r1((a0[0] + a0[2]) / 2), y: r1((a0[1] + a0[3]) / 2) };
+  };
+  const addShape = (type) => { snap(); const it = { ...shapeItem(type), ...landing() }; setItems((l) => [...l, it]); setSel(it.id); };
+  const penRef = useRef(null); penRef.current = pen; // the latest pen path, for the keyboard and the click that closes the shape
+  function finishPen(closed) {
+    const q = penRef.current;
+    if (q && q.pts.length >= (closed ? 3 : 2)) { snap(); const it = penItem(q.pts, closed); setItems((l) => [...l, it]); setSel(it.id); }
+    setPen(null);
+  }
+  const setShape = (p2) => patch(cur.id, (i) => reshape(i, { shape: p2 }));
   const addFlood = () => { snap(); const it = { id: newId(), kind: "flood", name: "Colour ground", role: "background", colour: "#1f1f1f", pantone: "" }; setItems((l) => [it, ...l]); setSel(it.id); };
 
   // ---- pointer: move, and scale from a corner handle
@@ -89,12 +118,22 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     const [mx, my] = toMm(e);
     if (d.mode === "move") {
       let x = d.x + mx - d.mx, y = d.y + my - d.my; const g = [];
-      for (const a of areas) { // snap the centre to a panel centre line
-        const cx = (a.box[0] + a.box[2]) / 2, cy = (a.box[1] + a.box[3]) / 2;
-        if (x > a.box[0] && x < a.box[2] && y > a.box[1] && y < a.box[3]) {
-          if (Math.abs(x - cx) < 2) { x = cx; g.push(["v", cx, a.box[1], a.box[3]]); }
-          if (Math.abs(y - cy) < 2) { y = cy; g.push(["h", cy, a.box[0], a.box[2]]); }
+      if (!cup && !e.altKey) { // SNAP (hold Alt to switch off): this layer's left / centre / right and top / middle / bottom
+        // catch the panel's centre lines, its safe-area edges, and the edges and centres of every other layer
+        const me = items.find((i) => i.id === d.id), bb = bboxOf(corners({ ...me, x, y })), tol = Math.max(1.2, W / 260);
+        const xs = [], ys = []; // [value, guide from, guide to]
+        for (const a of areas) if (x > a.box[0] && x < a.box[2] && y > a.box[1] && y < a.box[3]) {
+          xs.push([(a.box[0] + a.box[2]) / 2, a.box[1], a.box[3]], [a.box[0] + S.fold, a.box[1], a.box[3]], [a.box[2] - S.fold, a.box[1], a.box[3]]);
+          ys.push([(a.box[1] + a.box[3]) / 2, a.box[0], a.box[2]], [a.box[1] + S.topCut, a.box[0], a.box[2]], [a.box[3] - S.fold, a.box[0], a.box[2]]);
         }
+        for (const o of items) if (o.id !== d.id && o.kind !== "flood" && o.role === "content") {
+          const ob = bboxOf(corners(o)), lo = Math.min(ob[1], bb[1]), hi = Math.max(ob[3], bb[3]), l2 = Math.min(ob[0], bb[0]), h2 = Math.max(ob[2], bb[2]);
+          xs.push([ob[0], lo, hi], [(ob[0] + ob[2]) / 2, lo, hi], [ob[2], lo, hi]); ys.push([ob[1], l2, h2], [(ob[1] + ob[3]) / 2, l2, h2], [ob[3], l2, h2]);
+        }
+        const pick = (mine, list) => { let best = null; for (const m of mine) for (const c of list) { const dd = c[0] - m; if (Math.abs(dd) < tol && (!best || Math.abs(dd) < Math.abs(best[0]))) best = [dd, c]; } return best; };
+        const sx = pick([bb[0], (bb[0] + bb[2]) / 2, bb[2]], xs), sy = pick([bb[1], (bb[1] + bb[3]) / 2, bb[3]], ys);
+        if (sx) { x += sx[0]; g.push(["v", sx[1][0], sx[1][1], sx[1][2]]); }
+        if (sy) { y += sy[0]; g.push(["h", sy[1][0], sy[1][1], sy[1][2]]); }
       }
       setGuides(g);
       patch(d.id, (i) => ({ ...i, x: r1(x), y: r1(y), ...(d.upright ? { rot: r1((toPolar(cup, [x, y]).a * 180) / Math.PI) } : {}) }));
@@ -110,7 +149,11 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
       patch(d.id, (i) => ({ ...i, w: r1(d.w * k), h: r1(d.h * k) }));
     }
   }
-  const up = () => { drag.current = null; setGuides([]); };
+  const up = () => {
+    const d = drag.current;
+    if (d && d.mode === "scale") patch(d.id, (i) => (i.shape ? reshape(i) : i)); // a stretched shape is redrawn at true line weight
+    drag.current = null; setGuides([]);
+  };
 
   const setCrop = (side, pct) => patch(cur.id, (i) => {
     const c = { ...i.crop, [side]: Math.max(0, Math.min(0.9, pct / 100)) };
@@ -118,15 +161,48 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     const sx = i.w / (i.natW * (1 - i.crop.l - i.crop.r)), sy = i.h / (i.natH * (1 - i.crop.t - i.crop.b)); // keep the print scale
     return { ...i, crop: c, w: r1(i.natW * (1 - c.l - c.r) * sx), h: r1(i.natH * (1 - c.t - c.b) * sy) };
   });
-  const setW = (w) => patch(cur.id, (i) => (w > 0 ? { ...i, w: r1(w), h: r1((w * i.h) / i.w) } : i));
-  const setHt = (h) => patch(cur.id, (i) => (h > 0 ? { ...i, h: r1(h), w: r1((h * i.w) / i.h) } : i));
+  const setW = (w) => patch(cur.id, (i) => (!(w > 0) ? i : i.shape ? reshape(i, { w }) : { ...i, w: r1(w), h: r1((w * i.h) / i.w) }));
+  const setHt = (h) => patch(cur.id, (i) => (!(h > 0) ? i : i.shape ? reshape(i, { h }) : { ...i, h: r1(h), w: r1((h * i.w) / i.h) }));
+  // ALIGN: line the selected layer up with the safe area of its panel, the panel itself, the whole blank, or another layer
+  const areaOf = (i) => areas.find((a) => i.x > a.box[0] && i.x < a.box[2] && i.y > a.box[1] && i.y < a.box[3]) || null;
+  const refBox = (i) => {
+    if (alignTo === "blank") return [0, 0, W, H];
+    const other = items.find((o) => o.id === alignTo && o.id !== i.id);
+    if (other) return bboxOf(corners(view(other)));
+    const a = areaOf(i); if (!a) return [0, 0, W, H];
+    return alignTo === "panel" ? a.box : [a.box[0] + S.fold, a.box[1] + S.topCut, a.box[2] - S.fold, a.box[3] - S.fold];
+  };
+  const align = (mode) => patch(cur.id, (i) => {
+    const b = bboxOf(corners(view(i))), r = refBox(i);
+    const dx = mode === "l" ? r[0] - b[0] : mode === "c" ? (r[0] + r[2]) / 2 - (b[0] + b[2]) / 2 : mode === "r" ? r[2] - b[2] : 0;
+    const dy = mode === "t" ? r[1] - b[1] : mode === "m" ? (r[1] + r[3]) / 2 - (b[1] + b[3]) / 2 : mode === "b" ? r[3] - b[3] : 0;
+    return { ...i, x: r1(i.x + dx), y: r1(i.y + dy) };
+  });
+  // space every logo / text layer on this panel evenly (equal gaps between them), across or down
+  const spread = (axis) => setItems((l) => {
+    const me = l.find((i) => i.id === sel), a = me && areaOf(me), k = axis === "x" ? 0 : 1;
+    const set = l.filter((i) => i.kind !== "flood" && i.role === "content" && (!a || areaOf(i) === a)).map((i) => ({ i, b: bboxOf(corners(view(i))) })).sort((p, q) => p.b[k] - q.b[k]);
+    if (set.length < 3) return l;
+    const total = set.reduce((t, q) => t + q.b[k + 2] - q.b[k], 0), gap = (set[set.length - 1].b[k + 2] - set[0].b[k] - total) / (set.length - 1);
+    let at = set[0].b[k]; const move = new Map();
+    for (const q of set) { move.set(q.i.id, at - q.b[k]); at += q.b[k + 2] - q.b[k] + gap; }
+    return l.map((i) => (move.has(i.id) ? { ...i, [axis]: r1(i[axis] + move.get(i.id)) } : i));
+  });
+  const sameSize = (dim) => patch(cur.id, (i) => { const o = items.find((q) => q.id === alignTo); if (!o || o.id === i.id) return i; return dim === "w" ? (i.shape ? reshape(i, { w: o.w }) : { ...i, w: o.w, h: r1((o.w * i.h) / i.w) }) : (i.shape ? reshape(i, { h: o.h }) : { ...i, h: o.h, w: r1((o.h * i.w) / i.h) }); });
+  const pictures = items.filter((i) => (i.kind === "raster" && i.role === "content") || (i.kind === "svg" && i.embedded));
+  async function runTrace() {
+    setErr(""); setBusy("Tracing…");
+    try { const { item: n, info } = await traceItem(cur, tr); snap(); patch(cur.id, () => n); setTrInfo({ id: n.id, ...info, svg: undefined }); }
+    catch (ex) { setErr(ex.message || "Could not trace that picture."); }
+    setBusy("");
+  }
   const centreOn = (a) => patch(cur.id, (i) => ({ ...i, x: r1((a.box[0] + a.box[2]) / 2), y: r1((a.box[1] + a.box[3]) / 2) }));
   const fitBlank = () => patch(cur.id, (i) => { const k = Math.max((W + 2 * BLEED) / i.w, (H + 2 * BLEED) / i.h); return { ...i, role: "background", x: r1(W / 2), y: r1(H / 2), w: r1(i.w * k + 0.2), h: r1(i.h * k + 0.2), rot: 0 }; });
   const fitArea = (a) => patch(cur.id, (i) => { const aw = a.box[2] - a.box[0] - 2 * S.fold, ah = a.box[3] - a.box[1] - S.fold - S.topCut, k = Math.min(aw / i.w, ah / i.h); return { ...i, x: r1((a.box[0] + a.box[2]) / 2), y: r1((a.box[1] + a.box[3]) / 2 + (S.topCut - S.fold) / 2), w: r1(i.w * k - 0.1), h: r1(i.h * k - 0.1) }; });
   // cups: polar placement about the cone centre
   const degOf = (a) => r1((a * 180) / Math.PI);
   const standUp = () => patch(cur.id, (i) => ({ ...i, rot: degOf(toPolar(cup, [i.x, i.y]).a) }));
-  const cupSpot = (frac) => patch(cur.id, (i) => { const a = cup.aLeft + cup.wrap * frac, r = (cup.rFold + CUP_RULES.floor + cup.limit.rMax) / 2, [x, y] = fromPolar(cup, r, a); return { ...i, x: r1(x), y: r1(y), rot: degOf(a) }; });
+  const cupSpot = (frac) => patch(cur.id, (i) => { const a = cup.aLeft + cup.wrap * frac, r = (cup.floorR + cup.topR) / 2, [x, y] = fromPolar(cup, r, a); return { ...i, x: r1(x), y: r1(y), rot: degOf(a) }; });
   const view = (it) => { if (!cup || !it.curve || it.kind !== "svg") return it; try { return curveItem(it, cup, parseSvgDom); } catch { return it; } };
   const reorder = (dir) => setItems((l) => { const k = l.findIndex((i) => i.id === sel), j = k + dir; if (k < 0 || j < 0 || j >= l.length) return l; const n = l.slice(); [n[k], n[j]] = [n[j], n[k]]; return n; });
   const remove = () => { setItems((l) => l.filter((i) => i.id !== sel)); setSel(null); };
@@ -141,15 +217,36 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
           <input type="file" multiple accept=".pdf,.ai,.svg,.png,.jpg,.jpeg,.webp,application/pdf,image/*" className="hidden" onChange={onFiles} />
         </label>
         <button className={btnCls} onClick={addText}>Add text</button>
+        {SHAPES.map(([k, label]) => <button key={k} className={btnCls} onClick={() => addShape(k)} title={`Add a ${label.toLowerCase()}`}>{label}</button>)}
+        <button className={`${btnCls} ${pen ? "border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40" : ""}`} onClick={() => { setSel(null); setPen((q) => (q ? null : { pts: [], at: null })); }} title="Click points on the die to draw">Pen</button>
         <button className={btnCls} onClick={addFlood}>Add colour ground</button>
         <button className={btnCls} onClick={undo} disabled={!canUndo} title="Ctrl/Cmd + Z">Undo</button>
         <button className={btnCls} onClick={redo} disabled={!canRedo} title="Ctrl/Cmd + Shift + Z">Redo</button>
-        <span className="text-[11px] text-gray-500">PDF / AI / SVG stay vector. Drag to move, drag a corner to size, drag the round knob to rotate. {busy}</span>
+        <span className="text-[11px] text-gray-500">PDF / AI / SVG stay vector. Drag to move, drag a corner to size, the round knob to rotate. Shapes and the pen draw new vector art. {busy}</span>
       </div>
+      {pen && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+          <span>Pen: click on the die to add points ({pen.pts.length} so far). Click the first point again to close the shape.</span>
+          <button className={btnCls} disabled={pen.pts.length < 3} onClick={() => finishPen(true)}>Close shape</button>
+          <button className={btnCls} disabled={pen.pts.length < 2} onClick={() => finishPen(false)}>Finish as a line (Enter)</button>
+          <button className={btnCls} disabled={!pen.pts.length} onClick={() => setPen((q) => ({ ...q, pts: q.pts.slice(0, -1) }))}>Undo point</button>
+          <button className={btnCls} onClick={() => setPen(null)}>Cancel (Esc)</button>
+        </div>
+      )}
       {err && <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-800 dark:bg-red-950/40 dark:text-red-300">{err}</p>}
+      {pictures.length > 0 && (
+        <div className="rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          <span className="font-semibold">Not vector: </span>
+          {pictures.map((i, k) => <button key={i.id} onClick={() => setSel(i.id)} className="mr-1 underline">{i.name}{k < pictures.length - 1 ? "," : ""}</button>)}
+          {pictures.length === 1 ? " is a picture" : " are pictures"}, marked with an amber dashed box. Ask the customer for the logo as AI / PDF / SVG / CDR. If they have none, select it and use "Trace to vector".
+        </div>
+      )}
 
       <div className="rounded-md border border-gray-200 bg-[#e9ebee] p-1 dark:border-gray-800">
-        <svg ref={svgRef} viewBox={`${-M} ${-M} ${W + 2 * M} ${H + 2 * M}`} className="h-auto max-h-[620px] w-full touch-none select-none" onPointerMove={move} onPointerUp={up} onPointerLeave={up} onPointerDown={() => setSel(null)}>
+        <svg ref={svgRef} viewBox={`${-M} ${-M} ${W + 2 * M} ${H + 2 * M}`} className="h-auto max-h-[620px] w-full touch-none select-none" onPointerMove={(e) => { if (pen) { const at = toMm(e).map(r1); setPen((q) => (q ? { ...q, at } : q)); } else move(e); }} onPointerUp={up} onPointerLeave={up}
+          onPointerDownCapture={(e) => { if (!pen) return; e.stopPropagation(); e.preventDefault(); const at = toMm(e).map(r1); // pen: every click is a point; clicking the first point again closes the shape
+            if (pen.pts.length >= 3 && Math.hypot(at[0] - pen.pts[0][0], at[1] - pen.pts[0][1]) < Math.max(2, W / 150)) finishPen(true); else setPen((q) => ({ ...q, pts: [...q.pts, at] })); }}
+          onDoubleClick={() => { if (pen) finishPen(false); }} onPointerDown={() => setSel(null)} style={pen ? { cursor: "crosshair" } : undefined}>
           <defs>
             <clipPath id="art-clip">{clipPoly ? <polygon points={clipPoly.map((q) => q.join(",")).join(" ")} /> : <rect x={-BLEED} y={-BLEED} width={W + 2 * BLEED} height={H + 2 * BLEED} />}</clipPath>
             <clipPath id="board-clip"><path d={board} clipRule="evenodd" /></clipPath>
@@ -174,20 +271,34 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
             {noInk.map(([a, b, c, d], k) => <rect key={k} x={Math.max(a, -M)} y={Math.max(b, -M)} width={Math.min(c, W + M) - Math.max(a, -M)} height={Math.min(d, H + M) - Math.max(b, -M)} fill="url(#no-ink)" />)}
           </g>
           {die.safe && <path d={die.safe} fill="none" stroke="#ef8e0c" strokeWidth={0.35} strokeDasharray="2 1.5" pointerEvents="none" />}
-          {cup && (() => { const P = (r, a) => fromPolar(cup, r, a).map((v) => v.toFixed(2)).join(" "), aj = (r) => cup.aLeft + CUP_RULES.joint / r, rf = cup.rFold + CUP_RULES.floor; return (
+          {cup && (() => { const P = (r, a) => fromPolar(cup, r, a).map((v) => v.toFixed(2)).join(" "), aj = (r) => cup.aLeft + CUP_RULES.joint / r, rf = cup.floorR, rt = cup.topR; return (
             <g pointerEvents="none" fill="none" stroke="#c0392b" strokeWidth={0.3} strokeDasharray="1.5 1.5">
-              <path d={`M${P(cup.limit.rMax, aj(cup.limit.rMax))}L${P(rf, aj(rf))}`} />
+              <path d={`M${P(rt, aj(rt))}L${P(rf, aj(rf))}`} />
               <path d={`M${P(rf, aj(rf))}A${rf} ${rf} 0 0 1 ${P(rf, cup.limit.aMax)}`} />
+              {!cup.hasRim && <path d={`M${P(rt, aj(rt))}A${rt} ${rt} 0 0 1 ${P(rt, cup.limit.aMax)}`} />}
             </g>
           ); })()}
           <path d={die.crease} fill="none" stroke="#0aa10a" strokeWidth={0.35} pointerEvents="none" />
           <path d={die.cut} fill="none" stroke="#e11d1d" strokeWidth={0.35} pointerEvents="none" />
           {!cup && areas.map((a) => (
-            <g key={a.name + a.box[0]} pointerEvents="none">
+            <g key={a.name + a.box.join("-")} pointerEvents="none">
               <rect x={a.box[0] + S.fold} y={a.box[1] + S.topCut} width={Math.max(0, a.box[2] - a.box[0] - 2 * S.fold)} height={Math.max(0, a.box[3] - a.box[1] - S.topCut - S.fold)} fill="none" stroke="#ef8e0c" strokeWidth={0.3} strokeDasharray="2 1.5" />
               <text x={a.box[0] + S.fold + 1.5} y={a.box[1] + S.topCut + 5} fontSize={4} fill="#b86a00" fontFamily="Helvetica, Arial, sans-serif">{a.name}</text>
             </g>
           ))}
+          {pen && pen.pts.length > 0 && (
+            <g pointerEvents="none">
+              <polyline points={[...pen.pts, ...(pen.at ? [pen.at] : [])].map((q) => q.join(",")).join(" ")} fill="none" stroke="#2563eb" strokeWidth={0.5} />
+              {pen.pts.map((q, k) => <circle key={k} cx={q[0]} cy={q[1]} r={k === 0 ? Math.max(1.2, W / 260) : Math.max(0.8, W / 400)} fill={k === 0 ? "#2563eb" : "#ffffff"} stroke="#2563eb" strokeWidth={0.3} />)}
+            </g>
+          )}
+          {pictures.map((i) => { const cs = corners(view(i)), b = bboxOf(cs), fs = Math.max(2.2, W / 150); return (
+            <g key={"nv" + i.id} pointerEvents="none">
+              <polygon points={cs.map((q) => q.join(",")).join(" ")} fill="none" stroke="#d97706" strokeWidth={0.5} strokeDasharray="2 1.2" />
+              <rect x={b[0]} y={b[1] - fs * 1.5} width={fs * 6.6} height={fs * 1.4} fill="#d97706" />
+              <text x={b[0] + fs * 0.3} y={b[1] - fs * 0.45} fontSize={fs} fontWeight="700" fill="#ffffff" fontFamily="system-ui, sans-serif">NOT VECTOR</text>
+            </g>
+          ); })}
           {guides.map((g, k) => g[0] === "v" ? <line key={k} x1={g[1]} y1={g[2]} x2={g[1]} y2={g[3]} stroke="#2563eb" strokeWidth={0.3} /> : <line key={k} x1={g[2]} y1={g[1]} x2={g[3]} y2={g[1]} stroke="#2563eb" strokeWidth={0.3} />)}
           {cur && cur.kind !== "flood" && (() => {
             const cs = corners(view(cur));
@@ -210,7 +321,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
           })()}
         </svg>
       </div>
-      {cup ? <p className="text-[11px] text-gray-500">Red = cut, green = folds (rim-curl line, bottom fold, glue-seam line), orange dash = the KLD's limit line, red dash = keep logos right of the {CUP_RULES.joint} mm joint and {CUP_RULES.floor} mm above the bottom fold. All ink is clipped to the KLD's bleed line.</p>
+      {cup ? <p className="text-[11px] text-gray-500">Red = cut, green = folds, orange dash = the KLD's limit line, red dash = keep logos right of the {CUP_RULES.joint} mm joint, {cup.rules.floor} mm above the {cup.rules.floorName}{cup.rules.top ? ` and ${cup.rules.top} mm below the top cut` : ""}. All ink is clipped to the KLD's bleed line.</p>
         : <p className="text-[11px] text-gray-500">Red = cut, green = fold, orange dash = safe area for logos ({S.fold} mm from folds, {S.topCut} mm from the top cut), hatch = glue (never printed). Art past the cut is {BLEED} mm bleed.</p>}
 
       <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
@@ -223,7 +334,8 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
                 <button onClick={() => setSel(it.id)} className={`flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs ${it.id === sel ? "border-blue-600 bg-blue-50 dark:bg-blue-950/40" : "border-gray-200 dark:border-gray-800"}`}>
                   <span className="inline-block h-3 w-3 shrink-0 rounded-sm border border-gray-400" style={{ background: it.kind === "flood" ? it.colour : it.kind === "svg" ? "#fff" : "#ddd" }} />
                   <span className="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-200">{it.name}</span>
-                  <span className="shrink-0 text-[10px] uppercase text-gray-500">{it.kind === "flood" ? "ground" : it.kind === "svg" ? "vector" : "image"}</span>
+                  {it.kind === "raster" || it.embedded ? <span className="shrink-0 rounded bg-amber-500 px-1 text-[10px] font-bold uppercase text-white">not vector</span>
+                    : <span className="shrink-0 text-[10px] uppercase text-gray-500">{it.kind === "flood" ? "ground" : it.source === "trace" ? "traced" : "vector"}</span>}
                 </button>
               </li>
             ))}
@@ -236,7 +348,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
               <input value={cur.name} onChange={(e) => patch(cur.id, (i) => ({ ...i, name: e.target.value }))} className={`${inputCls} max-w-[220px]`} />
               <button className={btnCls} onClick={act(() => reorder(1))}>Forward</button>
               <button className={btnCls} onClick={act(() => reorder(-1))}>Back</button>
-              {cur.kind !== "flood" && !cur.text && (
+              {cur.kind !== "flood" && !cur.text && !cur.shape && (
                 <label className={`${btnCls} cursor-pointer`}>Replace file
                   <input type="file" accept=".pdf,.ai,.svg,.png,.jpg,.jpeg,.webp,application/pdf,image/*" className="hidden" onChange={async (e) => { const f2 = e.target.files[0]; e.target.value = ""; if (!f2) return; try { const n = await replaceFile(cur, f2); snap(); patch(cur.id, () => n); } catch (ex) { setErr(ex.message); } }} />
                 </label>
@@ -276,10 +388,47 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
                       <button className={`${btnCls} ${cur.curve ? "border-blue-600 text-blue-700" : ""}`} disabled={!!why} title={why || ""} onClick={act(() => patch(cur.id, (i) => ({ ...i, curve: !i.curve, rot: i.curve ? degOf(toPolar(cup, [i.x, i.y]).a) : 0 })))}>{cur.curve ? "Curved to cup ✓" : "Curve to cup"}</button>
                     ); })()}
                   </>}
-                  {!cup && areas.map((a) => <button key={a.name + a.box[0]} className={btnCls} onClick={act(() => centreOn(a))}>Centre on {a.name}</button>)}
+                  {!cup && areas.map((a) => <button key={a.name + a.box.join("-")} className={btnCls} onClick={act(() => centreOn(a))}>Centre on {a.name}</button>)}
                   {!cup && areas[0] && <button className={btnCls} onClick={act(() => fitArea(areas.find((a) => cur.x > a.box[0] && cur.x < a.box[2]) || areas[0]))}>Fit safe area</button>}
                   {!cup && <button className={btnCls} onClick={act(fitBlank)}>Fit to blank + bleed</button>}
                 </div>
+                {!cup && (
+                  <div className="flex flex-wrap items-end gap-2 text-xs">
+                    <label className="w-44">Align with
+                      <select value={alignTo} onChange={(e) => setAlignTo(e.target.value)} className={inputCls}>
+                        <option value="safe">Safe area of its panel</option><option value="panel">Its panel (fold to fold)</option><option value="blank">The whole blank</option>
+                        {items.filter((o) => o.id !== cur.id && o.kind !== "flood").map((o) => <option key={o.id} value={o.id}>Layer: {o.name}</option>)}
+                      </select>
+                    </label>
+                    {[["l", "Left"], ["c", "Centre"], ["r", "Right"], ["t", "Top"], ["m", "Middle"], ["b", "Bottom"]].map(([k, label]) => <button key={k} className={btnCls} onClick={act(() => align(k))} title={`Align ${label.toLowerCase()}`}>{label}</button>)}
+                    <button className={btnCls} onClick={act(() => { align("c"); align("m"); })}>Dead centre</button>
+                    {items.some((o) => o.id === alignTo && o.id !== cur.id) && <>
+                      <button className={btnCls} onClick={act(() => sameSize("w"))}>Same width</button>
+                      <button className={btnCls} onClick={act(() => sameSize("h"))}>Same height</button>
+                    </>}
+                    <button className={btnCls} onClick={act(() => spread("x"))} title="Equal gaps between the logos on this panel, left to right">Space evenly across</button>
+                    <button className={btnCls} onClick={act(() => spread("y"))} title="Equal gaps between the logos on this panel, top to bottom">Space evenly down</button>
+                    <span className="w-full text-[11px] text-gray-500">Dragging snaps edges and centres to the panel, its safe area and other layers (hold Alt to switch off). Arrow keys nudge 0.5 mm; Shift 5 mm; Alt 0.1 mm.</span>
+                  </div>
+                )}
+                {cup && <button className={`${btnCls} w-fit`} onClick={act(() => patch(cur.id, (i) => { const q = toPolar(cup, [i.x, i.y]), [x, y] = fromPolar(cup, (cup.floorR + cup.topR) / 2, q.a); return { ...i, x: r1(x), y: r1(y) }; }))}>Middle of the print height</button>}
+                {cur.kind === "raster" && !cur.missing && (
+                  <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                    <p><span className="font-semibold">This is a picture, not a vector logo.</span> Best: the customer's AI / PDF / SVG / CDR ("Replace file"). No vector to be had? Trace it: the tool redraws the picture as flat-colour outlines by arithmetic (no AI). Works on a clean, flat logo photographed or scanned straight on, 1 to 4 solid colours. Angled photos, shadows, gradients and small type come out rough.</p>
+                    <div className="flex flex-wrap items-end gap-2">
+                      <label className="w-28">Ink colours<select value={tr.colours} onChange={(e) => setTr({ ...tr, colours: +e.target.value })} className={inputCls}>{[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+                      <label className="w-40">Detail<select value={tr.detail} onChange={(e) => setTr({ ...tr, detail: +e.target.value })} className={inputCls}><option value={0.5}>Fine (more points)</option><option value={0.9}>Normal</option><option value={1.6}>Smooth (fewer points)</option></select></label>
+                      <label className="flex items-center gap-1.5 pb-2"><input type="checkbox" checked={tr.keepPaper} onChange={(e) => setTr({ ...tr, keepPaper: e.target.checked })} />Keep the background colour too</label>
+                      <button className={`${btnCls} border-amber-700 bg-amber-600 text-white`} onClick={runTrace} disabled={!!busy}>Trace to vector</button>
+                    </div>
+                    <p className="text-[11px]">Undo brings the picture back. Crop first to trace only part of it.</p>
+                  </div>
+                )}
+                {cur.source === "trace" && (
+                  <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                    Traced from a picture{trInfo && trInfo.id === cur.id ? `: ${trInfo.colours.length} colour${trInfo.colours.length === 1 ? "" : "s"}, ${trInfo.points} points${trInfo.paper ? `, background ${trInfo.paper} left out` : ""}` : ""}. It is a redraw, not the customer's file: compare it with the original and get it approved. Not right? Undo, then try more colours or Fine detail. Each colour below can be changed or given its Pantone name.
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-2 text-xs xl:grid-cols-4">
                   {[["l", "Crop left %"], ["t", "Crop top %"], ["r", "Crop right %"], ["b", "Crop bottom %"]].map(([k, label]) => (
                     <label key={k}>{label}<input type="number" min="0" max="90" step="1" value={Math.round(cur.crop[k] * 100)} onChange={(e) => setCrop(k, +e.target.value || 0)} className={inputCls} /></label>
@@ -290,6 +439,15 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
                     Image: {cur.natW} × {cur.natH} px = {Math.round(dpi)} dpi at this size (needs {MIN_DPI}).{cur.source === "pdf-raster" ? " This PDF has photos or live text, so it came in as an image." : ""}
                   </p>
                 ); })()}
+                {cur.shape && (
+                  <div className="flex flex-wrap items-end gap-2 text-xs">
+                    {cur.shape.type !== "line" && <label className="flex items-center gap-1.5 pb-2"><input type="checkbox" checked={cur.shape.filled !== false} onChange={act((e) => setShape({ filled: e.target.checked, ...(e.target.checked ? {} : { strokeMm: Math.max(0.5, cur.shape.strokeMm || 0) }) }))} />Filled</label>}
+                    {cur.shape.type !== "line" && <label className="w-28">Outline mm (0 = none)<input type="number" min="0" step="0.1" value={cur.shape.strokeMm || 0} onChange={(e) => setShape({ strokeMm: Math.max(0, +e.target.value || 0) })} className={inputCls} /></label>}
+                    {cur.shape.type === "rect" && <label className="w-28">Corner radius mm<input type="number" min="0" step="0.5" value={cur.shape.radius || 0} onChange={(e) => setShape({ radius: Math.max(0, +e.target.value || 0) })} className={inputCls} /></label>}
+                    {cur.shape.type === "path" && <label className="flex items-center gap-1.5 pb-2"><input type="checkbox" checked={!!cur.shape.smooth} onChange={act((e) => setShape({ smooth: e.target.checked }))} />Smooth curve</label>}
+                    {cur.shape.type === "line" && <span className="pb-2 text-gray-500">A line's Height is its weight. Turn it with the round knob.</span>}
+                  </div>
+                )}
                 {cur.text && (
                   <div className="grid grid-cols-1 gap-2 text-xs xl:grid-cols-2" data-fonts={fontTick}>
                     <label className="xl:col-span-2">Text (prints as outlines, no font needed at the press)
@@ -310,7 +468,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
                     </label>
                   </div>
                 )}
-                {cur.kind === "svg" && !cur.text && (() => { const parts = svgParts(cur), hidden = new Set(cur.hidden || []); return parts.length > 1 && (
+                {cur.kind === "svg" && !cur.text && !cur.shape && (() => { const parts = svgParts(cur), hidden = new Set(cur.hidden || []); return parts.length > 1 && (
                   <details className="text-xs">
                     <summary className="cursor-pointer font-semibold text-gray-700 dark:text-gray-300">Shapes in this logo ({parts.length - hidden.size} of {parts.length} on) — switch off a box, a tagline, a background</summary>
                     <div className="mt-2 flex max-h-40 flex-wrap gap-1 overflow-auto">

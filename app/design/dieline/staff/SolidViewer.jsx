@@ -41,7 +41,9 @@ function panelGeometry(w, outline2d, holes2d, blank) {
 // the wall between the bottom fold and the rim line - diameters, height, taper. What is derived: wall thickness = the
 // board caliper; the bottom strip (bottom cut .. bottom fold) turned up inside the wall; the base disc on top of that
 // strip; the rolled rim as a tube whose size makes the finished rim equal the KLD's TD.
-function cupMeshes(g, blank, mats, caliper = 0.3) {
+// asWrap: the piece is a double-wall OUTER WRAP standing round an inner cup - the fan's radius is its INSIDE skin (it
+// sits on the cup), so the printed skin is one caliper further out and the hem turns up between wrap and cup.
+function cupMeshes(g, blank, mats, caliper = 0.3, asWrap = false) {
   const out = [], nA = 144, nR = 32, t = caliper;
   const wall = (rIn, rOut, shrink, uv, yOf = (R) => (R - g.rFold) * g.cosB) => {
     const pos = [], uvs = [], idx = [];
@@ -58,9 +60,9 @@ function cupMeshes(g, blank, mats, caliper = 0.3) {
     return geo;
   };
   const skirt = g.rFold - g.rBot; // the strip below the fold: it turns up inside and grips the base disc
-  out.push(new THREE.Mesh(wall(g.rFold, g.rRim, 0, true), mats[0])); // printed outside, bottom fold .. rim line
-  out.push(new THREE.Mesh(wall(g.rFold, g.rRim, t, false), mats[1])); // inside skin, one caliper in
-  out.push(new THREE.Mesh(wall(g.rFold, g.rFold + skirt, 3 * t, false), mats[1])); // bottom strip folded up inside (wall + base skirt between)
+  out.push(new THREE.Mesh(wall(g.rFold, g.rRim, asWrap ? -t : 0, true), mats[0])); // printed outside, bottom fold .. rim line
+  out.push(new THREE.Mesh(wall(g.rFold, g.rRim, asWrap ? 0 : t, false), mats[1])); // inside skin, one caliper in
+  out.push(new THREE.Mesh(wall(g.rFold, g.rFold + skirt, asWrap ? t : 3 * t, false), mats[1])); // bottom strip / hem folded up inside
   const yBase = skirt * g.cosB, rBase = (g.rFold + skirt) * g.sinB - t;
   if (g.hasRim) { const base = new THREE.Mesh(new THREE.CircleGeometry(rBase, 96), mats[1]); base.rotation.x = -Math.PI / 2; base.position.y = yBase; out.push(base); } // a double-wall wrap has no base of its own
   const foot = new THREE.Mesh(new THREE.RingGeometry(g.rFold * g.sinB - 3 * t, g.rFold * g.sinB, 96), mats[2]); foot.rotation.x = Math.PI / 2; out.push(foot); // the fold the cup stands on
@@ -69,7 +71,14 @@ function cupMeshes(g, blank, mats, caliper = 0.3) {
   return out;
 }
 
-const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, caliper, lieFlat = false }, ref) {
+// how far above the inner cup's bottom fold the wrap's hem fold sits: the wrap's top edge tucks under the rolled rim
+// (one rim-tube radius below the rim line)
+export function wrapLift(wrap, inner) {
+  const tube = Math.max(0.6, (inner.spec.TD - inner.formed.rimDia) / 4);
+  return inner.formed.wallHeight - tube - wrap.formed.wallHeight;
+}
+
+const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, blank, cone, coneInner = null, caliper, lieFlat = false }, ref) {
   const host = useRef(null), st = useRef({});
 
   useEffect(() => {
@@ -78,14 +87,26 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     el.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#eef0f3");
+    scene.background = new THREE.Color("#f3f4f6");
     const camera = new THREE.PerspectiveCamera(35, 1, 1, 20000);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a8a, 1.1));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+    // STUDIO LIGHT (Arjun 21-Nov-2026: "it is too dark"). Light from all round so no face falls into shadow, a key light
+    // for shape, a fill from the other side, and a lamp that travels with the camera so whatever is turned towards you is
+    // lit. No tone mapping: a printed colour is shown as it is, not graded. Intensities are in three's physical units
+    // (a surface shows albedo x intensity / pi per light), sized so white board facing you reads as white, not grey.
+    renderer.toneMapping = THREE.NoToneMapping;
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xe2e2e2, 1.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
     sun.position.set(400, 700, 500);
     scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.45);
+    fill.position.set(-500, 250, -400);
+    scene.add(fill);
+    const lamp = new THREE.DirectionalLight(0xffffff, 0.6); // head lamp: sits on the camera, points where it looks
+    lamp.position.set(0, 0, 1);
+    camera.add(lamp);
+    scene.add(camera);
     const group = new THREE.Group();
     scene.add(group);
     const size = () => { const w = el.clientWidth, h = Math.max(320, Math.round(w * 0.62)); renderer.setSize(w, h, false); renderer.domElement.style.width = "100%"; renderer.domElement.style.height = `${h}px`; renderer.domElement.style.display = "block"; camera.aspect = w / h; camera.updateProjectionMatrix(); };
@@ -112,7 +133,13 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       new THREE.MeshStandardMaterial({ color: "#c9c3b5", roughness: 0.9, side: THREE.DoubleSide }), // cut edges
     ];
     LIE_FLAT = !!lieFlat && !cone;
-    if (cone) for (const m of cupMeshes(cone, blank, mats, caliper)) s.group.add(m);
+    if (cone && coneInner) {
+      // FULL DOUBLE-WALL CUP: the plain inner cup stands on its bottom fold; the wrap hangs just under its rolled rim
+      const white = [0, 1, 2].map((k) => new THREE.MeshStandardMaterial({ color: k === 2 ? "#d9d6cc" : "#f6f5f0", roughness: 0.85, side: THREE.DoubleSide }));
+      for (const m of cupMeshes(coneInner, blank, white, caliper)) s.group.add(m);
+      const lift = wrapLift(cone, coneInner);
+      for (const m of cupMeshes(cone, blank, mats, caliper, true)) { m.position.y += lift; s.group.add(m); }
+    } else if (cone) for (const m of cupMeshes(cone, blank, mats, caliper, !cone.hasRim)) s.group.add(m);
     const panels = cone ? [] : model.geom.panels;
     for (const w of cone ? [] : model.world) {
       const P0 = panels[w.panel];
@@ -127,14 +154,14 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     s.group.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(s.group), c = box.getCenter(new THREE.Vector3()), d = box.getSize(new THREE.Vector3()).length();
     s.group.position.set(-c.x, -c.y, -c.z);
-    const key = cone ? `cup-${cone.id}` : model.key;
+    const key = cone ? `cup-${cone.id}-${coneInner ? "full" : "alone"}` : model.key;
     if (!s.framed || s.lastKey !== key) {
       s.camera.position.set(d * 1.1, d * 0.7, d * 1.5);
       s.controls.target.set(0, 0, 0);
       s.camera.near = d / 100; s.camera.far = d * 20; s.camera.updateProjectionMatrix();
       s.framed = true; s.lastKey = key;
     }
-  }, [model, colours, texture, blank, cone, caliper, lieFlat]);
+  }, [model, colours, texture, blank, cone, coneInner, caliper, lieFlat]);
 
   useImperativeHandle(ref, () => ({
     exportStl() { return new STLExporter().parse(st.current.group, { binary: false }); },

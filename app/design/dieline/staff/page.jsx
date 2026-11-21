@@ -25,7 +25,7 @@ export default function StaffDielinePage() {
         title="Design: KLD and artwork"
         subtitle="Pick a proven template, enter the size, board and colours, place the artwork. Everything is checked against our printing and making limits; files open only when every check passes."
       />
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-[2000px] px-4 py-6 sm:px-6">
         <StaffDielineClient />
         {isAdmin && (
           <p className="mt-8 text-xs text-gray-500 dark:text-gray-400">
