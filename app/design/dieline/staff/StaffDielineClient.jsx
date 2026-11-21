@@ -395,6 +395,15 @@ export default function StaffDielineClient() {
     } catch (e) { alert(`Could not make the mockup pack: ${e.message}`); setScene3d(scene0); }
     setPack("");
   }
+  // the product in each lifestyle scene, three-quarter view, watermarked - for the "how it looks" pages of a proof
+  async function sceneShots() {
+    const v = viewerRef.current, scene0 = scene3d, wait = (ms) => new Promise((r) => setTimeout(r, ms)), out = [], plates = SCENES.filter((q) => q.src);
+    await Promise.all(plates.map((q) => new Promise((r) => { const im = new Image(); im.onload = im.onerror = r; im.src = q.src; setTimeout(r, 4000); })));
+    try {
+      for (const q of plates) { setScene3d(q.key); await wait(1500); v.view("iso"); await wait(150); const cv = watermark(await loadImage(v.snapshot(2))); out.push({ ...(await imageXObject(cv)), w: cv.width, h: cv.height, caption: q.label.split(" (")[0] }); }
+    } finally { setScene3d(scene0); await wait(700); }
+    return out;
+  }
   // EVERY SNAPSHOT of the 3D view carries the Aeros house watermark (Arjun 21-Nov-2026) - downloads and proof shots alike
   async function saveShot(name) {
     try { const cv = watermark(await loadImage(viewerRef.current.snapshot(2))), a2 = document.createElement("a"); a2.href = cv.toDataURL("image/png"); a2.download = name; a2.click(); }
@@ -440,7 +449,8 @@ export default function StaffDielineClient() {
           elements: [...content.map(where), ...(ground ? ["Colour ground - over every panel to the cut edge; the glue strip stays unprinted."] : [])],
           threeDNote: "The bag built to its true size from the print file, so you can see where the artwork sits on the finished bag. Colours on these views are approximate.",
           threeDNote2: "These views are taken from the measured model of this bag: every panel is the size it will be made. They show placement and size, not colour.",
-          shots: views });
+          shots: views, renders: await sceneShots(),
+          renderNote: "How the bag looks in use - the true-size 3D model of your bag, with your artwork, set in a scene. The scenes are computer-generated; light and colours are approximate. Judge size and position from pages 1 and 2." });
         const brandSlug = saved.customer.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
         save(`${brandSlug}_${Math.round(Wb)}x${Math.round(Gb)}x${Math.round(Hb)}mm_${dcut ? "d-cut-bag" : "sos-bag"}_CUSTOMER-PROOF-v${proofNo}.pdf`, pdf, "application/pdf");
         setMaking(""); return;
@@ -834,7 +844,7 @@ export default function StaffDielineClient() {
               <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer proof</h2>
               {!cupG && !bagProof ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">This tool makes customer proofs for paper cups, tubs and paper bags so far. Boxes, PET / PP cups and wrap sheets still go through the house proof tools.</p> : (
                 <div className="mt-2 space-y-3 text-xs text-gray-700 dark:text-gray-300">
-                  <p>{bagProof ? "The house bag proof: the flat bag with the artwork, the bag's W x G x H drawing and the sign-off box (page 1), the same flat on a 50 mm grid with where each element sits (page 2), and your 3D shots (page 3). Every size printed on it is the size of this die." : "The house proof: the artwork flat at full size, the same drawing on the mesh (page 2), your 3D shots (page 3) and the colours and timeline page. Every size printed on it comes from the product list."}</p>
+                  <p>{bagProof ? "The house bag proof: the flat bag with the artwork, the bag's W x G x H drawing and the sign-off box (page 1), the same flat on a 50 mm grid with where each element sits (page 2), your 3D shots (page 3) and the bag in the three scenes (page 4, taken by the tool). Every size printed on it is the size of this die." : "The house proof: the artwork flat at full size, the same drawing on the mesh (page 2), your 3D shots (page 3) and the colours and timeline page. Every size printed on it comes from the product list."}</p>
                   <div className="flex flex-wrap items-end gap-3">
                     {cupG && <label className="min-w-[260px] flex-1">Product (from the product list)
                       <select value={proofPick} onChange={(e) => setProofPick(e.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
