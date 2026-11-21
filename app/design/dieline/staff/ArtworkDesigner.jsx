@@ -15,7 +15,7 @@ const inputCls = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-base
 const btnCls = "rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200";
 const r1 = (v) => Math.round(v * 10) / 10;
 
-export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items, setItems, boardColour, snap, undo, redo, canUndo, canRedo, cup = null, clipPoly = null, house = null, pantone = false, customer = "" }) {
+export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items, setItems, boardColour, snap, undo, redo, canUndo, canRedo, cup = null, clipPoly = null, house = null, pantone = false, customer = "", repeat = null }) {
   const svgRef = useRef(null), drag = useRef(null);
   const [sel, setSel] = useState(null), [busy, setBusy] = useState(""), [err, setErr] = useState(""), [guides, setGuides] = useState([]);
   const [pen, setPen] = useState(null); // null = off; { pts: [[x, y]], at: [x, y] } while drawing with the pen
@@ -326,6 +326,18 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
   };
   const kitDrop = async (key) => { try { await fetch(`/api/design/brand-kits/${bk.kit.id}?logo=${encodeURIComponent(key)}`, { method: "DELETE" }); await kitOpen(bk.kit.id); kitList(); } catch { setBk((q) => ({ ...q, msg: "Could not remove the logo." })); } };
   const kitInk = (c) => { if (!cur || cur.house) return; snap(); patch(cur.id, (i) => (i.kind === "flood" ? { ...i, colour: c.hex, pantone: c.name } : i.kind === "svg" ? refreshSvg({ ...i, colours: (i.colours || []).map((c3) => ({ ...c3, to: c.hex, name: c.name })) }) : i)); };
+  // ---- WRAP SHEETS: an ALL-OVER REPEAT, not a placed design (lib/dieline/wrap.js). The first file added is the lockup
+  // (rows A), the second the small mark (rows B); where they sit is worked out by the repeat, so nothing is dragged.
+  const repA = repeat ? items.find((i) => i.rep === "A" && i.kind !== "flood") : null, repB = repeat ? items.find((i) => i.rep === "B" && i.kind !== "flood") : null;
+  useEffect(() => {
+    if (!repeat) return;
+    const free = items.filter((i) => i.kind !== "flood" && !i.rep);
+    if (!free.length || (repA && repB)) return;
+    const sized = (i, w) => ({ ...i, w: r1(w), h: r1((w * i.h) / i.w), rot: 0, curve: false });
+    setItems((l) => { let a = l.some((i) => i.rep === "A"), b2 = l.some((i) => i.rep === "B"); return l.map((i) => { if (i.kind === "flood" || i.rep) return i; if (!a) { a = true; return { ...sized(i, Math.min(60, Math.max(45, repeat.plan.Px * 0.8))), rep: "A" }; } if (!b2) { b2 = true; return { ...sized(i, 11), rep: "B" }; } return i; }); });
+  }, [repeat ? items.length : 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  const repWidth = (it, w) => { const v = Math.max(1, +w || 0); patch(it.id, (i) => ({ ...i, w: r1(v), h: r1((v * i.h) / i.w) })); };
+  const repRole = (id, role) => setItems((l) => l.map((i) => (i.kind === "flood" ? i : i.id === id ? { ...i, rep: role } : i.rep === role ? { ...i, rep: undefined } : i)));
   // ---- Aeros mark + ready symbols (lifted from the house files; lib/dieline/designer/house.js)
   const hasMark = items.some((i) => i.house === "mark");
   // THE FOOTER FOLLOWS THE JOB (Arjun 21-Nov-2026: "narrow the footer list"): of the footers on file for this size, only
@@ -504,6 +516,26 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
           )}
         </div>
       )}
+      {repeat && (
+        <div className="rounded-md border border-fuchsia-200 bg-fuchsia-50/40 px-3 py-2 text-xs text-gray-700 dark:border-fuchsia-900 dark:bg-fuchsia-950/20 dark:text-gray-300">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="font-semibold">Repeat:</span>
+            <label className="flex items-center gap-1.5">Pitch<input type="number" min={20} max={150} step={1} value={repeat.pitch} onChange={(e) => repeat.setPitch(e.target.value)} className="w-16 rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" />mm</label>
+            <span>tile <b>{repeat.plan.Px.toFixed(2)} × {repeat.plan.Py.toFixed(2)} mm</b> = {repeat.plan.nx} across × {repeat.plan.ny} down, rows half-drop</span>
+            {[["A", "Lockup (rows A)", repA], ["B", "Small mark (rows B)", repB]].map(([k, label, it]) => (
+              <span key={k} className="flex items-center gap-1.5">
+                {label}
+                <select value={it?.id || ""} onChange={(e) => (e.target.value ? repRole(e.target.value, k) : it && patch(it.id, (i) => ({ ...i, rep: undefined })))} className="max-w-[9rem] rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950">
+                  <option value="">{k === "A" ? "add a file…" : "none"}</option>
+                  {items.filter((i) => i.kind !== "flood").map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                </select>
+                {it && <><input type="number" min={1} step={0.5} value={it.w} onFocus={snap} onChange={(e) => repWidth(it, e.target.value)} className="w-16 rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" />mm wide</>}
+              </span>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-gray-500">The tile always divides the sheet exactly, so every sheet is identical and the 4-up press sheet has no seam. The lockup sits whole in every tile; the small mark sits on the tile corners and is the only thing a cut splits. Nothing is dragged: change the pitch or a width.</p>
+        </div>
+      )}
       {jobInks.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:text-gray-300">
           <span className="font-semibold">Job colours ({jobInks.length}):</span>
@@ -550,7 +582,20 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
             <pattern id="no-ink" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="3" fill="#ffffff" /><line x1="0" y1="0" x2="0" y2="3" stroke="#b9b9b9" strokeWidth="0.6" /></pattern>
           </defs>
           <path d={board} fill={boardColour || "#f4f2ec"} fillRule="evenodd" />
-          <g clipPath="url(#art-clip)">
+          {repeat && (
+            <g clipPath="url(#art-clip)" pointerEvents="none">
+              {repeat.placed.map((it) => it.kind === "flood" ? <rect key={it.id} x={-BLEED} y={-BLEED} width={W + 2 * BLEED} height={H + 2 * BLEED} fill={it.colour} /> : (
+                <svg key={it.id} x={it.x - it.w / 2} y={it.y - it.h / 2} width={it.w} height={it.h} preserveAspectRatio="none" viewBox={`0 0 ${it.natW} ${it.natH}`}><image href={it.href} width={it.natW} height={it.natH} preserveAspectRatio="none" /></svg>
+              ))}
+            </g>
+          )}
+          {repeat && (
+            <g pointerEvents="none" stroke="#d946ef" strokeWidth={0.25} strokeDasharray="2 1.5" opacity={0.7}>
+              {Array.from({ length: repeat.plan.nx + 1 }, (_, i) => <line key={"tx" + i} x1={i * repeat.plan.Px} y1={0} x2={i * repeat.plan.Px} y2={H} />)}
+              {Array.from({ length: repeat.plan.ny + 1 }, (_, j) => <line key={"ty" + j} x1={0} y1={j * repeat.plan.Py} x2={W} y2={j * repeat.plan.Py} />)}
+            </g>
+          )}
+          <g clipPath="url(#art-clip)" style={repeat ? { display: "none" } : undefined}>
             {items.filter((i) => !i.noClip).map((it) => it.kind === "flood" ? (
               <rect key={it.id} x={-BLEED} y={-BLEED} width={W + 2 * BLEED} height={H + 2 * BLEED} fill={it.colour} onPointerDown={(e) => { e.stopPropagation(); setSel(it.id); }} />
             ) : ((it0) => { const it = view(it0); return (
@@ -610,7 +655,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
               <text x={mark.p[0] + hs + fs * 0.3} y={mark.p[1] - hs - fs * 0.2} fontSize={fs} fontWeight="700" fill="#ffffff" fontFamily="system-ui, sans-serif">{mark.kind}</text>
             </g>
           ); })()}
-          {pictures.map((i) => { const cs = corners(view(i)), b = bboxOf(cs), fs = Math.max(2.2, W / 150); return (
+          {!repeat && pictures.map((i) => { const cs = corners(view(i)), b = bboxOf(cs), fs = Math.max(2.2, W / 150); return (
             <g key={"nv" + i.id} pointerEvents="none">
               <polygon points={cs.map((q) => q.join(",")).join(" ")} fill="none" stroke="#d97706" strokeWidth={0.5} strokeDasharray="2 1.2" />
               <rect x={b[0]} y={b[1] - fs * 1.5} width={fs * 6.6} height={fs * 1.4} fill="#d97706" />
@@ -618,7 +663,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
             </g>
           ); })}
           {guides.map((g, k) => g[0] === "v" ? <line key={k} x1={g[1]} y1={g[2]} x2={g[1]} y2={g[3]} stroke="#2563eb" strokeWidth={0.3} /> : <line key={k} x1={g[2]} y1={g[1]} x2={g[3]} y2={g[1]} stroke="#2563eb" strokeWidth={0.3} />)}
-          {cur && cur.kind !== "flood" && (() => {
+          {cur && cur.kind !== "flood" && !repeat && (() => {
             const cs = corners(view(cur));
             return (
               <g>
@@ -646,6 +691,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
         </svg>
       </div>
       {cup ? <p className="text-[11px] text-gray-500">Red = cut, green = folds, orange dash = the KLD's limit line, red dash = keep logos right of the {CUP_RULES.joint} mm joint, {cup.rules.floor} mm above the {cup.rules.floorName}{cup.rules.top ? ` and ${cup.rules.top} mm below the top cut` : ""}. All ink is clipped to the KLD's bleed line.</p>
+        : repeat ? <p className="text-[11px] text-gray-500">Red = cut. Magenta dashes = the repeat tiles (they do not print). The pattern runs {BLEED} mm past every cut.</p>
         : <p className="text-[11px] text-gray-500">Red = cut, green = fold, orange dash = safe area for logos ({S.fold} mm from folds, {S.topCut} mm from the top cut), hatch = glue (never printed). Art past the cut is {BLEED} mm bleed.</p>}
 
       <div className="grid grid-cols-1 gap-3 2xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">

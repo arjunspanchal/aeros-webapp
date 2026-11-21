@@ -13,7 +13,7 @@ let runs = 0, bad = 0;
 const notes = new Set();
 const summary = [];
 for (const t of TEMPLATES) {
-  if (t.route === "cup" || t.route === "pet") continue;
+  if (t.route === "cup" || t.route === "pet" || t.route === "wrap") continue;
   const cal = t.family === "bag" ? CAL.bag : t.id === "mailer-0427" ? CAL.mailer : CAL.box;
   const variants = [];
   for (const p of t.proven) {
@@ -67,6 +67,26 @@ for (const t of TEMPLATES.filter((x) => x.route === "pet")) {
   runs++; if (f.length) bad++;
   summary.push(`${f.length ? "FAIL" : "PASS"}  ${t.id}: cup ${g.td} / ${g.bd} x ${g.h} mm, band ${g.bandH} mm (${g.dFoot.toFixed(1)} to ${g.dTop.toFixed(1)} mm across), rectangle ${g.w} mm = ${(g.w / Math.PI).toFixed(1)} mm across`);
   console.log(f.length ? `    FAIL ${t.id}: ${f.join("; ")}` : `    ${t.id}: clean`);
+}
+// Wrap sheets: flat, nothing folds - check the repeat itself (gate G1 of the house check_wrap.py) on every sheet and a
+// spread of pitches, and that the pattern covers a sheet + bleed the same way on every sheet of the 4-up
+const { wrapGeometry, tilePlan, expandWrap, WRAP_BLEED } = await import("../lib/dieline/wrap.js");
+console.log("\nWrap sheets (flat: the repeat tile must divide the sheet exactly, rows even)");
+for (const t of TEMPLATES.filter((x) => x.route === "wrap")) {
+  const g = wrapGeometry(t.wrap), f = [];
+  for (let pitch = 30; pitch <= 120; pitch += 1) {
+    const pl = tilePlan(g.W, g.H, pitch);
+    if (Math.abs(pl.nx * pl.Px - g.W) > 1e-9 || Math.abs(pl.ny * pl.Py - g.H) > 1e-9 || pl.ny % 2) f.push(`pitch ${pitch}: tile ${pl.Px} x ${pl.Py}, ${pl.nx} x ${pl.ny}`);
+    const A = { id: "a", kind: "svg", rep: "A", w: Math.min(50, pl.Px - 2), h: Math.min(18, pl.Py - 2) }, Bm = { id: "b", kind: "svg", rep: "B", w: 11, h: 11 };
+    const one = expandWrap([A, Bm], pl, [-WRAP_BLEED, -WRAP_BLEED, g.W + WRAP_BLEED, g.H + WRAP_BLEED]);
+    const four = expandWrap([A, Bm], pl, [-WRAP_BLEED, -WRAP_BLEED, 2 * g.W + WRAP_BLEED, 2 * g.H + WRAP_BLEED]);
+    const key = (l, dx, dy) => l.filter((i) => i.x - dx + i.w / 2 > 0 && i.x - dx - i.w / 2 < g.W && i.y - dy + i.h / 2 > 0 && i.y - dy - i.h / 2 < g.H).map((i) => `${i.id.split("@")[0]}:${(i.x - dx).toFixed(2)},${(i.y - dy).toFixed(2)}`).sort().join("|");
+    const ref = key(one, 0, 0);
+    for (const [dx, dy] of [[0, 0], [g.W, 0], [0, g.H], [g.W, g.H]]) if (key(four, dx, dy) !== ref) { f.push(`pitch ${pitch}: the 4-up piece at ${dx},${dy} differs from the single sheet`); break; }
+  }
+  runs++; if (f.length) bad++;
+  summary.push(`${f.length ? "FAIL" : "PASS"}  ${t.id}: ${g.W} x ${g.H} mm, 91 pitches (30 to 120 mm): tile divides the sheet, rows even, the 4 pieces of the press sheet = the single sheet; press sheet ${g.sheet4.join(" x ")} mm`);
+  console.log(f.length ? `    FAIL ${t.id}: ${f.slice(0, 3).join("; ")}` : `    ${t.id}: clean`);
 }
 if (notes.size) console.log("\nLock parts shown unbent (reported on screen, not a fault):\n  " + [...notes].join("\n  "));
 console.log(`\n== ${runs} runs, ${bad} with findings ==\n` + summary.join("\n"));

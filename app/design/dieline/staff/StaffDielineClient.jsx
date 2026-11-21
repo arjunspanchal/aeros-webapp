@@ -24,6 +24,8 @@ import { toPolar } from "@/lib/dieline/cup";
 import { cupGeometry, cupItemChecks, cupFormedChecks, cupFitChecks, cupMarkChecks } from "@/lib/dieline/cup";
 import { cupMarkText } from "@/lib/dieline/designer/house";
 import { petGeometry, petItemChecks } from "@/lib/dieline/pet";
+import { wrapGeometry, tilePlan, expandWrap, wrapArtChecks } from "@/lib/dieline/wrap";
+import { wrapSheetPdf } from "@/lib/dieline/designer/wrap-pdf";
 import { petArtPdf } from "@/lib/dieline/designer/pet-pdf";
 import { cupProofPdf } from "@/lib/dieline/designer/proof-pdf";
 import { SCENES, sceneOf } from "@/lib/dieline/designer/scenes";
@@ -44,8 +46,8 @@ const firstValues = (t) => {
   for (const i of t.inputs) v[i.key] = i.type === "bool" ? !!p[i.key] : p[i.key] != null ? +(+p[i.key]).toFixed(1) : 0; // a proven size brings its own ticks (DCB-002 = 2-piece)
   return v;
 };
-const defaultBoard = (t) => (t.family === "pet" ? "fbb-300" : t.family === "bag" ? "bag-kraft-80" : t.family === "cup" ? (t.cup === "dw8" ? "cupstock-230" : "cupstock-230-1pe") : "fbb-300");
-const useOf = (t) => (t.family === "bag" ? "bag" : t.family === "cup" ? "cup" : "box");
+const defaultBoard = (t) => (t.family === "wrap" ? "wrap-white-38" : t.family === "pet" ? "fbb-300" : t.family === "bag" ? "bag-kraft-80" : t.family === "cup" ? (t.cup === "dw8" ? "cupstock-230" : "cupstock-230-1pe") : "fbb-300");
+const useOf = (t) => (t.family === "wrap" ? "wrap" : t.family === "bag" ? "bag" : t.family === "cup" ? "cup" : "box");
 
 const SEV = {
   block: { pass: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300", fail: "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300" },
@@ -111,6 +113,7 @@ export default function StaffDielineClient() {
     setValues(firstValues(nt));
     setBoardSel(defaultBoard(nt));
     if (nt.family === "pet") { setProcess("pantone"); setColours(1); } // a PET cup prints one solid colour
+    if (nt.wrap) { setProcess("pantone"); setColours(1); setWrapPitch(wrapGeometry(nt.wrap).pitch0); } // a wrap: one or two spot colours, pitch about a fifth of the width
     setArt([]);
     hist.current = { past: [], future: [] };
   }
@@ -135,7 +138,7 @@ export default function StaffDielineClient() {
   async function saveDesign(asNew) {
     setSaved((sv) => ({ ...sv, msg: "Saving…" }));
     try {
-      const body = { name: saved.name || fileStem({ template: res.template, values, board }), customer: saved.customer, job_ref: job, recipe: { ...res.recipe, channel }, artwork: packArtwork(art), checks_ok: !!ok && !artBlocked };
+      const body = { name: saved.name || fileStem({ template: res.template, values, board }), customer: saved.customer, job_ref: job, recipe: { ...res.recipe, channel, ...(wrapG ? { wrapPitch: +wrapPitch } : {}) }, artwork: packArtwork(art), checks_ok: !!ok && !artBlocked };
       const upd = saved.id && !asNew;
       const r = await fetch(upd ? `/api/design/dieline-designs/${saved.id}` : "/api/design/dieline-designs", { method: upd ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await r.json();
@@ -152,7 +155,7 @@ export default function StaffDielineClient() {
       if (!nt) throw new Error("This design uses a template that no longer exists.");
       setTid(nt.id); setValues(rc.values || firstValues(nt));
       setBoardSel(rc.board?.id || defaultBoard(nt));
-      setProcess(rc.print?.process || "pantone"); setColours(rc.print?.colours || 1); setChannel(rc.channel || "");
+      setProcess(rc.print?.process || "pantone"); setColours(rc.print?.colours || 1); setChannel(rc.channel || ""); if (rc.wrapPitch) setWrapPitch(rc.wrapPitch);
       setJob(d.job_ref || ""); setArt(unpackArtwork(d.artwork)); hist.current = { past: [], future: [] };
       setSaved((sv) => ({ ...sv, id: d.id, name: d.name, customer: d.customer || "", list: null, msg: `Opened "${d.name}".` }));
     } catch (e) { setSaved((sv) => ({ ...sv, msg: e.message })); }
@@ -183,6 +186,9 @@ export default function StaffDielineClient() {
 
   const cupG = useMemo(() => (t.cup ? cupGeometry(t.cup) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [wrapPitch, setWrapPitch] = useState(61); // wrap sheets: the target pitch of the repeat, mm
+  const wrapG = useMemo(() => (t.wrap ? wrapGeometry(t.wrap) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps -- wrap sheets: flat, all-over repeat
+  const wrapPlan = useMemo(() => (wrapG ? tilePlan(wrapG.W, wrapG.H, wrapPitch) : null), [wrapG, wrapPitch]);
   const petG = useMemo(() => (t.pet ? petGeometry(t.pet) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps -- PET cups: direct print, the die is the print rectangle
   const innerG = useMemo(() => (t.innerCup ? cupGeometry(t.innerCup) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps
   const [cupView, setCupView] = useState("full"); // double wall: "full" = wrap on its inner cup, "wrap" = the outer fan alone
@@ -196,6 +202,7 @@ export default function StaffDielineClient() {
     const total = panelsAny.panels.reduce((s2, p) => s2 + p.area, 0);
     const areas = prog?.areas || panelsAny.panels.filter((p) => p.area > total * 0.06).sort((p, q) => q.area - p.area).slice(0, 6)
       .map((p, k) => { const xs = p.outline.map((v) => v[0]), ys = p.outline.map((v) => v[1]); return { name: `Panel ${k + 1}`, box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }; });
+    if (wrapG) return { edges: dieEdges(res.doc), blankBox: [0, 0, wrapG.W, wrapG.H], family: "box", topCutY: null, noInk: [], print, areas: [], customGeometry: () => [] }; // a repeat has no placement rules: the tile does the placing
     if (petG) return { edges: dieEdges(res.doc), blankBox: [0, 0, petG.w, petG.bandH], family: "box", topCutY: null, noInk: [], print, clipPoly: [[0, 0], [petG.w, 0], [petG.w, petG.bandH], [0, petG.bandH]],
       areas: [{ name: "Print band", box: [0, 0, petG.w, petG.bandH] }], customGeometry: (it) => petItemChecks(petG, it, itemCorners) };
     if (cupG) { const xs = cupG.limit.poly.map((q) => q[0]), ys = cupG.limit.poly.map((q) => q[1]);
@@ -208,6 +215,7 @@ export default function StaffDielineClient() {
   const artChecks = useMemo(() => {
     if (!artCtx) return [];
     const base = checkArtwork(art, artCtx);
+    if (wrapG) return art.length ? [...base, ...wrapArtChecks(wrapG, wrapPlan, art)] : base; // no Aeros mark on a wrap, so who it is sold to does not change the file
     if (art.length && petG) { // moulded cups: solid spot colours only (PET one, PP up to two); no Aeros mark, whoever it is sold to
       const ground = art.some((i) => i.kind === "flood"), M = petG.mat, cap = petG.maxInks;
       const inks = new Set(art.flatMap((i) => (i.kind === "flood" ? [i.colour] : i.kind === "svg" ? (i.colours || []).map((c2) => c2.to) : ["picture"])).map((c2) => String(c2).toLowerCase()).filter((c2) => c2 !== "#ffffff"));
@@ -222,9 +230,10 @@ export default function StaffDielineClient() {
     if (channel === "direct" && houseKind) out.push(C("CHANNEL-MARK", marks.length === 1, "block", "Direct sale: the Aeros mark is on the pack", marks.length === 1 ? (houseKind === "cup" ? "One line, hidden in the fold." : "The footer block of this SKU, on the bottom flap.") : marks.length ? "Only one Aeros mark per pack." : 'Press "Add Aeros mark" in the artwork tools.'));
     if (channel === "direct" && !houseKind) out.push(C("CHANNEL-MARK", true, "info", "Aeros mark for this pack", "No house mark for this item is in the tool yet (food boxes use the house base block). Add it with the house tool, or send Arjun the file."));
     return [...base, ...out];
-  }, [art, artCtx, channel, houseKind]);
+  }, [art, artCtx, channel, houseKind, wrapPlan]);
   // what is drawn and printed: curved items bent onto the cup
-  const artOut = useMemo(() => (cupG ? art.map((it) => { if (!it.curve || it.kind !== "svg") return it; try { return curveItem(it, cupG, parseSvgDom); } catch { return it; } }) : art), [art, cupG]);
+  const artOut = useMemo(() => (wrapG ? expandWrap(art, wrapPlan, [-BLEED, -BLEED, wrapG.W + BLEED, wrapG.H + BLEED])
+    : cupG ? art.map((it) => { if (!it.curve || it.kind !== "svg") return it; try { return curveItem(it, cupG, parseSvgDom); } catch { return it; } }) : art), [art, cupG, wrapG, wrapPlan]);
   const artBlocked = artChecks.some((c) => !c.ok && c.severity === "block");
   const spotN = useMemo(() => new Set(art.flatMap(itemColours).filter((c) => !c.process).map((c) => c.hex.toLowerCase())).size, [art]); // colours the artwork really prints
   useEffect(() => { // artwork on the 3D model
@@ -254,6 +263,14 @@ export default function StaffDielineClient() {
     try {
       const vec = await vectorArt();
       let pdf;
+      if (kind === "wrapart" || kind === "wrap4" || kind === "wrapgrid") { // wrap sheets: the house print files, written by lib/dieline/designer/wrap-pdf.js
+        const brand = (saved.customer || saved.name || "aeros").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "aeros", stage = kind === "wrap4" ? "OFFSET-LAYOUT-4up" : kind === "wrapgrid" ? "GRIDCHECK" : "ARTONLY";
+        const out = await wrapSheetPdf({ g: wrapG, plan: wrapPlan, items: art, up: kind === "wrap4" ? 4 : 1, grid: kind === "wrapgrid",
+          vec: (list, box) => artworkToPdf(list, { box, noInk: [], spot: process === "pantone", rasterise: rasteriseItem, parse: parseSvgDom }),
+          caption: `GRIDCHECK - ${saved.customer || "Aeros"} wrap sheet ${wrapG.W} x ${wrapG.H} mm - 10 mm grid from the cut (blue), centre lines, repeat tiles ${wrapPlan.Px.toFixed(2)} x ${wrapPlan.Py.toFixed(2)} mm (magenta) - NOT FOR PRINT` });
+        save(`${brand}_${t.wrapFile.size}_wrap-sheet_sheet_${stage}-v1.pdf`, out.pdf, "application/pdf");
+        setMaking(""); return;
+      }
       if (kind === "petart") { // the plate file: one page = the print rectangle, artwork only
         const brand = (saved.customer || saved.name || "aeros").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "aeros";
         save(`${brand}_${t.petFile.size}_${t.petFile.item}_print_ART-v1-VENDOR.pdf`, petArtPdf(vec, petG.w, petG.bandH), "application/pdf");
@@ -472,7 +489,7 @@ export default function StaffDielineClient() {
   }
   // SEND TO THE JOB: the printer's set for this item - exactly the files the buttons make - goes onto the linked job's
   // thread as artwork. Nothing is sent unless every file of the set was made, and the user sees the list first.
-  const jobSet = petG ? [["print", "petart"], ["print", "vendor"]] : cupG ? (cupNest ? [["nest", "layout"], ["nest", "artpunch"], ["nest", "punch"]] : [["print", "layout"], ["print", "artpunch"]])
+  const jobSet = wrapG ? [["print", "wrap4"], ["print", "wrapart"]] : petG ? [["print", "petart"], ["print", "vendor"]] : cupG ? (cupNest ? [["nest", "layout"], ["nest", "artpunch"], ["nest", "punch"]] : [["print", "layout"], ["print", "artpunch"]])
     : layFit ? [["lay", "punch"], ["lay", "print"], ["lay", "die"], ["print", "vendor"]] : [["print", "layout"], ["print", "artpunch"], ["print", "vendor"]];
   async function sendToJob() {
     if (!linked) return;
@@ -533,7 +550,7 @@ export default function StaffDielineClient() {
           ))}
         </div>
         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {t.name} · {t.proven.length} proven size{t.proven.length > 1 ? "s" : ""} · {t.family === "bag" ? "hand-made, offset sheet" : t.family === "cup" ? "fixed KLD die" : t.family === "pet" ? "direct print on the moulded cup" : "offset sheet, die-cut"}
+          {t.name} · {t.proven.length} proven size{t.proven.length > 1 ? "s" : ""} · {t.family === "bag" ? "hand-made, offset sheet" : t.family === "cup" ? "fixed KLD die" : t.family === "wrap" ? "flat sheet, all-over repeat" : t.family === "pet" ? "direct print on the moulded cup" : "offset sheet, die-cut"}
         </p>
       </section>
 
@@ -751,12 +768,13 @@ export default function StaffDielineClient() {
           {res && res.doc && artCtx && (
             <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <h2 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Artwork</h2>
-              <ArtworkDesigner doc={res.doc} geom={panelsAny} family={t.family} areas={artCtx.areas} noInk={artCtx.noInk} items={art} setItems={setArt} boardColour={mat.colour3d.top} cup={cupG} clipPoly={artCtx.clipPoly || null} house={houseInfo} pantone={process === "pantone"} customer={saved.customer} snap={snapArt} undo={undoArt} redo={redoArt} canUndo={histN >= 0 && hist.current.past.length > 0} canRedo={hist.current.future.length > 0} />
+              <ArtworkDesigner doc={res.doc} geom={panelsAny} family={t.family} areas={artCtx.areas} noInk={artCtx.noInk} items={art} setItems={setArt} boardColour={mat.colour3d.top} cup={cupG} clipPoly={artCtx.clipPoly || null} house={houseInfo} pantone={process === "pantone"} customer={saved.customer} repeat={wrapG ? { g: wrapG, plan: wrapPlan, pitch: wrapPitch, setPitch: setWrapPitch, placed: artOut } : null} snap={snapArt} undo={undoArt} redo={redoArt} canUndo={histN >= 0 && hist.current.past.length > 0} canRedo={hist.current.future.length > 0} />
               {art.length > 0 && (
                 <>
                   <CheckList checks={artChecks} className="mt-3" />
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {(petG ? [["petart", "ART: the print rectangle, exact size (PDF)"], ["vendor", "ART-DIM: sizes + colours for the printer (PDF)"], ["layout", "Artwork + outline, for checking (PDF)"]]
+                    {(wrapG ? [["wrap4", "OFFSET-LAYOUT 4-up: the press sheet (PDF)"], ["wrapart", "ARTONLY: one sheet, for print (PDF)"], ["wrapgrid", "GRIDCHECK: grid + repeat tiles, not for print (PDF)"], ["layout", "Artwork + outline, for checking (PDF)"]]
+                      : petG ? [["petart", "ART: the print rectangle, exact size (PDF)"], ["vendor", "ART-DIM: sizes + colours for the printer (PDF)"], ["layout", "Artwork + outline, for checking (PDF)"]]
                       : [["layout", "Artwork + outlines (PDF)"], ["artpunch", "Artwork, no outlines (PDF)"], ...(cupG ? [] : [["vendor", "Vendor sheet: sizes + colours (PDF)"]])]).map(([k, label]) => (
                       <button key={k} disabled={!ok || artBlocked || !!making} onClick={() => printFile(k)}
                         className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:disabled:border-gray-700 dark:disabled:bg-gray-800">
@@ -984,7 +1002,7 @@ export default function StaffDielineClient() {
                 {solidFinal && <CheckList checks={solidFinal.checks} className="mt-3" />}
               </>
             ) : (
-              <p className="text-xs text-gray-500">The fold program for this template is being built (bags first; boxes next).</p>
+              <p className="text-xs text-gray-500">{wrapG ? "A wrap sheet is flat, so there is nothing to fold here. Its sheet pictures for the customer proof are made with the house wrap tools." : "The fold program for this template is being built (bags first; boxes next)."}</p>
             )}
           </section>
 
