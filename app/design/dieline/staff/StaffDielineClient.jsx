@@ -10,7 +10,7 @@ import { programFor } from "@/lib/dieline/solid/programs";
 import { solidModel } from "@/lib/dieline/solid";
 
 import { dieEdges } from "@/lib/dieline/solid/arrangement";
-import { checkArtwork, BLEED } from "@/lib/dieline/designer/model";
+import { checkArtwork, BLEED, itemColours } from "@/lib/dieline/designer/model";
 import { paintArtwork, rasteriseItem, parseSvgDom, packArtwork, unpackArtwork } from "@/lib/dieline/designer/io";
 import { artworkToPdf, imageXObject } from "@/lib/dieline/designer/vector-pdf";
 import { planDigital, digitalSamplePdf, DIGITAL } from "@/lib/dieline/designer/digital-pdf";
@@ -39,7 +39,7 @@ const IN = 25.4;
 const firstValues = (t) => {
   const p = t.proven[t.proven.length > 1 ? 1 : 0];
   const v = {};
-  for (const i of t.inputs) v[i.key] = i.type === "bool" ? false : p[i.key] != null ? +(+p[i.key]).toFixed(1) : 0;
+  for (const i of t.inputs) v[i.key] = i.type === "bool" ? !!p[i.key] : p[i.key] != null ? +(+p[i.key]).toFixed(1) : 0; // a proven size brings its own ticks (DCB-002 = 2-piece)
   return v;
 };
 const defaultBoard = (t) => (t.family === "pet" ? "fbb-300" : t.family === "bag" ? "bag-kraft-80" : t.family === "cup" ? (t.cup === "dw8" ? "cupstock-230" : "cupstock-230-1pe") : "fbb-300");
@@ -50,6 +50,31 @@ const SEV = {
   warn: { pass: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300", fail: "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" },
   info: { pass: "bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300", fail: "bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300" },
 };
+
+// ONE CHECK LIST for the whole screen: what stops the job comes first, then what to confirm; everything that passes is
+// folded into one line (a screen of green ticks was hiding the one red line that mattered).
+function CheckList({ checks, className = "" }) {
+  const row = (c, k) => (
+    <li key={c.id + k} className={`rounded-md px-3 py-2 text-xs ${SEV[c.severity]?.[c.ok ? "pass" : "fail"] || SEV.info.pass}`}>
+      <span className="font-semibold">{c.ok ? (c.severity === "info" ? "ℹ" : "✓") : c.severity === "block" ? "✕" : "!"} {c.title}</span> <span className="opacity-60">[{c.id}]</span>
+      <div className="mt-0.5">{c.detail}</div>
+    </li>
+  );
+  const stop = checks.filter((c) => !c.ok && c.severity === "block"), warn = checks.filter((c) => !c.ok && c.severity !== "block"), rest = checks.filter((c) => c.ok);
+  return (
+    <div className={className}>
+      {(stop.length > 0 || warn.length > 0) && <ul className="space-y-1.5">{[...stop, ...warn].map(row)}</ul>}
+      {rest.length > 0 && (
+        <details className={stop.length || warn.length ? "mt-1.5" : ""}>
+          <summary className="cursor-pointer rounded-md bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+            ✓ {rest.length} check{rest.length === 1 ? "" : "s"} passed{stop.length ? "" : warn.length ? "" : " - nothing to fix"} <span className="font-normal opacity-70">(show)</span>
+          </summary>
+          <ul className="mt-1.5 space-y-1.5">{rest.map(row)}</ul>
+        </details>
+      )}
+    </div>
+  );
+}
 
 function save(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -184,6 +209,7 @@ export default function StaffDielineClient() {
   // what is drawn and printed: curved items bent onto the cup
   const artOut = useMemo(() => (cupG ? art.map((it) => { if (!it.curve || it.kind !== "svg") return it; try { return curveItem(it, cupG, parseSvgDom); } catch { return it; } }) : art), [art, cupG]);
   const artBlocked = artChecks.some((c) => !c.ok && c.severity === "block");
+  const spotN = useMemo(() => new Set(art.flatMap(itemColours).filter((c) => !c.process).map((c) => c.hex.toLowerCase())).size, [art]); // colours the artwork really prints
   useEffect(() => { // artwork on the 3D model
     let live = true;
     if (!art.length || !blankMm || !artCtx) { setTex(null); return; }
@@ -489,7 +515,7 @@ export default function StaffDielineClient() {
                   <li key={p.ref}>
                     <button
                       className="text-left underline decoration-dotted hover:text-gray-900 dark:hover:text-gray-100"
-                      onClick={() => setValues((v) => { const n = { ...v }; for (const i of t.inputs) if (i.type !== "bool" && p[i.key] != null) n[i.key] = +(+p[i.key]).toFixed(1); return n; })}
+                      onClick={() => setValues((v) => { const n = { ...v }; for (const i of t.inputs) { if (i.type === "bool") { if (p[i.key] != null) n[i.key] = !!p[i.key]; } else if (p[i.key] != null) n[i.key] = +(+p[i.key]).toFixed(1); } return n; })}
                     >
                       {p.ref}: {t.inputs.filter((i) => i.type !== "bool" && p[i.key] != null).map((i) => show(p[i.key])).join(" × ")} {unit}
                     </button>
@@ -554,6 +580,10 @@ export default function StaffDielineClient() {
               <label className="block">
                 <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Number of Pantone colours</span>
                 <input type="number" min={1} max={8} value={colours} onChange={(e) => setColours(e.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" />
+                {spotN > 0 && spotN !== +colours && (
+                  <span className="mt-1 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">The artwork prints {spotN} colour{spotN === 1 ? "" : "s"}.
+                    <button type="button" onClick={() => setColours(spotN)} className="rounded border border-amber-600 px-1.5 py-0.5 font-semibold">Set to {spotN}</button></span>
+                )}
               </label>
             )}
             <label className="mt-3 block">
@@ -639,17 +669,10 @@ export default function StaffDielineClient() {
           {res && res.doc && artCtx && (
             <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <h2 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Artwork</h2>
-              <ArtworkDesigner doc={res.doc} geom={panelsAny} family={t.family} areas={artCtx.areas} noInk={artCtx.noInk} items={art} setItems={setArt} boardColour={mat.colour3d.top} cup={cupG} clipPoly={artCtx.clipPoly || null} house={houseInfo} snap={snapArt} undo={undoArt} redo={redoArt} canUndo={histN >= 0 && hist.current.past.length > 0} canRedo={hist.current.future.length > 0} />
+              <ArtworkDesigner doc={res.doc} geom={panelsAny} family={t.family} areas={artCtx.areas} noInk={artCtx.noInk} items={art} setItems={setArt} boardColour={mat.colour3d.top} cup={cupG} clipPoly={artCtx.clipPoly || null} house={houseInfo} pantone={process === "pantone"} snap={snapArt} undo={undoArt} redo={redoArt} canUndo={histN >= 0 && hist.current.past.length > 0} canRedo={hist.current.future.length > 0} />
               {art.length > 0 && (
                 <>
-                  <ul className="mt-3 space-y-1.5">
-                    {artChecks.map((c, k) => (
-                      <li key={c.id + k} className={`rounded-md px-3 py-2 text-xs ${SEV[c.severity][c.ok ? "pass" : "fail"]}`}>
-                        <span className="font-semibold">{c.ok ? (c.severity === "info" ? "ℹ" : "✓") : c.severity === "block" ? "✕" : "!"} {c.title}</span> <span className="opacity-60">[{c.id}]</span>
-                        <div className="mt-0.5">{c.detail}</div>
-                      </li>
-                    ))}
-                  </ul>
+                  <CheckList checks={artChecks} className="mt-3" />
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     {(petG ? [["petart", "ART: the print rectangle, exact size (PDF)"], ["vendor", "ART-DIM: sizes + colours for the printer (PDF)"], ["layout", "Artwork + outline, for checking (PDF)"]]
                       : [["layout", "Artwork + outlines (PDF)"], ["artpunch", "Artwork, no outlines (PDF)"], ...(cupG ? [] : [["vendor", "Vendor sheet: sizes + colours (PDF)"]])]).map(([k, label]) => (
@@ -664,7 +687,7 @@ export default function StaffDielineClient() {
                       {making === "digital" ? "Making…" : `Digital sample, 13 × 19 in (${digPlan.split ? `${digPlan.pieces.length} pieces` : `${digPlan.ups}-up`})`}
                     </button>}
                     {digPlan?.error && <span className="text-[11px] text-amber-700 dark:text-amber-300">Digital sample: {digPlan.error}</span>}
-                    {(!ok || artBlocked) && <span className="text-[11px] text-red-700 dark:text-red-300">Print files are locked until every check passes.</span>}
+                    {(!ok || artBlocked) && <span className="text-[11px] text-red-700 dark:text-red-300">Locked - to fix: {[...fails, ...artChecks.filter((c) => !c.ok && c.severity === "block")].map((c) => c.title).join("; ") || "see the checks"}.</span>}
                     {cupG && <p className="w-full text-[11px] text-gray-600 dark:text-gray-400">{cupNest ? "These are one-cup files for checking and approval. The printer's set is below." : "These are one-cup files for checking and approval. No offset nest is on file for this cup, so the printer's set is not made here."}</p>}
                   </div>
                 </>
@@ -817,14 +840,7 @@ export default function StaffDielineClient() {
                   </div>
                 )}
                 <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} background={bg3d} cone={cupG} coneInner={innerG && cupView === "full" ? innerG : null} caliper={board.mm} colours={mat.colour3d} texture={tex} blank={blankMm} />
-                <ul className="mt-3 space-y-1.5">
-                  {[...cupFormedChecks(cupG), ...(innerG && cupView === "full" ? cupFitChecks(cupG, innerG, board.mm) : [])].map((c, k) => (
-                    <li key={k} className={`rounded-md px-3 py-2 text-xs ${SEV[c.severity][c.ok ? "pass" : "fail"]}`}>
-                      <span className="font-semibold">{c.ok ? (c.severity === "info" ? "ℹ" : "✓") : "!"} {c.title}</span> <span className="opacity-60">[{c.id}]</span>
-                      <div className="mt-0.5">{c.detail}</div>
-                    </li>
-                  ))}
-                </ul>
+                <CheckList checks={[...cupFormedChecks(cupG), ...(innerG && cupView === "full" ? cupFitChecks(cupG, innerG, board.mm) : [])]} className="mt-3" />
               </>
             ) : solid ? (
               <>
@@ -847,16 +863,7 @@ export default function StaffDielineClient() {
                     </tbody>
                   </table>
                 )}
-                {solidFinal && (
-                  <ul className="mt-3 space-y-1.5">
-                    {solidFinal.checks.map((c, k) => (
-                      <li key={k} className={`rounded-md px-3 py-2 text-xs ${SEV[c.severity][c.ok ? "pass" : "fail"]}`}>
-                        <span className="font-semibold">{c.ok ? "✓" : "!"} {c.title}</span> <span className="opacity-60">[{c.id}]</span>
-                        <div className="mt-0.5">{c.detail}</div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {solidFinal && <CheckList checks={solidFinal.checks} className="mt-3" />}
               </>
             ) : (
               <p className="text-xs text-gray-500">The fold program for this template is being built (bags first; boxes next).</p>
@@ -873,15 +880,7 @@ export default function StaffDielineClient() {
           {res && res.checks && (
             <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Checks</h2>
-              <ul className="space-y-1.5">
-                {res.checks.map((c, k) => (
-                  <li key={c.id + k} className={`rounded-md px-3 py-2 text-xs ${SEV[c.severity][c.ok ? "pass" : "fail"]}`}>
-                    <span className="font-semibold">{c.ok ? (c.severity === "info" ? "ℹ" : "✓") : c.severity === "block" ? "✕" : "!"} {c.title}</span>
-                    <span className="ml-1 opacity-60">[{c.id}]</span>
-                    <div className="mt-0.5">{c.detail}</div>
-                  </li>
-                ))}
-              </ul>
+              <CheckList checks={res.checks} />
             </section>
           )}
 

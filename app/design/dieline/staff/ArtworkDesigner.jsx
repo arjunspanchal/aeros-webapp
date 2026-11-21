@@ -15,7 +15,7 @@ const inputCls = "w-full rounded-md border border-gray-300 px-2 py-1.5 text-base
 const btnCls = "rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-900 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200";
 const r1 = (v) => Math.round(v * 10) / 10;
 
-export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items, setItems, boardColour, snap, undo, redo, canUndo, canRedo, cup = null, clipPoly = null, house = null }) {
+export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items, setItems, boardColour, snap, undo, redo, canUndo, canRedo, cup = null, clipPoly = null, house = null, pantone = false }) {
   const svgRef = useRef(null), drag = useRef(null);
   const [sel, setSel] = useState(null), [busy, setBusy] = useState(""), [err, setErr] = useState(""), [guides, setGuides] = useState([]);
   const [pen, setPen] = useState(null); // null = off; { pts: [[x, y]], at: [x, y] } while drawing with the pen
@@ -318,14 +318,14 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
     const ink = darkest();
     setItems((l) => l.map((i) => (stale.some((q) => q.id === i.id) ? refreshSvg({ ...i, colours: (i.colours || []).map((c2) => (has.has(String(c2.to).toLowerCase()) ? { ...c2, name: has.get(String(c2.to).toLowerCase()) } : { ...c2, to: ink.to, name: ink.name || "" })) }) : i)));
   }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
-  async function addMark() {
+  async function addMark(quiet = false) {
     setErr("");
     try {
       if (cup) { // one line on a true arc in the hem's white strip (double wall) or upside down in the fold-in lip (single wall)
         const sp = cupMarkSpot(cup), t0 = await textItem({ content: house.cupText, fontId: "inter" });
         const hgt = MARK_CAP_MM / 0.6, k = hgt / t0.h, [x, y] = fromPolar(cup, sp.r, sp.a); // cap height = 0.6 of the line box of this font
         const it = inked({ ...t0, name: "Aeros mark", w: Math.round(t0.w * k * 100) / 100, h: Math.round(hgt * 100) / 100, x: r2(x), y: r2(y), rot: 0, curve: true, flip: sp.flip, house: "mark", noClip: true });
-        snap(); setItems((l) => [...l, it]); setSel(it.id);
+        snap(); setItems((l) => [...l, it]); if (!quiet) setSel(it.id);
       } else if (house?.bag) { // the locked footer block of this SKU, on the front's bottom flap
         const f = footerSvg(hs0, footSku || feet[0]?.sku);
         if (!f) throw new Error("No Aeros footer is on file for this bag size.");
@@ -333,10 +333,26 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
         // files (58 mm on a 254 bag, 53 on a 230, 27 on the small one) - never under 27 mm (its small type) or over its drawn 60 mm
         const front = areas.find((a) => /^Front/.test(a.name)) || areas[0], fw = front.box[2] - front.box[0], w = Math.round(Math.max(27, Math.min(f.w, fw * 0.23, fw - 16)) * 10) / 10;
         const it = inked({ ...vectorItem(f.svg, `Aeros footer ${footSku || feet[0].sku}`, w), h: Math.round(((w * f.h) / f.w) * 100) / 100, x: r1((front.box[0] + front.box[2]) / 2), y: r1(front.box[3] + house.bag.flapMid), house: "mark", source: "house" });
-        snap(); setItems((l) => [...l, it]); setSel(it.id);
+        snap(); setItems((l) => [...l, it]); if (!quiet) setSel(it.id);
       }
     } catch (ex) { setErr(ex.message || "Could not add the Aeros mark."); }
   }
+  // THE MARK FOLLOWS "SOLD TO" BY ITSELF: direct = it goes on as soon as there is artwork (it is locked in its place and
+  // takes the artwork's ink, so there is nothing for the user to decide); dealer = it comes off. A bag whose size matches
+  // more than one footer still asks which SKU. One try per state, so a footer that fails to load cannot loop.
+  const autoMark = useRef("");
+  useEffect(() => {
+    if (!house?.kind) return;
+    if (house.channel === "dealer") { if (hasMark) setItems((l) => l.filter((i) => i.house !== "mark")); return; }
+    if (house.channel !== "direct" || hasMark || !items.some((i) => !i.house)) return;
+    if (!(cup || feet.length === 1)) return;
+    const key = `${cup ? cup.id : feet[0].sku}-${items.length}`;
+    if (autoMark.current === key) return;
+    autoMark.current = key;
+    addMark(true);
+  }, [house?.kind, house?.channel, hasMark, items.length, feet.length, cup?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // JOB COLOURS, named in one place: a name typed here goes on every object that prints in that colour
+  const nameInk = (hex, name) => { setItems((l) => l.map((i) => (i.kind === "flood" ? (String(i.colour).toLowerCase() === hex ? { ...i, pantone: name } : i) : i.kind === "svg" && (i.colours || []).some((c2) => String(c2.to).toLowerCase() === hex) ? { ...i, colours: i.colours.map((c2) => (String(c2.to).toLowerCase() === hex ? { ...c2, name } : c2)) } : i))); };
   function addSymbol(key) {
     const y = hs0 && symbolSvg(hs0, key); if (!y) return;
     snap(); const it = { ...vectorItem(y.svg, y.label, y.w), h: y.h, ...landing(), source: "house" }; setItems((l) => [...l, it]); setSel(it.id);
@@ -401,12 +417,24 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
           <span className="text-gray-500">The point's own path always snaps. Shift = 45° steps from the last point. Alt = no snapping. {!pen && "Drag the blue points of a drawn shape to move them."}</span>
         </div>
       )}
+      {jobInks.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:text-gray-300">
+          <span className="font-semibold">Job colours ({jobInks.length}):</span>
+          {jobInks.map((q) => (
+            <label key={q.to} className="flex items-center gap-1.5">
+              <span className="inline-block h-4 w-4 rounded-sm border border-gray-400" style={{ background: q.to }} />
+              {pantone ? <input value={q.name} onChange={(e) => nameInk(q.to, e.target.value)} placeholder="PANTONE … U" onFocus={snap} className="w-36 rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950" /> : <span className="font-mono text-[11px]">{q.to}</span>}
+            </label>
+          ))}
+          {pantone && <span className="text-gray-500">one plate per colour; a name typed here goes on every object in that colour.</span>}
+        </div>
+      )}
       {house && house.kind && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:text-gray-300">
           <span className="font-semibold">Aeros mark:</span>
           {!house.channel && <span className="text-amber-700 dark:text-amber-300">choose who the job is sold to in step 4 (Print) first. Direct = the mark goes on; dealer = no Aeros mark at all.</span>}
           {house.channel === "dealer" && <span>{hasMark ? "Dealer sale: delete the Aeros mark." : "Dealer sale: no Aeros mark on this pack."}</span>}
-          {house.channel === "direct" && (hasMark ? <span>on the pack ({cup ? (cup.wall === "double" ? "in the hem's white strip" : "upside down in the fold-in lip") : "front bottom flap"}), in the artwork's darkest ink. Add the artwork first: the mark takes its ink when it is added.</span> : <>
+          {house.channel === "direct" && (hasMark ? <span>on the pack ({cup ? (cup.wall === "double" ? "in the hem's white strip" : "upside down in the fold-in lip") : "front bottom flap"}), in the artwork's darkest ink. It is added by itself for a direct sale and cannot be moved.</span> : <>
             {house.bag && feet.length > 0 && <select value={footSku || feet[0].sku} onChange={(e) => setFootSku(e.target.value)} className="rounded-md border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950">{feet.map((f2) => <option key={f2.sku} value={f2.sku}>{f2.sku}</option>)}</select>}
             {(cup || feet.length > 0) ? <button className={`${btnCls} border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900`} onClick={addMark}>Add Aeros mark</button>
               : <span>{hs0 ? "no Aeros footer is on file for this bag size (the house footers are made per SKU by the footer tool)." : "loading…"}</span>}
