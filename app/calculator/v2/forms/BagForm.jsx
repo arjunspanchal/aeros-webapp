@@ -13,20 +13,22 @@ export default function BagForm({ s, set, papers }) {
     { value: "", label: "Type the rate by hand" },
     ...Object.entries(bySupplier(papers)).map(([group, list]) => ({
       group,
-      options: list.map((p) => ({ value: p.id, label: `${p.type} ${p.gsm} GSM${p.bf ? ` ${p.bf} BF` : ""} · ₹${p.landed} landed` })),
+      options: list.map((p) => ({ value: p.id, label: `${p.type} ${p.gsm ? `${p.gsm} GSM` : "any GSM"}${p.bf ? ` ${p.bf} BF` : ""} · ₹${p.landed} landed` })),
     })),
   ];
   const pickPaper = (id) => {
     const p = papers.find((x) => x.id === id);
-    if (!p) return set({ paperId: "" });
-    set({ paperId: id, gsm: String(p.gsm), paperRate: String(p.landed), colour: p.colour, supplier: p.supplier, paperLabel: p.label });
+    if (!p) return set({ paperId: "", supplier: "", paperLabel: "" });
+    // A row with no GSM is one rate for the whole grade: keep the GSM already typed.
+    set({ paperId: id, ...(p.gsm ? { gsm: String(p.gsm) } : {}), paperRate: String(p.landed), colour: p.colour, supplier: p.supplier, paperLabel: p.label });
   };
   const setExtra = (i, patch) => set({ extras: s.extras.map((e, j) => (j === i ? { ...e, ...patch } : e)) });
 
   return (
     <>
       <Section title="Bag" aside="Width × gusset × height, exactly as the customer gave it">
-        <Segmented className={full} value={s.type} onChange={(type) => set({ type })} options={opts(BAG_TYPES)} />
+        {/* A handle picked for one bag type must not follow the bag to another. */}
+        <Segmented className={full} value={s.type} onChange={(type) => set({ type, handleKind: "" })} options={opts(BAG_TYPES)} />
         <Num label="Width" value={s.W} onChange={(W) => set({ W })} suffix={s.unit} />
         <Num label="Gusset" value={s.G} onChange={(G) => set({ G })} suffix={s.unit} hint={s.type === "vbottom" ? "0 for a flat pouch" : undefined} />
         <Num label="Height" value={s.H} onChange={(H) => set({ H })} suffix={s.unit} />
@@ -36,7 +38,8 @@ export default function BagForm({ s, set, papers }) {
       <Section title="Paper" aside="Landed rate = ex-mill + lane">
         <Select className={full} label="Paper" value={s.paperId} onChange={pickPaper} options={paperOptions} />
         <Num label="GSM" value={s.gsm} onChange={(gsm) => set({ gsm })} />
-        <Num label="Landed rate" value={s.paperRate} onChange={(paperRate) => set({ paperRate, paperId: "" })} suffix="₹/kg" />
+        {/* A hand-typed rate is no longer the mill's rate, so the mill is dropped with it. */}
+        <Num label="Landed rate" value={s.paperRate} onChange={(paperRate) => set({ paperRate, paperId: "", supplier: "", paperLabel: "" })} suffix="₹/kg" />
         <Segmented label="Colour" value={s.colour} onChange={(colour) => set({ colour })} options={[{ value: "brown", label: "Brown" }, { value: "white", label: "White" }]} />
       </Section>
 
@@ -48,7 +51,9 @@ export default function BagForm({ s, set, papers }) {
       {handleBag ? (
         <Section title="Handle">
           <Select className="col-span-2" label="Handle" value={s.handleKind} onChange={(handleKind) => set({ handleKind })}
-            options={[{ value: "", label: s.type === "flat" ? "Flat paper handle" : "Match the paper colour" }, ...opts(HANDLE_KINDS)]} />
+            options={s.type === "flat"
+              ? [{ value: "", label: "Flat paper handle" }]
+              : [{ value: "", label: "Twisted rope, matching the paper colour" }, ...opts(HANDLE_KINDS).filter((o) => o.value !== "flat")]} />
           <Num label="Handle size" value={s.handleSize} onChange={(handleSize) => set({ handleSize })} suffix="mm" hint="Sets the carton length" />
         </Section>
       ) : null}
@@ -84,6 +89,8 @@ export default function BagForm({ s, set, papers }) {
         <div className={full}><Toggle label="Cost the carton at its real weight" hint="Carton model weight × the corrugated rate, instead of the flat figure" checked={s.cartonReal} onChange={(cartonReal) => set({ cartonReal })} /></div>
         <Num label="Deckle from print file" value={s.deckle} onChange={(deckle) => set({ deckle })} suffix="mm" hint="Repeat jobs only" />
         <Num label="Cut-off from print file" value={s.cutoff} onChange={(cutoff) => set({ cutoff })} suffix="mm" />
+        <Select label="Packed in" value={s.packing} onChange={(packing) => set({ packing })}
+          options={[{ value: "auto", label: "Standard (small SOS in bales)" }, { value: "carton", label: "Cartons" }, { value: "bale", label: "Bales" }]} />
         <Select label="Route" value={s.route} onChange={(route) => set({ route })}
           options={[{ value: "auto", label: "Decide from the gusset" }, { value: "inhouse", label: "In-house" }, { value: "vendor", label: "Vendor" }]} />
         <div className={full}>

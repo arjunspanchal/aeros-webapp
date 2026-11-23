@@ -6,6 +6,10 @@ import { num } from "./specs";
 
 export const inr = (n, dp = 2) => (n === null || n === undefined || Number.isNaN(n) ? "–" : `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: dp, maximumFractionDigits: dp })}`);
 const int = (n) => (n === null || n === undefined ? "–" : Number(n).toLocaleString("en-IN"));
+// Every number on this panel goes through a formatter that survives a missing value.
+const fix = (n, dp = 4) => (typeof n === "number" && Number.isFinite(n) ? n.toFixed(dp) : "–");
+const FCL_NOTE = "Rates are for full container loads; part loads cost more.";
+const BASIS = { EXW_BHIWANDI: "ex-factory", FOB: "FOB" };
 const UNIT = { bag: "bag", cup: "pc", box: "pc" };
 
 const STATUS = {
@@ -42,16 +46,17 @@ function facts(r) {
   const g = r.geometry ?? {};
   const out = [];
   if (r.family === "bag") {
-    out.push(["Deckle", `${g.deckle} mm`], ["Cut-off", `${g.cutoff} mm`], ["Paper per bag", `${g.paperG.toFixed(2)} g`], ["Bag weight", `${g.bagG.toFixed(1)} g`], ["Reel to order", `${g.reel.min}–${g.reel.max} mm`]);
+    out.push(["Deckle", `${g.deckle} mm`], ["Cut-off", `${g.cutoff} mm`], ["Paper per bag", `${fix(g.paperG, 2)} g`], ["Bag weight", `${fix(g.bagG, 1)} g`], ["Reel to order", `${g.reel?.min}–${g.reel?.max} mm`]);
     if (g.envelope) out.push(["Machine tube", `${Math.round(g.envelope.tube)} mm (min ${Math.round(g.envelope.minTube)})`], ["Forming plate", g.envelope.plate.stocked ? "In stock" : `Not held; nearest ${g.envelope.plate.nearest} mm`]);
   } else if (r.family === "cup" && g.paperG) {
-    out.push(["Paper bought", `${g.paperG.toFixed(2)} g`], ["Basis", g.dieNote], ["Cost per kg of paper", inr(g.perKgOfPaper)]);
+    out.push(["Paper bought", `${fix(g.paperG, 2)} g`], ["Basis", g.dieNote], ["Cost per kg of paper", inr(g.perKgOfPaper)]);
   } else if (r.family === "box") {
-    out.push(["Board per piece", `${g.boardG?.toFixed(2)} g`], ["Pieces per sheet", g.ups ?? "–"], ["Sheet used", g.utilisation ? `${Math.round(g.utilisation * 100)}%` : "–"], ["Sheets to print", int(g.sheets)], ["Sheets to buy", int(g.sheetsToBuy)], ["Board to buy", g.boardKg ? `${int(Math.round(g.boardKg))} kg` : "–"]);
+    out.push(["Board per piece", `${fix(g.boardG, 2)} g`], ["Pieces per sheet", g.ups ?? "–"], ["Sheet used", g.utilisation ? `${Math.round(g.utilisation * 100)}%` : "–"], ["Sheets to print", int(g.sheets)], ["Sheets to buy", int(g.sheetsToBuy)], ["Board to buy", g.boardKg ? `${int(Math.round(g.boardKg))} kg` : "–"]);
   }
   const p = r.packing;
   if (p?.casePack) out.push(["Case pack", int(p.casePack)]);
-  if (p?.carton) out.push(["Carton (inside)", `${p.carton.w} × ${p.carton.l} × ${p.carton.h} mm`], ["Case weight", `${p.grossKg.toFixed(1)} kg gross`]);
+  if (p?.carton) out.push(["Carton (inside)", `${p.carton.w} × ${p.carton.l} × ${p.carton.h} mm`], ["Case weight", `${fix(p.grossKg, 1)} kg gross`]);
+  if (p?.baled) out.push(["Packed in", "Bales, no carton"]);
   return out;
 }
 
@@ -59,9 +64,11 @@ function facts(r) {
 function toMarkdown(r) {
   const unit = UNIT[r.family];
   const rows = [`**${r.title}**`, "", `| Line | Basis | ₹/${unit} |`, "|---|---|--:|"];
-  for (const l of r.lines) rows.push(`| ${l.label} | ${l.basis ?? ""} | ${l.value.toFixed(4)} |`);
-  rows.push(`| **Cost** | | **${r.cost.toFixed(2)}** |`, `| **Sell** (${r.marginPct}% ${MARGIN_MODES[r.marginMode].label}) | | **${r.sellRounded.toFixed(2)}** |`);
+  for (const l of r.lines) rows.push(`| ${l.label} | ${l.basis ?? ""} | ${fix(l.value)} |`);
+  rows.push(`| **Cost** | | **${fix(r.cost, 2)}** |`, `| **Sell** (${r.marginPct}% ${MARGIN_MODES[r.marginMode].label}) | | **${fix(r.sellRounded, 2)}** |`);
+  if (r.family === "bag" && r.export) rows.push(`| **FOB** | port charges ÷ ${int(r.export.unitsPerContainer)} bags | **${fix(r.export.fob, 2)}** |`);
   if (r.oneTime?.length) rows.push("", "One-time, outside the rate: " + r.oneTime.map((o) => `${o.label} ${o.value === null ? "at actuals" : inr(o.value, 0)}`).join(" · "));
+  rows.push("", `${r.export ? "FOB" : "Ex-factory"}, GST extra. ${FCL_NOTE}`);
   return rows.join("\n");
 }
 
@@ -72,7 +79,10 @@ export default function ResultPanel({ result, loading, onSave, saving, saved, fa
   const [notes, setNotes] = useState("");
   const [copied, setCopied] = useState(false);
 
-  if (!result) return <div className="px-5 py-10 text-sm text-ink-400">{loading ? "Working it out…" : "Fill in the spec to see the cost."}</div>;
+  // A result for another product (mid tab-switch) is not this tab's result.
+  if (!result || (result.family && result.family !== family)) {
+    return <div className="px-5 py-10 text-sm text-ink-400">{loading ? "Working it out…" : "Fill in the spec to see the cost."}</div>;
+  }
 
   if (!result.lines) {
     return (
@@ -115,16 +125,17 @@ export default function ResultPanel({ result, loading, onSave, saving, saved, fa
           <div>
             <dt className="text-xs text-ink-400">{result.qty ? `Order of ${int(result.qty)}` : "Per case"}</dt>
             <dd className="font-mono text-2xl text-ink-800">{result.qty ? inr(result.sellRounded * result.qty, 0) : inr(result.packing?.perCase, 0)}</dd>
-            <dd className="mt-0.5 text-xs text-ink-400">Ex-factory, GST extra</dd>
+            <dd className="mt-0.5 text-xs text-ink-400">{family === "cup" && exp ? "FOB" : "Ex-factory"}, GST extra</dd>
           </div>
         </dl>
         {exp ? (
           <p className="mt-3 rounded bg-ink-50 px-3 py-2 font-mono text-sm text-ink-800">
             {family === "bag"
-              ? <>FOB {inr(exp.fob)} per bag · ${exp.fobUsdPerCase.toFixed(2)} per case FOB · ${exp.exwUsdPerCase.toFixed(2)} ex-factory · {int(Math.floor(exp.casesPerContainer))} cases per 40HC at ₹{exp.fx}</>
-              : <>FOB is inside the price · ${exp.usdPer1000.toFixed(2)} per 1,000 · ${exp.usdPerCase.toFixed(2)} per case at ₹{exp.fx}</>}
+              ? <>FOB {inr(exp.fob)} per bag · ${fix(exp.fobUsdPerCase, 2)} per case FOB · ${fix(exp.exwUsdPerCase, 2)} ex-factory · {int(Math.floor(exp.casesPerContainer))} cases per 40HC at ₹{exp.fx}</>
+              : <>The price above is FOB: port charges are inside it · ${fix(exp.usdPer1000, 2)} per 1,000 · ${fix(exp.usdPerCase, 2)} per case at ₹{exp.fx}</>}
           </p>
         ) : null}
+        <p className="mt-2 text-xs text-ink-400">{FCL_NOTE}</p>
         {result.warnings.length ? (
           <ul className="mt-4 space-y-2">
             {result.warnings.map((w) => <li key={w.code} className={`rounded border-l-2 px-3 py-2 text-sm ${LEVEL[w.level]}`}>{w.message}</li>)}
@@ -138,11 +149,11 @@ export default function ResultPanel({ result, loading, onSave, saving, saved, fa
             {result.lines.map((l) => (
               <TR key={l.key}>
                 <TD className="py-2">{l.label}<span className="block text-xs text-ink-400">{l.basis}</span></TD>
-                <TD className="w-16 py-2 text-right font-mono text-xs text-ink-400">{Math.round((l.value / result.cost) * 100)}%</TD>
-                <TD className="w-24 py-2 text-right font-mono">{l.value.toFixed(4)}</TD>
+                <TD className="w-16 py-2 text-right font-mono text-xs text-ink-400">{result.cost ? `${Math.round((l.value / result.cost) * 100)}%` : ""}</TD>
+                <TD className="w-24 py-2 text-right font-mono">{fix(l.value)}</TD>
               </TR>
             ))}
-            <TR><TD className="py-2 font-semibold" colSpan={2}>Cost</TD><TD className="py-2 text-right font-mono font-semibold">{result.cost.toFixed(4)}</TD></TR>
+            <TR><TD className="py-2 font-semibold" colSpan={2}>Cost</TD><TD className="py-2 text-right font-mono font-semibold">{fix(result.cost)}</TD></TR>
           </TBody>
         </Table>
         <div className="mt-3 flex items-end gap-3">
@@ -153,7 +164,7 @@ export default function ResultPanel({ result, loading, onSave, saving, saved, fa
           </label>
           {targetMargin !== null ? (
             <p className={`pb-2 text-sm ${targetMargin < 0 ? "text-red-700" : "text-ink-800"}`}>
-              {targetMargin < 0 ? `Below cost by ${inr(result.cost - t)}` : `${targetMargin.toFixed(1)}% ${mode.label}, ${inr(t - result.cost)} per ${unit}`}
+              {targetMargin < 0 ? `Below cost by ${inr(result.cost - t)}` : `${fix(targetMargin, 1)}% ${mode.label}, ${inr(t - result.cost)} per ${unit}`}
             </p>
           ) : null}
         </div>
@@ -222,11 +233,12 @@ export default function ResultPanel({ result, loading, onSave, saving, saved, fa
             <input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-10 w-full rounded border border-ink-200 px-3 text-sm focus:border-royal-600 focus:outline-none focus:ring-1 focus:ring-royal-600" /></label>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <Button onClick={() => onSave({ customer, brand, notes })} loading={saving} disabled={!result.ok}>Save quote</Button>
+          {/* Held while a re-price is in flight, so what is saved is what is on screen. */}
+          <Button onClick={() => onSave({ customer, brand, notes })} loading={saving} disabled={!result.ok || loading}>Save quote</Button>
           <Button variant="secondary" onClick={async () => { await navigator.clipboard.writeText(toMarkdown(result)); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
             {copied ? "Copied" : "Copy working"}
           </Button>
-          {saved?.quoteRef ? <span className="font-mono text-sm text-green-800">Saved as {saved.quoteRef}</span> : null}
+          {saved?.quoteRef ? <span className="font-mono text-sm text-green-800">Saved as {saved.quoteRef}{saved.rate !== undefined ? ` at ${inr(saved.rate)} ${BASIS[saved.basis] ?? ""}` : ""}</span> : null}
           {saved?.error ? <span className="text-sm text-red-700">{saved.error}</span> : null}
         </div>
         {saved?.lineWarning ? <p className="mt-2 text-xs text-amber-800">{saved.lineWarning}</p> : null}

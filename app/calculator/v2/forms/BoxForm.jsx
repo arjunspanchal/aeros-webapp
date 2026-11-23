@@ -9,6 +9,7 @@ export default function BoxForm({ s, set, rateOf }) {
   const board = BOARDS[s.boardKey];
   const bookRate = board.rateKey ? rateOf(board.rateKey) : undefined;
   const allIn = s.conversionAllIn !== "";
+  const printerHint = s.printMode === "none" ? "Also punches plain boxes" : undefined;
 
   return (
     <>
@@ -47,7 +48,7 @@ export default function BoxForm({ s, set, rateOf }) {
             <Select label="Sides printed" value={s.sides} onChange={(sides) => set({ sides })} options={[{ value: "1", label: "One side" }, { value: "2", label: "Both sides" }]} />
           </>
         ) : null}
-        <Select className={s.printMode === "card" ? "" : "col-span-2"} label="Printer" value={s.printer} onChange={(printer) => set({ printer })} options={opts(PRINTERS)} />
+        <Select className={s.printMode === "card" ? "" : "col-span-2"} label="Printer" hint={printerHint} value={s.printer} onChange={(printer) => set({ printer })} options={opts(PRINTERS)} />
         <Select label="Finish outside" value={s.finishOutside} onChange={(finishOutside) => set({ finishOutside })} options={opts(FINISHES)} />
         <Select label="Finish inside" value={s.finishInside} onChange={(finishInside) => set({ finishInside })} options={opts(FINISHES)} />
       </Section>

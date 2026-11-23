@@ -7,6 +7,8 @@ import { DEFAULT_RATES } from "@/lib/quote-engine/rates/defaults.js";
 export const runtime = "nodejs";
 
 const STATUSES = new Set(["confirmed", "assumed", "disputed"]);
+// Rates the engine divides by, or uses as a limit: zero would break every quote.
+const MUST_BE_POSITIVE = /^(cup\.fleet\.|cup\.cpm\.|cup\.overhead\.|export\.fx\.|export\.container\.40hc|box\.min_sheets|box\.locked_min_sheets|bag\.moq|bag\.gusset\.|bag\.case\.|bag\.bale\.pack|bag\.wastage\.long_run_qty|cup\.print\.offset_max_qty)/;
 
 export async function GET() {
   const session = getSession();
@@ -32,8 +34,11 @@ export async function PUT(req) {
     if (body.reset) {
       await dbDelete("calc_rates", "key", key);
     } else {
+      // Number("") is 0, so a blank box must be refused before the conversion.
+      if (body.value === "" || body.value === null || body.value === undefined) return Response.json({ error: "Enter a value" }, { status: 400 });
       const value = Number(body.value);
       if (!Number.isFinite(value) || value < 0) return Response.json({ error: "Value must be a number, zero or more" }, { status: 400 });
+      if (value === 0 && MUST_BE_POSITIVE.test(key)) return Response.json({ error: "This rate is divided into every quote, so it cannot be zero" }, { status: 400 });
       const status = STATUSES.has(body.status) ? body.status : "confirmed";
       await dbInsert("calc_rates", {
         key, value, status,

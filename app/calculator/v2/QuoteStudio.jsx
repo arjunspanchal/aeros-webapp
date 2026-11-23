@@ -45,31 +45,36 @@ export default function QuoteStudio() {
   }, [meta.rates]);
 
   const spec = useMemo(
-    () => (family === "bag" ? bagSpec(bag) : family === "cup" ? cupSpec(cup) : boxSpec(box, rateOf)),
-    [family, bag, cup, box, rateOf],
+    () => (family === "bag" ? bagSpec(bag) : family === "cup" ? cupSpec(cup) : boxSpec(box)),
+    [family, bag, cup, box],
   );
   const specJson = JSON.stringify(spec);
 
-  // Price on the server, a beat after the last keystroke. A newer request
-  // cancels the one in flight so an old answer can never land on top.
+  // Price on the server, a beat after the last keystroke. The moment the spec
+  // changes, the price on screen is stale: it is marked so (Save is held) and
+  // any request in flight is cancelled, so an old answer can never land on top
+  // of a newer spec or on another product's tab.
   const inFlight = useRef(null);
   useEffect(() => {
     setSaved(null);
+    setLoading(true);
+    const ctrl = new AbortController();
+    inFlight.current = ctrl;
     const timer = setTimeout(async () => {
-      inFlight.current?.abort();
-      const ctrl = new AbortController();
-      inFlight.current = ctrl;
-      setLoading(true);
       try {
         const res = await fetch("/api/calc/v2/price", { method: "POST", headers: { "Content-Type": "application/json" }, body: `{"spec":${specJson}}`, signal: ctrl.signal });
-        setResult(await res.json());
+        const out = await res.json();
+        if (!ctrl.signal.aborted) setResult(out);
       } catch (e) {
         if (e.name !== "AbortError") setResult({ errors: ["Could not reach the pricing service. Check your connection and try again."] });
       } finally {
         if (inFlight.current === ctrl) setLoading(false);
       }
     }, 250);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
   }, [specJson]);
 
   async function save(who) {
@@ -78,7 +83,7 @@ export default function QuoteStudio() {
     try {
       const res = await fetch("/api/calc/v2/quotes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spec, ...who }) });
       const out = await res.json();
-      setSaved(out.ok ? { quoteRef: out.quoteRef, lineWarning: out.lineWarning } : { error: out.errors?.[0] ?? out.error ?? "Save failed" });
+      setSaved(out.ok ? { quoteRef: out.quoteRef, lineWarning: out.lineWarning, ...out.saved } : { error: out.errors?.[0] ?? out.error ?? "Save failed" });
     } catch {
       setSaved({ error: "Save failed. The quote was not stored." });
     } finally {
@@ -117,7 +122,7 @@ export default function QuoteStudio() {
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <Card padded={false} className="min-w-0">
           {family === "bag" ? <BagForm s={bag} set={(p) => setBag((s) => ({ ...s, ...p }))} papers={meta.papers} /> : null}
-          {family === "cup" ? <CupForm s={cup} set={(p) => setCup((s) => ({ ...s, ...p }))} /> : null}
+          {family === "cup" ? <CupForm s={cup} set={(p) => setCup((s) => ({ ...s, ...p }))} rateOf={rateOf} /> : null}
           {family === "box" ? <BoxForm s={box} set={(p) => setBox((s) => ({ ...s, ...p }))} rateOf={rateOf} /> : null}
         </Card>
         <Card padded={false} className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" aria-live="polite">

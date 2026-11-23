@@ -23,7 +23,7 @@ export const BAG_INITIAL = {
   handleKind: "", handleMaterial: "", handlePasting: "", handleSize: "150",
   qty: "15000", casePack: "", marginPct: "", destination: "domestic", fob: false, fx: "", unitsPerContainer: "",
   conversion: "", wastagePct: "", wastageBase: "paper_print_conv", cartonPerCase: "", cartonReal: false,
-  gluePerBag: "", deckle: "", cutoff: "", route: "auto", extras: [],
+  gluePerBag: "", deckle: "", cutoff: "", route: "auto", packing: "auto", extras: [],
 };
 
 export function bagSpec(s) {
@@ -42,9 +42,11 @@ export function bagSpec(s) {
     gluePerBag: num(s.gluePerBag),
     casePack: num(s.casePack),
     carton: s.cartonReal ? { real: true } : num(s.cartonPerCase) !== undefined ? { perCase: num(s.cartonPerCase) } : undefined,
+    packing: s.packing,
     extras: s.extras.filter((e) => e.label && num(e.perBag) !== undefined).map((e) => ({ label: e.label, perBag: num(e.perBag) })),
     qty: num(s.qty), marginPct: num(s.marginPct), route: s.route, destination: s.destination,
-    export: s.fob ? { fx: num(s.fx), unitsPerContainer: num(s.unitsPerContainer) } : undefined,
+    // FOB only exists on an export quote: a leftover tick must not turn an India quote into FOB.
+    export: s.fob && s.destination !== "domestic" ? { fx: num(s.fx), unitsPerContainer: num(s.unitsPerContainer) } : undefined,
   };
 }
 
@@ -57,11 +59,11 @@ export const CUP_SIZES = {
 
 export const CUP_INITIAL = {
   wall: "SW", size: "8oz", gsm: "260", outerGsm: "", cupWeight: "",
-  boardBasis: "poly", polyRate: "105", paper: "APP", paperRate: "", outerRate: "76", outerCoated: false,
-  printMode: "none", colours: "1", printRate: "5", offsetSheetRate: "", punch: "5", viana: false, genericDesign: false,
-  sheetW: "", sheetH: "", sheetUps: "", glueG: "",
+  boardBasis: "poly", polyRate: "", paper: "APP", paperRate: "", outerPaper: "TNPL", outerRate: "", outerCoated: false,
+  printMode: "none", colours: "1", printRate: "", offsetSheetRate: "", varnish: true, punch: "5", viana: false, genericDesign: false,
+  sheetW: "", sheetH: "", sheetUps: "", outerSheetW: "", outerSheetH: "", outerSheetUps: "", glueG: "",
   vendorRate: "", qty: "25000", casePack: "", carton: "", marginPct: "",
-  fob: false, chargesPerContainer: "78805", unitsPerContainer: "", fx: "",
+  fob: false, us: true, chargesPerContainer: "", unitsPerContainer: "", fx: "",
 };
 
 export function cupSpec(s) {
@@ -69,21 +71,30 @@ export function cupSpec(s) {
   const tub = s.wall === "TUB";
   const poly = s.boardBasis === "poly" && !tub;
   const printed = s.printMode !== "none";
-  const sheet = num(s.sheetW) && num(s.sheetH) && num(s.sheetUps) ? { w: num(s.sheetW), h: num(s.sheetH), ups: num(s.sheetUps) } : undefined;
+  // A sheet is only sent once all three of its fields are filled.
+  const sheetOf = (w, h, ups) => (num(w) !== undefined && num(h) !== undefined && num(ups) !== undefined ? { w: num(w), h: num(h), ups: num(ups) } : undefined);
+  const sheet = sheetOf(s.sheetW, s.sheetH, s.sheetUps);
+  const outerSame = s.outerPaper === "same";
   return {
     family: "cup",
     wall: s.wall, size: s.size,
     gsm: num(s.gsm), outerGsm: dw ? num(s.outerGsm) : undefined, cupWeight: tub ? undefined : num(s.cupWeight),
-    polyRate: poly ? num(s.polyRate) : undefined,
+    polyBoard: poly, polyRate: poly ? num(s.polyRate) : undefined,
     paper: s.paper, paperRate: num(s.paperRate),
-    outerRate: dw ? num(s.outerRate) : undefined, outerCoated: dw && s.outerCoated,
-    print: printed ? { mode: s.printMode, colours: num(s.colours) ?? 1, ratePerKg: num(s.printRate), offsetSheetRate: num(s.offsetSheetRate) } : { mode: "none" },
+    outerPaper: dw && !outerSame ? s.outerPaper : undefined,
+    outerRate: dw && !outerSame ? num(s.outerRate) : undefined,
+    outerCoated: dw && outerSame && s.outerCoated,
+    outerSheet: dw ? sheetOf(s.outerSheetW, s.outerSheetH, s.outerSheetUps) : undefined,
+    print: printed
+      ? { mode: s.printMode, colours: num(s.colours) ?? 1, ratePerKg: num(s.printRate), offsetSheetRate: num(s.offsetSheetRate), varnish: s.varnish }
+      : { mode: "none" },
     punchPerKg: printed ? num(s.punch) : undefined,
     viana: printed && s.viana, genericDesign: s.genericDesign,
     sheet, glueG: num(s.glueG),
     vendorRate: num(s.vendorRate),
     qty: num(s.qty), casePack: num(s.casePack), carton: num(s.carton), marginPct: num(s.marginPct),
-    export: s.fob && num(s.unitsPerContainer) ? { chargesPerContainer: num(s.chargesPerContainer), unitsPerContainer: num(s.unitsPerContainer), fx: num(s.fx) } : undefined,
+    // Sent whenever FOB is ticked, so the engine can say what is missing instead of dropping it.
+    export: s.fob ? { chargesPerContainer: num(s.chargesPerContainer), unitsPerContainer: num(s.unitsPerContainer), fx: num(s.fx), us: s.us } : undefined,
   };
 }
 
@@ -92,6 +103,7 @@ export const BOARDS = {
   fbb: { label: "FBB", rateKey: "box.board.fbb" },
   allyking: { label: "Allyking Hi-Bulk FBB", rateKey: "box.board.allyking_290" },
   kraft: { label: "Brown kraft", rateKey: "box.board.kraft" },
+  kraft_300_high: { label: "Kraft 300 sheets", rateKey: "box.board.kraft_300_high" },
   duplex: { label: "Duplex", rateKey: "box.board.duplex" },
   art_card: { label: "Art card", rateKey: "box.board.art_card" },
   custom: { label: "Other board", rateKey: null },
@@ -106,7 +118,7 @@ export const BOX_INITIAL = {
   qty: "5000", marginPct: "", dieCost: "",
 };
 
-export function boxSpec(s, rateOf) {
+export function boxSpec(s) {
   const sheet = s.sheetKey === "custom" ? (num(s.sheetW) && num(s.sheetH) ? { w: num(s.sheetW), h: num(s.sheetH) } : undefined) : s.sheetKey;
   const board = BOARDS[s.boardKey];
   const carton = num(s.cartonPerCase) !== undefined ? { perCase: num(s.cartonPerCase) }
@@ -117,13 +129,13 @@ export function boxSpec(s, rateOf) {
     sheet, ups: num(s.ups),
     blank: num(s.blankW) && num(s.blankH) ? { w: num(s.blankW), h: num(s.blankH) } : undefined,
     boardGPerPc: num(s.boardGPerPc),
-    board: {
-      label: board.label, gsm: num(s.gsm),
-      ratePerKg: num(s.boardRate) ?? (board.rateKey ? rateOf(board.rateKey) : undefined),
-      pePerKg: s.pe ? rateOf("box.board.pe_per_kg") : undefined,
-    },
+    // The engine reads the board and PE rates from the rate book, so the saved
+    // quote records them; a typed rate sets it for this quote only.
+    board: { label: board.label, gsm: num(s.gsm), rateKey: board.rateKey ?? undefined, ratePerKg: num(s.boardRate), pe: s.pe },
     construction: s.construction,
-    print: s.printMode === "none" ? { mode: "none" } : { mode: s.printMode, printer: s.printer, colours: num(s.colours) ?? 1, sides: num(s.sides) ?? 1 },
+    // The printer also punches plain boxes, so it is sent whatever the print mode.
+    printer: s.printer,
+    print: s.printMode === "card" ? { mode: "card", colours: num(s.colours) ?? 1, sides: num(s.sides) ?? 1 } : { mode: s.printMode },
     finish: { outside: s.finishOutside, inside: s.finishInside },
     conversionAllIn: num(s.conversionAllIn), pastingPerPc: num(s.pastingPerPc), wastagePct: num(s.wastagePct),
     packing: {

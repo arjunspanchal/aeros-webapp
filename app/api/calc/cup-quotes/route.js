@@ -22,6 +22,11 @@ export const runtime = "nodejs";
 
 const QUOTE_TYPE = "cup";
 
+// Calculator v2 saves into quotes_v2 with the same quote_type but its own
+// payload shape (payload.engine = "v2"). This screen only understands the
+// older shape, so v2 rows are kept out of its list, loader and edits.
+const LEGACY_ONLY = { "payload->>engine": "is.null" };
+
 // ---------- Serialisation ----------
 
 function rowToQuote(row) {
@@ -119,7 +124,7 @@ export async function GET(req) {
   if (idParam) {
     const rows = await dbSelect("quotes_v2", {
       select: "*",
-      filter: { [idFilterCol(idParam)]: `eq.${idParam}`, quote_type: `eq.${QUOTE_TYPE}` },
+      filter: { [idFilterCol(idParam)]: `eq.${idParam}`, quote_type: `eq.${QUOTE_TYPE}`, ...LEGACY_ONLY },
       limit: 1,
     });
     const row = rows[0];
@@ -136,7 +141,7 @@ export async function GET(req) {
   // List view — every cup quote, native or backfilled. Scope to the caller's
   // own email when client. Filter on quote_type, NOT legacy_source, so both
   // shapes show up.
-  const filter = { quote_type: `eq.${QUOTE_TYPE}` };
+  const filter = { quote_type: `eq.${QUOTE_TYPE}`, ...LEGACY_ONLY };
   if (requireRole(session, "calculator", "client")) {
     filter.client_email = `eq.${session.email.toLowerCase()}`;
   }
@@ -176,7 +181,7 @@ export async function PATCH(req) {
   const filterCol = idFilterCol(id);
   const existing = (await dbSelect("quotes_v2", {
     select: "id,client_email,quote_type",
-    filter: { [filterCol]: `eq.${id}`, quote_type: `eq.${QUOTE_TYPE}` },
+    filter: { [filterCol]: `eq.${id}`, quote_type: `eq.${QUOTE_TYPE}`, ...LEGACY_ONLY },
     limit: 1,
   }))[0];
   if (!existing) return Response.json({ error: "Not found" }, { status: 404 });
