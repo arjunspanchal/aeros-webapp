@@ -337,7 +337,7 @@ export default function StaffDielineClient() {
     setProofPick(""); setProdRows(null); setShots([]);
     if (!cupG) return;
     let live = true;
-    fetch(`/api/design/product-dims?prefix=${cupG.wall === "double" ? "PC-DW" : "PC-SW"}`).then((r) => r.json()).then((j) => { if (live) setProdRows((j.products || []).filter((r) => r.td && r.bd && r.h && Math.abs(r.td - cupG.spec.TD) <= 1 && Math.abs(r.bd - cupG.spec.BD) <= 1 && Math.abs(r.h - cupG.spec.H) <= 6)); }).catch(() => { if (live) setProdRows([]); });
+    fetch(`/api/design/product-dims?prefix=${cupG.item === "tub" ? "PT-" : cupG.wall === "double" ? "PC-DW" : "PC-SW"}`).then((r) => r.json()).then((j) => { if (live) setProdRows((j.products || []).filter((r) => r.td && r.bd && r.h && Math.abs(r.td - cupG.spec.TD) <= 1 && Math.abs(r.bd - cupG.spec.BD) <= 1 && Math.abs(r.h - cupG.spec.H) <= 6)); }).catch(() => { if (live) setProdRows([]); });
     return () => { live = false; };
   }, [tid]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadImage = (src) => new Promise((ok2, bad) => { const im = new Image(); im.onload = () => ok2(im); im.onerror = () => bad(new Error("Could not read a picture for the proof.")); im.src = src; });
@@ -487,15 +487,15 @@ export default function StaffDielineClient() {
         setMaking(""); return;
       }
       const gi = await loadImage("/house/proof-colour-page.jpg"), gc = document.createElement("canvas"); gc.width = gi.naturalWidth; gc.height = gi.naturalHeight; gc.getContext("2d").drawImage(gi, 0, 0);
-      const m = cupG.spec.label.match(/^(\d+) oz \((\d+ mL)\)/), sizeTxt = m ? `${m[2]} (${m[1]} oz)` : cupG.spec.label, dw = cupG.wall === "double";
+      const m = cupG.spec.label.match(/(\d+) oz \((\d+ mL)\)/), sizeTxt = m ? `${m[2]} (${m[1]} oz)` : cupG.spec.label, dw = cupG.wall === "double", tub = cupG.item === "tub";
       const named = (k) => !/^Spot \d/.test(k.label), n = vec.inks.length;
       const content = art.filter((i) => i.kind !== "flood" && !i.house && i.role === "content");
-      const pdf = cupProofPdf({ g: cupG, doc: res.doc, vector: vec, noun: "cup",
-        brand: saved.customer.trim().toUpperCase(), brandPlain: saved.customer.trim(), product: `${sizeTxt} ${dw ? "Double" : "Single"} Wall Paper Cup`, stage: `Proof ${proofNo}`,
+      const pdf = cupProofPdf({ g: cupG, doc: res.doc, vector: vec, noun: tub ? "tub" : "cup",
+        brand: saved.customer.trim().toUpperCase(), brandPlain: saved.customer.trim(), product: tub ? `${sizeTxt} Paper Tub` : `${sizeTxt} ${dw ? "Double" : "Single"} Wall Paper Cup`, stage: `Proof ${proofNo}`,
         date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
         dims: { td: proofRow.td, bd: proofRow.bd, h: proofRow.h },
-        facts: [["Product", `${sizeTxt} ${dw ? "double" : "single"} wall paper cup`], ["Size", `top ${proofRow.td} mm  ·  base ${proofRow.bd} mm  ·  height ${proofRow.h} mm`],
-          ...(dw ? [["Outer wrap", "printed as drawn below; it wraps round the cup"], ["Inner cup", "plain white (no print) - its foot shows below the wrap; the rim you drink from stays white"]] : [["Cup wall", "printed as drawn below; the rim you drink from stays white"]]),
+        facts: [["Product", tub ? `${sizeTxt} paper tub` : `${sizeTxt} ${dw ? "double" : "single"} wall paper cup`], ["Size", `top ${proofRow.td} mm  ·  base ${proofRow.bd} mm  ·  height ${proofRow.h} mm`],
+          ...(dw ? [["Outer wrap", "printed as drawn below; it wraps round the cup"], ["Inner cup", "plain white (no print) - its foot shows below the wrap; the rim you drink from stays white"]] : tub ? [["Tub wall", "printed as drawn below; the brim and the strip under the base stay white"]] : [["Cup wall", "printed as drawn below; the rim you drink from stays white"]]),
           ["Printing", process === "pantone" ? `${n} colour${n === 1 ? "" : "s"}${vec.inks.every(named) ? `: ${vec.inks.map((k) => k.label).join(", ")}` : ""}` : "four-colour process (CMYK)"]],
         colourNote: process === "pantone" ? `Printed in ${n} Pantone spot colour${n === 1 ? "" : "s"} on white board. Each colour is an ink mixed to its Pantone reference: please approve the references below, not the colour on your screen.` : "Printed in four-colour process (CMYK) on white board. The values below are the builds in the artwork; a screen or an office printer cannot show them truly.",
         colours: vec.inks.map((k, i) => ({ name: named(k) ? k.label : `Colour ${i + 1}`, code: process === "pantone" && named(k) ? k.label : "", cmyk: cmykOf(k.hex) })),
@@ -503,7 +503,7 @@ export default function StaffDielineClient() {
         meshFacts: content.map((i) => { const q = toPolar(cupG, [i.x, i.y]); return [i.name, `${i.w.toFixed(0)} mm wide x ${i.h.toFixed(0)} mm tall. Its top is ${(cupG.rTop - q.r - i.h / 2).toFixed(0)} mm below the top cut, its foot ${(q.r - i.h / 2 - cupG.rFold).toFixed(0)} mm above the bottom fold line; its centre is ${((q.a - cupG.aLeft) * q.r).toFixed(0)} mm in from the left edge.`]; }),
         shots: views, colourPage: { ...(await imageXObject(gc)), w: gc.width, h: gc.height } });
       const brand = saved.customer.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-      const nf = t.nestFile || { size: { sw8: "250ml-8oz", sw16: "450ml-16oz" }[t.cup] || "cup", item: "paper-cup-SW_cup" };
+      const nf = t.nestFile || (tub ? { size: `${cupG.spec.ml}ml`, item: "paper-tub_tub" } : { size: { sw8: "250ml-8oz", sw16: "450ml-16oz" }[t.cup] || "cup", item: "paper-cup-SW_cup" });
       save(`${brand}_${nf.size}_${nf.item}_CUSTOMER-PROOF-v${proofNo}.pdf`, pdf, "application/pdf");
     } catch (e) { alert(`Could not make the proof: ${e.message}`); }
     setMaking("");
@@ -879,7 +879,7 @@ export default function StaffDielineClient() {
                   <div className="flex flex-wrap items-end gap-3">
                     {cupG && <label className="min-w-[260px] flex-1">Product (from the product list)
                       <select value={proofPick} onChange={(e) => setProofPick(e.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100">
-                        <option value="">{prodRows == null ? "Loading…" : prodRows.length ? "Choose…" : "No cup of this size in the product list"}</option>
+                        <option value="">{prodRows == null ? "Loading…" : prodRows.length ? "Choose…" : "Nothing of this size in the product list"}</option>
                         {(prodRows || []).map((r) => <option key={r.sku} value={r.sku}>{r.sku} - {r.name} - {r.td} / {r.bd} / {r.h} mm</option>)}
                       </select>
                     </label>}
