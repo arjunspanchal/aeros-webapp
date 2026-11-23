@@ -1,0 +1,675 @@
+[
+ {
+  "name": "SW 8oz plain, APP, GSM build",
+  "flags": "--wall SW --size 8oz --gsm 260",
+  "spec": {
+   "wall": "SW",
+   "size": "8oz",
+   "gsm": 260
+  },
+  "expected": {
+   "rm": 0.9081071999999999,
+   "mfg": 1.1301825968253967,
+   "cost": 1.1301825968253967,
+   "paperG": 8.08164,
+   "casePack": 1000,
+   "lines": [
+    0.6413,
+    0.1425,
+    0.0861,
+    0.0383,
+    0.0671,
+    0.075,
+    0.08
+   ]
+  }
+ },
+ {
+  "name": "SW 12oz plain",
+  "flags": "--wall SW --size 12oz --gsm 280",
+  "spec": {
+   "wall": "SW",
+   "size": "12oz",
+   "gsm": 280
+  },
+  "expected": {
+   "rm": 1.3828000133333334,
+   "mfg": 1.6298754101587303,
+   "cost": 1.6298754101587303,
+   "paperG": 12.329534666666667,
+   "casePack": 1000,
+   "lines": [
+    0.9902,
+    0.22,
+    0.1195,
+    0.0531,
+    0.0671,
+    0.1,
+    0.08
+   ]
+  }
+ },
+ {
+  "name": "SW 16oz plain",
+  "flags": "--wall SW --size 16oz --gsm 280",
+  "spec": {
+   "wall": "SW",
+   "size": "16oz",
+   "gsm": 280
+  },
+  "expected": {
+   "rm": 1.5401028,
+   "mfg": 1.812178196825397,
+   "cost": 1.812178196825397,
+   "paperG": 13.75956,
+   "casePack": 1000,
+   "lines": [
+    1.1189,
+    0.2486,
+    0.1195,
+    0.0531,
+    0.0671,
+    0.125,
+    0.08
+   ]
+  }
+ },
+ {
+  "name": "SW 10oz (unverified die)",
+  "flags": "--wall SW --size 10oz --gsm 280",
+  "spec": {
+   "wall": "SW",
+   "size": "10oz",
+   "gsm": 280
+  },
+  "expected": {
+   "rm": 1.210885022222222,
+   "mfg": 1.4454604190476188,
+   "cost": 1.4454604190476188,
+   "paperG": 10.76667111111111,
+   "casePack": 1000,
+   "lines": [
+    0.8495,
+    0.1888,
+    0.1195,
+    0.0531,
+    0.0671,
+    0.0875,
+    0.08
+   ]
+  }
+ },
+ {
+  "name": "generic printed SW 8oz (Praful 19-Nov)",
+  "flags": "--wall SW --size 8oz --gsm 260 --print flexo5 --colours 1 --punch 5 --poly-rate 105",
+  "spec": {
+   "wall": "SW",
+   "size": "8oz",
+   "gsm": 260,
+   "print": {
+    "mode": "flexo",
+    "ratePerKg": 5,
+    "colours": 1
+   },
+   "punchPerKg": 5,
+   "polyRate": 105
+  },
+  "expected": {
+   "rm": 0.9242761499999999,
+   "mfg": 1.2176045468253966,
+   "cost": 1.2176045468253966,
+   "paperG": 8.08164,
+   "casePack": 1000,
+   "lines": [
+    0.8,
+    0.0861,
+    0.0383,
+    0.0356,
+    0.0356,
+    0.0671,
+    0.075,
+    0.08
+   ]
+  }
+ },
+ {
+  "name": "generic printed SW 16oz",
+  "flags": "--wall SW --size 16oz --gsm 280 --print flexo5 --colours 1 --punch 5 --poly-rate 105",
+  "spec": {
+   "wall": "SW",
+   "size": "16oz",
+   "gsm": 280,
+   "print": {
+    "mode": "flexo",
+    "ratePerKg": 5,
+    "colours": 1
+   },
+   "punchPerKg": 5,
+   "polyRate": 105
+  },
+  "expected": {
+   "rm": 1.5618588000000002,
+   "mfg": 1.958254196825397,
+   "cost": 1.958254196825397,
+   "paperG": 13.75956,
+   "casePack": 1000,
+   "lines": [
+    1.3893,
+    0.1195,
+    0.0531,
+    0.0622,
+    0.0622,
+    0.0671,
+    0.125,
+    0.08
+   ]
+  }
+ },
+ {
+  "name": "NOON SW 8oz from a measured cup",
+  "flags": "--wall SW --size 8oz --gsm 260 --cup-weight 6.54 --print flexo5 --colours 1 --punch 5 --poly-rate 105",
+  "spec": {
+   "wall": "SW",
+   "size": "8oz",
+   "gsm": 260,
+   "cupWeight": 6.54,
+   "print": {
+    "mode": "flexo",
+    "ratePerKg": 5,
+    "colours": 1
+   },
+   "punchPerKg": 5,
+   "polyRate": 105
+  },
+  "expected": {
+   "rm": 0.8570708761757975,
+   "mfg": 1.1444131917424438,
+   "cost": 1.1444131917424438,
+   "paperG": 7.4830318741249515,
+   "casePack": 1000,
+   "lines": [
+    0.7327,
+    0.0861,
+    0.0383,
+    0.0326,
+    0.0326,
+    0.0671,
+    0.075,
+    0.08
+   ]
+  }
+ },
+ {
+  "name": "AB Coffee DW 8oz (mfg 2.0405)",
+  "flags": "--wall DW --size 8oz --gsm 260 --cup-weight 12.5 --print flexo5 --colours 1 --punch 5 --viana --poly-rate 105 --outer-rate 76",
+  "spec": {
+   "wall": "DW",
+   "size": "8oz",
+   "gsm": 260,
+   "cupWeight": 12.5,
+   "print": {
+    "mode": "flexo",
+    "ratePerKg": 5,
+    "colours": 1
+   },
+   "punchPerKg": 5,
+   "viana": true,
+   "polyRate": 105,
+   "outerRate": 76
+  },
+  "expected": {
+   "rm": 1.5273537076857084,
+   "mfg": 2.040476530297607,
+   "cost": 2.040476530297607,
+   "paperG": 14.28486313638787,
+   "casePack": 500,
+   "lines": [
+    0.8522,
+    0.4361,
+    0.1148,
+    0.0861,
+    0.0383,
+    0.0235,
+    0.0546,
+    -0.0241,
+    0.2,
+    0.135,
+    0.1241
+   ]
+  }
+ },
+ {
+  "name": "AB Coffee DW 12oz (mfg 2.8138)",
+  "flags": "--wall DW --size 12oz --gsm 280 --cup-weight 17 --print flexo5 --colours 1 --punch 5 --viana --poly-rate 105 --outer-rate 76",
+  "spec": {
+   "wall": "DW",
+   "size": "12oz",
+   "gsm": 280,
+   "cupWeight": 17,
+   "print": {
+    "mode": "flexo",
+    "ratePerKg": 5,
+    "colours": 1
+   },
+   "punchPerKg": 5,
+   "viana": true,
+   "polyRate": 105,
+   "outerRate": 76
+  },
+  "expected": {
+   "rm": 2.2370379259587776,
+   "mfg": 2.8138047961258885,
+   "cost": 2.8138047961258885,
+   "paperG": 20.957235443263556,
+   "casePack": 500,
+   "lines": [
+    1.2772,
+    0.6233,
+    0.164,
+    0.1195,
+    0.0531,
+    0.0312,
+    0.0746,
+    -0.0471,
+    0.2,
+    0.18,
+    0.1381
+   ]
+  }
+ },
+ {
+  "name": "generic printed DW 16oz, GSM build",
+  "flags": "--wall DW --size 16oz --gsm 280 --print flexo5 --colours 1 --punch 5 --viana --poly-rate 105 --outer-rate 76",
+  "spec": {
+   "wall": "DW",
+   "size": "16oz",
+   "gsm": 280,
+   "print": {
+    "mode": "flexo",
+    "ratePerKg": 5,
+    "colours": 1
+   },
+   "punchPerKg": 5,
+   "viana": true,
+   "polyRate": 105,
+   "outerRate": 76
+  },
+  "expected": {
+   "rm": 2.479318,
+   "mfg": 3.1295537012888897,
+   "cost": 3.1295537012888897,
+   "paperG": 23.316426666666665,
+   "casePack": 500,
+   "lines": [
+    1.3893,
+    0.7263,
+    0.1911,
+    0.1195,
+    0.0531,
+    0.0371,
+    0.0853,
+    -0.0492,
+    0.2,
+    0.225,
+    0.1521
+   ]
+  }
+ },
+ {
+  "name": "Hercules DW 16oz 3 colours",
+  "flags": "--wall DW --size 16oz --gsm 280 --print flexo5 --colours 3 --punch 5 --viana --poly-rate 105 --outer-rate 76",
+  "spec": {
+   "wall": "DW",
+   "size": "16oz",
+   "gsm": 280,
+   "print": {
+    "mode": "flexo",
+    "ratePerKg": 5,
+    "colours": 3
+   },
+   "punchPerKg": 5,
+   "viana": true,
+   "polyRate": 105,
+   "outerRate": 76
+  },
+  "expected": {
+   "rm": 2.479318,
+   "mfg": 3.2037245434888897,
+   "cost": 3.2037245434888897,
+   "paperG": 23.316426666666665,
+   "casePack": 500,
+   "lines": [
+    1.3893,
+    0.7263,
+    0.1911,
+    0.1195,
+    0.0531,
+    0.1113,
+    0.0853,
+    -0.0492,
+    0.2,
+    0.225,
+    0.1521
+   ]
+  }
+ },
+ {
+  "name": "NOON DW 8oz, poly board both walls",
+  "flags": "--wall DW --size 8oz --print flexo5 --colours 1 --punch 5 --poly-rate 105",
+  "spec": {
+   "wall": "DW",
+   "size": "8oz",
+   "print": {
+    "mode": "flexo",
+    "ratePerKg": 5,
+    "colours": 1
+   },
+   "punchPerKg": 5,
+   "polyRate": 105
+  },
+  "expected": {
+   "rm": 1.623531853125,
+   "mfg": 2.1789616586805556,
+   "cost": 2.1789616586805556,
+   "paperG": 14.430465000000002,
+   "casePack": 500,
+   "lines": [
+    0.8575,
+    0.6417,
+    0.0861,
+    0.0383,
+    0.029,
+    0.0674,
+    0.2,
+    0.135,
+    0.1241
+   ]
+  }
+ },
+ {
+  "name": "DW 12oz plain APP, outer coated",
+  "flags": "--wall DW --size 12oz --gsm 280 --outer-coated",
+  "spec": {
+   "wall": "DW",
+   "size": "12oz",
+   "gsm": 280,
+   "outerCoated": true
+  },
+  "expected": {
+   "rm": 2.2511752133333336,
+   "mfg": 2.7692307688888893,
+   "cost": 2.7692307688888893,
+   "paperG": 20.223854666666668,
+   "casePack": 500,
+   "lines": [
+    0.9902,
+    0.22,
+    0.7105,
+    0.1579,
+    0.1195,
+    0.0531,
+    0.2,
+    0.18,
+    0.1381
+   ]
+  }
+ },
+ {
+  "name": "Jallo DW 12oz offset outer sheet from an 800 reel",
+  "flags": "--wall DW --size 12oz --gsm 280 --outer-gsm 290 --poly-rate 105 --outer-rate 73 --outer-sheet 750 381 9 --outer-reel 800",
+  "spec": {
+   "wall": "DW",
+   "size": "12oz",
+   "gsm": 280,
+   "outerGsm": 290,
+   "polyRate": 105,
+   "outerRate": 73,
+   "outerSheet": {
+    "w": 750,
+    "h": 381,
+    "ups": 9
+   },
+   "outerReel": 800
+  },
+  "expected": {
+   "rm": 2.315437469,
+   "mfg": 2.8334930245555556,
+   "cost": 2.8334930245555556,
+   "paperG": 22.150867999999996,
+   "casePack": 500,
+   "lines": [
+    1.2295,
+    0.717,
+    0.1964,
+    0.1195,
+    0.0531,
+    0.2,
+    0.18,
+    0.1381
+   ]
+  }
+ },
+ {
+  "name": "DW 16oz offset print 3 colours on its own sheet",
+  "flags": "--wall DW --size 16oz --gsm 280 --outer-gsm 290 --poly-rate 105 --outer-rate 73 --outer-sheet 750 440 9 --print offset --colours 3 --offset-sheet-rate 1.5",
+  "spec": {
+   "wall": "DW",
+   "size": "16oz",
+   "gsm": 280,
+   "outerGsm": 290,
+   "polyRate": 105,
+   "outerRate": 73,
+   "outerSheet": {
+    "w": 750,
+    "h": 440,
+    "ups": 9
+   },
+   "print": {
+    "mode": "offset",
+    "colours": 3,
+    "offsetSheetRate": 1.5
+   }
+  },
+  "expected": {
+   "rm": 2.5507588000000005,
+   "mfg": 3.6278143555555564,
+   "cost": 3.6278143555555564,
+   "paperG": 24.392893333333333,
+   "casePack": 500,
+   "lines": [
+    1.3893,
+    0.7762,
+    0.2127,
+    0.1195,
+    0.0531,
+    0.5,
+    0.2,
+    0.225,
+    0.1521
+   ]
+  }
+ },
+ {
+  "name": "Zepto tub 350 ml (cost 1.6922)",
+  "flags": "--wall TUB --size 350_ml --gsm 280 --paper TNPL --print flexo5 --punch 5",
+  "spec": {
+   "wall": "TUB",
+   "size": "350_ml",
+   "gsm": 280,
+   "paper": "TNPL",
+   "print": {
+    "mode": "flexo",
+    "ratePerKg": 5,
+    "colours": 1
+   },
+   "punchPerKg": 5
+  },
+  "expected": {
+   "rm": 1.28137552,
+   "mfg": 1.6922310755555554,
+   "cost": 1.6922310755555554,
+   "paperG": 12.582719999999998,
+   "casePack": 1000,
+   "lines": [
+    0.6772,
+    0.1782,
+    0.2791,
+    0.1469,
+    0.0446,
+    0.0446,
+    0.0939,
+    0.1375,
+    0.0904
+   ]
+  }
+ },
+ {
+  "name": "Zepto tub 400 ml (cost 1.7787)",
+  "flags": "--wall TUB --size 400_ml --gsm 280 --paper TNPL --print flexo5 --punch 5",
+  "spec": {
+   "wall": "TUB",
+   "size": "400_ml",
+   "gsm": 280,
+   "paper": "TNPL",
+   "print": {
+    "mode": "flexo",
+    "ratePerKg": 5,
+    "colours": 1
+   },
+   "punchPerKg": 5
+  },
+  "expected": {
+   "rm": 1.33765552,
+   "mfg": 1.7786935755555555,
+   "cost": 1.7786935755555555,
+   "paperG": 13.168969999999998,
+   "casePack": 1000,
+   "lines": [
+    0.7218,
+    0.1899,
+    0.2791,
+    0.1469,
+    0.0475,
+    0.0475,
+    0.0939,
+    0.1625,
+    0.0897
+   ]
+  }
+ },
+ {
+  "name": "tub 750 ml plain 300 GSM",
+  "flags": "--wall TUB --size 750_ml --gsm 300",
+  "spec": {
+   "wall": "TUB",
+   "size": "750_ml",
+   "gsm": 300
+  },
+  "expected": {
+   "rm": 2.1071111,
+   "mfg": 2.5103066555555555,
+   "cost": 2.5103066555555555,
+   "paperG": 18.48797,
+   "casePack": 1000,
+   "lines": [
+    1.3335,
+    0.2963,
+    0.3305,
+    0.1469,
+    0.0939,
+    0.2,
+    0.1093
+   ]
+  }
+ },
+ {
+  "name": "tub 500 ml on a supplied die",
+  "flags": "--wall TUB --size 500_ml --gsm 300 --sheet 670 420 8 --glue-g 0.7",
+  "spec": {
+   "wall": "TUB",
+   "size": "500_ml",
+   "gsm": 300,
+   "sheet": {
+    "w": 670,
+    "h": 420,
+    "ups": 8
+   },
+   "glueG": 0.7
+  },
+  "expected": {
+   "rm": 1.6380986000000002,
+   "mfg": 2.016504155555556,
+   "cost": 2.016504155555556,
+   "paperG": 14.224219999999999,
+   "casePack": 1000,
+   "lines": [
+    0.9497,
+    0.2111,
+    0.3305,
+    0.1469,
+    0.0939,
+    0.175,
+    0.1095
+   ]
+  }
+ },
+ {
+  "name": "SW 12oz customer case pack + carton",
+  "flags": "--wall SW --size 12oz --gsm 280 --case-pack 600 --carton 55",
+  "spec": {
+   "wall": "SW",
+   "size": "12oz",
+   "gsm": 280,
+   "casePack": 600,
+   "carton": 55
+  },
+  "expected": {
+   "rm": 1.3828000133333334,
+   "mfg": 1.6550420768253968,
+   "cost": 1.6550420768253968,
+   "paperG": 12.329534666666667,
+   "casePack": 600,
+   "lines": [
+    0.9902,
+    0.22,
+    0.1195,
+    0.0531,
+    0.0671,
+    0.1,
+    0.1052
+   ]
+  }
+ },
+ {
+  "name": "DW 8oz FOB per cup into the cost",
+  "flags": "--wall DW --size 8oz --cup-weight 12.5 --fob 78805 --cups-per-container 516000 --fx 98",
+  "spec": {
+   "wall": "DW",
+   "size": "8oz",
+   "cupWeight": 12.5,
+   "export": {
+    "chargesPerContainer": 78805,
+    "unitsPerContainer": 516000,
+    "fx": 98
+   }
+  },
+  "expected": {
+   "rm": 1.4819798848528947,
+   "mfg": 1.9410354404084502,
+   "cost": 2.0937583086255045,
+   "paperG": 14.346792257826944,
+   "casePack": 500,
+   "lines": [
+    0.6863,
+    0.1525,
+    0.5188,
+    0.0861,
+    0.0383,
+    0.2,
+    0.135,
+    0.1241,
+    0.1527
+   ]
+  }
+ }
+]

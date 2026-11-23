@@ -99,6 +99,19 @@ export default function CalculatorPickerPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-4 pt-6 pb-10">
         <h1 className="text-2xl font-bold text-gray-900 mb-1 dark:text-white">Aeros Rate Calculators</h1>
         <p className="text-sm text-gray-500 mb-8 dark:text-gray-400">Pick a product to start a quote.</p>
+        {/* Calculator v2: internal preview, runs beside the calculators below until it replaces them. */}
+        {session.modules?.calculator === "admin" ? (
+          <Link
+            href="/calculator/v2"
+            className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-ink-200 bg-white px-5 py-4 hover:bg-ink-50"
+          >
+            <span>
+              <span className="block text-base font-semibold text-ink-800">New quote calculator</span>
+              <span className="block text-sm text-ink-600">Bags, cups, tubs and boxes in one place, costed the way quotes are worked. Checked against past quotes.</span>
+            </span>
+            <span className="text-sm font-medium text-royal-600">Try it →</span>
+          </Link>
+        ) : null}
         {/* 1 / 2 / 3 / 4 cols across breakpoints. With 3 tiles (client) or 4
             tiles (admin), every row stays full — no orphan card. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
