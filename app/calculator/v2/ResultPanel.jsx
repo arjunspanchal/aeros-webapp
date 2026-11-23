@@ -45,7 +45,14 @@ const Fact = ({ label, value }) => (
 function facts(r) {
   const g = r.geometry ?? {};
   const out = [];
-  if (r.family === "bag") {
+  if (r.family === "bag" && g.handmade) {
+    out.push(
+      ["Blank", `${fix(g.blank.w, 1)} × ${fix(g.blank.h, 1)} mm${g.pieces === 2 ? ", two halves" : ""}`],
+      ["Sheet", g.sheet], ["Bags per sheet", g.bagsPerSheet], ["Sheet used", `${Math.round(g.utilisation * 100)}%`],
+      ["Paper bought per bag", `${fix(g.paperG, 2)} g`], ["Bag weight", `${fix(g.bagG, 1)} g`],
+      ["Sheets to print", int(g.sheets)], ["Sheets to buy", int(g.sheetsToBuy)],
+    );
+  } else if (r.family === "bag") {
     out.push(["Deckle", `${g.deckle} mm`], ["Cut-off", `${g.cutoff} mm`], ["Paper per bag", `${fix(g.paperG, 2)} g`], ["Bag weight", `${fix(g.bagG, 1)} g`], ["Reel to order", `${g.reel?.min}–${g.reel?.max} mm`]);
     if (g.envelope) out.push(["Machine tube", `${Math.round(g.envelope.tube)} mm (min ${Math.round(g.envelope.minTube)})`], ["Forming plate", g.envelope.plate.stocked ? "In stock" : `Not held; nearest ${g.envelope.plate.nearest} mm`]);
   } else if (r.family === "cup" && g.paperG) {
@@ -108,6 +115,7 @@ export default function ResultPanel({ result, loading, onSave, saving, saved, fa
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-base font-semibold text-ink-800">{result.title}</h2>
           {result.route === "vendor" ? <Badge variant="warning">Vendor-made</Badge> : null}
+          {result.route === "handmade" ? <Badge variant="info">Hand-made, offset printed</Badge> : null}
           {result.route === "bought_in" ? <Badge variant="info">Bought in{result.source ? `: ${result.source}` : ""}</Badge> : null}
           {result.route === "converter" ? <Badge variant="info">Outside converter</Badge> : null}
           {!result.ok ? <Badge variant="danger">Cannot be made as specified</Badge> : null}
@@ -133,6 +141,13 @@ export default function ResultPanel({ result, loading, onSave, saving, saved, fa
             {family === "bag"
               ? <>FOB {inr(exp.fob)} per bag · ${fix(exp.fobUsdPerCase, 2)} per case FOB · ${fix(exp.exwUsdPerCase, 2)} ex-factory · {int(Math.floor(exp.casesPerContainer))} cases per 40HC at ₹{exp.fx}</>
               : <>The price above is FOB: port charges are inside it · ${fix(exp.usdPer1000, 2)} per 1,000 · ${fix(exp.usdPerCase, 2)} per case at ₹{exp.fx}</>}
+          </p>
+        ) : null}
+        {result.machineAtMoq ? (
+          <p className="mt-3 rounded bg-ink-50 px-3 py-2 text-sm text-ink-800">
+            {result.machineAtMoq.possible
+              ? <>On the machine at {int(result.machineAtMoq.qty)} pcs this bag is <span className="font-mono font-semibold">{inr(result.machineAtMoq.sell)}</span>{result.machineAtMoq.route === "vendor" ? " (vendor-made)" : ""}, plus one-time plates and setup.</>
+              : <>This bag cannot be machine-made, whatever the quantity. {result.machineAtMoq.reason}</>}
           </p>
         ) : null}
         <p className="mt-2 text-xs text-ink-400">{FCL_NOTE}</p>

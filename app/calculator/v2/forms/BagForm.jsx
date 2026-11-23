@@ -59,7 +59,7 @@ export default function BagForm({ s, set, papers }) {
       ) : null}
 
       <Section title="Order">
-        <Num label="Quantity" value={s.qty} onChange={(qty) => set({ qty })} suffix="pcs" />
+        <Num label="Quantity" value={s.qty} onChange={(qty) => set({ qty })} suffix="pcs" hint="Under 15,000 is hand-made" />
         <Num label="Case pack" value={s.casePack} onChange={(casePack) => set({ casePack })} placeholder="standard" suffix="pcs" />
         <Num label="Margin" value={s.marginPct} onChange={(marginPct) => set({ marginPct })} placeholder="10" suffix="% on cost" />
         <Select label="Going to" value={s.destination} onChange={(destination) => set({ destination })}
@@ -92,7 +92,7 @@ export default function BagForm({ s, set, papers }) {
         <Select label="Packed in" value={s.packing} onChange={(packing) => set({ packing })}
           options={[{ value: "auto", label: "Standard (small SOS in bales)" }, { value: "carton", label: "Cartons" }, { value: "bale", label: "Bales" }]} />
         <Select label="Route" value={s.route} onChange={(route) => set({ route })}
-          options={[{ value: "auto", label: "Decide from the gusset" }, { value: "inhouse", label: "In-house" }, { value: "vendor", label: "Vendor" }]} />
+          options={[{ value: "auto", label: "Standard (hand-made under 15,000)" }, { value: "inhouse", label: "Machine, in-house" }, { value: "handmade", label: "Hand-made, offset printed" }, { value: "vendor", label: "Vendor" }]} />
         <div className={full}>
           <span className="mb-1 block text-xs font-medium text-ink-600">Extra cost lines (flap, base board, gumming, varnish)</span>
           {s.extras.map((e, i) => (
