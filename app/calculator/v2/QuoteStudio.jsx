@@ -6,7 +6,12 @@ import BagForm from "./forms/BagForm";
 import CupForm from "./forms/CupForm";
 import BoxForm from "./forms/BoxForm";
 import ResultPanel from "./ResultPanel";
-import { BAG_INITIAL, CUP_INITIAL, BOX_INITIAL, bagSpec, cupSpec, boxSpec } from "./specs";
+import QuoteList from "./QuoteList";
+import { parseSizes } from "./parseSizes";
+import { BAG_INITIAL, CUP_INITIAL, BOX_INITIAL, bagSpec, cupSpec, boxSpec, num } from "./specs";
+
+let nextLineId = 1;
+const newLine = (spec, ref = "", note = "") => ({ id: nextLineId++, spec, ref, note });
 
 const FAMILIES = [
   { key: "bag", label: "Paper bags", hint: "SOS, twisted and flat handle, V-bottom" },
@@ -23,8 +28,11 @@ export default function QuoteStudio() {
   const [metaError, setMetaError] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(null);
+  // The quote being built: lines added from the calculator or pasted in.
+  const [list, setList] = useState([]);
+  const [listResults, setListResults] = useState([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [added, setAdded] = useState(null);
 
   // Paper catalogue and rate book.
   useEffect(() => {
@@ -56,7 +64,7 @@ export default function QuoteStudio() {
   // of a newer spec or on another product's tab.
   const inFlight = useRef(null);
   useEffect(() => {
-    setSaved(null);
+    setAdded(null);
     setLoading(true);
     const ctrl = new AbortController();
     inFlight.current = ctrl;
@@ -77,19 +85,72 @@ export default function QuoteStudio() {
     };
   }, [specJson]);
 
-  async function save(who) {
-    setSaving(true);
-    setSaved(null);
-    try {
-      const res = await fetch("/api/calc/v2/quotes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spec, ...who }) });
-      const out = await res.json();
-      setSaved(out.ok ? { quoteRef: out.quoteRef, lineWarning: out.lineWarning, ...out.saved } : { error: out.errors?.[0] ?? out.error ?? "Save failed" });
-    } catch {
-      setSaved({ error: "Save failed. The quote was not stored." });
-    } finally {
-      setSaving(false);
+  // Re-price the whole quote on the server whenever a line changes.
+  const listJson = JSON.stringify(list.map((l) => l.spec));
+  useEffect(() => {
+    if (list.length === 0) {
+      setListResults([]);
+      setListLoading(false);
+      return undefined;
     }
+    setListLoading(true);
+    const ctrl = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/calc/v2/price", { method: "POST", headers: { "Content-Type": "application/json" }, body: `{"specs":${listJson}}`, signal: ctrl.signal });
+        const out = await res.json();
+        if (!ctrl.signal.aborted) {
+          setListResults(out.results ?? []);
+          setListLoading(false);
+        }
+      } catch (e) {
+        if (e.name !== "AbortError") setListLoading(false);
+      }
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listJson]);
+
+  function addCurrent() {
+    setList((l) => [...l, newLine(spec)]);
+    setAdded(list.length + 1);
   }
+
+  const editLine = (id, patch) =>
+    setList((l) => l.map((line) => (line.id !== id ? line
+      : "qty" in patch ? { ...line, spec: { ...line.spec, qty: num(patch.qty) } } : { ...line, ...patch })));
+
+  // Pasted bag sizes take everything but size, GSM, quantity and type from the
+  // bag form. Paper is priced per GSM, so a line at another GSM looks up the
+  // same mill and grade at that GSM; if the paper master has no such row, the
+  // form's rate is kept and the line says so.
+  function pasteSizes(text, opts) {
+    const { rows, skipped } = parseSizes(text, opts);
+    const chosen = meta.papers.find((p) => p.id === bag.paperId);
+    let fallback = 0;
+    const lines = rows.map((row) => {
+      const type = row.type ?? bag.type;
+      const state = { ...bag, unit: "mm", W: String(row.W), G: String(row.G), H: String(row.H), type, handleKind: type === bag.type ? bag.handleKind : "", qty: row.qty ? String(row.qty) : bag.qty };
+      let note = "";
+      if (row.gsm && String(row.gsm) !== String(bag.gsm)) {
+        state.gsm = String(row.gsm);
+        const match = chosen && meta.papers.find((p) => p.supplier === chosen.supplier && p.type === chosen.type && (p.bf ?? null) === (chosen.bf ?? null) && p.gsm === row.gsm);
+        if (match) Object.assign(state, { paperId: match.id, paperRate: String(match.landed), paperLabel: match.label });
+        else if (!(chosen && chosen.gsm === null)) {
+          fallback += 1;
+          note = `Paper rate ₹${bag.paperRate}/kg is the form's rate: check it for ${row.gsm} GSM.`;
+        }
+      }
+      return newLine(bagSpec(state), row.ref, note);
+    });
+    setList((l) => [...l, ...lines]);
+    return { added: lines.length, skipped, rateNotes: fallback ? [`${fallback} line${fallback === 1 ? " uses" : "s use"} the form's paper rate at a different GSM. Check those rates.`] : [] };
+  }
+
+  const bagSummary = `${bag.paperLabel || `${bag.colour} kraft`} at ₹${bag.paperRate || "?"}/kg, ${bag.gsm} GSM, ${bag.slab === "none" ? "plain" : "printed"}, ${Number(bag.qty || 15000).toLocaleString("en-IN")} pcs each`;
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-16 pt-6 text-ink-800">
@@ -126,9 +187,14 @@ export default function QuoteStudio() {
           {family === "box" ? <BoxForm s={box} set={(p) => setBox((s) => ({ ...s, ...p }))} rateOf={rateOf} /> : null}
         </Card>
         <Card padded={false} className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" aria-live="polite">
-          <ResultPanel result={result} loading={loading} onSave={save} saving={saving} saved={saved} family={family} />
+          <ResultPanel result={result} loading={loading} onAdd={addCurrent} added={added} family={family} />
         </Card>
       </div>
+
+      <QuoteList
+        list={list} results={listResults} loading={listLoading} bagSummary={bagSummary}
+        onRemove={(id) => setList((l) => l.filter((x) => x.id !== id))} onEdit={editLine} onClear={() => setList([])} onPaste={pasteSizes}
+      />
     </div>
   );
 }

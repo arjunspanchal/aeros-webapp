@@ -27,10 +27,12 @@ export async function POST(req) {
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
-  if (!body?.spec?.family) return Response.json({ error: "spec is required" }, { status: 400 });
+  // One item ({ spec }) or a whole quote list ({ lines: [{ spec, ref }] }).
+  const lines = Array.isArray(body?.lines) ? body.lines : body?.spec ? [{ spec: body.spec }] : [];
+  if (!lines.length || lines.some((l) => !l?.spec?.family)) return Response.json({ error: "Nothing to save" }, { status: 400 });
   try {
     const out = await saveQuote(
-      { spec: body.spec, customer: String(body.customer || "").trim(), brand: String(body.brand || "").trim(), notes: String(body.notes || "").trim() },
+      { lines, customer: String(body.customer || "").trim(), brand: String(body.brand || "").trim(), notes: String(body.notes || "").trim() },
       session,
     );
     return Response.json(out, { status: out.ok ? 200 : 422 });

@@ -9,7 +9,6 @@ const int = (n) => (n === null || n === undefined ? "–" : Number(n).toLocaleSt
 // Every number on this panel goes through a formatter that survives a missing value.
 const fix = (n, dp = 4) => (typeof n === "number" && Number.isFinite(n) ? n.toFixed(dp) : "–");
 const FCL_NOTE = "Rates are for full container loads; part loads cost more.";
-const BASIS = { EXW_BHIWANDI: "ex-factory", FOB: "FOB" };
 const UNIT = { bag: "bag", cup: "pc", box: "pc" };
 
 const STATUS = {
@@ -79,11 +78,8 @@ function toMarkdown(r) {
   return rows.join("\n");
 }
 
-export default function ResultPanel({ result, loading, onSave, saving, saved, family }) {
+export default function ResultPanel({ result, loading, onAdd, added, family }) {
   const [target, setTarget] = useState("");
-  const [customer, setCustomer] = useState("");
-  const [brand, setBrand] = useState("");
-  const [notes, setNotes] = useState("");
   const [copied, setCopied] = useState(false);
 
   // A result for another product (mid tab-switch) is not this tab's result.
@@ -238,26 +234,16 @@ export default function ResultPanel({ result, loading, onSave, saving, saved, fa
         </Block>
       ) : null}
 
-      <Block title="Save this quote" aside="Saved with the spec and every rate used">
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block"><span className="mb-1 block text-xs font-medium text-ink-600">Customer</span>
-            <input value={customer} onChange={(e) => setCustomer(e.target.value)} className="h-10 w-full rounded border border-ink-200 px-3 text-sm focus:border-royal-600 focus:outline-none focus:ring-1 focus:ring-royal-600" /></label>
-          <label className="block"><span className="mb-1 block text-xs font-medium text-ink-600">Brand, if different</span>
-            <input value={brand} onChange={(e) => setBrand(e.target.value)} className="h-10 w-full rounded border border-ink-200 px-3 text-sm focus:border-royal-600 focus:outline-none focus:ring-1 focus:ring-royal-600" /></label>
-          <label className="col-span-2 block"><span className="mb-1 block text-xs font-medium text-ink-600">Notes</span>
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} className="h-10 w-full rounded border border-ink-200 px-3 text-sm focus:border-royal-600 focus:outline-none focus:ring-1 focus:ring-royal-600" /></label>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          {/* Held while a re-price is in flight, so what is saved is what is on screen. */}
-          <Button onClick={() => onSave({ customer, brand, notes })} loading={saving} disabled={!result.ok || loading}>Save quote</Button>
+      <Block title="Add it to the quote" aside="Save and Excel are on the quote below">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Held while a re-price is in flight, so what is added is what is on screen. */}
+          <Button onClick={onAdd} disabled={loading}>Add to quote</Button>
           <Button variant="secondary" onClick={async () => { await navigator.clipboard.writeText(toMarkdown(result)); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
             {copied ? "Copied" : "Copy working"}
           </Button>
-          {saved?.quoteRef ? <span className="font-mono text-sm text-green-800">Saved as {saved.quoteRef}{saved.rate !== undefined ? ` at ${inr(saved.rate)} ${BASIS[saved.basis] ?? ""}` : ""}</span> : null}
-          {saved?.error ? <span className="text-sm text-red-700">{saved.error}</span> : null}
+          {added ? <span className="text-sm text-green-800">Added as line {added}</span> : null}
         </div>
-        {saved?.lineWarning ? <p className="mt-2 text-xs text-amber-800">{saved.lineWarning}</p> : null}
-        {!result.ok ? <p className="mt-2 text-xs text-ink-400">Fix the red item above before saving.</p> : null}
+        {!result.ok ? <p className="mt-2 text-xs text-ink-400">This item is blocked. It can sit on the quote, but the quote cannot be saved or sent until it is fixed or removed.</p> : null}
       </Block>
     </div>
   );

@@ -20,7 +20,7 @@ export default function BagForm({ s, set, papers }) {
     const p = papers.find((x) => x.id === id);
     if (!p) return set({ paperId: "", supplier: "", paperLabel: "" });
     // A row with no GSM is one rate for the whole grade: keep the GSM already typed.
-    set({ paperId: id, ...(p.gsm ? { gsm: String(p.gsm) } : {}), paperRate: String(p.landed), colour: p.colour, supplier: p.supplier, paperLabel: p.label });
+    set({ paperId: id, ...(p.gsm ? { gsm: String(p.gsm) } : {}), paperRate: String(p.landed), colour: p.colour, supplier: p.supplier, paperLabel: p.label, paperType: p.type });
   };
   const setExtra = (i, patch) => set({ extras: s.extras.map((e, j) => (j === i ? { ...e, ...patch } : e)) });
 
@@ -40,7 +40,7 @@ export default function BagForm({ s, set, papers }) {
         <Num label="GSM" value={s.gsm} onChange={(gsm) => set({ gsm })} />
         {/* A hand-typed rate is no longer the mill's rate, so the mill is dropped with it. */}
         <Num label="Landed rate" value={s.paperRate} onChange={(paperRate) => set({ paperRate, paperId: "", supplier: "", paperLabel: "" })} suffix="₹/kg" />
-        <Segmented label="Colour" value={s.colour} onChange={(colour) => set({ colour })} options={[{ value: "brown", label: "Brown" }, { value: "white", label: "White" }]} />
+        <Segmented label="Colour" value={s.colour} onChange={(colour) => set({ colour, ...(s.paperId ? {} : { paperType: colour === "white" ? "Bleach Kraft White" : "Brown Kraft" }) })} options={[{ value: "brown", label: "Brown" }, { value: "white", label: "White" }]} />
       </Section>
 
       <Section title="Printing" aside="Read the artwork: coverage sets the rate, not the colour count">

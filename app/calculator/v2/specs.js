@@ -18,7 +18,7 @@ export const toMm = (v, unit) => {
 // ── Bags ────────────────────────────────────────────────────────────────────
 export const BAG_INITIAL = {
   type: "twisted", unit: "mm", W: "280", G: "150", H: "280",
-  paperId: "", gsm: "90", paperRate: "", colour: "brown", supplier: "", paperLabel: "",
+  paperId: "", gsm: "90", paperRate: "", colour: "brown", supplier: "", paperLabel: "", paperType: "Brown Kraft",
   slab: "none", colours: "1", printRate: "", platePerColour: "",
   handleKind: "", handleMaterial: "", handlePasting: "", handleSize: "150",
   qty: "15000", casePack: "", marginPct: "", destination: "domestic", fob: false, fx: "", unitsPerContainer: "",
@@ -34,7 +34,8 @@ export function bagSpec(s) {
     type: s.type,
     W: toMm(s.W, s.unit), G: toMm(s.G, s.unit) ?? 0, H: toMm(s.H, s.unit),
     gsm: num(s.gsm), paperRate: num(s.paperRate),
-    paper: { label: s.paperLabel, colour: s.colour, supplier: s.supplier, id: s.paperId || undefined },
+    // grade (Brown Kraft / Bleach Kraft White / OGR / MG) is what the customer copy names; the mill never is
+    paper: { label: s.paperLabel, colour: s.colour, supplier: s.supplier, grade: s.paperType, id: s.paperId || undefined },
     blank,
     print: { slab: s.slab, colours: num(s.colours) ?? 1, ratePerKg: num(s.printRate), platePerColour: num(s.platePerColour) },
     handle: handleBag ? { kind: s.handleKind || undefined, material: num(s.handleMaterial), pasting: num(s.handlePasting), sizeMm: num(s.handleSize) } : undefined,

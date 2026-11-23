@@ -1,6 +1,6 @@
 // Price a spec. All pricing happens here, on the server, with the live rate book.
 import { getSession } from "@/lib/auth/session";
-import { canUseV2, priceSpec } from "@/lib/calc-v2/server";
+import { canUseV2, priceSpec, priceMany, MAX_LINES } from "@/lib/calc-v2/server";
 
 export const runtime = "nodejs";
 
@@ -15,6 +15,11 @@ export async function POST(req) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
   try {
+    // { specs: [...] } prices a whole quote list in one call.
+    if (Array.isArray(body?.specs)) {
+      if (body.specs.length > MAX_LINES) return Response.json({ error: `Up to ${MAX_LINES} lines at a time` }, { status: 400 });
+      return Response.json({ results: await priceMany(body.specs) });
+    }
     return Response.json(await priceSpec(body?.spec ?? {}));
   } catch (e) {
     console.error("/api/calc/v2/price failed:", e);
