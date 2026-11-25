@@ -78,7 +78,7 @@ function toMarkdown(r) {
   return rows.join("\n");
 }
 
-export default function ResultPanel({ result, loading, onAdd, added, family }) {
+export default function ResultPanel({ result, loading, onAdd, added, family, editingLine, onUpdate, onCancelEdit }) {
   const [target, setTarget] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -234,14 +234,16 @@ export default function ResultPanel({ result, loading, onAdd, added, family }) {
         </Block>
       ) : null}
 
-      <Block title="Add it to the quote" aside="Save and Excel are on the quote below">
+      <Block title={editingLine ? `Changing line ${editingLine} of the quote` : "Add it to the quote"} aside="Save and Excel are on the quote below">
         <div className="flex flex-wrap items-center gap-3">
           {/* Held while a re-price is in flight, so what is added is what is on screen. */}
-          <Button onClick={onAdd} disabled={loading}>Add to quote</Button>
+          {editingLine ? <Button onClick={onUpdate} disabled={loading}>Update line {editingLine}</Button> : null}
+          <Button variant={editingLine ? "secondary" : "primary"} onClick={onAdd} disabled={loading}>{editingLine ? "Add as a new line" : "Add to quote"}</Button>
+          {editingLine ? <Button variant="tertiary" onClick={onCancelEdit}>Stop changing it</Button> : null}
           <Button variant="secondary" onClick={async () => { await navigator.clipboard.writeText(toMarkdown(result)); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
             {copied ? "Copied" : "Copy working"}
           </Button>
-          {added ? <span className="text-sm text-green-800">Added as line {added}</span> : null}
+          {added ? <span className="text-sm text-green-800" role="status">{added.updated ? `Line ${added.line} updated` : `Added as line ${added.line}`}</span> : null}
         </div>
         {!result.ok ? <p className="mt-2 text-xs text-ink-400">This item is blocked. It can sit on the quote, but the quote cannot be saved or sent until it is fixed or removed.</p> : null}
       </Block>

@@ -146,3 +146,71 @@ export function boxSpec(s) {
     qty: num(s.qty), marginPct: num(s.marginPct), dieCost: num(s.dieCost),
   };
 }
+
+// ── Engine spec → form state ────────────────────────────────────────────────
+// The reverse of the three functions above, used to put a line of the quote
+// (or a line of a reopened saved quote) back into the form for editing.
+// Round trip: xSpec(xState(spec)) is the same spec.
+
+const str = (v) => (v === undefined || v === null ? "" : String(v));
+
+export function bagState(spec) {
+  return {
+    ...BAG_INITIAL,
+    type: spec.type, unit: "mm", W: str(spec.W), G: str(spec.G), H: str(spec.H),
+    paperId: spec.paper?.id ?? "", gsm: str(spec.gsm), paperRate: str(spec.paperRate),
+    colour: spec.paper?.colour ?? "brown", supplier: spec.paper?.supplier ?? "", paperLabel: spec.paper?.label ?? "", paperType: spec.paper?.grade ?? "Brown Kraft",
+    slab: spec.print?.slab ?? "none", colours: str(spec.print?.colours ?? 1), printRate: str(spec.print?.ratePerKg), platePerColour: str(spec.print?.platePerColour),
+    handleKind: spec.handle?.kind ?? "", handleMaterial: str(spec.handle?.material), handlePasting: str(spec.handle?.pasting), handleSize: str(spec.handle?.sizeMm ?? 150),
+    qty: str(spec.qty), casePack: str(spec.casePack), marginPct: str(spec.marginPct),
+    destination: spec.destination ?? "domestic", fob: Boolean(spec.export), fx: str(spec.export?.fx), unitsPerContainer: str(spec.export?.unitsPerContainer),
+    conversion: str(spec.conversionPerKg), wastagePct: str(spec.wastagePct), wastageBase: spec.wastageBase ?? "paper_print_conv",
+    cartonPerCase: str(spec.carton?.perCase), cartonReal: Boolean(spec.carton?.real),
+    gluePerBag: str(spec.gluePerBag), deckle: str(spec.blank?.deckle), cutoff: str(spec.blank?.cutoff),
+    route: spec.route ?? "auto", packing: spec.packing ?? "auto",
+    extras: (spec.extras ?? []).map((e) => ({ label: e.label, perBag: str(e.perBag) })),
+  };
+}
+
+export function cupState(spec) {
+  const wall = String(spec.wall).toUpperCase();
+  const printed = spec.print?.mode && spec.print.mode !== "none";
+  return {
+    ...CUP_INITIAL,
+    wall, size: spec.size, gsm: str(spec.gsm), outerGsm: str(spec.outerGsm), cupWeight: str(spec.cupWeight),
+    boardBasis: spec.polyBoard || wall === "TUB" ? "poly" : "paper", polyRate: str(spec.polyRate),
+    paper: spec.paper ?? "APP", paperRate: str(spec.paperRate),
+    outerPaper: wall === "DW" ? spec.outerPaper ?? "same" : CUP_INITIAL.outerPaper, outerRate: str(spec.outerRate), outerCoated: Boolean(spec.outerCoated),
+    printMode: spec.print?.mode ?? "none", colours: str(spec.print?.colours ?? 1), printRate: str(spec.print?.ratePerKg), offsetSheetRate: str(spec.print?.offsetSheetRate),
+    varnish: spec.print?.varnish ?? true, punch: printed ? str(spec.punchPerKg) : CUP_INITIAL.punch, viana: Boolean(spec.viana), genericDesign: Boolean(spec.genericDesign),
+    sheetW: str(spec.sheet?.w), sheetH: str(spec.sheet?.h), sheetUps: str(spec.sheet?.ups),
+    outerSheetW: str(spec.outerSheet?.w), outerSheetH: str(spec.outerSheet?.h), outerSheetUps: str(spec.outerSheet?.ups),
+    glueG: str(spec.glueG), vendorRate: str(spec.vendorRate),
+    qty: str(spec.qty), casePack: str(spec.casePack), carton: str(spec.carton), marginPct: str(spec.marginPct),
+    fob: Boolean(spec.export), us: spec.export?.us ?? true, chargesPerContainer: str(spec.export?.chargesPerContainer), unitsPerContainer: str(spec.export?.unitsPerContainer), fx: str(spec.export?.fx),
+  };
+}
+
+export function boxState(spec) {
+  const custom = typeof spec.sheet !== "string";
+  const boardKey = Object.keys(BOARDS).find((k) => BOARDS[k].label === spec.board?.label && (BOARDS[k].rateKey ?? undefined) === (spec.board?.rateKey ?? undefined)) ?? "custom";
+  const card = spec.print?.mode === "card";
+  return {
+    ...BOX_INITIAL,
+    name: spec.name === "Box" ? "" : spec.name ?? "",
+    sheetKey: custom ? "custom" : spec.sheet, sheetW: custom ? str(spec.sheet?.w) : "", sheetH: custom ? str(spec.sheet?.h) : "",
+    ups: str(spec.ups), blankW: str(spec.blank?.w), blankH: str(spec.blank?.h), boardGPerPc: str(spec.boardGPerPc),
+    boardKey, gsm: str(spec.board?.gsm), boardRate: str(spec.board?.ratePerKg), pe: Boolean(spec.board?.pe),
+    construction: spec.construction ?? "flat", printMode: spec.print?.mode ?? "none", printer: spec.printer ?? "blueline_walkin",
+    colours: card ? str(spec.print.colours ?? 1) : BOX_INITIAL.colours, sides: card ? str(spec.print.sides ?? 1) : BOX_INITIAL.sides,
+    finishOutside: spec.finish?.outside ?? "none", finishInside: spec.finish?.inside ?? "none",
+    conversionAllIn: str(spec.conversionAllIn), pastingPerPc: str(spec.pastingPerPc), wastagePct: str(spec.wastagePct),
+    casePack: str(spec.packing?.casePack), cartonPerCase: str(spec.packing?.carton?.perCase),
+    cartonL: str(spec.packing?.carton?.l), cartonB: str(spec.packing?.carton?.b), cartonH: str(spec.packing?.carton?.h),
+    polyCost: str(spec.packing?.poly?.cost), polyPer: str(spec.packing?.poly?.per),
+    qty: str(spec.qty), marginPct: str(spec.marginPct), dieCost: str(spec.dieCost),
+  };
+}
+
+export const SPEC_OF = { bag: bagSpec, cup: cupSpec, box: boxSpec };
+export const STATE_OF = { bag: bagState, cup: cupState, box: boxState };

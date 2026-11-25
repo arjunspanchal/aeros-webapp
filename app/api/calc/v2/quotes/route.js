@@ -1,15 +1,23 @@
 // Save and list calculator v2 quotes. A save re-prices the spec on the server;
 // cost and price in the request are ignored.
 import { getSession } from "@/lib/auth/session";
-import { canUseV2, saveQuote, listQuotes } from "@/lib/calc-v2/server";
+import { canUseV2, saveQuote, listQuotes, getQuote } from "@/lib/calc-v2/server";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+// GET lists saved quotes; GET ?ref=CALC-… returns one quote with its lines' specs.
+export async function GET(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!canUseV2(session)) return new Response("Forbidden", { status: 403 });
   try {
+    const ref = new URL(req.url).searchParams.get("ref");
+    if (ref) {
+      // a reference is letters, digits and dashes; anything else is not ours
+      if (!/^[A-Za-z0-9-]{6,120}$/.test(ref)) return Response.json({ error: "Not a quote reference" }, { status: 400 });
+      const quote = await getQuote(ref);
+      return quote ? Response.json({ quote }) : Response.json({ error: "No such quote" }, { status: 404 });
+    }
     return Response.json({ quotes: await listQuotes() });
   } catch (e) {
     console.error("/api/calc/v2/quotes GET failed:", e);

@@ -1,7 +1,7 @@
 "use client";
 // The quote: every item added from the calculator above, or pasted in as a list
 // of bag sizes. One customer, one reference, one Save, and the two Excel files.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge, Button, Card, Table, THead, TBody, TR, TH, TD } from "@/app/components/ui";
 import { SIZE_ORDERS } from "./parseSizes";
 import { inr } from "./ResultPanel";
@@ -59,11 +59,36 @@ function PasteSizes({ onAdd, bagSummary }) {
   );
 }
 
-export default function QuoteList({ list, results, loading, onRemove, onEdit, onClear, onPaste, bagSummary }) {
-  const [customer, setCustomer] = useState("");
-  const [brand, setBrand] = useState("");
-  const [notes, setNotes] = useState("");
+export default function QuoteList({ list, results, loading, onRemove, onEdit, onEditSpec, onClear, onPaste, bagSummary, meta, setMeta, opened, editingId, customers }) {
+  const { customer, brand, notes } = meta;
+  const setCustomer = (v) => setMeta((m) => ({ ...m, customer: v }));
+  const setBrand = (v) => setMeta((m) => ({ ...m, brand: v }));
+  const setNotes = (v) => setMeta((m) => ({ ...m, notes: v }));
   const [pasting, setPasting] = useState(false);
+  const [history, setHistory] = useState(null); // what this customer was quoted before, per line
+
+  // Look up the customer's earlier quotes once a name is typed and the list settles.
+  const specsJson = JSON.stringify(list.map((l) => l.spec));
+  useEffect(() => {
+    const name = customer.trim();
+    if (name.length < 2 || list.length === 0) {
+      setHistory(null);
+      return undefined;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      fetch("/api/calc/v2/history", { method: "POST", headers: { "Content-Type": "application/json" }, body: `{"customer":${JSON.stringify(name)},"specs":${specsJson}}`, signal: ctrl.signal })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (!ctrl.signal.aborted) setHistory(d); })
+        .catch(() => {});
+    }, 500);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer, specsJson]);
+  const day = (iso) => (iso ? String(iso).split("-").reverse().join("-") : "");
   const [busy, setBusy] = useState("");
   const [saved, setSaved] = useState(null); // { quoteRef, count, total, lineWarning } for the list as it stood
   const [error, setError] = useState(null); // { message, details }
@@ -130,6 +155,11 @@ export default function QuoteList({ list, results, loading, onRemove, onEdit, on
           <p className="mt-0.5 text-sm text-ink-600">
             {list.length === 0 ? "Add items from the calculator above, or paste a list of bag sizes." : `${list.length} item${list.length === 1 ? "" : "s"}${total ? `, ${inr(total, 0)} before GST and one-time charges` : ""}`}
           </p>
+          {opened && list.length ? (
+            <p className="mt-1 text-xs text-ink-600">
+              Reopened from <span className="font-mono">{opened.quoteRef}</span>, saved {opened.date}. Prices are worked out again at today's rates; saving makes a new quote and leaves the old one as it was.
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => setPasting((v) => !v)} aria-expanded={pasting}>{pasting ? "Close the list box" : "Paste bag sizes"}</Button>
@@ -143,7 +173,7 @@ export default function QuoteList({ list, results, loading, onRemove, onEdit, on
         <>
           <div className="overflow-x-auto border-t border-ink-200">
             <Table className="min-w-[760px]">
-              <THead><TR><TH className="w-10">#</TH><TH className="w-44">Customer's reference</TH><TH>Item</TH><TH className="w-32 text-right">Quantity</TH><TH className="w-24 text-right">Rate</TH><TH className="w-32 text-right">Amount</TH><TH className="w-20" /></TR></THead>
+              <THead><TR><TH className="w-10">#</TH><TH className="w-44">Customer's reference</TH><TH>Item</TH><TH className="w-32 text-right">Quantity</TH><TH className="w-24 text-right">Rate</TH><TH className="w-32 text-right">Amount</TH><TH className="w-32" /></TR></THead>
               <TBody>
                 {priced.map(({ line, r }, i) => {
                   const rate = quoted(line, r);
@@ -160,13 +190,35 @@ export default function QuoteList({ list, results, loading, onRemove, onEdit, on
                         {stop ? <span className="mt-1 block text-xs text-red-700">{stop}</span> : null}
                         {!stop && cautions.length ? <span className="mt-1 block text-xs text-amber-800">{cautions.map((w) => w.message).join(" ")}</span> : null}
                         {line.note ? <span className="mt-1 block text-xs text-ink-400">{line.note}</span> : null}
+                        {line.id === editingId ? <span className="mt-1 block text-xs font-medium text-royal-600">In the form above, being changed</span> : null}
+                        {(() => {
+                          const prev = history?.lines?.[i];
+                          if (!prev || !rate) return null;
+                          const now = Math.round(rate * 100) / 100;
+                          // Arjun's rule: never quote higher than an earlier rate for the same item at the same or a larger quantity without a reason.
+                          const higher = now > prev.rate + 0.004 && (qtyOf(line, r) ?? 0) >= (prev.qty ?? 0);
+                          return (
+                            <span className={`mt-1 block text-xs ${higher ? "font-medium text-amber-800" : "text-ink-600"}`}>
+                              Last quoted to them: {inr(prev.rate)}{prev.qty ? ` at ${int(prev.qty)} pcs` : ""}, {day(prev.date)} ({prev.basis === "FOB" ? "FOB" : prev.basis === "DELIVERED_FOR" ? "delivered" : "ex-factory"}, {prev.quoteRef}).
+                              {higher ? " Today's rate is higher: have a reason ready." : ""}
+                            </span>
+                          );
+                        })()}
                       </TD>
                       <TD className="py-2 text-right">
                         <input type="number" inputMode="numeric" aria-label={`Quantity for line ${i + 1}`} value={line.spec.qty ?? ""} placeholder={r?.qty ? String(r.qty) : ""} onChange={(e) => onEdit(line.id, { qty: e.target.value })} className={`${CONTROL} h-9 text-right font-mono`} />
                       </TD>
-                      <TD className="py-2 text-right font-mono">{rate ? inr(rate) : "–"}</TD>
+                      <TD className="py-2 text-right font-mono">
+                        {rate ? inr(rate) : "–"}
+                        {line.saved && rate && Math.abs(Math.round(rate * 100) / 100 - line.saved.rate) >= 0.005 ? (
+                          <span className={`block font-sans text-xs ${rate > line.saved.rate ? "text-amber-800" : "text-ink-400"}`}>was {inr(line.saved.rate)} when saved</span>
+                        ) : null}
+                      </TD>
                       <TD className="py-2 text-right font-mono">{amountOf(line, r) ? inr(amountOf(line, r), 0) : "–"}</TD>
-                      <TD className="py-2 text-right"><button type="button" onClick={() => onRemove(line.id)} className="text-sm text-ink-400 hover:text-red-600" aria-label={`Remove line ${i + 1}`}>Remove</button></TD>
+                      <TD className="whitespace-nowrap py-2 text-right">
+                        <button type="button" onClick={() => onEditSpec(line)} className="mr-3 text-sm font-medium text-royal-600 hover:text-royal-700" aria-label={`Change line ${i + 1}`}>Change</button>
+                        <button type="button" onClick={() => onRemove(line.id)} className="text-sm text-ink-400 hover:text-red-600" aria-label={`Remove line ${i + 1}`}>Remove</button>
+                      </TD>
                     </TR>
                   );
                 })}
@@ -177,7 +229,13 @@ export default function QuoteList({ list, results, loading, onRemove, onEdit, on
           <div className="border-t border-ink-200 px-5 py-5">
             <div className="grid gap-3 sm:grid-cols-3">
               <label className="block"><span className="mb-1 block text-xs font-medium text-ink-600">Customer</span>
-                <input value={customer} onChange={(e) => setCustomer(e.target.value)} className={CONTROL} /></label>
+                <input value={customer} onChange={(e) => setCustomer(e.target.value)} list="calc-v2-customers" autoComplete="off" className={CONTROL} />
+                <datalist id="calc-v2-customers">{customers.map((c) => <option key={c.name} value={c.name} />)}</datalist>
+                {customer.trim().length >= 2 && history?.customer ? (
+                  <span className="mt-1 block text-xs text-ink-400">
+                    {history.customer.known ? (history.recent.length ? `Known customer, ${history.recent.length === 8 ? "8 or more" : history.recent.length} earlier quote line${history.recent.length === 1 ? "" : "s"} on record.` : "Known customer, nothing quoted to them on record yet.") : "A new name: it will be saved as typed."}
+                  </span>
+                ) : null}</label>
               <label className="block"><span className="mb-1 block text-xs font-medium text-ink-600">Brand, if different</span>
                 <input value={brand} onChange={(e) => setBrand(e.target.value)} className={CONTROL} /></label>
               <label className="block"><span className="mb-1 block text-xs font-medium text-ink-600">Notes, internal</span>

@@ -8,10 +8,11 @@ import BoxForm from "./forms/BoxForm";
 import ResultPanel from "./ResultPanel";
 import QuoteList from "./QuoteList";
 import { parseSizes } from "./parseSizes";
-import { BAG_INITIAL, CUP_INITIAL, BOX_INITIAL, bagSpec, cupSpec, boxSpec, num } from "./specs";
+import { BAG_INITIAL, CUP_INITIAL, BOX_INITIAL, bagSpec, cupSpec, boxSpec, num, STATE_OF } from "./specs";
 
 let nextLineId = 1;
-const newLine = (spec, ref = "", note = "") => ({ id: nextLineId++, spec, ref, note });
+const newLine = (spec, ref = "", note = "", saved = null) => ({ id: nextLineId++, spec, ref, note, saved });
+const NO_META = { customer: "", brand: "", notes: "" };
 
 const FAMILIES = [
   { key: "bag", label: "Paper bags", hint: "SOS, twisted and flat handle, V-bottom" },
@@ -19,12 +20,12 @@ const FAMILIES = [
   { key: "box", label: "Boxes and cartons", hint: "Cup holders, food boxes, cake and tuck boxes" },
 ];
 
-export default function QuoteStudio() {
+export default function QuoteStudio({ openRef = "" }) {
   const [family, setFamily] = useState("bag");
   const [bag, setBag] = useState(BAG_INITIAL);
   const [cup, setCup] = useState(CUP_INITIAL);
   const [box, setBox] = useState(BOX_INITIAL);
-  const [meta, setMeta] = useState({ papers: [], rates: [] });
+  const [meta, setMeta] = useState({ papers: [], rates: [], customers: [] });
   const [metaError, setMetaError] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -33,6 +34,24 @@ export default function QuoteStudio() {
   const [listResults, setListResults] = useState([]);
   const [listLoading, setListLoading] = useState(false);
   const [added, setAdded] = useState(null);
+  const [quoteMeta, setQuoteMeta] = useState(NO_META);
+  const [opened, setOpened] = useState(null); // { quoteRef, date } of a saved quote that was reopened
+  const [openError, setOpenError] = useState("");
+  const [editingId, setEditingId] = useState(null); // the list line now in the form
+
+  // Reopen a saved quote: its lines go back on the list and are re-priced at
+  // today's rates; each line remembers the rate it was saved at.
+  useEffect(() => {
+    if (!openRef) return;
+    fetch(`/api/calc/v2/quotes?ref=${encodeURIComponent(openRef)}`)
+      .then((r) => r.json().then((d) => (r.ok ? d : Promise.reject(new Error(d.error || "Could not open the quote")))))
+      .then(({ quote }) => {
+        setList(quote.lines.map((l) => newLine(l.spec, l.ref, "", { rate: l.savedRate, basis: l.savedBasis })));
+        setQuoteMeta({ customer: quote.customer, brand: quote.brand, notes: quote.notes });
+        setOpened({ quoteRef: quote.quoteRef, date: quote.date });
+      })
+      .catch((e) => setOpenError(`${e.message}: ${openRef}`));
+  }, [openRef]);
 
   // Paper catalogue and rate book.
   useEffect(() => {
@@ -116,7 +135,23 @@ export default function QuoteStudio() {
 
   function addCurrent() {
     setList((l) => [...l, newLine(spec)]);
-    setAdded(list.length + 1);
+    setAdded({ line: list.length + 1, updated: false });
+  }
+
+  // Put a line of the quote back in the form to change it.
+  function startEdit(line) {
+    const fam = line.spec.family;
+    setFamily(fam);
+    setResult(null);
+    ({ bag: setBag, cup: setCup, box: setBox })[fam](STATE_OF[fam](line.spec));
+    setEditingId(line.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  const editingIndex = list.findIndex((l) => l.id === editingId);
+  function updateEdited() {
+    setList((l) => l.map((line) => (line.id === editingId ? { ...line, spec, note: "" } : line)));
+    setAdded({ line: editingIndex + 1, updated: true });
+    setEditingId(null);
   }
 
   const editLine = (id, patch) =>
@@ -160,6 +195,7 @@ export default function QuoteStudio() {
           <p className="mt-1 text-sm text-ink-600">Costs the way the quotes are worked: packing in every rate, plates and setup outside it.</p>
         </div>
         <nav className="flex gap-4 text-sm">
+          <Link href="/calculator/v2/quotes" className="font-medium text-royal-600 hover:text-royal-700">Saved quotes</Link>
           <Link href="/calculator/v2/rates" className="font-medium text-royal-600 hover:text-royal-700">Rate book</Link>
           <Link href="/calculator" className="text-ink-600 hover:text-ink-800">Old calculators</Link>
         </nav>
@@ -179,6 +215,7 @@ export default function QuoteStudio() {
       </div>
 
       {metaError ? <p className="mt-4 rounded border-l-2 border-red-600 bg-red-50 px-3 py-2 text-sm text-red-700">{metaError}</p> : null}
+      {openError ? <p className="mt-4 rounded border-l-2 border-red-600 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{openError}</p> : null}
 
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <Card padded={false} className="min-w-0">
@@ -187,13 +224,20 @@ export default function QuoteStudio() {
           {family === "box" ? <BoxForm s={box} set={(p) => setBox((s) => ({ ...s, ...p }))} rateOf={rateOf} /> : null}
         </Card>
         <Card padded={false} className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" aria-live="polite">
-          <ResultPanel result={result} loading={loading} onAdd={addCurrent} added={added} family={family} />
+          <ResultPanel
+            result={result} loading={loading} onAdd={addCurrent} added={added} family={family}
+            editingLine={editingIndex >= 0 && list[editingIndex].spec.family === family ? editingIndex + 1 : null}
+            onUpdate={updateEdited} onCancelEdit={() => setEditingId(null)}
+          />
         </Card>
       </div>
 
       <QuoteList
         list={list} results={listResults} loading={listLoading} bagSummary={bagSummary}
-        onRemove={(id) => setList((l) => l.filter((x) => x.id !== id))} onEdit={editLine} onClear={() => setList([])} onPaste={pasteSizes}
+        meta={quoteMeta} setMeta={setQuoteMeta} opened={opened} editingId={editingId} customers={meta.customers ?? []}
+        onRemove={(id) => { setList((l) => l.filter((x) => x.id !== id)); if (id === editingId) setEditingId(null); }}
+        onEdit={editLine} onEditSpec={startEdit} onPaste={pasteSizes}
+        onClear={() => { setList([]); setQuoteMeta(NO_META); setOpened(null); setEditingId(null); }}
       />
     </div>
   );

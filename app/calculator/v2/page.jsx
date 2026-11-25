@@ -7,13 +7,14 @@ export const metadata = { title: "Quote calculator · Aeros" };
 
 // Calculator v2. Internal for now: calculator admins only. Clients keep the
 // existing calculators until the client view is built.
-export default function CalculatorV2Page() {
+export default function CalculatorV2Page({ searchParams }) {
   const session = getSession();
   if (!session) redirect("/login");
   if (!canUseV2(session)) redirect("/calculator");
   return (
     <div className="min-h-screen bg-ink-50">
-      <QuoteStudio />
+      {/* ?quote=CALC-… reopens a saved quote */}
+      <QuoteStudio openRef={typeof searchParams?.quote === "string" ? searchParams.quote : ""} />
     </div>
   );
 }

@@ -44,6 +44,10 @@ function subTabsFor(pathname, session) {
       // Client / pricing management moved to /admin/access (hub-level
       // editor that also handles factoryos roles + linked clients).
       return [
+        // Calculator v2: one quote screen for bags, cups, tubs and boxes.
+        { href: "/calculator/v2",             label: "New quote",    short: "Quote" },
+        { href: "/calculator/v2/quotes",      label: "Saved quotes", short: "Saved" },
+        { href: "/calculator/v2/rates",       label: "Rate book",    short: "Rate book" },
         { href: "/calculator/admin",          label: "Bag",      short: "Bag" },
         { href: "/calculator/admin/box",      label: "Box",      short: "Box" },
         { href: "/calculator/admin/cup",      label: "Cup",      short: "Cup" },
