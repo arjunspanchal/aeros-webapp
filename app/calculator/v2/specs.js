@@ -2,10 +2,12 @@
 // dumb: they hold strings, this turns them into the numbers the engine takes.
 // A blank field means "use the rate book", never zero.
 
+// A typed number: "12,000" is 12000; a blank, a space, "abc", "0x10" or "1e9" is nothing.
 export const num = (v) => {
-  if (v === "" || v === null || v === undefined) return undefined;
-  const x = Number(v);
-  return Number.isFinite(x) ? x : undefined;
+  if (v === null || v === undefined) return undefined;
+  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
+  const s = String(v).trim().replace(/(\d),(?=\d)/g, "$1");
+  return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(s) ? Number(s) : undefined;
 };
 
 const UNIT_MM = { mm: 1, cm: 10, in: 25.4 };
@@ -19,7 +21,7 @@ export const toMm = (v, unit) => {
 export const BAG_INITIAL = {
   type: "twisted", unit: "mm", W: "280", G: "150", H: "280",
   paperId: "", gsm: "90", paperRate: "", colour: "brown", supplier: "", paperLabel: "", paperType: "Brown Kraft",
-  slab: "none", colours: "1", printRate: "", platePerColour: "",
+  slab: "none", colours: "1", printRate: "", platePerColour: "", process: false,
   handleKind: "", handleMaterial: "", handlePasting: "", handleSize: "150",
   qty: "15000", casePack: "", marginPct: "", destination: "domestic", fob: false, fx: "", unitsPerContainer: "",
   conversion: "", wastagePct: "", wastageBase: "paper_print_conv", cartonPerCase: "", cartonReal: false,
@@ -37,7 +39,7 @@ export function bagSpec(s) {
     // grade (Brown Kraft / Bleach Kraft White / OGR / MG) is what the customer copy names; the mill never is
     paper: { label: s.paperLabel, colour: s.colour, supplier: s.supplier, grade: s.paperType, id: s.paperId || undefined },
     blank,
-    print: { slab: s.slab, colours: num(s.colours) ?? 1, ratePerKg: num(s.printRate), platePerColour: num(s.platePerColour) },
+    print: { slab: s.slab, colours: num(s.colours) ?? 1, ratePerKg: num(s.printRate), platePerColour: num(s.platePerColour), process: s.process && s.slab !== "none" ? true : undefined },
     handle: handleBag ? { kind: s.handleKind || undefined, material: num(s.handleMaterial), pasting: num(s.handlePasting), sizeMm: num(s.handleSize) } : undefined,
     conversionPerKg: num(s.conversion), wastagePct: num(s.wastagePct), wastageBase: s.wastageBase,
     gluePerBag: num(s.gluePerBag),
@@ -164,7 +166,7 @@ export function bagState(spec) {
     type: spec.type, unit: "mm", W: str(spec.W), G: str(spec.G), H: str(spec.H),
     paperId: spec.paper?.id ?? "", gsm: str(spec.gsm), paperRate: str(spec.paperRate),
     colour: spec.paper?.colour ?? "brown", supplier: spec.paper?.supplier ?? "", paperLabel: spec.paper?.label ?? "", paperType: spec.paper?.grade ?? "Brown Kraft",
-    slab: spec.print?.slab ?? "none", colours: str(spec.print?.colours ?? 1), printRate: str(spec.print?.ratePerKg), platePerColour: str(spec.print?.platePerColour),
+    slab: spec.print?.slab ?? "none", colours: str(spec.print?.colours ?? 1), printRate: str(spec.print?.ratePerKg), platePerColour: str(spec.print?.platePerColour), process: spec.print?.process === true,
     handleKind: spec.handle?.kind ?? "", handleMaterial: str(spec.handle?.material), handlePasting: str(spec.handle?.pasting), handleSize: str(spec.handle?.sizeMm ?? 150),
     qty: str(spec.qty), casePack: str(spec.casePack), marginPct: str(spec.marginPct),
     destination: spec.destination ?? "domestic", fob: Boolean(spec.export), fx: str(spec.export?.fx), unitsPerContainer: str(spec.export?.unitsPerContainer),

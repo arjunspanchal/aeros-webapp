@@ -117,15 +117,27 @@ export default function QuoteStudio({ openRef = "" }) {
     const ctrl = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch("/api/calc/v2/price", { method: "POST", headers: { "Content-Type": "application/json" }, body: `{"specs":${listJson}}`, signal: ctrl.signal });
-        const out = await res.json();
+        // The server prices up to 80 lines a call, so a long list goes in batches.
+        const specs = list.map((l) => l.spec);
+        const results = [];
+        for (let i = 0; i < specs.length; i += 80) {
+          const res = await fetch("/api/calc/v2/price", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ specs: specs.slice(i, i + 80) }), signal: ctrl.signal });
+          const out = await res.json();
+          if (!res.ok || !Array.isArray(out.results)) throw new Error(out.error || "Pricing failed");
+          results.push(...out.results);
+        }
         if (!ctrl.signal.aborted) {
-          setListResults(out.results ?? []);
+          setListResults(results);
           setPricedFor(listJson);
           setListLoading(false);
         }
       } catch (e) {
-        if (e.name !== "AbortError") setListLoading(false);
+        if (e.name !== "AbortError") {
+          // Never leave the list on "Working it out…": say that it failed.
+          setListResults(list.map(() => ({ ok: false, title: "Could not be priced", errors: [e.message || "Pricing failed. Change a line to try again."] })));
+          setPricedFor(listJson);
+          setListLoading(false);
+        }
       }
     }, 300);
     return () => {
@@ -183,6 +195,10 @@ export default function QuoteStudio({ openRef = "" }) {
       }
       return newLine(bagSpec(state), row.ref, note);
     });
+    // A saved quote holds 80 lines: take what fits and say what was left out.
+    const room = Math.max(0, 80 - list.length);
+    const left = lines.splice(room);
+    if (left.length) skipped.push({ line: "", text: `${left.length} more line${left.length === 1 ? "" : "s"}`, why: "a quote holds up to 80 lines: save this one and start another" });
     setList((l) => [...l, ...lines]);
     return { added: lines.length, skipped, rateNotes: fallback ? [`${fallback} line${fallback === 1 ? " uses" : "s use"} the form's paper rate at a different GSM. Check those rates.`] : [] };
   }

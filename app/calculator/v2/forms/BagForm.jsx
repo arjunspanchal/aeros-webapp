@@ -46,6 +46,7 @@ export default function BagForm({ s, set, papers }) {
       <Section title="Printing" aside="Read the artwork: coverage sets the rate, not the colour count">
         <Select className="col-span-2" label="Coverage" value={s.slab} onChange={(slab) => set({ slab })} options={opts(PRINT_SLABS)} />
         {printed ? <Num label="Colours" value={s.colours} onChange={(colours) => set({ colours })} min="1" max="6" hint="For the plate count" /> : null}
+        {printed ? <div className={full}><Toggle label="CMYK process artwork, not Pantone" hint="Only changes a hand-made bag: process work runs on the cheaper offset card" checked={Boolean(s.process)} onChange={(process) => set({ process })} /></div> : null}
       </Section>
 
       {handleBag ? (

@@ -50,8 +50,13 @@ export function parseSizes(text, { unit = "mm", order = "WGH" } = {}) {
     // "5 1/4" and "5-1/4" are inch fractions; a bare "1/6" (as in "1/6 BBL") is a name and is left alone.
     let line = original.replace(/(\d+)[ -](\d+)\/(\d+)(?!\d)/g, (m, w, n, d) => (Number(d) ? String(Math.round((Number(w) + Number(n) / Number(d)) * 1000) / 1000) : m));
 
+    // A phone number or a date is not a size or a quantity.
+    line = line.replace(/\b\d{1,2}[-/.]\d{1,2}[-/.](?:19|20)\d{2}\b/g, " ").replace(/(?<![\d.,])\+?\d{8,}(?![\d.,])/g, " ");
+    // "10,5 x 5 x 13": a decimal comma in front of a size separator or a unit.
+    line = line.replace(/(\d+),(\d{1,2})(?=\s*(?:[x×*X]|cm\b|mm\b|in\b|inch|"|”))/g, "$1.$2");
+
     // A price is not a size, a quantity or a case pack.
-    line = line.replace(/(?:rs\.?|inr|₹|\$|usd|aed)\s*\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s*(?:rs\.?|inr|₹|usd|aed)\b/gi, " ");
+    line = line.replace(/(?:rs\.?|inr|₹|\$|usd|aed)\s*\d[\d,]*(?:\.\d+)?|(?<![x×*X]\s*)\d[\d,]*(?:\.\d+)?\s*(?:rs\.?|inr|₹|usd|aed)\b(?!\s*\d)/gi, " ");
 
     // A unit written beside the numbers wins over the unit chosen for the box.
     let lineUnit = unit;
@@ -64,7 +69,16 @@ export function parseSizes(text, { unit = "mm", order = "WGH" } = {}) {
     let size, before, after;
     const short = new RegExp(`${NUM}\\s*[x×*X]\\s*${NUM}\\s*/\\s*${NUM}`).exec(line);
     const explicit = new RegExp(`${NUM}\\s*[x×*X]\\s*${NUM}\\s*[x×*X]\\s*${NUM}`).exec(line);
-    if (explicit) {
+    // "W10 G5 H13", "width: 10 gusset 5 height 13": labelled, in any order.
+    const labelled = {};
+    const labelHits = [...line.matchAll(new RegExp(`\\b(w(?:idth)?|g(?:usset)?|h(?:eight|t)?)\\s*[:=]?\\s*${NUM}`, "gi"))];
+    for (const m of labelHits) labelled[m[1][0].toUpperCase()] ??= Number(m[2]);
+    if (!explicit && !short && labelled.W > 0 && labelled.H > 0 && labelled.G >= 0) {
+      size = { W: labelled.W, G: labelled.G, H: labelled.H };
+      const last = labelHits[labelHits.length - 1];
+      before = line.slice(0, labelHits[0].index);
+      after = line.slice(last.index + last[0].length);
+    } else if (explicit) {
       size = SIZE_ORDERS[order].pick(explicit.slice(1, 4).map(Number));
       before = line.slice(0, explicit.index);
       after = line.slice(explicit.index + explicit[0].length);
@@ -86,6 +100,8 @@ export function parseSizes(text, { unit = "mm", order = "WGH" } = {}) {
       if (lead) after += ` ${lead[0]}`;
     }
     if (![size.W, size.G, size.H].every((d) => d >= 0) || !(size.W > 0 && size.H > 0)) return skip("a size of zero");
+    // Nothing we make is over 1.5 m wide or 2 m tall: these are not bag sizes (a phone number, a date, an order number).
+    if (toMm(size.W, lineUnit) > 1500 || toMm(size.H, lineUnit) > 2000 || toMm(size.G, lineUnit) > 1000) return skip("these numbers are too big to be a bag size");
 
     // GSM, basis weight, quantity and case pack come from what follows the size.
     let gsm, lb, qty, casePack;
