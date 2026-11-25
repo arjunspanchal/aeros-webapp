@@ -33,6 +33,7 @@ export default function QuoteStudio({ openRef = "" }) {
   const [list, setList] = useState([]);
   const [listResults, setListResults] = useState([]);
   const [listLoading, setListLoading] = useState(false);
+  const [pricedFor, setPricedFor] = useState("[]"); // the exact list the results on screen were priced for
   const [added, setAdded] = useState(null);
   const [quoteMeta, setQuoteMeta] = useState(NO_META);
   const [opened, setOpened] = useState(null); // { quoteRef, date } of a saved quote that was reopened
@@ -120,6 +121,7 @@ export default function QuoteStudio({ openRef = "" }) {
         const out = await res.json();
         if (!ctrl.signal.aborted) {
           setListResults(out.results ?? []);
+          setPricedFor(listJson);
           setListLoading(false);
         }
       } catch (e) {
@@ -168,15 +170,15 @@ export default function QuoteStudio({ openRef = "" }) {
     let fallback = 0;
     const lines = rows.map((row) => {
       const type = row.type ?? bag.type;
-      const state = { ...bag, unit: "mm", W: String(row.W), G: String(row.G), H: String(row.H), type, handleKind: type === bag.type ? bag.handleKind : "", qty: row.qty ? String(row.qty) : bag.qty };
-      let note = "";
+      const state = { ...bag, unit: "mm", W: String(row.W), G: String(row.G), H: String(row.H), type, handleKind: type === bag.type ? bag.handleKind : "", qty: row.qty ? String(row.qty) : bag.qty, casePack: row.casePack ? String(row.casePack) : bag.casePack };
+      let note = row.lb ? `${row.lb} lb basis taken as ${row.gsm} GSM (customers' lb tables vary: check). ` : "";
       if (row.gsm && String(row.gsm) !== String(bag.gsm)) {
         state.gsm = String(row.gsm);
         const match = chosen && meta.papers.find((p) => p.supplier === chosen.supplier && p.type === chosen.type && (p.bf ?? null) === (chosen.bf ?? null) && p.gsm === row.gsm);
         if (match) Object.assign(state, { paperId: match.id, paperRate: String(match.landed), paperLabel: match.label });
         else if (!(chosen && chosen.gsm === null)) {
           fallback += 1;
-          note = `Paper rate ₹${bag.paperRate}/kg is the form's rate: check it for ${row.gsm} GSM.`;
+          note += `Paper rate ₹${bag.paperRate}/kg is the form's rate: check it for ${row.gsm} GSM.`;
         }
       }
       return newLine(bagSpec(state), row.ref, note);
@@ -233,7 +235,7 @@ export default function QuoteStudio({ openRef = "" }) {
       </div>
 
       <QuoteList
-        list={list} results={listResults} loading={listLoading} bagSummary={bagSummary}
+        list={list} results={pricedFor === listJson ? listResults : []} loading={listLoading || pricedFor !== listJson} bagSummary={bagSummary}
         meta={quoteMeta} setMeta={setQuoteMeta} opened={opened} editingId={editingId} customers={meta.customers ?? []}
         onRemove={(id) => { setList((l) => l.filter((x) => x.id !== id)); if (id === editingId) setEditingId(null); }}
         onEdit={editLine} onEditSpec={startEdit} onPaste={pasteSizes}

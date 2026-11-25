@@ -116,17 +116,20 @@ export const BOX_INITIAL = {
   construction: "four_corner", printMode: "none", printer: "blueline_walkin", colours: "4", sides: "1",
   finishOutside: "none", finishInside: "none", conversionAllIn: "", pastingPerPc: "", wastagePct: "",
   casePack: "250", cartonPerCase: "", cartonL: "", cartonB: "", cartonH: "", polyCost: "", polyPer: "",
-  qty: "5000", marginPct: "", dieCost: "",
+  qty: "5000", marginPct: "", dieCost: "", size: "", printPer1000: "", punchPer1000: "",
 };
 
 export function boxSpec(s) {
   const sheet = s.sheetKey === "custom" ? (num(s.sheetW) && num(s.sheetH) ? { w: num(s.sheetW), h: num(s.sheetH) } : undefined) : s.sheetKey;
   const board = BOARDS[s.boardKey];
+  // A half-entered carton or poly is sent as it is, so the engine can say what is missing.
+  const anyDim = [s.cartonL, s.cartonB, s.cartonH].some((v) => num(v) !== undefined);
   const carton = num(s.cartonPerCase) !== undefined ? { perCase: num(s.cartonPerCase) }
-    : num(s.cartonL) && num(s.cartonB) && num(s.cartonH) ? { l: num(s.cartonL), b: num(s.cartonB), h: num(s.cartonH) } : undefined;
+    : anyDim ? { l: num(s.cartonL), b: num(s.cartonB), h: num(s.cartonH) } : undefined;
   return {
     family: "box",
     name: s.name || "Box",
+    size: s.size || undefined,
     sheet, ups: num(s.ups),
     blank: num(s.blankW) && num(s.blankH) ? { w: num(s.blankW), h: num(s.blankH) } : undefined,
     boardGPerPc: num(s.boardGPerPc),
@@ -136,12 +139,13 @@ export function boxSpec(s) {
     construction: s.construction,
     // The printer also punches plain boxes, so it is sent whatever the print mode.
     printer: s.printer,
-    print: s.printMode === "card" ? { mode: "card", colours: num(s.colours) ?? 1, sides: num(s.sides) ?? 1 } : { mode: s.printMode },
+    print: s.printMode === "card" ? { mode: "card", colours: num(s.colours) ?? 1, sides: num(s.sides) ?? 1, per1000: num(s.printPer1000) } : { mode: s.printMode },
+    punchPer1000: num(s.punchPer1000),
     finish: { outside: s.finishOutside, inside: s.finishInside },
     conversionAllIn: num(s.conversionAllIn), pastingPerPc: num(s.pastingPerPc), wastagePct: num(s.wastagePct),
     packing: {
       casePack: num(s.casePack), carton,
-      poly: num(s.polyCost) !== undefined && num(s.polyPer) ? { cost: num(s.polyCost), per: num(s.polyPer) } : undefined,
+      poly: num(s.polyCost) !== undefined ? { cost: num(s.polyCost), per: num(s.polyPer) } : undefined,
     },
     qty: num(s.qty), marginPct: num(s.marginPct), dieCost: num(s.dieCost),
   };
@@ -209,6 +213,7 @@ export function boxState(spec) {
     cartonL: str(spec.packing?.carton?.l), cartonB: str(spec.packing?.carton?.b), cartonH: str(spec.packing?.carton?.h),
     polyCost: str(spec.packing?.poly?.cost), polyPer: str(spec.packing?.poly?.per),
     qty: str(spec.qty), marginPct: str(spec.marginPct), dieCost: str(spec.dieCost),
+    size: spec.size ?? "", printPer1000: card ? str(spec.print.per1000) : "", punchPer1000: str(spec.punchPer1000),
   };
 }
 

@@ -4,6 +4,7 @@
 import { getSession } from "@/lib/auth/session";
 import { canUseV2, priceMany, MAX_LINES } from "@/lib/calc-v2/server";
 import { customerWorkbook, internalWorkbook } from "@/lib/calc-v2/excel";
+import { supplierWordsIn } from "@/lib/calc-v2/present";
 import { indiaStamp } from "@/lib/calc-v2/record";
 
 export const runtime = "nodejs";
@@ -31,11 +32,16 @@ export async function POST(req) {
     // A customer copy must be complete and makeable: no holes, no blocked items.
     if (!internal) {
       const bad = priced.map((p, i) => (!p.result.lines ? `Line ${i + 1}: ${p.result.errors?.[0] ?? "not priced"}` : !p.result.ok ? `Line ${i + 1}: ${p.result.warnings.find((w) => w.level === "block")?.message ?? "blocked"}` : null)).filter(Boolean);
+      // Names staff typed go out as they are: a mill's or printer's name in them must not.
+      priced.forEach((p, i) => {
+        const words = supplierWordsIn(p.spec.name, p.spec.size, p.ref);
+        if (words.length) bad.push(`Line ${i + 1}: the item name or reference contains a supplier's name (${words.join(", ")}). Reword it.`);
+      });
       if (bad.length) return Response.json({ error: "Fix these before sending a quote out", details: bad }, { status: 422 });
     }
     const meta = {
-      customer: String(body.customer || "").trim(), brand: String(body.brand || "").trim(),
-      quoteRef: String(body.quoteRef || "").trim(), date: indiaStamp().date.split("-").reverse().join("-"),
+      customer: typeof body.customer === "string" ? body.customer.trim().slice(0, 200) : "", brand: typeof body.brand === "string" ? body.brand.trim().slice(0, 200) : "",
+      quoteRef: typeof body.quoteRef === "string" && /^[A-Za-z0-9-]{1,120}$/.test(body.quoteRef.trim()) ? body.quoteRef.trim() : "", date: indiaStamp().date.split("-").reverse().join("-"),
     };
     const buffer = internal ? await internalWorkbook(meta, priced) : await customerWorkbook(meta, priced);
     const name = `Aeros Quote - ${clean(meta.customer) || "Draft"} ${clean(meta.quoteRef) || meta.date}${internal ? " (internal working)" : ""}.xlsx`;

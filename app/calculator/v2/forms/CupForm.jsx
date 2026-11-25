@@ -17,7 +17,9 @@ export default function CupForm({ s, set, rateOf }) {
       <Section title="Cup or tub" aside="Only sizes we make are costed; others need a vendor rate">
         <Segmented className={full} value={s.wall} onChange={setWall}
           options={[{ value: "SW", label: "Single wall" }, { value: "DW", label: "Double wall" }, { value: "TUB", label: "Paper tub Ø115" }]} />
-        <Select label="Size" value={s.size} onChange={(size) => set({ size })} options={CUP_SIZES[s.wall].map((v) => ({ value: v, label: sizeLabel(v) }))} />
+        {/* 8 oz runs on 260 GSM, the bigger cups on 280. A GSM the user typed themselves is left alone. */}
+        <Select label="Size" value={s.size} options={CUP_SIZES[s.wall].map((v) => ({ value: v, label: sizeLabel(v) }))}
+          onChange={(size) => set({ size, ...(!tub && (s.gsm === "260" || s.gsm === "280") ? { gsm: /^(4|8)oz$/.test(size) ? "260" : "280" } : {}) })} />
         <Num label={dw ? "Inner wall GSM" : "Wall GSM"} value={s.gsm} onChange={(gsm) => set({ gsm })} hint={tub ? undefined : "8oz 260, others 280"} />
         {dw ? <Num label="Outer wall GSM" value={s.outerGsm} onChange={(outerGsm) => set({ outerGsm })} placeholder="same as inner" /> : null}
         {!tub ? <Num label="Weighed cup" value={s.cupWeight} onChange={(cupWeight) => set({ cupWeight })} suffix="g" placeholder="optional" hint="A measured cup replaces the GSM build" /> : null}

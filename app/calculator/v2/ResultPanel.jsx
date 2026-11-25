@@ -53,6 +53,7 @@ function facts(r) {
     );
   } else if (r.family === "bag") {
     out.push(["Deckle", `${g.deckle} mm`], ["Cut-off", `${g.cutoff} mm`], ["Paper per bag", `${fix(g.paperG, 2)} g`], ["Bag weight", `${fix(g.bagG, 1)} g`], ["Reel to order", `${g.reel?.min}–${g.reel?.max} mm`]);
+    if (g.order) out.push(["Paper for the order", `${int(Math.ceil(g.order.paperKg))} kg incl. wastage`], ["Running length", `${int(Math.ceil(g.order.runningM))} m`]);
     if (g.envelope) out.push(["Machine tube", `${Math.round(g.envelope.tube)} mm (min ${Math.round(g.envelope.minTube)})`], ["Forming plate", g.envelope.plate.stocked ? "In stock" : `Not held; nearest ${g.envelope.plate.nearest} mm`]);
   } else if (r.family === "cup" && g.paperG) {
     out.push(["Paper bought", `${fix(g.paperG, 2)} g`], ["Basis", g.dieNote], ["Cost per kg of paper", inr(g.perKgOfPaper)]);
@@ -100,10 +101,17 @@ export default function ResultPanel({ result, loading, onAdd, added, family, edi
 
   const unit = UNIT[family];
   const mode = MARGIN_MODES[result.marginMode];
-  const t = num(target);
-  const targetMargin = t ? marginFor(result.cost, t, result.marginMode) : null;
-  const flagged = result.ratesUsed.filter((u) => STATUS[u.status]);
   const exp = result.export;
+  // An export bag is quoted FOB: ex-factory price plus port charges per bag.
+  // (On a cup the port charges are already inside the cost.) The headline, the
+  // quote list, the Excel and the saved quote all carry this one figure.
+  const fobBag = family === "bag" && exp ? exp : null;
+  const quoted = Math.round(((fobBag ? fobBag.fob : result.sell) + Number.EPSILON) * 100) / 100;
+  const t = num(target);
+  // A target is compared like for like: an FOB target has the port charges taken off first.
+  const targetNet = t ? t - (fobBag ? fobBag.fobAddPerBag : 0) : null;
+  const targetMargin = t ? marginFor(result.cost, targetNet, result.marginMode) : null;
+  const flagged = result.ratesUsed.filter((u) => STATUS[u.status]);
 
   return (
     <div className={loading ? "opacity-60 transition-opacity" : "transition-opacity"}>
@@ -122,14 +130,14 @@ export default function ResultPanel({ result, loading, onAdd, added, family, edi
             <dd className="font-mono text-2xl text-ink-800">{inr(result.cost)}</dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-400">Sell per {unit}</dt>
-            <dd className="font-mono text-2xl font-semibold text-royal-600">{inr(result.sellRounded)}</dd>
-            <dd className="mt-0.5 text-xs text-ink-400">{result.marginPct}% {mode.label}</dd>
+            <dt className="text-xs text-ink-400">{fobBag ? "FOB" : "Sell"} per {unit}</dt>
+            <dd className="font-mono text-2xl font-semibold text-royal-600">{inr(quoted)}</dd>
+            <dd className="mt-0.5 text-xs text-ink-400">{fobBag ? `ex-factory ${inr(result.sell, 3)} + port ${inr(fobBag.fobAddPerBag, 3)}; ` : ""}{result.marginPct}% {mode.label}</dd>
           </div>
           <div>
             <dt className="text-xs text-ink-400">{result.qty ? `Order of ${int(result.qty)}` : "Per case"}</dt>
-            <dd className="font-mono text-2xl text-ink-800">{result.qty ? inr(result.sellRounded * result.qty, 0) : inr(result.packing?.perCase, 0)}</dd>
-            <dd className="mt-0.5 text-xs text-ink-400">{family === "cup" && exp ? "FOB" : "Ex-factory"}, GST extra</dd>
+            <dd className="font-mono text-2xl text-ink-800">{result.qty ? inr(quoted * result.qty, 0) : inr(result.packing?.perCase, 0)}</dd>
+            <dd className="mt-0.5 text-xs text-ink-400">{exp ? "FOB" : "Ex-factory, GST extra"}</dd>
           </div>
         </dl>
         {exp ? (
@@ -175,7 +183,8 @@ export default function ResultPanel({ result, loading, onAdd, added, family, edi
           </label>
           {targetMargin !== null ? (
             <p className={`pb-2 text-sm ${targetMargin < 0 ? "text-red-700" : "text-ink-800"}`}>
-              {targetMargin < 0 ? `Below cost by ${inr(result.cost - t)}` : `${fix(targetMargin, 1)}% ${mode.label}, ${inr(t - result.cost)} per ${unit}`}
+              {targetMargin < 0 ? `Below cost by ${inr(result.cost - targetNet)}` : `${fix(targetMargin, 1)}% ${mode.label}, ${inr(targetNet - result.cost)} per ${unit}`}
+              {fobBag ? " (FOB target, port charges taken off)" : ""}
             </p>
           ) : null}
         </div>
@@ -200,7 +209,7 @@ export default function ResultPanel({ result, loading, onAdd, added, family, edi
       {result.ladder?.length ? (
         <Block title="Quantity ladder">
           <Table>
-            <THead><TR><TH>Quantity</TH><TH className="text-right">Rate</TH><TH className="text-right">Order value</TH><TH className="text-right">Cases</TH><TH className="text-right">One-time per {unit}</TH></TR></THead>
+            <THead><TR><TH>Quantity</TH><TH className="text-right">{fobBag ? "Ex-factory rate" : "Rate"}</TH><TH className="text-right">Order value</TH><TH className="text-right">Cases</TH><TH className="text-right">One-time per {unit}</TH></TR></THead>
             <TBody>
               {result.ladder.map((row) => (
                 <TR key={row.qty}>

@@ -11,7 +11,7 @@ const int = (n) => (n === null || n === undefined ? "–" : Number(n).toLocaleSt
 const ROUTE = { handmade: "Hand-made", vendor: "Vendor", bought_in: "Bought in", converter: "Converter" };
 
 /** The rate a line is quoted at: FOB on an export bag, otherwise the selling price. A blocked line has no rate. */
-const quoted = (line, r) => (r?.lines && r.ok ? (line.spec.family === "bag" && r.export ? r.export.fob : r.sell) : null);
+const quoted = (line, r) => (r?.lines && r.ok ? Math.round(((line.spec.family === "bag" && r.export ? r.export.fob : r.sell) + Number.EPSILON) * 100) / 100 : null);
 
 function PasteSizes({ onAdd, bagSummary }) {
   const [text, setText] = useState("");
@@ -106,7 +106,8 @@ export default function QuoteList({ list, results, loading, onRemove, onEdit, on
   const total = priced.reduce((s, { line, r }) => s + (amountOf(line, r) ?? 0), 0);
   const payload = () => ({ lines: list.map((l) => ({ spec: l.spec, ref: l.ref })), customer, brand, notes });
   // A saved reference only stands for the list exactly as it was saved.
-  const savedRef = saved && saved.signature === JSON.stringify(payload().lines) ? saved.quoteRef : "";
+  const signature = () => JSON.stringify([payload().lines, customer.trim(), brand.trim()]);
+  const savedRef = saved && saved.signature === signature() ? saved.quoteRef : "";
 
   async function save() {
     setBusy("save");
@@ -115,7 +116,7 @@ export default function QuoteList({ list, results, loading, onRemove, onEdit, on
       const res = await fetch("/api/calc/v2/quotes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()) });
       const out = await res.json();
       if (!out.ok) setError({ message: "The quote was not saved.", details: out.errors ?? [out.error ?? "Save failed"] });
-      else setSaved({ quoteRef: out.quoteRef, count: out.count, total: out.saved?.total, lineWarning: out.lineWarning, signature: JSON.stringify(payload().lines) });
+      else setSaved({ quoteRef: out.quoteRef, count: out.count, total: out.saved?.total, lineWarning: out.lineWarning, signature: signature() });
     } catch {
       setError({ message: "The quote was not saved. Check your connection and try again.", details: [] });
     } finally {

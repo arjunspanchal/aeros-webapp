@@ -14,7 +14,8 @@ export default function BoxForm({ s, set, rateOf }) {
   return (
     <>
       <Section title="Item">
-        <Text className={full} label="What is it" value={s.name} onChange={(name) => set({ name })} placeholder="e.g. Double cup holder, burger box 102 × 102" />
+        <Text className={full} label="What is it" hint="This name goes on the customer's quote: no supplier or other customer's name" value={s.name} onChange={(name) => set({ name })} placeholder="e.g. Double cup holder, burger box 102 × 102" />
+        <Text className={full} label="Finished size, as the customer will read it" value={s.size} onChange={(size) => set({ size })} placeholder="e.g. 210 × 100 × 50 mm" />
         <Select className={full} label="Construction" value={s.construction} onChange={(construction) => set({ construction })} options={opts(CONSTRUCTIONS)} />
       </Section>
 
@@ -65,6 +66,8 @@ export default function BoxForm({ s, set, rateOf }) {
       <Advanced>
         <Num label="Converter, all-in" value={s.conversionAllIn} onChange={(conversionAllIn) => set({ conversionAllIn })} suffix="₹/pc" hint="Replaces print, punching and pasting" />
         <Num label="Pasting" value={s.pastingPerPc} onChange={(pastingPerPc) => set({ pastingPerPc })} suffix="₹/pc" disabled={allIn} />
+        {s.printMode === "card" ? <Num label="Print, this job" value={s.printPer1000} onChange={(printPer1000) => set({ printPer1000 })} suffix="₹/1000 sheets" hint="The printer's figure, all colours" disabled={allIn} /> : null}
+        <Num label="Punching, this job" value={s.punchPer1000} onChange={(punchPer1000) => set({ punchPer1000 })} suffix="₹/1000 sheets" disabled={allIn} />
         <Num label="Sheet wastage" value={s.wastagePct} onChange={(wastagePct) => set({ wastagePct })} suffix="%" />
         <Num label="Carton cost" value={s.cartonPerCase} onChange={(cartonPerCase) => set({ cartonPerCase })} suffix="₹/case" hint="Replaces the size-based cost" />
         <Num label="Poly cost" value={s.polyCost} onChange={(polyCost) => set({ polyCost })} suffix="₹" hint="Food boxes: 3.98 per 100" />
