@@ -111,9 +111,9 @@ export default function StaffDielineClient() {
 
   function pickTemplate(id) {
     const nt = TEMPLATES.find((x) => x.id === id);
+    const keep = nt.drawerSet && t.drawerSet; // sleeve / tray / insert of one drawer box share their size and board
     setTid(id);
-    setValues(firstValues(nt));
-    setBoardSel(defaultBoard(nt));
+    if (!keep) { setValues(firstValues(nt)); setBoardSel(defaultBoard(nt)); }
     if (nt.family === "pet") { setProcess("pantone"); setColours(1); } // a PET cup prints one solid colour
     if (nt.wrap) { setProcess("pantone"); setColours(1); setWrapPitch(wrapGeometry(nt.wrap).pitch0); } // a wrap: one or two spot colours, pitch about a fifth of the width
     setArt([]);
@@ -1062,7 +1062,7 @@ export default function StaffDielineClient() {
                       {solidFinal.rows.map((r) => (
                         <tr key={r.label} className="border-t border-gray-100 dark:border-gray-800">
                           <td className="py-1 pr-3">{r.label}</td><td className="py-1 pr-3">{r.ordered} mm</td>
-                          <td className="py-1 pr-3">{r.inside.toFixed(1)} mm</td><td className="py-1">{r.outside.toFixed(1)} mm</td>
+                          <td className="py-1 pr-3">{r.inside.toFixed(1)} mm</td><td className="py-1">{r.outside != null ? `${r.outside.toFixed(1)} mm` : "-"}</td>
                         </tr>
                       ))}
                     </tbody>
