@@ -622,6 +622,23 @@ export default function StaffDielineClient() {
   }, [geom, board.mm, foldT]); // eslint-disable-line react-hooks/exhaustive-deps
   const solidFinal = useMemo(() => (geom ? solidModel(tid, values, res.doc, { thickness: board.mm, t: 1, geom }) : null), [geom, board.mm]); // eslint-disable-line react-hooks/exhaustive-deps
   const kldTitle = [t.name, board.label, res && res.kldNote].filter(Boolean).join(" · ");
+  // DRAWER BOX: the keyline and the die file of all three parts, at this size and board, in one zip
+  function drawerSetZip() {
+    const enc = new TextEncoder(), files = [], stop = [];
+    for (const x of TEMPLATES.filter((q) => q.drawerSet)) {
+      const r = runStaffTemplate(x.id, values, board, print);
+      if (r.error || r.blocked) { stop.push(`${x.short}: ${r.error || r.checks.filter((c) => !c.ok && c.severity === "block").map((c) => c.title).join("; ")}`); continue; }
+      const st = fileStem({ template: x, values, board });
+      files.push({ name: `${st}-KLD.pdf`, data: enc.encode(toPdf(r.doc, { units: "both", showDims: true, title: [x.name, board.label].join(" · ") })) },
+        { name: `${st}-DIE-CUT.pdf`, data: enc.encode(toDiePdf(r.doc)) }, { name: `${st}-DIE-CUT.svg`, data: enc.encode(toDieSvg(r.doc)) });
+    }
+    if (stop.length) { alert(`Not all three parts can be made at this size:\n\n${stop.join("\n")}`); return; }
+    const size = `${+values.L} x ${+values.W} x ${+values.H} mm`, lines = [`AEROS  -  DRAWER BOX, three parts  -  tray inside ${size}  -  ${board.label}, ${board.mm} mm`, ""];
+    for (const r of drawerSet.rows) { lines.push(r.name.toUpperCase()); for (const [k, v] of r.lines) lines.push(`  ${k}: ${v.map((q) => +(+q).toFixed(1)).join(" x ")} mm`); if (r.blank) lines.push(`  Flat: ${r.blank.map((q) => q.toFixed(1)).join(" x ")} mm`); if (r.note) lines.push(`  ${r.tight ? "TOO TIGHT ON THIS BOARD. " : ""}${r.note}`); lines.push(""); }
+    lines.push("Each part: a dimensioned keyline (KLD, PDF) and the cutting file (DIE-CUT, PDF + SVG): red = cut, green = crease.", "The artwork goes on the sleeve only. The tray and the cup insert are plain.");
+    files.push({ name: "READ-ME-sizes-and-clearances.txt", data: enc.encode(lines.join("\r\n")) });
+    save(`drawer-box-set-${Math.round(+values.L)}x${Math.round(+values.W)}x${Math.round(+values.H)}mm${board.gsm ? `-${board.gsm}gsm` : ""}.zip`, zipBlob(files), "application/zip");
+  }
   const fails = res && res.checks ? res.checks.filter((c) => !c.ok && c.severity === "block") : [];
   const warns = res && res.checks ? res.checks.filter((c) => !c.ok && c.severity === "warn") : [];
 
@@ -658,7 +675,7 @@ export default function StaffDielineClient() {
         </p>
       </section>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)_minmax(400px,30%)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[270px_minmax(0,1fr)_minmax(330px,29%)] 2xl:grid-cols-[300px_minmax(0,1fr)_minmax(400px,30%)]">
         {/* 2-4. inputs: stay in view while the work area scrolls */}
         <div className="space-y-4 lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
           <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
@@ -737,6 +754,8 @@ export default function StaffDielineClient() {
                     </li>
                   ))}
                 </ul>
+                <button onClick={drawerSetZip} disabled={drawerSet.rows.some((r) => r.error)} className="mt-2 w-full rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">Download all three parts (zip)</button>
+                <p className="mt-1 text-[11px] text-gray-500">Keyline and die file of the sleeve, the tray and the insert, with a sizes note.</p>
               </div>
             )}
           </section>
@@ -860,6 +879,8 @@ export default function StaffDielineClient() {
                   {label}
                 </button>
               ))}
+              {/* narrower than a laptop screen the 3D view sits under the work area: one tap takes you to it */}
+              <button onClick={() => sec3d.current?.scrollIntoView({ behavior: "smooth", block: "start" })} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-800 hover:bg-gray-50 xl:hidden dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900">3D view ↓</button>
             </div>
           </section>
 
@@ -946,7 +967,7 @@ export default function StaffDielineClient() {
                   {cupG && proofRow && proofRow.h !== cupG.spec.H && <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">The product list says height {proofRow.h} mm; the keyline says {cupG.spec.H} mm. The proof prints the product list's figure. If the keyline is the right one, the product list must be corrected first.</p>}
                   <div>
                     <p className="font-semibold">3D shots for page 3: {freshShots.length} of 3 to 4</p>
-                    <p className="text-gray-500">{boxProof ? "Turn the 3D sleeve the way you want it, then press Proof shot above the 3D view. Take 3 or 4 different views (three-quarter, front, top, an open end)." : petProof ? "Turn the 3D cup the way you want it, then press Proof shot above the 3D view. Take 3 or 4 different views (front, three-quarter, side, back). Take them with the cup empty: the drink and lid go on the last page only." : bagProof ? "Turn the 3D bag the way you want it, then press Proof shot above the 3D view. Take 3 or 4 different views (three-quarter, front, side, from below)." : "Turn the 3D cup the way you want it, then press the button under it. Take 3 or 4 different views (front, back, the seam side, from below)."}</p>
+                    <p className="text-gray-500">{boxProof ? "Turn the 3D sleeve the way you want it, then press Proof shot under the 3D view. Take 3 or 4 different views (three-quarter, front, top, an open end)." : petProof ? "Turn the 3D cup the way you want it, then press Proof shot under the 3D view. Take 3 or 4 different views (front, three-quarter, side, back). Take them with the cup empty: the drink and lid go on the last page only." : bagProof ? "Turn the 3D bag the way you want it, then press Proof shot under the 3D view. Take 3 or 4 different views (three-quarter, front, side, from below)." : "Turn the 3D cup the way you want it, then press the button under it. Take 3 or 4 different views (front, back, the seam side, from below)."}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {shots.map((s2, k) => (
                         <div key={k} className={`w-36 rounded-md border p-1 ${s2.sig === artSig ? "border-gray-300 dark:border-gray-700" : "border-red-400 opacity-60"}`}>
@@ -1034,14 +1055,14 @@ export default function StaffDielineClient() {
         </div>
 
         {/* beside it on wide screens (under it otherwise): 3D, the dimensioned KLD, checks, sheet fit */}
-        <div className="min-w-0 space-y-5 lg:col-start-2 2xl:col-start-3">
-          <section ref={sec3d} className="[&:fullscreen]:overflow-auto [&:fullscreen]:p-6 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{petG ? "3D cup (the moulded cup, print band wrapped 360°)" : cupG ? "3D cup (the real fan wrapped to its cone)" : `3D model (the real die folded at ${board.mm} mm caliper${board.caliperStatus === "assumed" ? ", assumed" : ""})`}</h2>
+        <div className="min-w-0 space-y-5 lg:col-start-2 xl:col-start-3">
+          <section ref={sec3d} className="flex flex-col [&>*]:order-2 [&:fullscreen]:overflow-auto [&:fullscreen]:p-6 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h2 className="!order-none mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{petG ? "3D cup (the moulded cup, print band wrapped 360°)" : cupG ? "3D cup (the real fan wrapped to its cone)" : `3D model (the real die folded at ${board.mm} mm caliper${board.caliperStatus === "assumed" ? ", assumed" : ""})`}</h2>
             {(solid || cupG || petG) && (() => {
               const inScene = !!sceneOf(scene3d).src, lab = "w-12 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400";
               const plainBtn = "rounded-md border border-gray-300 px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:border-gray-900 dark:border-gray-700 dark:text-gray-200", darkBtn = "rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white disabled:opacity-60 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900";
               return (
-                <div className="mb-2 space-y-1.5 rounded-md border border-gray-200 px-2.5 py-2 dark:border-gray-800">
+                <div className="!order-1 mb-2 mt-2 space-y-1.5 rounded-md border border-gray-200 px-2.5 py-2 dark:border-gray-800">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={lab}>View</span>
                     <span className="inline-flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700" title="Standard views">
@@ -1096,7 +1117,7 @@ export default function StaffDielineClient() {
             ) : cupG && blankMm ? (
               <>
                 {innerG && (
-                  <div className="mb-2 flex w-fit overflow-hidden rounded-md border border-gray-300 text-xs dark:border-gray-700">
+                  <div className="!order-none mb-2 flex w-fit overflow-hidden rounded-md border border-gray-300 text-xs dark:border-gray-700">
                     {[["full", "Full cup (wrap on the inner cup)"], ["wrap", "Outer fan only"]].map(([k, l]) => (
                       <button key={k} onClick={() => setCupView(k)} className={`px-3 py-1.5 ${cupView === k ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`}>{l}</button>
                     ))}

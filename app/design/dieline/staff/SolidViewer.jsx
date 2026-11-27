@@ -317,7 +317,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
     },
   }));
 
-  return <div ref={host} className="w-full overflow-hidden rounded-md" />;
+  return <div ref={host} className="!order-none w-full overflow-hidden rounded-md" />;
 });
 
 export default SolidViewer;
