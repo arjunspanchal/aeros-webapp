@@ -20,7 +20,7 @@ const FAMILIES = [
   { key: "box", label: "Boxes and cartons", hint: "Cup holders, food boxes, cake and tuck boxes" },
 ];
 
-export default function QuoteStudio({ openRef = "" }) {
+export default function QuoteStudio({ openRef = "", staff = false }) {
   const [family, setFamily] = useState("bag");
   const [bag, setBag] = useState(BAG_INITIAL);
   const [cup, setCup] = useState(CUP_INITIAL);
@@ -62,7 +62,8 @@ export default function QuoteStudio({ openRef = "" }) {
         setMeta(m);
         // Start on a real paper so the first screen shows a real price.
         const p = m.papers.find((x) => /jodhani/i.test(x.supplier) && x.gsm === 90 && x.bf === 28) ?? m.papers.find((x) => x.colour === "brown");
-        if (p) setBag((s) => (s.paperRate ? s : { ...s, paperId: p.id, gsm: String(p.gsm), paperRate: String(p.landed), colour: p.colour, supplier: p.supplier, paperLabel: p.label }));
+        // (a staff user's paper list carries no rates: the server prices from the paper picked)
+        if (p) setBag((s) => (s.paperRate || s.paperId ? s : { ...s, paperId: p.id, gsm: String(p.gsm), paperRate: p.landed != null ? String(p.landed) : "", colour: p.colour, supplier: p.supplier, paperLabel: p.label, paperType: p.type }));
       })
       .catch((e) => setMetaError(e.message));
   }, []);
@@ -187,8 +188,9 @@ export default function QuoteStudio({ openRef = "" }) {
       if (row.gsm && String(row.gsm) !== String(bag.gsm)) {
         state.gsm = String(row.gsm);
         const match = chosen && meta.papers.find((p) => p.supplier === chosen.supplier && p.type === chosen.type && (p.bf ?? null) === (chosen.bf ?? null) && p.gsm === row.gsm);
-        if (match) Object.assign(state, { paperId: match.id, paperRate: String(match.landed), paperLabel: match.label });
-        else if (!(chosen && chosen.gsm === null)) {
+        if (match) Object.assign(state, { paperId: match.id, paperRate: match.landed != null ? String(match.landed) : "", paperLabel: match.label });
+        else if (staff) note += `No ${row.gsm} GSM in this paper: priced on the paper picked. Ask an admin to check.`;
+        else if (!staff && !(chosen && chosen.gsm === null)) {
           fallback += 1;
           note += `Paper rate ₹${bag.paperRate}/kg is the form's rate: check it for ${row.gsm} GSM.`;
         }
@@ -203,19 +205,19 @@ export default function QuoteStudio({ openRef = "" }) {
     return { added: lines.length, skipped, rateNotes: fallback ? [`${fallback} line${fallback === 1 ? " uses" : "s use"} the form's paper rate at a different GSM. Check those rates.`] : [] };
   }
 
-  const bagSummary = `${bag.paperLabel || `${bag.colour} kraft`} at ₹${bag.paperRate || "?"}/kg, ${bag.gsm} GSM, ${bag.slab === "none" ? "plain" : "printed"}, ${Number(bag.qty || 15000).toLocaleString("en-IN")} pcs each`;
+  const bagSummary = `${bag.paperLabel || `${bag.colour} kraft`}${staff ? "" : ` at ₹${bag.paperRate || "?"}/kg`}, ${bag.gsm} GSM, ${bag.slab === "none" ? "plain" : "printed"}, ${Number(bag.qty || 15000).toLocaleString("en-IN")} pcs each`;
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-16 pt-6 text-ink-800">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Quote calculator</h1>
-          <p className="mt-1 text-sm text-ink-600">Costs the way the quotes are worked: packing in every rate, plates and setup outside it.</p>
+          <p className="mt-1 text-sm text-ink-600">{staff ? "Selling prices with packing included. Plates and setup are charged once, outside the rate." : "Costs the way the quotes are worked: packing in every rate, plates and setup outside it."}</p>
         </div>
         <nav className="flex gap-4 text-sm">
           <Link href="/calculator/v2/quotes" className="font-medium text-royal-600 hover:text-royal-700">Saved quotes</Link>
-          <Link href="/calculator/v2/rates" className="font-medium text-royal-600 hover:text-royal-700">Rate book</Link>
-          <Link href="/calculator" className="text-ink-600 hover:text-ink-800">Old calculators</Link>
+          {staff ? null : <Link href="/calculator/v2/rates" className="font-medium text-royal-600 hover:text-royal-700">Rate book</Link>}
+          <Link href="/calculator" className="text-ink-600 hover:text-ink-800">Other tools</Link>
         </nav>
       </div>
 
@@ -237,9 +239,9 @@ export default function QuoteStudio({ openRef = "" }) {
 
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
         <Card padded={false} className="min-w-0">
-          {family === "bag" ? <BagForm s={bag} set={(p) => setBag((s) => ({ ...s, ...p }))} papers={meta.papers} /> : null}
-          {family === "cup" ? <CupForm s={cup} set={(p) => setCup((s) => ({ ...s, ...p }))} rateOf={rateOf} /> : null}
-          {family === "box" ? <BoxForm s={box} set={(p) => setBox((s) => ({ ...s, ...p }))} rateOf={rateOf} /> : null}
+          {family === "bag" ? <BagForm s={bag} set={(p) => setBag((s) => ({ ...s, ...p }))} papers={meta.papers} staff={staff} /> : null}
+          {family === "cup" ? <CupForm s={cup} set={(p) => setCup((s) => ({ ...s, ...p }))} rateOf={rateOf} staff={staff} /> : null}
+          {family === "box" ? <BoxForm s={box} set={(p) => setBox((s) => ({ ...s, ...p }))} rateOf={rateOf} staff={staff} /> : null}
         </Card>
         <Card padded={false} className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" aria-live="polite">
           <ResultPanel
@@ -252,7 +254,7 @@ export default function QuoteStudio({ openRef = "" }) {
 
       <QuoteList
         list={list} results={pricedFor === listJson ? listResults : []} loading={listLoading || pricedFor !== listJson} bagSummary={bagSummary}
-        meta={quoteMeta} setMeta={setQuoteMeta} opened={opened} editingId={editingId} customers={meta.customers ?? []}
+        meta={quoteMeta} setMeta={setQuoteMeta} opened={opened} editingId={editingId} customers={meta.customers ?? []} staff={staff}
         onRemove={(id) => { setList((l) => l.filter((x) => x.id !== id)); if (id === editingId) setEditingId(null); }}
         onEdit={editLine} onEditSpec={startEdit} onPaste={pasteSizes}
         onClear={() => { setList([]); setQuoteMeta(NO_META); setOpened(null); setEditingId(null); }}

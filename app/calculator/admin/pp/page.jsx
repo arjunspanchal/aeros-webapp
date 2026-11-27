@@ -6,7 +6,7 @@ export default function AdminPpPage() {
   const session = getSession();
   const role = session?.isAdmin ? "admin" : session?.modules?.calculator;
   if (!session || !role) redirect("/login");
-  if (role !== "admin") redirect("/calculator/client");
+  if (role !== "admin") redirect("/calculator");
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">

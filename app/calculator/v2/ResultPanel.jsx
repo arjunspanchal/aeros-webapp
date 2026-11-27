@@ -56,7 +56,8 @@ function facts(r) {
     if (g.order) out.push(["Paper for the order", `${int(Math.ceil(g.order.paperKg))} kg incl. wastage`], ["Running length", `${int(Math.ceil(g.order.runningM))} m`]);
     if (g.envelope) out.push(["Machine tube", `${Math.round(g.envelope.tube)} mm (min ${Math.round(g.envelope.minTube)})`], ["Forming plate", g.envelope.plate.stocked ? "In stock" : `Not held; nearest ${g.envelope.plate.nearest} mm`]);
   } else if (r.family === "cup" && g.paperG) {
-    out.push(["Paper bought", `${fix(g.paperG, 2)} g`], ["Basis", g.dieNote], ["Cost per kg of paper", inr(g.perKgOfPaper)]);
+    out.push(["Paper bought", `${fix(g.paperG, 2)} g`], ["Basis", g.dieNote]);
+    if (g.perKgOfPaper !== undefined) out.push(["Cost per kg of paper", inr(g.perKgOfPaper)]);
   } else if (r.family === "box") {
     out.push(["Board per piece", `${fix(g.boardG, 2)} g`], ["Pieces per sheet", g.ups ?? "–"], ["Sheet used", g.utilisation ? `${Math.round(g.utilisation * 100)}%` : "–"], ["Sheets to print", int(g.sheets)], ["Sheets to buy", int(g.sheetsToBuy)], ["Board to buy", g.boardKg ? `${int(Math.round(g.boardKg))} kg` : "–"]);
   }
@@ -100,7 +101,9 @@ export default function ResultPanel({ result, loading, onAdd, added, family, edi
   }
 
   const unit = UNIT[family];
-  const mode = MARGIN_MODES[result.marginMode];
+  // A staff user is sent the selling side only: no cost, margin or rates to draw.
+  const staff = Boolean(result.staff);
+  const mode = MARGIN_MODES[result.marginMode] ?? { label: "" };
   const exp = result.export;
   // An export bag is quoted FOB: ex-factory price plus port charges per bag.
   // (On a cup the port charges are already inside the cost.) The headline, the
@@ -110,7 +113,7 @@ export default function ResultPanel({ result, loading, onAdd, added, family, edi
   const t = num(target);
   // A target is compared like for like: an FOB target has the port charges taken off first.
   const targetNet = t ? t - (fobBag ? fobBag.fobAddPerBag : 0) : null;
-  const targetMargin = t ? marginFor(result.cost, targetNet, result.marginMode) : null;
+  const targetMargin = t && !staff ? marginFor(result.cost, targetNet, result.marginMode) : null;
   const flagged = result.ratesUsed.filter((u) => STATUS[u.status]);
 
   return (
@@ -124,15 +127,19 @@ export default function ResultPanel({ result, loading, onAdd, added, family, edi
           {result.route === "converter" ? <Badge variant="info">Outside converter</Badge> : null}
           {!result.ok ? <Badge variant="danger">Cannot be made as specified</Badge> : null}
         </div>
-        <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <div>
-            <dt className="text-xs text-ink-400">Cost per {unit}</dt>
-            <dd className="font-mono text-2xl text-ink-800">{inr(result.cost)}</dd>
-          </div>
+        <dl className={`mt-4 grid grid-cols-2 gap-4 ${staff ? "" : "sm:grid-cols-3"}`}>
+          {staff ? null : (
+            <div>
+              <dt className="text-xs text-ink-400">Cost per {unit}</dt>
+              <dd className="font-mono text-2xl text-ink-800">{inr(result.cost)}</dd>
+            </div>
+          )}
           <div>
             <dt className="text-xs text-ink-400">{fobBag ? "FOB" : "Sell"} per {unit}</dt>
             <dd className="font-mono text-2xl font-semibold text-royal-600">{inr(quoted)}</dd>
-            <dd className="mt-0.5 text-xs text-ink-400">{fobBag ? `ex-factory ${inr(result.sell, 3)} + port ${inr(fobBag.fobAddPerBag, 3)}; ` : ""}{result.marginPct}% {mode.label}</dd>
+            {staff
+              ? (fobBag ? <dd className="mt-0.5 text-xs text-ink-400">ex-factory {inr(result.sell, 2)}</dd> : null)
+              : <dd className="mt-0.5 text-xs text-ink-400">{fobBag ? `ex-factory ${inr(result.sell, 3)} + port ${inr(fobBag.fobAddPerBag, 3)}; ` : ""}{result.marginPct}% {mode.label}</dd>}
           </div>
           <div>
             <dt className="text-xs text-ink-400">{result.qty ? `Order of ${int(result.qty)}` : "Per case"}</dt>
@@ -162,7 +169,7 @@ export default function ResultPanel({ result, loading, onAdd, added, family, edi
         ) : null}
       </header>
 
-      <Block title="Cost build-up" aside={`₹ per ${unit}`}>
+      {staff ? null : <Block title="Cost build-up" aside={`₹ per ${unit}`}>
         <Table>
           <TBody>
             {result.lines.map((l) => (
@@ -188,7 +195,7 @@ export default function ResultPanel({ result, loading, onAdd, added, family, edi
             </p>
           ) : null}
         </div>
-      </Block>
+      </Block>}
 
       {result.oneTime?.length ? (
         <Block title="One-time charges" aside="Billed once, never inside the rate">
@@ -249,9 +256,11 @@ export default function ResultPanel({ result, loading, onAdd, added, family, edi
           {editingLine ? <Button onClick={onUpdate} disabled={loading}>Update line {editingLine}</Button> : null}
           <Button variant={editingLine ? "secondary" : "primary"} onClick={onAdd} disabled={loading}>{editingLine ? "Add as a new line" : "Add to quote"}</Button>
           {editingLine ? <Button variant="tertiary" onClick={onCancelEdit}>Stop changing it</Button> : null}
-          <Button variant="secondary" onClick={async () => { await navigator.clipboard.writeText(toMarkdown(result)); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
-            {copied ? "Copied" : "Copy working"}
-          </Button>
+          {staff ? null : (
+            <Button variant="secondary" onClick={async () => { await navigator.clipboard.writeText(toMarkdown(result)); setCopied(true); setTimeout(() => setCopied(false), 2000); }}>
+              {copied ? "Copied" : "Copy working"}
+            </Button>
+          )}
           {added ? <span className="text-sm text-green-800" role="status">{added.updated ? `Line ${added.line} updated` : `Added as line ${added.line}`}</span> : null}
         </div>
         {!result.ok ? <p className="mt-2 text-xs text-ink-400">This item is blocked. It can sit on the quote, but the quote cannot be saved or sent until it is fixed or removed.</p> : null}

@@ -5,7 +5,7 @@ import { BOARDS } from "../specs";
 
 const opts = (map) => Object.entries(map).map(([value, v]) => ({ value, label: v.label }));
 
-export default function BoxForm({ s, set, rateOf }) {
+export default function BoxForm({ s, set, rateOf, staff = false }) {
   const board = BOARDS[s.boardKey];
   const bookRate = board.rateKey ? rateOf(board.rateKey) : undefined;
   const allIn = s.conversionAllIn !== "";
@@ -34,9 +34,9 @@ export default function BoxForm({ s, set, rateOf }) {
       </Section>
 
       <Section title="Board">
-        <Select label="Board" value={s.boardKey} onChange={(boardKey) => set({ boardKey, boardRate: "" })} options={opts(BOARDS)} />
+        <Select label="Board" value={s.boardKey} onChange={(boardKey) => set({ boardKey, boardRate: "" })} options={opts(BOARDS).filter((o) => !staff || BOARDS[o.value].rateKey)} />
         <Num label="GSM" value={s.gsm} onChange={(gsm) => set({ gsm })} />
-        <Num label="Board rate" value={s.boardRate} onChange={(boardRate) => set({ boardRate })} placeholder={bookRate !== undefined ? String(bookRate) : "enter"} suffix="₹/kg" />
+        {staff ? null : <Num label="Board rate" value={s.boardRate} onChange={(boardRate) => set({ boardRate })} placeholder={bookRate !== undefined ? String(bookRate) : "enter"} suffix="₹/kg" />}
         <div className={full}><Toggle label="PE coated, 1 side" hint="Adds the PE rate per kg of board" checked={s.pe} onChange={(pe) => set({ pe })} /></div>
       </Section>
 
@@ -57,13 +57,13 @@ export default function BoxForm({ s, set, rateOf }) {
       <Section title="Packing and order">
         <Num label="Quantity" value={s.qty} onChange={(qty) => set({ qty })} suffix="pcs" />
         <Num label="Case pack" value={s.casePack} onChange={(casePack) => set({ casePack })} suffix="pcs" />
-        <Num label="Margin" value={s.marginPct} onChange={(marginPct) => set({ marginPct })} placeholder="15" suffix="% on cost" />
+        {staff ? null : <Num label="Margin" value={s.marginPct} onChange={(marginPct) => set({ marginPct })} placeholder="15" suffix="% on cost" />}
         <Num label="Carton length" value={s.cartonL} onChange={(cartonL) => set({ cartonL })} suffix="mm" hint="Size gives a 5-ply cost" />
         <Num label="Carton breadth" value={s.cartonB} onChange={(cartonB) => set({ cartonB })} suffix="mm" />
         <Num label="Carton height" value={s.cartonH} onChange={(cartonH) => set({ cartonH })} suffix="mm" />
       </Section>
 
-      <Advanced>
+      {staff ? null : <Advanced>
         <Num label="Converter, all-in" value={s.conversionAllIn} onChange={(conversionAllIn) => set({ conversionAllIn })} suffix="₹/pc" hint="Replaces print, punching and pasting" />
         <Num label="Pasting" value={s.pastingPerPc} onChange={(pastingPerPc) => set({ pastingPerPc })} suffix="₹/pc" disabled={allIn} />
         {s.printMode === "card" ? <Num label="Print, this job" value={s.printPer1000} onChange={(printPer1000) => set({ printPer1000 })} suffix="₹/1000 sheets" hint="The printer's figure, all colours" disabled={allIn} /> : null}
@@ -74,7 +74,7 @@ export default function BoxForm({ s, set, rateOf }) {
         <Num label="Poly covers" value={s.polyPer} onChange={(polyPer) => set({ polyPer })} suffix="pcs" />
         <Num label="Board per piece" value={s.boardGPerPc} onChange={(boardGPerPc) => set({ boardGPerPc })} suffix="g" hint="When already known; replaces sheet ÷ ups" />
         <Num label="Die cost" value={s.dieCost} onChange={(dieCost) => set({ dieCost })} suffix="₹" hint="One-time, at actuals" />
-      </Advanced>
+      </Advanced>}
     </>
   );
 }

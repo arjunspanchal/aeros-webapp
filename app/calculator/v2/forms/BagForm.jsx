@@ -5,22 +5,22 @@ import { Num, Select, Segmented, Toggle, Text, Section, Advanced, full } from ".
 const opts = (map) => Object.entries(map).map(([value, v]) => ({ value, label: v.label }));
 const bySupplier = (papers) => papers.reduce((m, p) => ({ ...m, [p.supplier || "Other"]: [...(m[p.supplier || "Other"] ?? []), p] }), {});
 
-export default function BagForm({ s, set, papers }) {
+export default function BagForm({ s, set, papers, staff = false }) {
   const handleBag = s.type === "twisted" || s.type === "flat";
   const printed = s.slab !== "none";
 
   const paperOptions = [
-    { value: "", label: "Type the rate by hand" },
+    { value: "", label: staff ? "Pick a paper" : "Type the rate by hand" },
     ...Object.entries(bySupplier(papers)).map(([group, list]) => ({
       group,
-      options: list.map((p) => ({ value: p.id, label: `${p.type} ${p.gsm ? `${p.gsm} GSM` : "any GSM"}${p.bf ? ` ${p.bf} BF` : ""} · ₹${p.landed} landed` })),
+      options: list.map((p) => ({ value: p.id, label: `${p.type} ${p.gsm ? `${p.gsm} GSM` : "any GSM"}${p.bf ? ` ${p.bf} BF` : ""} ${staff ? "" : ` · ₹${p.landed} landed`}` })),
     })),
   ];
   const pickPaper = (id) => {
     const p = papers.find((x) => x.id === id);
     if (!p) return set({ paperId: "", supplier: "", paperLabel: "" });
     // A row with no GSM is one rate for the whole grade: keep the GSM already typed.
-    set({ paperId: id, ...(p.gsm ? { gsm: String(p.gsm) } : {}), paperRate: String(p.landed), colour: p.colour, supplier: p.supplier, paperLabel: p.label, paperType: p.type });
+    set({ paperId: id, ...(p.gsm ? { gsm: String(p.gsm) } : {}), paperRate: p.landed != null ? String(p.landed) : "", colour: p.colour, supplier: p.supplier, paperLabel: p.label, paperType: p.type });
   };
   const setExtra = (i, patch) => set({ extras: s.extras.map((e, j) => (j === i ? { ...e, ...patch } : e)) });
 
@@ -35,11 +35,11 @@ export default function BagForm({ s, set, papers }) {
         <Segmented label="Size given in" value={s.unit} onChange={(unit) => set({ unit })} options={[{ value: "mm", label: "mm" }, { value: "cm", label: "cm" }, { value: "in", label: "inch" }]} />
       </Section>
 
-      <Section title="Paper" aside="Landed rate = ex-mill + lane">
+      <Section title="Paper" aside={staff ? undefined : "Landed rate = ex-mill + lane"}>
         <Select className={full} label="Paper" value={s.paperId} onChange={pickPaper} options={paperOptions} />
         <Num label="GSM" value={s.gsm} onChange={(gsm) => set({ gsm })} />
         {/* A hand-typed rate is no longer the mill's rate, so the mill is dropped with it. */}
-        <Num label="Landed rate" value={s.paperRate} onChange={(paperRate) => set({ paperRate, paperId: "", supplier: "", paperLabel: "" })} suffix="₹/kg" />
+        {staff ? null : <Num label="Landed rate" value={s.paperRate} onChange={(paperRate) => set({ paperRate, paperId: "", supplier: "", paperLabel: "" })} suffix="₹/kg" />}
         <Segmented label="Colour" value={s.colour} onChange={(colour) => set({ colour, ...(s.paperId ? {} : { paperType: colour === "white" ? "Bleach Kraft White" : "Brown Kraft" }) })} options={[{ value: "brown", label: "Brown" }, { value: "white", label: "White" }]} />
       </Section>
 
@@ -62,7 +62,7 @@ export default function BagForm({ s, set, papers }) {
       <Section title="Order">
         <Num label="Quantity" value={s.qty} onChange={(qty) => set({ qty })} suffix="pcs" hint="Under 15,000 is hand-made" />
         <Num label="Case pack" value={s.casePack} onChange={(casePack) => set({ casePack })} placeholder="standard" suffix="pcs" />
-        <Num label="Margin" value={s.marginPct} onChange={(marginPct) => set({ marginPct })} placeholder="10" suffix="% on cost" />
+        {staff ? null : <Num label="Margin" value={s.marginPct} onChange={(marginPct) => set({ marginPct })} placeholder="10" suffix="% on cost" />}
         <Select label="Going to" value={s.destination} onChange={(destination) => set({ destination })}
           options={[{ value: "domestic", label: "India" }, { value: "usa", label: "USA" }, { value: "export", label: "Other export" }]} />
         {s.destination !== "domestic" ? (
@@ -70,13 +70,13 @@ export default function BagForm({ s, set, papers }) {
         ) : null}
         {s.fob && s.destination !== "domestic" ? (
           <>
-            <Num label="Exchange rate" value={s.fx} onChange={(fx) => set({ fx })} placeholder="98" suffix="₹/USD" />
+            {staff ? null : <Num label="Exchange rate" value={s.fx} onChange={(fx) => set({ fx })} placeholder="98" suffix="₹/USD" />}
             <Num label="Bags per container" value={s.unitsPerContainer} onChange={(unitsPerContainer) => set({ unitsPerContainer })} placeholder="from carton" hint="Blank = worked out from the carton" />
           </>
         ) : null}
       </Section>
 
-      <Advanced>
+      {staff ? null : <Advanced>
         <Num label="Print rate" value={s.printRate} onChange={(printRate) => set({ printRate })} suffix="₹/kg" />
         <Num label="Conversion" value={s.conversion} onChange={(conversion) => set({ conversion })} suffix="₹/kg" />
         <Num label="Wastage" value={s.wastagePct} onChange={(wastagePct) => set({ wastagePct })} suffix="%" />
@@ -105,7 +105,7 @@ export default function BagForm({ s, set, papers }) {
           ))}
           <button type="button" onClick={() => set({ extras: [...s.extras, { label: "", perBag: "" }] })} className="text-sm font-medium text-royal-600 hover:text-royal-700">+ Add a line</button>
         </div>
-      </Advanced>
+      </Advanced>}
     </>
   );
 }

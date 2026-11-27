@@ -25,8 +25,9 @@ const FACTORYOS_ROLES = [
 
 const CALCULATOR_ROLES = [
   { value: "", label: "— None —" },
-  { value: "client", label: "Customer" },
-  { value: "admin", label: "Admin" },
+  { value: "staff", label: "Staff (prices only)" },
+  { value: "admin", label: "Admin (cost and margin)" },
+  { value: "client", label: "Customer (retired, no access)" },
 ];
 
 // Three explicit values + null. UI treats anything-but-disabled as "on";
@@ -204,9 +205,9 @@ function UserRow({ user, clients, vendors, onSaved }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ModuleAccessCell
                     label="Calculator"
-                    description="Per-cup / bag / box rate calculator + saved quotes."
+                    description="Quote calculator and saved quotes. Staff see selling prices only; admins also see cost, margin and rates."
                     checked={!!form.calculatorRole}
-                    onToggle={(on) => set("calculatorRole", on ? "client" : "")}
+                    onToggle={(on) => set("calculatorRole", on ? "staff" : "")}
                   >
                     {form.calculatorRole && (
                       <select className={inputCls} value={form.calculatorRole} onChange={(e) => set("calculatorRole", e.target.value)}>

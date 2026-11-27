@@ -165,7 +165,7 @@ export async function middleware(req) {
     if (!payload || !payload.modules?.calculator) return redirectToLogin(req);
     if (await isSessionStale(payload)) return redirectStaleSession(req);
     if (pathname.startsWith("/calculator/admin") && payload.modules.calculator !== "admin") {
-      return NextResponse.redirect(new URL("/calculator/client", req.url));
+      return NextResponse.redirect(new URL("/calculator", req.url));
     }
     return NextResponse.next();
   }

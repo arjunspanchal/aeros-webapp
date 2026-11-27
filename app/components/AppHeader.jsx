@@ -40,33 +40,28 @@ function subTabsFor(pathname, session) {
 
   if (active === "calculator") {
     const role = session?.modules?.calculator;
+    // One quote calculator for bags, cups, tubs and boxes. Admins see the
+    // working and the rates; staff see selling prices only. The old bag, box,
+    // cup and customer calculators were retired on 27-Nov-2026.
     if (role === "admin") {
-      // Client / pricing management moved to /admin/access (hub-level
-      // editor that also handles factoryos roles + linked clients).
       return [
-        // Calculator v2: one quote screen for bags, cups, tubs and boxes.
         { href: "/calculator/v2",             label: "New quote",    short: "Quote" },
         { href: "/calculator/v2/quotes",      label: "Saved quotes", short: "Saved" },
         { href: "/calculator/v2/rates",       label: "Rate book",    short: "Rate book" },
-        { href: "/calculator/admin",          label: "Bag",      short: "Bag" },
-        { href: "/calculator/admin/box",      label: "Box",      short: "Box" },
-        { href: "/calculator/admin/cup",      label: "Cup",      short: "Cup" },
+        { href: "/calculator/admin/paper-rates", label: "Paper rates", short: "Paper" },
+        // Still on the old screens until they move to the quote calculator.
         { href: "/calculator/admin/wrap",     label: "Wrap",     short: "Wrap" },
         { href: "/calculator/admin/pp",       label: "PP",       short: "PP" },
         { href: "/calculator/gsm",            label: "GSM",      short: "GSM" },
-        { href: "/calculator/admin/history",  label: "History",  short: "History" },
-        { href: "/calculator/admin/rates",    label: "Rates",    short: "Rates" },
-        { href: "/calculator/admin/paper-rates", label: "Paper rates", short: "Paper" },
+        { href: "/calculator",                label: "Other tools", short: "Tools" },
       ];
     }
-    if (role === "client") {
+    if (role === "staff") {
       return [
-        { href: "/calculator/client",         label: "Bag",       short: "Bag" },
-        { href: "/calculator/client/box",     label: "Box",       short: "Box" },
-        { href: "/calculator/client/cup",     label: "Cup",       short: "Cup" },
-        { href: "/calculator/client/wrap",    label: "Wrap",      short: "Wrap" },
-        { href: "/calculator/gsm",            label: "GSM",       short: "GSM" },
-        { href: "/calculator/client/quotes",  label: "My Quotes", short: "Quotes" },
+        { href: "/calculator/v2",             label: "New quote",    short: "Quote" },
+        { href: "/calculator/v2/quotes",      label: "Saved quotes", short: "Saved" },
+        { href: "/calculator/gsm",            label: "GSM",      short: "GSM" },
+        { href: "/calculator",                label: "Other tools", short: "Tools" },
       ];
     }
     return [];

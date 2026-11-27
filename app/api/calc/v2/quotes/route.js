@@ -15,10 +15,11 @@ export async function GET(req) {
     if (ref) {
       // a reference is letters, digits and dashes; anything else is not ours
       if (!/^[A-Za-z0-9-]{6,120}$/.test(ref)) return Response.json({ error: "Not a quote reference" }, { status: 400 });
-      const quote = await getQuote(ref);
+      const quote = await getQuote(ref, session);
+      if (quote?.locked) return Response.json({ error: "This quote was priced by an admin, with its own rates. Ask an admin to change it" }, { status: 403 });
       return quote ? Response.json({ quote }) : Response.json({ error: "No such quote" }, { status: 404 });
     }
-    return Response.json({ quotes: await listQuotes() });
+    return Response.json({ quotes: await listQuotes(session) });
   } catch (e) {
     console.error("/api/calc/v2/quotes GET failed:", e);
     return Response.json({ error: e.message }, { status: 500 });

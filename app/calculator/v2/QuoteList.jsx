@@ -59,7 +59,7 @@ function PasteSizes({ onAdd, bagSummary }) {
   );
 }
 
-export default function QuoteList({ list, results, loading, onRemove, onEdit, onEditSpec, onClear, onPaste, bagSummary, meta, setMeta, opened, editingId, customers }) {
+export default function QuoteList({ list, results, loading, onRemove, onEdit, onEditSpec, onClear, onPaste, bagSummary, meta, setMeta, opened, editingId, customers, staff = false }) {
   const { customer, brand, notes } = meta;
   const setCustomer = (v) => setMeta((m) => ({ ...m, customer: v }));
   const setBrand = (v) => setMeta((m) => ({ ...m, brand: v }));
@@ -245,7 +245,7 @@ export default function QuoteList({ list, results, loading, onRemove, onEdit, on
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <Button onClick={save} loading={busy === "save"} disabled={!ready || Boolean(busy)}>Save quote</Button>
               <Button variant="secondary" onClick={() => excel("customer")} loading={busy === "customer"} disabled={!ready || Boolean(busy)}>Excel for the customer</Button>
-              <Button variant="secondary" onClick={() => excel("internal")} loading={busy === "internal"} disabled={loading || Boolean(busy)}>Excel, internal working</Button>
+              {staff ? null : <Button variant="secondary" onClick={() => excel("internal")} loading={busy === "internal"} disabled={loading || Boolean(busy)}>Excel, internal working</Button>}
               {savedRef ? <span className="font-mono text-sm text-green-800">Saved as {savedRef}</span> : null}
             </div>
             <p className="mt-2 text-xs text-ink-400">

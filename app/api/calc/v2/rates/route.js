@@ -1,7 +1,7 @@
 // The rate book: list every rate, and set or clear an override.
 import { getSession } from "@/lib/auth/session";
 import { dbInsert, dbDelete } from "@/lib/db/supabase";
-import { canUseV2, rateBook } from "@/lib/calc-v2/server";
+import { seesWorking, rateBook } from "@/lib/calc-v2/server";
 import { DEFAULT_RATES } from "@/lib/quote-engine/rates/defaults.js";
 
 export const runtime = "nodejs";
@@ -13,7 +13,7 @@ const MUST_BE_POSITIVE = /^(cup\.fleet\.|cup\.cpm\.|cup\.overhead\.|export\.fx\.
 export async function GET() {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!canUseV2(session)) return new Response("Forbidden", { status: 403 });
+  if (!seesWorking(session)) return new Response("Forbidden", { status: 403 });
   return Response.json({ rates: await rateBook() });
 }
 
@@ -21,7 +21,7 @@ export async function GET() {
 export async function PUT(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!canUseV2(session)) return new Response("Forbidden", { status: 403 });
+  if (!seesWorking(session)) return new Response("Forbidden", { status: 403 });
   let body;
   try {
     body = await req.json();

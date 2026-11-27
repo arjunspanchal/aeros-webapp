@@ -2,7 +2,7 @@
 // file always matches the live rate book; nothing priced in the browser goes
 // into it. kind = "customer" (safe to send) or "internal" (the working).
 import { getSession } from "@/lib/auth/session";
-import { canUseV2, priceMany, MAX_LINES } from "@/lib/calc-v2/server";
+import { canUseV2, seesWorking, priceFor, MAX_LINES } from "@/lib/calc-v2/server";
 import { customerWorkbook, internalWorkbook } from "@/lib/calc-v2/excel";
 import { supplierWordsIn } from "@/lib/calc-v2/present";
 import { indiaStamp } from "@/lib/calc-v2/record";
@@ -25,10 +25,12 @@ export async function POST(req) {
   if (!lines.length) return Response.json({ error: "Add at least one item to the quote" }, { status: 400 });
   if (lines.length > MAX_LINES) return Response.json({ error: `Up to ${MAX_LINES} lines` }, { status: 400 });
   const internal = body.kind === "internal";
+  // The internal working is the cost build-up: admins only.
+  if (internal && !seesWorking(session)) return new Response("Forbidden", { status: 403 });
 
   try {
-    const results = await priceMany(lines.map((l) => l.spec));
-    const priced = lines.map((l, i) => ({ spec: l.spec, ref: String(l.ref || "").trim(), result: results[i] }));
+    const { prepared, raw: results } = await priceFor(session, lines.map((l) => l.spec));
+    const priced = lines.map((l, i) => ({ spec: prepared[i].spec ?? l.spec, ref: String(l.ref || "").trim(), result: results[i] }));
     // A customer copy must be complete and makeable: no holes, no blocked items.
     if (!internal) {
       const bad = priced.map((p, i) => (!p.result.lines ? `Line ${i + 1}: ${p.result.errors?.[0] ?? "not priced"}` : !p.result.ok ? `Line ${i + 1}: ${p.result.warnings.find((w) => w.level === "block")?.message ?? "blocked"}` : null)).filter(Boolean);

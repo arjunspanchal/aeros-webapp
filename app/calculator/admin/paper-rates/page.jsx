@@ -21,10 +21,10 @@ export default async function PaperRatesPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link href="/calculator/admin/rates" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">← Rates</Link>
+        <Link href="/calculator/v2/rates" className="text-xs text-gray-500 hover:text-blue-700 dark:text-gray-400 dark:hover:text-blue-400">← Rate book</Link>
         <h1 className="text-2xl font-bold text-gray-900 mt-4 dark:text-white">Paper rates</h1>
         <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-          Base rate and supplier discount for each paper. The bag and cup calculators pick up a change within about 5 minutes. Admin only.
+          Base rate and supplier discount for each paper. The quote calculator picks up a change within about 5 minutes. Admin only.
         </p>
         <MasterPapersAdmin initialPapers={masterPapers} />
       </main>
