@@ -4,12 +4,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Badge, Card, EmptyState, Table, THead, TBody, TR, TH, TD } from "@/app/components/ui";
+import { StaffPreviewBanner } from "../ViewAsStaff";
 
 const inr0 = (n) => `₹${Math.round(Number(n)).toLocaleString("en-IN")}`;
 const FAMILY = { bag: "Bags", cup: "Cups and tubs", box: "Boxes", wrap: "Wrap paper", pp: "PP items" };
 const day = (iso) => (iso ? iso.split("-").reverse().join("-") : "");
 
-export default function SavedQuotes() {
+export default function SavedQuotes({ previewing = false }) {
   const [quotes, setQuotes] = useState(null);
   const [error, setError] = useState("");
   const [find, setFind] = useState("");
@@ -28,6 +29,8 @@ export default function SavedQuotes() {
   }, [quotes, find]);
 
   return (
+    <>
+    {previewing ? <StaffPreviewBanner /> : null}
     <div className="mx-auto max-w-6xl px-4 pb-16 pt-6 text-ink-800">
       <Link href="/calculator/v2" className="text-sm text-ink-600 hover:text-ink-800">← Quote calculator</Link>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
@@ -83,5 +86,6 @@ export default function SavedQuotes() {
         </Card>
       ) : null}
     </div>
+    </>
   );
 }

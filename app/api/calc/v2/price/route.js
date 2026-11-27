@@ -1,11 +1,11 @@
 // Price a spec. All pricing happens here, on the server, with the live rate book.
 import { getSession } from "@/lib/auth/session";
-import { canUseV2, priceFor, MAX_LINES } from "@/lib/calc-v2/server";
+import { canUseV2, priceFor, MAX_LINES, calcSession } from "@/lib/calc-v2/server";
 
 export const runtime = "nodejs";
 
 export async function POST(req) {
-  const session = getSession();
+  const session = calcSession(getSession());
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!canUseV2(session)) return new Response("Forbidden", { status: 403 });
   let body;

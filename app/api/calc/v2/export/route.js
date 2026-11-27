@@ -2,7 +2,7 @@
 // file always matches the live rate book; nothing priced in the browser goes
 // into it. kind = "customer" (safe to send) or "internal" (the working).
 import { getSession } from "@/lib/auth/session";
-import { canUseV2, seesWorking, priceFor, MAX_LINES } from "@/lib/calc-v2/server";
+import { canUseV2, seesWorking, priceFor, MAX_LINES, calcSession } from "@/lib/calc-v2/server";
 import { customerWorkbook, internalWorkbook } from "@/lib/calc-v2/excel";
 import { supplierWordsIn } from "@/lib/calc-v2/present";
 import { indiaStamp } from "@/lib/calc-v2/record";
@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 const clean = (s) => String(s || "").replace(/[^\w .&()-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
 
 export async function POST(req) {
-  const session = getSession();
+  const session = calcSession(getSession());
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!canUseV2(session)) return new Response("Forbidden", { status: 403 });
   let body;

@@ -8,6 +8,7 @@ import BoxForm from "./forms/BoxForm";
 import ResultPanel from "./ResultPanel";
 import QuoteList from "./QuoteList";
 import { parseSizes } from "./parseSizes";
+import { ViewAsStaffLink, StaffPreviewBanner } from "./ViewAsStaff";
 import { BAG_INITIAL, CUP_INITIAL, BOX_INITIAL, bagSpec, cupSpec, boxSpec, num, STATE_OF } from "./specs";
 
 let nextLineId = 1;
@@ -20,7 +21,7 @@ const FAMILIES = [
   { key: "box", label: "Boxes and cartons", hint: "Cup holders, food boxes, cake and tuck boxes" },
 ];
 
-export default function QuoteStudio({ openRef = "", staff = false }) {
+export default function QuoteStudio({ openRef = "", staff = false, canPreview = false, previewing = false }) {
   const [family, setFamily] = useState("bag");
   const [bag, setBag] = useState(BAG_INITIAL);
   const [cup, setCup] = useState(CUP_INITIAL);
@@ -208,6 +209,8 @@ export default function QuoteStudio({ openRef = "", staff = false }) {
   const bagSummary = `${bag.paperLabel || `${bag.colour} kraft`}${staff ? "" : ` at ₹${bag.paperRate || "?"}/kg`}, ${bag.gsm} GSM, ${bag.slab === "none" ? "plain" : "printed"}, ${Number(bag.qty || 15000).toLocaleString("en-IN")} pcs each`;
 
   return (
+    <>
+    {previewing ? <StaffPreviewBanner /> : null}
     <div className="mx-auto max-w-7xl px-4 pb-16 pt-6 text-ink-800">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -218,6 +221,7 @@ export default function QuoteStudio({ openRef = "", staff = false }) {
           <Link href="/calculator/v2/quotes" className="font-medium text-royal-600 hover:text-royal-700">Saved quotes</Link>
           {staff ? null : <Link href="/calculator/v2/rates" className="font-medium text-royal-600 hover:text-royal-700">Rate book</Link>}
           <Link href="/calculator" className="text-ink-600 hover:text-ink-800">Other tools</Link>
+          {canPreview && !previewing ? <ViewAsStaffLink /> : null}
         </nav>
       </div>
 
@@ -260,5 +264,6 @@ export default function QuoteStudio({ openRef = "", staff = false }) {
         onClear={() => { setList([]); setQuoteMeta(NO_META); setOpened(null); setEditingId(null); }}
       />
     </div>
+    </>
   );
 }

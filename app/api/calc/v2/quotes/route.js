@@ -1,13 +1,13 @@
 // Save and list calculator v2 quotes. A save re-prices the spec on the server;
 // cost and price in the request are ignored.
 import { getSession } from "@/lib/auth/session";
-import { canUseV2, saveQuote, listQuotes, getQuote } from "@/lib/calc-v2/server";
+import { canUseV2, saveQuote, listQuotes, getQuote, calcSession } from "@/lib/calc-v2/server";
 
 export const runtime = "nodejs";
 
 // GET lists saved quotes; GET ?ref=CALC-… returns one quote with its lines' specs.
 export async function GET(req) {
-  const session = getSession();
+  const session = calcSession(getSession());
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!canUseV2(session)) return new Response("Forbidden", { status: 403 });
   try {
@@ -27,7 +27,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const session = getSession();
+  const session = calcSession(getSession());
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!canUseV2(session)) return new Response("Forbidden", { status: 403 });
   let body;
