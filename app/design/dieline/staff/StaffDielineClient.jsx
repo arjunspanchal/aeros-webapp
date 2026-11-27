@@ -266,8 +266,8 @@ export default function StaffDielineClient() {
       const vec = await vectorArt();
       let pdf;
       if (kind === "wrapart" || kind === "wrap4" || kind === "wrapgrid") { // wrap sheets: the house print files, written by lib/dieline/designer/wrap-pdf.js
-        const brand = (saved.customer || saved.name || "aeros").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "aeros", stage = kind === "wrap4" ? "OFFSET-LAYOUT-4up" : kind === "wrapgrid" ? "GRIDCHECK" : "ARTONLY";
-        const out = await wrapSheetPdf({ g: wrapG, plan: wrapPlan, items: art, up: kind === "wrap4" ? 4 : 1, grid: kind === "wrapgrid",
+        const brand = (saved.customer || saved.name || "aeros").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "aeros", stage = kind === "wrap4" ? `OFFSET-LAYOUT-${wrapG.up}up` : kind === "wrapgrid" ? "GRIDCHECK" : "ARTONLY";
+        const out = await wrapSheetPdf({ g: wrapG, plan: wrapPlan, items: art, up: kind === "wrap4" ? wrapG.up : 1, grid: kind === "wrapgrid",
           vec: (list, box) => artworkToPdf(list, { box, noInk: [], spot: process === "pantone", rasterise: rasteriseItem, parse: parseSvgDom }),
           caption: `GRIDCHECK - ${saved.customer || "Aeros"} wrap sheet ${wrapG.W} x ${wrapG.H} mm - 10 mm grid from the cut (blue), centre lines, repeat tiles ${wrapPlan.Px.toFixed(2)} x ${wrapPlan.Py.toFixed(2)} mm (magenta) - NOT FOR PRINT` });
         save(`${brand}_${t.wrapFile.size}_wrap-sheet_sheet_${stage}-v1.pdf`, out.pdf, "application/pdf");
@@ -842,7 +842,7 @@ export default function StaffDielineClient() {
                 <>
                   <CheckList checks={artChecks} className="mt-3" />
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {(wrapG ? [["wrap4", "OFFSET-LAYOUT 4-up: the press sheet (PDF)"], ["wrapart", "ARTONLY: one sheet, for print (PDF)"], ["wrapgrid", "GRIDCHECK: grid + repeat tiles, not for print (PDF)"], ["layout", "Artwork + outline, for checking (PDF)"]]
+                    {(wrapG ? [["wrap4", `OFFSET-LAYOUT ${wrapG.up}-up: the press sheet (PDF)`], ["wrapart", "ARTONLY: one sheet, for print (PDF)"], ["wrapgrid", "GRIDCHECK: grid + repeat tiles, not for print (PDF)"], ["layout", "Artwork + outline, for checking (PDF)"]]
                       : petG ? [["petart", "ART: the print rectangle, exact size (PDF)"], ["vendor", "ART-DIM: sizes + colours for the printer (PDF)"], ["layout", "Artwork + outline, for checking (PDF)"]]
                       : [["layout", "Artwork + outlines (PDF)"], ["artpunch", "Artwork, no outlines (PDF)"], ...(cupG ? [] : [["vendor", "Vendor sheet: sizes + colours (PDF)"]])]).map(([k, label]) => (
                       <button key={k} disabled={!ok || artBlocked || !!making} onClick={() => printFile(k)}
@@ -1049,7 +1049,7 @@ export default function StaffDielineClient() {
               </>
             ) : solid ? (
               <>
-                <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} background={bg3d} model={solid} lieFlat={t.family === "box"} colours={mat.colour3d} texture={tex} blank={blankMm} />
+                <SolidViewer ref={viewerRef} scene={scene3d} sceneScale={sceneScale} background={bg3d} model={solid} lieFlat={t.family === "box" ? (t.flip3d ? "flip" : true) : false} colours={mat.colour3d} texture={tex} blank={blankMm} />
                 <label className="mt-2 flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
                   Flat
                   <input type="range" min={0} max={1} step={0.01} value={foldT} onChange={(e) => setFoldT(+e.target.value)} className="flex-1" />

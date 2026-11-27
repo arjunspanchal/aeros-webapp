@@ -533,7 +533,7 @@ export default function ArtworkDesigner({ doc, geom, family, areas, noInk, items
               </span>
             ))}
           </div>
-          <p className="mt-1.5 text-[11px] text-gray-500">The tile always divides the sheet exactly, so every sheet is identical and the 4-up press sheet has no seam. The lockup sits whole in every tile; the small mark sits on the tile corners and is the only thing a cut splits. Nothing is dragged: change the pitch or a width.</p>
+          <p className="mt-1.5 text-[11px] text-gray-500">The tile always divides the sheet exactly, so every sheet is identical and the press sheet has no seam. The lockup sits whole in every tile; the small mark sits on the tile corners and is the only thing a cut splits. Nothing is dragged: change the pitch or a width.</p>
         </div>
       )}
       {jobInks.length > 0 && (

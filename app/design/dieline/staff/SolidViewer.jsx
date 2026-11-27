@@ -12,8 +12,10 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 // die frame (x right, y down, z into the box) -> three (y up): (x, -y, -z) is a proper rotation, no mirror
 // Bags stand up (the die's top is the bag's top): (x, -y, -z). Boxes lie on their base (the die plane is the table, the
 // box rises out of it): (x, z, -y). Both are proper rotations (determinant +1), so nothing is ever mirrored.
-let LIE_FLAT = false;
-const P = (p) => (LIE_FLAT ? new THREE.Vector3(p[0], p[2], -p[1]) : new THREE.Vector3(p[0], -p[1], -p[2]));
+// lieFlat "flip": the same, turned over (x, -z, y) - for a part that is used with its root panel on TOP and its walls hanging
+// down (the drawer box cup insert: platform up, legs down). Also a proper rotation.
+let LIE_FLAT = false, LIE_FLIP = false;
+const P = (p) => (LIE_FLAT ? (LIE_FLIP ? new THREE.Vector3(p[0], -p[2], p[1]) : new THREE.Vector3(p[0], p[2], -p[1])) : new THREE.Vector3(p[0], -p[1], -p[2]));
 
 function panelGeometry(w, outline2d, holes2d, blank) {
   const tris = THREE.ShapeUtils.triangulateShape(outline2d.map(([x, y]) => new THREE.Vector2(x, y)), holes2d.map((h) => h.map(([x, y]) => new THREE.Vector2(x, y))));
@@ -169,7 +171,7 @@ const SolidViewer = forwardRef(function SolidViewer({ model, colours, texture, b
       new THREE.MeshStandardMaterial({ color: colours?.back || "#e8e4da", roughness: 0.9, side: THREE.DoubleSide }), // inside
       new THREE.MeshStandardMaterial({ color: "#c9c3b5", roughness: 0.9, side: THREE.DoubleSide }), // cut edges
     ];
-    LIE_FLAT = !!lieFlat && !cone;
+    LIE_FLAT = !!lieFlat && !cone; LIE_FLIP = lieFlat === "flip";
     if (pet) {
       // PET CUP: the moulded cup turned from its measured profile (clear), with the print band wrapped a full 360 deg.
       // The artwork rectangle is stretched round the cup at every height, as the printer's cone distortion does.

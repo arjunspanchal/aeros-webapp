@@ -84,13 +84,13 @@ for (const t of TEMPLATES.filter((x) => x.route === "wrap")) {
     if (Math.abs(pl.nx * pl.Px - g.W) > 1e-9 || Math.abs(pl.ny * pl.Py - g.H) > 1e-9 || pl.ny % 2) f.push(`pitch ${pitch}: tile ${pl.Px} x ${pl.Py}, ${pl.nx} x ${pl.ny}`);
     const A = { id: "a", kind: "svg", rep: "A", w: Math.min(50, pl.Px - 2), h: Math.min(18, pl.Py - 2) }, Bm = { id: "b", kind: "svg", rep: "B", w: 11, h: 11 };
     const one = expandWrap([A, Bm], pl, [-WRAP_BLEED, -WRAP_BLEED, g.W + WRAP_BLEED, g.H + WRAP_BLEED]);
-    const four = expandWrap([A, Bm], pl, [-WRAP_BLEED, -WRAP_BLEED, 2 * g.W + WRAP_BLEED, 2 * g.H + WRAP_BLEED]);
+    const four = expandWrap([A, Bm], pl, [-WRAP_BLEED, -WRAP_BLEED, g.cols * g.W + WRAP_BLEED, g.rows * g.H + WRAP_BLEED]); // the whole press field
     const key = (l, dx, dy) => l.filter((i) => i.x - dx + i.w / 2 > 0 && i.x - dx - i.w / 2 < g.W && i.y - dy + i.h / 2 > 0 && i.y - dy - i.h / 2 < g.H).map((i) => `${i.id.split("@")[0]}:${(i.x - dx).toFixed(2)},${(i.y - dy).toFixed(2)}`).sort().join("|");
     const ref = key(one, 0, 0);
-    for (const [dx, dy] of [[0, 0], [g.W, 0], [0, g.H], [g.W, g.H]]) if (key(four, dx, dy) !== ref) { f.push(`pitch ${pitch}: the 4-up piece at ${dx},${dy} differs from the single sheet`); break; }
+    for (const [dx, dy] of Array.from({ length: g.cols * g.rows }, (_, k) => [(k % g.cols) * g.W, Math.floor(k / g.cols) * g.H])) if (key(four, dx, dy) !== ref) { f.push(`pitch ${pitch}: the ${g.up}-up piece at ${dx},${dy} differs from the single sheet`); break; }
   }
   runs++; if (f.length) bad++;
-  summary.push(`${f.length ? "FAIL" : "PASS"}  ${t.id}: ${g.W} x ${g.H} mm, 91 pitches (30 to 120 mm): tile divides the sheet, rows even, the 4 pieces of the press sheet = the single sheet; press sheet ${g.sheet4.join(" x ")} mm`);
+  summary.push(`${f.length ? "FAIL" : "PASS"}  ${t.id}: ${g.W} x ${g.H} mm, 91 pitches (30 to 120 mm): tile divides the sheet, rows even, the ${g.up} pieces of the press sheet = the single sheet; press sheet ${g.sheet4.join(" x ")} mm`);
   console.log(f.length ? `    FAIL ${t.id}: ${f.slice(0, 3).join("; ")}` : `    ${t.id}: clean`);
 }
 if (notes.size) console.log("\nLock parts shown unbent (reported on screen, not a fault):\n  " + [...notes].join("\n  "));
