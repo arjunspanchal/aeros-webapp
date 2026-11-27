@@ -209,20 +209,20 @@ export default function StaffDielineClient() {
   const drawerSet = useMemo(() => {
     if (!t.drawerSet || !(+values.L > 0 && +values.W > 0 && +values.H > 0)) return null;
     const L = +values.L, W = +values.W, H = +values.H, c = +board.mm || 0.42, f = drawerFit({ L, W, H }, c), MMPT = 25.4 / 72;
-    const part = (id) => { const x = TEMPLATES.find((q) => q.id === id); try { const d = x.build({ L, W, H }); return d && d.valid ? { blank: [d.blank.widthPt * MMPT, d.blank.heightPt * MMPT], frame: d.blank.frame } : { error: ((d && d.warnings) || []).join(" ") }; } catch (e) { return { error: e.message }; } };
+    const closed = !!values.closed, part = (id) => { const x = TEMPLATES.find((q) => q.id === id); try { const d = x.build({ L, W, H, closed }); return d && d.valid ? { blank: [d.blank.widthPt * MMPT, d.blank.heightPt * MMPT], frame: d.blank.frame } : { error: ((d && d.warnings) || []).join(" ") }; } catch (e) { return { error: e.message }; } };
     const hasInsert = drawerInsertFits({ L, W, H });
     const sl = part("drawer-box-sleeve"), tr = part("drawer-box-tray"), ins = hasInsert ? part("drawer-box-insert") : {};
     return { c, f, hasInsert, rows: [
       { id: "drawer-box-tray", name: "Tray", error: tr.error, blank: tr.blank,
         lines: [["Inside", [L, W, H]], ["Outside", f.trayOutside.slice(2).concat(f.trayOutside.slice(0, 2))]], note: "length x width x height" },
-      { id: "drawer-box-sleeve", name: "Sleeve", error: sl.error, blank: sl.blank,
+      { id: "drawer-box-sleeve", name: closed ? "Sleeve, one end closed" : "Sleeve", error: sl.error, blank: sl.blank,
         lines: [["Inside", [f.sleeveInside[2], f.sleeveInside[0], f.sleeveInside[1]]], ["Outside", [f.sleeveInside[2], f.sleeveInside[0] + 2 * c, f.sleeveInside[1] + 2 * c]]],
-        note: `length x width x height. Clearance round the tray: ${f.playAcross} mm a side, ${f.playHeight} mm above it; the tray sits ${f.trayInFromEnd} mm inside each open end.`, tight: f.playAcross < 0 || f.playHeight < 0 },
+        note: `length x width x height. Clearance round the tray: ${f.playAcross} mm a side, ${f.playHeight} mm above it; ${closed ? `the tray stops against the closed end and sits ${f.trayInFromOpenEnd} mm inside the open end. Thumb cut Dia 20 mm on the top and the bottom at the open end. Tick or untick "Closed at one end" on the sleeve.` : `the tray sits ${f.trayInFromEnd} mm inside each open end. For a sleeve closed at one end, open the sleeve and tick "Closed at one end".`}`, tight: f.playAcross < 0 || f.playHeight < 0 },
       { id: "drawer-box-insert", name: "Cup insert", error: ins.error, blank: ins.blank, na: hasInsert ? "" : "Not made at this size. The 3-cup insert fits one tray only (192–222 × 68–78 × 38–46 mm inside). This box is sleeve + tray.",
         lines: ins.frame ? [["Platform", [ins.frame.PL, ins.frame.PW]], ["Legs", [ins.frame.leg]]] : [],
         note: ins.frame ? `Clearance inside the tray: ${f.insertPlayAcross} mm a side, ${f.insertPlayLength} mm an end. Cup holes ${f.cupCut} mm (ring ${f.cupRing} mm), platform ${f.platformAbove} mm above the base.` : "", tight: f.insertPlayAcross < 0 || f.insertPlayLength < 0 },
     ] };
-  }, [tid, values.L, values.W, values.H, board.mm]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tid, values.L, values.W, values.H, values.closed, board.mm]); // eslint-disable-line react-hooks/exhaustive-deps
   const artCtx = useMemo(() => {
     if (!res || !res.doc || !panelsAny) return null;
     const total = panelsAny.panels.reduce((s2, p) => s2 + p.area, 0);
@@ -487,7 +487,7 @@ export default function StaffDielineClient() {
       if (boxProof) { // DRAWER BOX SLEEVE: the house box proof. Every size on it is the size of this job, as entered in step 2.
         const flat = await artworkToPdf(artOut, { box: [-BLEED, -BLEED, blankMm.w + BLEED, blankMm.h + BLEED], noInk: [], spot: process === "pantone", rasterise: rasteriseItem, parse: parseSvgDom }); // the glue flap is shown as bare board by the proof itself
         const brown = /kraft|brown/i.test(`${mat.name} ${mat.top || ""}`);
-        const spec = drawerSleeveProofSpec({ values, mm: board.mm, mat, frame: res.doc.blank.frame, areas: artCtx.areas, blank: blankMm, art, inks: vec.inks, process, customer: saved.customer, proofNo, date: new Date().toISOString().slice(0, 10), scale100: boxProofScale(blankMm) > 0.999, insert: drawerInsertFits(values) });
+        const spec = drawerSleeveProofSpec({ values, mm: board.mm, mat, frame: res.doc.blank.frame, areas: artCtx.areas, blank: blankMm, art, inks: vec.inks, process, customer: saved.customer, proofNo, date: new Date().toISOString().slice(0, 10), scale100: boxProofScale(blankMm) > 0.999, insert: drawerInsertFits(values), closed: !!values.closed });
         const gi = await loadImage("/house/proof-colour-page.jpg"), gc = document.createElement("canvas"); gc.width = gi.naturalWidth; gc.height = gi.naturalHeight; gc.getContext("2d").drawImage(gi, 0, 0);
         const pdf = boxProofPdf({ ...spec, doc: res.doc, blank: blankMm, vector: flat, noInk: artCtx.noInk,
           board: brown ? [1, 3, 5].map((k) => (parseInt(mat.colour3d.top.slice(k, k + 2), 16) / 255).toFixed(3)).join(" ") : null,
@@ -637,6 +637,7 @@ export default function StaffDielineClient() {
     if (stop.length) { alert(`Not every part can be made at this size:\n\n${stop.join("\n")}`); return; }
     const size = `${+values.L} x ${+values.W} x ${+values.H} mm`, lines = [`AEROS  -  DRAWER BOX, ${drawerSet.hasInsert ? "three parts" : "sleeve + tray"}  -  tray inside ${size}  -  ${board.label}, ${board.mm} mm`, ""];
     const unproven = res && res.checks && res.checks.find((c) => c.id === "SIZE-NOT-PRODUCED");
+    if (values.closed) lines.push("SLEEVE CLOSED AT ONE END (glued flaps) - a new construction: make one sample before the die is ordered.", "");
     if (unproven) lines.push("NOT A SIZE WE HAVE PRODUCED - MAKE ONE SAMPLE BEFORE THE DIE IS ORDERED.", unproven.detail, "");
     for (const r of drawerSet.rows) { if (r.na) { lines.push(r.name.toUpperCase(), `  ${r.na}`, ""); continue; } lines.push(r.name.toUpperCase()); for (const [k, v] of r.lines) lines.push(`  ${k}: ${v.map((q) => +(+q).toFixed(1)).join(" x ")} mm`); if (r.blank) lines.push(`  Flat: ${r.blank.map((q) => q.toFixed(1)).join(" x ")} mm`); if (r.note) lines.push(`  ${r.tight ? "TOO TIGHT ON THIS BOARD. " : ""}${r.note}`); lines.push(""); }
     lines.push("Each part: a dimensioned keyline (KLD, PDF) and the cutting file (DIE-CUT, PDF + SVG): red = cut, green = crease.", drawerSet.hasInsert ? "The artwork goes on the sleeve only. The tray and the cup insert are plain." : "The artwork goes on the sleeve only. The tray is plain.");
