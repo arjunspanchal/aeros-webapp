@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 const STATUSES = new Set(["confirmed", "assumed", "disputed"]);
 // Rates the engine divides by, or uses as a limit: zero would break every quote.
-const MUST_BE_POSITIVE = /^(cup\.fleet\.|cup\.cpm\.|cup\.overhead\.|export\.fx\.|export\.container\.40hc|box\.min_sheets|box\.locked_min_sheets|bag\.moq|bag\.gusset\.|bag\.case\.|bag\.bale\.pack|bag\.wastage\.long_run_qty|cup\.print\.offset_max_qty)/;
+const MUST_BE_POSITIVE = /^(cup\.fleet\.|cup\.cpm\.|cup\.overhead\.|export\.fx\.|export\.container\.40hc|box\.min_sheets|box\.locked_min_sheets|bag\.moq|bag\.gusset\.|bag\.case\.|bag\.bale\.pack|bag\.wastage\.long_run_qty|cup\.print\.offset_max_qty|wrap\.offset\.bundle_sheets|wrap\.offset\.min_sheets|wrap\.case\.max_kg)/;
 
 export async function GET() {
   const session = getSession();

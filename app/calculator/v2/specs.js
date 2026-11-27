@@ -153,6 +153,38 @@ export function boxSpec(s) {
   };
 }
 
+// ── Wrap paper ──────────────────────────────────────────────────────────────
+// Papers a wrap is made from, out of the paper master.
+export const WRAP_PAPER_TYPES = ["OGR", "MG", "Bleach Kraft White"];
+
+export const WRAP_INITIAL = {
+  name: "", unit: "mm", W: "254", L: "279", gsm: "40",
+  paperId: "", paperRate: "", paperLabel: "", paperType: "OGR", supplier: "",
+  printMode: "none", colours: "1", source: "reel", sheetKey: "20x30", sheetW: "", sheetH: "", ups: "",
+  qty: "100000", casePack: "", marginPct: "",
+  printRate: "", printPer1000: "", platePerColour: "", wastagePct: "", cuttingPerKg: "", cartonPerCase: "",
+};
+
+export function wrapSpec(s) {
+  const mode = s.printMode;
+  // flexo prints on the reel, offset on stock sheets; a plain wrap can be either
+  const source = mode === "flexo" ? "reel" : mode === "offset" ? "sheet" : s.source;
+  const sheet = source !== "sheet" ? undefined : s.sheetKey === "custom" ? (num(s.sheetW) && num(s.sheetH) ? { w: num(s.sheetW), h: num(s.sheetH) } : undefined) : s.sheetKey;
+  return {
+    family: "wrap",
+    name: s.name || undefined,
+    W: toMm(s.W, s.unit), L: toMm(s.L, s.unit),
+    gsm: num(s.gsm), paperRate: num(s.paperRate),
+    paper: { label: s.paperLabel, grade: s.paperType, supplier: s.supplier, id: s.paperId || undefined },
+    source, sheet, ups: source === "sheet" ? num(s.ups) : undefined,
+    print: mode === "none" ? { mode: "none" }
+      : { mode, colours: num(s.colours) ?? 1, ratePerKg: mode === "flexo" ? num(s.printRate) : undefined, per1000: mode === "offset" ? num(s.printPer1000) : undefined, platePerColour: num(s.platePerColour) },
+    qty: num(s.qty), casePack: num(s.casePack), marginPct: num(s.marginPct),
+    wastagePct: num(s.wastagePct), cuttingPerKg: mode === "offset" ? undefined : num(s.cuttingPerKg),
+    carton: num(s.cartonPerCase) !== undefined ? { perCase: num(s.cartonPerCase) } : undefined,
+  };
+}
+
 // ── Engine spec → form state ────────────────────────────────────────────────
 // The reverse of the three functions above, used to put a line of the quote
 // (or a line of a reopened saved quote) back into the form for editing.
@@ -219,5 +251,20 @@ export function boxState(spec) {
   };
 }
 
-export const SPEC_OF = { bag: bagSpec, cup: cupSpec, box: boxSpec };
-export const STATE_OF = { bag: bagState, cup: cupState, box: boxState };
+export function wrapState(spec) {
+  const custom = spec.sheet && typeof spec.sheet !== "string";
+  const mode = spec.print?.mode ?? "none";
+  return {
+    ...WRAP_INITIAL,
+    name: spec.name ?? "", unit: "mm", W: str(spec.W), L: str(spec.L), gsm: str(spec.gsm),
+    paperId: spec.paper?.id ?? "", paperRate: str(spec.paperRate), paperLabel: spec.paper?.label ?? "", paperType: spec.paper?.grade ?? "OGR", supplier: spec.paper?.supplier ?? "",
+    printMode: mode, colours: str(spec.print?.colours ?? 1), source: spec.source ?? "reel",
+    sheetKey: custom ? "custom" : spec.sheet ?? WRAP_INITIAL.sheetKey, sheetW: custom ? str(spec.sheet.w) : "", sheetH: custom ? str(spec.sheet.h) : "", ups: str(spec.ups),
+    qty: str(spec.qty), casePack: str(spec.casePack), marginPct: str(spec.marginPct),
+    printRate: str(spec.print?.ratePerKg), printPer1000: str(spec.print?.per1000), platePerColour: str(spec.print?.platePerColour),
+    wastagePct: str(spec.wastagePct), cuttingPerKg: str(spec.cuttingPerKg), cartonPerCase: str(spec.carton?.perCase),
+  };
+}
+
+export const SPEC_OF = { bag: bagSpec, cup: cupSpec, box: boxSpec, wrap: wrapSpec };
+export const STATE_OF = { bag: bagState, cup: cupState, box: boxState, wrap: wrapState };
