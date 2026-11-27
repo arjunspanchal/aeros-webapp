@@ -16,7 +16,7 @@ for (const t of TEMPLATES) {
   if (t.route === "cup" || t.route === "pet" || t.route === "wrap") continue;
   const cal = t.family === "bag" ? CAL.bag : t.id === "mailer-0427" ? CAL.mailer : CAL.box;
   const variants = [];
-  for (const p of t.proven) {
+  for (const p of [...t.proven, ...(t.auditSizes || [])]) {
     const v = {}; for (const inp of t.inputs) if (p[inp.key] != null) v[inp.key] = p[inp.key];
     variants.push([p.ref || JSON.stringify(v), v]);
     if (t.inputs.some((i) => i.key === "half")) variants.push([`${p.ref} 2-piece`, { ...v, half: true }]);

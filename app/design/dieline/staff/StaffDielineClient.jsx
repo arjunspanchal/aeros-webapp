@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TEMPLATES, TEMPLATE_GROUPS, templateLimits } from "@/lib/dieline/templates";
 import { drawerFit } from "@/lib/dieline/drawerbox";
-import { runStaffTemplate, fileStem } from "@/lib/dieline/staff";
+import { runStaffTemplate, drawerInsertFits, fileStem } from "@/lib/dieline/staff";
 import { MATERIAL_LIBRARY, MATERIAL_FAMILIES, materialById } from "@/lib/dieline/material-library";
 import { panelsFromDie } from "@/lib/dieline/solid/arrangement";
 import { programFor } from "@/lib/dieline/solid/programs";
@@ -197,8 +197,9 @@ export default function StaffDielineClient() {
   const petG = useMemo(() => (t.pet ? petGeometry(t.pet) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps -- PET cups: direct print, the die is the print rectangle
   const innerG = useMemo(() => (t.innerCup ? cupGeometry(t.innerCup) : null), [tid]); // eslint-disable-line react-hooks/exhaustive-deps
   const [cupView, setCupView] = useState("full"); // double wall: "full" = wrap on its inner cup, "wrap" = the outer fan alone
-  const prog = useMemo(() => (res && res.doc ? programFor(tid, values, res.doc) : null), [res]); // eslint-disable-line react-hooks/exhaustive-deps
-  const panelsAny = useMemo(() => (res && res.doc ? panelsFromDie(res.doc, { rootPoint: prog?.rootPoint }) : null), [res, prog]);
+  // a half-typed size must never take the screen down: anything the 3D side cannot work out is simply not drawn
+  const prog = useMemo(() => { try { return res && res.doc ? programFor(tid, values, res.doc) : null; } catch { return null; } }, [res]); // eslint-disable-line react-hooks/exhaustive-deps
+  const panelsAny = useMemo(() => { try { return res && res.doc ? panelsFromDie(res.doc, { rootPoint: prog?.rootPoint }) : null; } catch { return null; } }, [res, prog]);
   const geom = prog ? panelsAny : null;
   // artwork: where logos may sit, where ink may never go, and the checks
   const blankMm = res && res.doc ? { w: res.blankMm[0], h: res.blankMm[1] } : null;
@@ -209,14 +210,15 @@ export default function StaffDielineClient() {
     if (!t.drawerSet || !(+values.L > 0 && +values.W > 0 && +values.H > 0)) return null;
     const L = +values.L, W = +values.W, H = +values.H, c = +board.mm || 0.42, f = drawerFit({ L, W, H }, c), MMPT = 25.4 / 72;
     const part = (id) => { const x = TEMPLATES.find((q) => q.id === id); try { const d = x.build({ L, W, H }); return d && d.valid ? { blank: [d.blank.widthPt * MMPT, d.blank.heightPt * MMPT], frame: d.blank.frame } : { error: ((d && d.warnings) || []).join(" ") }; } catch (e) { return { error: e.message }; } };
-    const sl = part("drawer-box-sleeve"), tr = part("drawer-box-tray"), ins = part("drawer-box-insert");
-    return { c, f, rows: [
+    const hasInsert = drawerInsertFits({ L, W, H });
+    const sl = part("drawer-box-sleeve"), tr = part("drawer-box-tray"), ins = hasInsert ? part("drawer-box-insert") : {};
+    return { c, f, hasInsert, rows: [
       { id: "drawer-box-tray", name: "Tray", error: tr.error, blank: tr.blank,
         lines: [["Inside", [L, W, H]], ["Outside", f.trayOutside.slice(2).concat(f.trayOutside.slice(0, 2))]], note: "length x width x height" },
       { id: "drawer-box-sleeve", name: "Sleeve", error: sl.error, blank: sl.blank,
         lines: [["Inside", [f.sleeveInside[2], f.sleeveInside[0], f.sleeveInside[1]]], ["Outside", [f.sleeveInside[2], f.sleeveInside[0] + 2 * c, f.sleeveInside[1] + 2 * c]]],
         note: `length x width x height. Clearance round the tray: ${f.playAcross} mm a side, ${f.playHeight} mm above it; the tray sits ${f.trayInFromEnd} mm inside each open end.`, tight: f.playAcross < 0 || f.playHeight < 0 },
-      { id: "drawer-box-insert", name: "Cup insert", error: ins.error, blank: ins.blank,
+      { id: "drawer-box-insert", name: "Cup insert", error: ins.error, blank: ins.blank, na: hasInsert ? "" : "Not made at this size. The 3-cup insert fits one tray only (192–222 × 68–78 × 38–46 mm inside). This box is sleeve + tray.",
         lines: ins.frame ? [["Platform", [ins.frame.PL, ins.frame.PW]], ["Legs", [ins.frame.leg]]] : [],
         note: ins.frame ? `Clearance inside the tray: ${f.insertPlayAcross} mm a side, ${f.insertPlayLength} mm an end. Cup holes ${f.cupCut} mm (ring ${f.cupRing} mm), platform ${f.platformAbove} mm above the base.` : "", tight: f.insertPlayAcross < 0 || f.insertPlayLength < 0 },
     ] };
@@ -485,7 +487,7 @@ export default function StaffDielineClient() {
       if (boxProof) { // DRAWER BOX SLEEVE: the house box proof. Every size on it is the size of this job, as entered in step 2.
         const flat = await artworkToPdf(artOut, { box: [-BLEED, -BLEED, blankMm.w + BLEED, blankMm.h + BLEED], noInk: [], spot: process === "pantone", rasterise: rasteriseItem, parse: parseSvgDom }); // the glue flap is shown as bare board by the proof itself
         const brown = /kraft|brown/i.test(`${mat.name} ${mat.top || ""}`);
-        const spec = drawerSleeveProofSpec({ values, mm: board.mm, mat, frame: res.doc.blank.frame, areas: artCtx.areas, blank: blankMm, art, inks: vec.inks, process, customer: saved.customer, proofNo, date: new Date().toISOString().slice(0, 10), scale100: boxProofScale(blankMm) > 0.999 });
+        const spec = drawerSleeveProofSpec({ values, mm: board.mm, mat, frame: res.doc.blank.frame, areas: artCtx.areas, blank: blankMm, art, inks: vec.inks, process, customer: saved.customer, proofNo, date: new Date().toISOString().slice(0, 10), scale100: boxProofScale(blankMm) > 0.999, insert: drawerInsertFits(values) });
         const gi = await loadImage("/house/proof-colour-page.jpg"), gc = document.createElement("canvas"); gc.width = gi.naturalWidth; gc.height = gi.naturalHeight; gc.getContext("2d").drawImage(gi, 0, 0);
         const pdf = boxProofPdf({ ...spec, doc: res.doc, blank: blankMm, vector: flat, noInk: artCtx.noInk,
           board: brown ? [1, 3, 5].map((k) => (parseInt(mat.colour3d.top.slice(k, k + 2), 16) / 255).toFixed(3)).join(" ") : null,
@@ -620,22 +622,24 @@ export default function StaffDielineClient() {
     const m = solidModel(tid, values, res.doc, { thickness: board.mm, t: foldT, geom });
     return m.error ? null : { ...m, key: `${tid}-${JSON.stringify(values)}` };
   }, [geom, board.mm, foldT]); // eslint-disable-line react-hooks/exhaustive-deps
-  const solidFinal = useMemo(() => (geom ? solidModel(tid, values, res.doc, { thickness: board.mm, t: 1, geom }) : null), [geom, board.mm]); // eslint-disable-line react-hooks/exhaustive-deps
+  const solidFinal = useMemo(() => { if (!geom) return null; const m = solidModel(tid, values, res.doc, { thickness: board.mm, t: 1, geom }); return m.error ? null : m; }, [geom, board.mm]); // eslint-disable-line react-hooks/exhaustive-deps
   const kldTitle = [t.name, board.label, res && res.kldNote].filter(Boolean).join(" · ");
   // DRAWER BOX: the keyline and the die file of all three parts, at this size and board, in one zip
   function drawerSetZip() {
     const enc = new TextEncoder(), files = [], stop = [];
-    for (const x of TEMPLATES.filter((q) => q.drawerSet)) {
+    for (const x of TEMPLATES.filter((q) => q.drawerSet && (drawerSet.hasInsert || q.id !== "drawer-box-insert"))) {
       const r = runStaffTemplate(x.id, values, board, print);
       if (r.error || r.blocked) { stop.push(`${x.short}: ${r.error || r.checks.filter((c) => !c.ok && c.severity === "block").map((c) => c.title).join("; ")}`); continue; }
       const st = fileStem({ template: x, values, board });
       files.push({ name: `${st}-KLD.pdf`, data: enc.encode(toPdf(r.doc, { units: "both", showDims: true, title: [x.name, board.label].join(" · ") })) },
         { name: `${st}-DIE-CUT.pdf`, data: enc.encode(toDiePdf(r.doc)) }, { name: `${st}-DIE-CUT.svg`, data: enc.encode(toDieSvg(r.doc)) });
     }
-    if (stop.length) { alert(`Not all three parts can be made at this size:\n\n${stop.join("\n")}`); return; }
-    const size = `${+values.L} x ${+values.W} x ${+values.H} mm`, lines = [`AEROS  -  DRAWER BOX, three parts  -  tray inside ${size}  -  ${board.label}, ${board.mm} mm`, ""];
-    for (const r of drawerSet.rows) { lines.push(r.name.toUpperCase()); for (const [k, v] of r.lines) lines.push(`  ${k}: ${v.map((q) => +(+q).toFixed(1)).join(" x ")} mm`); if (r.blank) lines.push(`  Flat: ${r.blank.map((q) => q.toFixed(1)).join(" x ")} mm`); if (r.note) lines.push(`  ${r.tight ? "TOO TIGHT ON THIS BOARD. " : ""}${r.note}`); lines.push(""); }
-    lines.push("Each part: a dimensioned keyline (KLD, PDF) and the cutting file (DIE-CUT, PDF + SVG): red = cut, green = crease.", "The artwork goes on the sleeve only. The tray and the cup insert are plain.");
+    if (stop.length) { alert(`Not every part can be made at this size:\n\n${stop.join("\n")}`); return; }
+    const size = `${+values.L} x ${+values.W} x ${+values.H} mm`, lines = [`AEROS  -  DRAWER BOX, ${drawerSet.hasInsert ? "three parts" : "sleeve + tray"}  -  tray inside ${size}  -  ${board.label}, ${board.mm} mm`, ""];
+    const unproven = res && res.checks && res.checks.find((c) => c.id === "SIZE-NOT-PRODUCED");
+    if (unproven) lines.push("NOT A SIZE WE HAVE PRODUCED - MAKE ONE SAMPLE BEFORE THE DIE IS ORDERED.", unproven.detail, "");
+    for (const r of drawerSet.rows) { if (r.na) { lines.push(r.name.toUpperCase(), `  ${r.na}`, ""); continue; } lines.push(r.name.toUpperCase()); for (const [k, v] of r.lines) lines.push(`  ${k}: ${v.map((q) => +(+q).toFixed(1)).join(" x ")} mm`); if (r.blank) lines.push(`  Flat: ${r.blank.map((q) => q.toFixed(1)).join(" x ")} mm`); if (r.note) lines.push(`  ${r.tight ? "TOO TIGHT ON THIS BOARD. " : ""}${r.note}`); lines.push(""); }
+    lines.push("Each part: a dimensioned keyline (KLD, PDF) and the cutting file (DIE-CUT, PDF + SVG): red = cut, green = crease.", drawerSet.hasInsert ? "The artwork goes on the sleeve only. The tray and the cup insert are plain." : "The artwork goes on the sleeve only. The tray is plain.");
     files.push({ name: "READ-ME-sizes-and-clearances.txt", data: enc.encode(lines.join("\r\n")) });
     save(`drawer-box-set-${Math.round(+values.L)}x${Math.round(+values.W)}x${Math.round(+values.H)}mm${board.gsm ? `-${board.gsm}gsm` : ""}.zip`, zipBlob(files), "application/zip");
   }
@@ -706,7 +710,7 @@ export default function StaffDielineClient() {
                       className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-base dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                     />
                     <span className="text-[11px] text-gray-500 dark:text-gray-500">
-                      proven {show(lim[i.key][0])}–{show(lim[i.key][1])} {unit}
+                      {t.produced ? "makes" : "proven"} {show(lim[i.key][0])}–{show(lim[i.key][1])} {unit}{t.produced && t.produced[i.key] ? ` · produced ${show(t.produced[i.key][0])}–${show(t.produced[i.key][1])}` : ""}
                     </span>
                   </label>
                 ),
@@ -735,16 +739,16 @@ export default function StaffDielineClient() {
             </details>
             {drawerSet && (
               <div className="mt-3 rounded-md border border-gray-200 p-3 text-xs dark:border-gray-800">
-                <p className="font-semibold text-gray-900 dark:text-gray-100">The three parts at this size</p>
-                <p className="mt-0.5 text-[11px] text-gray-500">Worked out from the tray's inside size, on {drawerSet.c} mm board. Change a number above and all three follow.</p>
+                <p className="font-semibold text-gray-900 dark:text-gray-100">{drawerSet.hasInsert ? "The three parts at this size" : "The parts at this size"}</p>
+                <p className="mt-0.5 text-[11px] text-gray-500">Worked out from the tray's inside size, on {drawerSet.c} mm board. Change a number above and every part follows.</p>
                 <ul className="mt-2 space-y-2">
                   {drawerSet.rows.map((r) => (
                     <li key={r.id} className={`rounded border px-2 py-1.5 ${r.id === tid ? "border-gray-900 dark:border-gray-200" : "border-gray-200 dark:border-gray-800"}`}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-gray-900 dark:text-gray-100">{r.name}{r.id === tid ? " (this one)" : ""}</span>
-                        {r.id !== tid && <button onClick={() => pickTemplate(r.id)} className="rounded border border-gray-300 px-2 py-0.5 text-[11px] hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900">Open</button>}
+                        {r.id !== tid && !r.na && <button onClick={() => pickTemplate(r.id)} className="rounded border border-gray-300 px-2 py-0.5 text-[11px] hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900">Open</button>}
                       </div>
-                      {r.error ? <p className="mt-1 text-red-600">{r.error}</p> : (
+                      {r.na ? <p className="mt-1 text-[11px] text-gray-500">{r.na}</p> : r.error ? <p className="mt-1 text-red-600">{r.error}</p> : (
                         <>
                           {r.lines.map(([k, v]) => <p key={k} className="mt-0.5 text-gray-700 dark:text-gray-300">{k}: {v.map((q) => show(q)).join(" × ")} {unit}</p>)}
                           {r.blank && <p className="mt-0.5 text-gray-500">Flat: {show(r.blank[0])} × {show(r.blank[1])} {unit}</p>}
@@ -754,8 +758,8 @@ export default function StaffDielineClient() {
                     </li>
                   ))}
                 </ul>
-                <button onClick={drawerSetZip} disabled={drawerSet.rows.some((r) => r.error)} className="mt-2 w-full rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">Download all three parts (zip)</button>
-                <p className="mt-1 text-[11px] text-gray-500">Keyline and die file of the sleeve, the tray and the insert, with a sizes note.</p>
+                <button onClick={drawerSetZip} disabled={drawerSet.rows.some((r) => r.error && !r.na)} className="mt-2 w-full rounded-md border border-gray-900 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">{drawerSet.hasInsert ? "Download all three parts (zip)" : "Download sleeve + tray (zip)"}</button>
+                <p className="mt-1 text-[11px] text-gray-500">Keyline and die file of {drawerSet.hasInsert ? "the sleeve, the tray and the insert" : "the sleeve and the tray"}, with a sizes note.</p>
               </div>
             )}
           </section>
