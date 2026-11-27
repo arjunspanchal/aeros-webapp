@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
-import { canUseV2, calcSession } from "@/lib/calc-v2/server";
+import { canUseV2, seesWorking, calcSession } from "@/lib/calc-v2/server";
 import SavedQuotes from "./SavedQuotes";
 
 export const metadata = { title: "Saved quotes · Aeros" };
@@ -12,7 +12,7 @@ export default function SavedQuotesPage() {
   if (!canUseV2(session)) redirect("/calculator");
   return (
     <div className="min-h-screen bg-ink-50">
-      <SavedQuotes previewing={Boolean(session.previewingStaff)} />
+      <SavedQuotes previewing={Boolean(session.previewingStaff)} staff={!seesWorking(session)} />
     </div>
   );
 }

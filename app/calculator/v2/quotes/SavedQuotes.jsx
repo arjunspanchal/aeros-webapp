@@ -10,7 +10,7 @@ const inr0 = (n) => `₹${Math.round(Number(n)).toLocaleString("en-IN")}`;
 const FAMILY = { bag: "Bags", cup: "Cups and tubs", box: "Boxes", wrap: "Wrap paper", pp: "PP items" };
 const day = (iso) => (iso ? iso.split("-").reverse().join("-") : "");
 
-export default function SavedQuotes({ previewing = false }) {
+export default function SavedQuotes({ previewing = false, staff = false }) {
   const [quotes, setQuotes] = useState(null);
   const [error, setError] = useState("");
   const [find, setFind] = useState("");
@@ -36,7 +36,7 @@ export default function SavedQuotes({ previewing = false }) {
       <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Saved quotes</h1>
-          <p className="mt-1 text-sm text-ink-600">Quotes saved from the calculator. Open one to change it, re-price it at today's rates or make its Excel again.</p>
+          <p className="mt-1 text-sm text-ink-600">{staff ? "The quotes you saved. Open one to change it, re-price it at today's rates or make its Excel again." : "Quotes saved from the calculator. Open one to change it, re-price it at today's rates or make its Excel again."}</p>
         </div>
         <label className="block w-full sm:w-72">
           <span className="mb-1 block text-xs font-medium text-ink-600">Find by customer, item or reference</span>
@@ -48,7 +48,7 @@ export default function SavedQuotes({ previewing = false }) {
       {quotes === null && !error ? <p className="mt-8 text-sm text-ink-400">Loading…</p> : null}
       {quotes !== null && shown.length === 0 ? (
         <div className="mt-8">
-          <EmptyState title={find ? "No saved quote matches that" : "No quotes saved yet"} description={find ? "Try part of the customer's name or the item." : "Build a quote in the calculator and press Save quote. It will be listed here."} />
+          <EmptyState title={find ? "No saved quote matches that" : "No quotes saved yet"} description={find ? "Try part of the customer's name or the item." : staff ? "Build a quote in the calculator and press Save quote. Your saved quotes are listed here." : "Build a quote in the calculator and press Save quote. It will be listed here."} />
         </div>
       ) : null}
 

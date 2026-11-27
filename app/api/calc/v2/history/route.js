@@ -1,7 +1,7 @@
 // What this customer was quoted before, for each line of the quote on screen.
 // Read-only. POST because the lines' specs are sent in the body.
 import { getSession } from "@/lib/auth/session";
-import { canUseV2, customerHistory, MAX_LINES, calcSession } from "@/lib/calc-v2/server";
+import { canUseV2, seesWorking, customerHistory, MAX_LINES, calcSession } from "@/lib/calc-v2/server";
 
 export const runtime = "nodejs";
 
@@ -15,6 +15,8 @@ export async function POST(req) {
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  // What a customer was quoted before includes quotes an admin made: admins only.
+  if (!seesWorking(session)) return Response.json({ customer: null, lines: [], recent: [] });
   const customer = String(body?.customer || "").trim().slice(0, 200);
   const specs = Array.isArray(body?.specs) ? body.specs.filter((s) => s?.family).slice(0, MAX_LINES) : [];
   try {

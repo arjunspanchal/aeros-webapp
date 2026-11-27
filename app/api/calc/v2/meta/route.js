@@ -18,7 +18,9 @@ export async function GET() {
       // staff pick a paper by grade and GSM; its rate stays on the server
       papers: admin ? papers : papers.map(({ exMill: _e, lane: _l, landed: _r, ...p }) => p),
       rates,
-      customers: customers.map((c) => ({ name: c.name, quoted: c.quoted })),
+      // Staff pick from our client records only: no count of how often each was
+      // quoted, and no name that exists only because an admin once quoted it.
+      customers: admin ? customers.map((c) => ({ name: c.name, quoted: c.quoted })) : customers.filter((c) => c.clientId).map((c) => ({ name: c.name })),
     });
   } catch (e) {
     console.error("/api/calc/v2/meta failed:", e);
