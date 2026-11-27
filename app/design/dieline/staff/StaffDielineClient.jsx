@@ -3,6 +3,7 @@
 // inputs and shows the answer. Downloads stay locked while any "block" check fails.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TEMPLATES, TEMPLATE_GROUPS, templateLimits } from "@/lib/dieline/templates";
+import { drawerFit } from "@/lib/dieline/drawerbox";
 import { runStaffTemplate, fileStem } from "@/lib/dieline/staff";
 import { MATERIAL_LIBRARY, MATERIAL_FAMILIES, materialById } from "@/lib/dieline/material-library";
 import { panelsFromDie } from "@/lib/dieline/solid/arrangement";
@@ -199,6 +200,25 @@ export default function StaffDielineClient() {
   const geom = prog ? panelsAny : null;
   // artwork: where logos may sit, where ink may never go, and the checks
   const blankMm = res && res.doc ? { w: res.blankMm[0], h: res.blankMm[1] } : null;
+  // DRAWER BOX: the tray's inside size is the one size staff type; the sleeve and the insert that go with it follow, with
+  // their clearances on the chosen board (Arjun 27-Nov-2026: "it should suggest the sleeve dimensions ... and the inner tray
+  // as well considering clearance")
+  const drawerSet = useMemo(() => {
+    if (!t.drawerSet || !(+values.L > 0 && +values.W > 0 && +values.H > 0)) return null;
+    const L = +values.L, W = +values.W, H = +values.H, c = +board.mm || 0.42, f = drawerFit({ L, W, H }, c), MMPT = 25.4 / 72;
+    const part = (id) => { const x = TEMPLATES.find((q) => q.id === id); try { const d = x.build({ L, W, H }); return d && d.valid ? { blank: [d.blank.widthPt * MMPT, d.blank.heightPt * MMPT], frame: d.blank.frame } : { error: ((d && d.warnings) || []).join(" ") }; } catch (e) { return { error: e.message }; } };
+    const sl = part("drawer-box-sleeve"), tr = part("drawer-box-tray"), ins = part("drawer-box-insert");
+    return { c, f, rows: [
+      { id: "drawer-box-tray", name: "Tray", error: tr.error, blank: tr.blank,
+        lines: [["Inside", [L, W, H]], ["Outside", f.trayOutside.slice(2).concat(f.trayOutside.slice(0, 2))]], note: "length x width x height" },
+      { id: "drawer-box-sleeve", name: "Sleeve", error: sl.error, blank: sl.blank,
+        lines: [["Inside", [f.sleeveInside[2], f.sleeveInside[0], f.sleeveInside[1]]], ["Outside", [f.sleeveInside[2], f.sleeveInside[0] + 2 * c, f.sleeveInside[1] + 2 * c]]],
+        note: `length x width x height. Clearance round the tray: ${f.playAcross} mm a side, ${f.playHeight} mm above it; the tray sits ${f.trayInFromEnd} mm inside each open end.`, tight: f.playAcross < 0 || f.playHeight < 0 },
+      { id: "drawer-box-insert", name: "Cup insert", error: ins.error, blank: ins.blank,
+        lines: ins.frame ? [["Platform", [ins.frame.PL, ins.frame.PW]], ["Legs", [ins.frame.leg]]] : [],
+        note: ins.frame ? `Clearance inside the tray: ${f.insertPlayAcross} mm a side, ${f.insertPlayLength} mm an end. Cup holes ${f.cupCut} mm (ring ${f.cupRing} mm), platform ${f.platformAbove} mm above the base.` : "", tight: f.insertPlayAcross < 0 || f.insertPlayLength < 0 },
+    ] };
+  }, [tid, values.L, values.W, values.H, board.mm]); // eslint-disable-line react-hooks/exhaustive-deps
   const artCtx = useMemo(() => {
     if (!res || !res.doc || !panelsAny) return null;
     const total = panelsAny.panels.reduce((s2, p) => s2 + p.area, 0);
@@ -681,6 +701,29 @@ export default function StaffDielineClient() {
                 ))}
               </ul>
             </details>
+            {drawerSet && (
+              <div className="mt-3 rounded-md border border-gray-200 p-3 text-xs dark:border-gray-800">
+                <p className="font-semibold text-gray-900 dark:text-gray-100">The three parts at this size</p>
+                <p className="mt-0.5 text-[11px] text-gray-500">Worked out from the tray's inside size, on {drawerSet.c} mm board. Change a number above and all three follow.</p>
+                <ul className="mt-2 space-y-2">
+                  {drawerSet.rows.map((r) => (
+                    <li key={r.id} className={`rounded border px-2 py-1.5 ${r.id === tid ? "border-gray-900 dark:border-gray-200" : "border-gray-200 dark:border-gray-800"}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-gray-900 dark:text-gray-100">{r.name}{r.id === tid ? " (this one)" : ""}</span>
+                        {r.id !== tid && <button onClick={() => pickTemplate(r.id)} className="rounded border border-gray-300 px-2 py-0.5 text-[11px] hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-900">Open</button>}
+                      </div>
+                      {r.error ? <p className="mt-1 text-red-600">{r.error}</p> : (
+                        <>
+                          {r.lines.map(([k, v]) => <p key={k} className="mt-0.5 text-gray-700 dark:text-gray-300">{k}: {v.map((q) => show(q)).join(" × ")} {unit}</p>)}
+                          {r.blank && <p className="mt-0.5 text-gray-500">Flat: {show(r.blank[0])} × {show(r.blank[1])} {unit}</p>}
+                          {r.note && <p className={`mt-0.5 text-[11px] ${r.tight ? "text-amber-700 dark:text-amber-400" : "text-gray-500"}`}>{r.tight ? "Too tight on this board. " : ""}{r.note}</p>}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
 
           <section className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
