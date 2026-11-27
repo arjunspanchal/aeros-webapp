@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { resolveJobAccess } from "@/lib/factoryos/jobAccess";
-import { getJobOrder, ensureJobOrder } from "@/lib/factoryos/jobOrder";
+import { getJobOrder, ensureJobOrder, vendorSafeOrder } from "@/lib/factoryos/jobOrder";
 import { listVendors } from "@/lib/factoryos/repo";
 import PrintView from "./PrintView";
 
@@ -22,7 +22,7 @@ export default async function JobOrderPrintPage({ params, searchParams }) {
   // from the job so that prints a (watermarked) draft instead of a 404.
   const { spec, colours } = access === "internal"
     ? await ensureJobOrder(job.id, job)
-    : await getJobOrder(job.id);
+    : vendorSafeOrder(await getJobOrder(job.id));
   if (!spec) notFound();
   if (access === "vendor" && spec.status !== "issued") notFound();
 

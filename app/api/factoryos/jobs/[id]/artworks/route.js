@@ -26,6 +26,11 @@ export async function GET(req, { params }) {
   const { job, access } = await resolveJobAccess(session, params.id);
   if (!job || !access) return Response.json({ error: "Not found" }, { status: 404 });
   const artworks = await listJobArtworks(job.id);
+  // The printer gets the file and its name, not who on the team uploaded it
+  // or where it is stored (audit, 27-Nov-2026).
+  if (access === "vendor") {
+    return Response.json({ artworks: artworks.map((a) => ({ ...a, uploadedByEmail: null, storagePath: undefined })) });
+  }
   return Response.json({ artworks });
 }
 

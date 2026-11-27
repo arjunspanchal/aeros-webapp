@@ -8,6 +8,7 @@ import {
   issueJobOrder,
   unissueJobOrder,
   ackJobOrder,
+  vendorSafeOrder,
 } from "@/lib/factoryos/jobOrder";
 
 export const runtime = "nodejs";
@@ -33,7 +34,7 @@ export async function GET(_req, { params }) {
   if (access === "vendor" && order.spec?.status !== "issued") {
     return Response.json({ spec: null, colours: [], pending: true });
   }
-  return Response.json(order);
+  return Response.json(access === "vendor" ? vendorSafeOrder(order) : order);
 }
 
 // PUT /api/factoryos/jobs/[id]/print-spec — save the spec + colour list.
@@ -83,7 +84,7 @@ export async function POST(req, { params }) {
         authorRole: "vendor",
         kind: "system",
       }).catch(() => {});
-      return Response.json(order);
+      return Response.json(vendorSafeOrder(order));
     }
 
     if (access !== "internal" || !requireManager(session)) {

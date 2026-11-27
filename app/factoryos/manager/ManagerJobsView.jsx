@@ -75,7 +75,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
   // "all", or a single line key. URL ?line= overrides so links can deep-link.
   const initialLine = (() => {
     const l = searchParams.get("line");
-    if (l === "all" || l === "mine" || LINE_KEYS.has(l)) return l;
+    if (l === "all" || l === "mine" || l === "none" || LINE_KEYS.has(l)) return l;
     return myLines?.length ? "mine" : "all";
   })();
   const [line, setLine] = useState(initialLine);
@@ -126,7 +126,11 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
     if (line === "all") return jobs;
     return jobs.filter((j) => {
       const jl = lineForCategory(j.category, j.item);
-      return line === "mine" ? (myLines || []).includes(jl) : jl === line;
+      // A job in no line (wrap sheets, lids, anything filed as "Other") shows
+      // in everybody's "My lines", so it is never hidden from the whole
+      // factory team (audit, 27-Nov-2026).
+      if (line === "none") return jl === null;
+      return line === "mine" ? jl === null || (myLines || []).includes(jl) : jl === line;
     });
   }, [jobs, line, myLines]);
 
@@ -185,14 +189,14 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
 
   // Open-job count per line for the pills (closed jobs aren't work).
   const lineCount = useMemo(() => {
-    const c = { mine: 0, all: 0 };
+    const c = { mine: 0, all: 0, none: 0 };
     for (const l of LINES) c[l.key] = 0;
     for (const j of jobs) {
       if (j.stage === "Dispatched" || j.stage === "Delivered") continue;
       c.all++;
       const jl = lineForCategory(j.category, j.item);
-      if (jl) c[jl]++;
-      if (jl && (myLines || []).includes(jl)) c.mine++;
+      if (jl) c[jl]++; else c.none++;
+      if (!jl || (myLines || []).includes(jl)) c.mine++;
     }
     return c;
   }, [jobs, myLines]);
@@ -212,7 +216,7 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Jobs</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-gray-400">
-            {role === "account_manager" ? (mineOnly ? "My jobs" : "All jobs") : line === "mine" ? describeLines(myLines) : line === "all" ? "All jobs" : LINE_LABEL[line]} · {filtered.length} shown · {openCount} open · {lineJobs.length - openCount} done
+            {role === "account_manager" ? (mineOnly ? "My jobs" : "All jobs") : line === "mine" ? describeLines(myLines) : line === "all" ? "All jobs" : line === "none" ? "Jobs in no line" : LINE_LABEL[line]} · {filtered.length} shown · {openCount} open · {lineJobs.length - openCount} done
             {sort.key && (
               <>
                 {" · sorted by "}{SORT_COLUMNS[sort.key].label.toLowerCase()}{" "}
@@ -240,6 +244,9 @@ export default function ManagerJobsView({ jobs, clientMap, userMap, role, myLine
         {LINES.map((l) => (
           <LinePill key={l.key} active={line === l.key} onClick={() => setLine(l.key)} label={l.label} count={lineCount[l.key]} />
         ))}
+        {lineCount.none > 0 && (
+          <LinePill active={line === "none"} onClick={() => setLine("none")} label="No line" count={lineCount.none} />
+        )}
       </div>
 
       {/* Phones: one row you swipe sideways, so the jobs start on the first screen. */}

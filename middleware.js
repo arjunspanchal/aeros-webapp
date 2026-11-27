@@ -258,6 +258,24 @@ export async function middleware(req) {
       return NextResponse.redirect(new URL("/hub", req.url));
     }
 
+    // An outside printer's login opens the vendor portal and nothing else
+    // (audit, 27-Nov-2026). Stopping it here matters: a page that loads its
+    // data before its own role check still sends that data inside the
+    // redirect, which is how the warehouse Stock and In transit pages handed
+    // a printer customer names and the stock list.
+    if (
+      role === "vendor" &&
+      !pathname.startsWith("/api/") &&
+      pathname !== "/factoryos" &&
+      !pathname.startsWith("/factoryos/vendor")
+    ) {
+      return NextResponse.redirect(new URL("/factoryos", req.url));
+    }
+    // Sales do not see warehouse stock; same reason for stopping it here.
+    if (role === "account_manager" && pathname.startsWith("/factoryos/warehouse/stock")) {
+      return NextResponse.redirect(new URL("/factoryos/warehouse", req.url));
+    }
+
     // Role guards for page routes. Each portal tree is fenced to its role(s);
     // mismatches bounce to /factoryos, whose landing page re-routes by role.
     //

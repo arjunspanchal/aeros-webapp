@@ -1,4 +1,4 @@
-import { getSession, requireManager } from "@/lib/auth/session";
+import { getSession, requireAdminStrict } from "@/lib/auth/session";
 import { updateUser, getUser } from "@/lib/factoryos/repo";
 import { ROLES } from "@/lib/factoryos/constants";
 
@@ -7,7 +7,9 @@ export const runtime = "nodejs";
 export async function PATCH(req, { params }) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
+  // Admin only (audit, 27-Nov-2026): a factory manager could deactivate or
+  // demote an admin through this route. User management lives at /admin/access.
+  if (!requireAdminStrict(session)) return new Response("Forbidden", { status: 403 });
   try {
     const body = await req.json();
 

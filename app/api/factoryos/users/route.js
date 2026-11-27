@@ -1,4 +1,4 @@
-import { getSession, requireManager } from "@/lib/auth/session";
+import { getSession, requireAdminStrict } from "@/lib/auth/session";
 import { listUsers, createUser, findUserByEmail } from "@/lib/factoryos/repo";
 import { normalizeEmail } from "@/lib/factoryos/auth";
 import { ROLES } from "@/lib/factoryos/constants";
@@ -15,7 +15,9 @@ const VALID_ROLES = new Set([
 export async function GET() {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
+  // Admin only (audit, 27-Nov-2026): a factory manager must not be able to
+  // create, list or change logins. User management lives at /admin/access.
+  if (!requireAdminStrict(session)) return new Response("Forbidden", { status: 403 });
   try {
     const users = await listUsers();
     return Response.json({ users });
@@ -28,7 +30,9 @@ export async function GET() {
 export async function POST(req) {
   const session = getSession();
   if (!session) return new Response("Unauthorized", { status: 401 });
-  if (!requireManager(session)) return new Response("Forbidden", { status: 403 });
+  // Admin only (audit, 27-Nov-2026): a factory manager must not be able to
+  // create, list or change logins. User management lives at /admin/access.
+  if (!requireAdminStrict(session)) return new Response("Forbidden", { status: 403 });
   try {
     const body = await req.json();
     const email = normalizeEmail(body.email);

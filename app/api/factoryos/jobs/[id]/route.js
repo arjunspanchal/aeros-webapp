@@ -312,6 +312,8 @@ export async function PATCH(req, { params }) {
     } else {
       if (body.stepFields && typeof body.stepFields === "object" && Object.keys(body.stepFields).length) {
         const kept = await moveStage({ session, jobId: job.id, to: job.stage, fields: body.stepFields });
+        // A role that may not edit these fields is told so; nothing was saved.
+        if (!kept.ok) return Response.json({ error: kept.error, job: kept.job || updated }, { status: kept.status || 403 });
         if (kept.job) updated = kept.job;
       }
       if (userNote || dateNotes.length) {

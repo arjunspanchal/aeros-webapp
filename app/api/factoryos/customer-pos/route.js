@@ -1,4 +1,4 @@
-import { getSession, requireRole } from "@/lib/auth/session";
+import { getSession, requireRole, requireInternal } from "@/lib/auth/session";
 import { listCustomerPOs, createCustomerPO, attachPoFile } from "@/lib/factoryos/repo";
 
 export const runtime = "nodejs";
@@ -9,10 +9,14 @@ export async function GET() {
   const session = getSession();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Customers see only their own client's POs; everyone else sees all.
-  // AM is also scoped to their assigned clients.
+  // Customer POs carry customer names, PO numbers and the PO file. Staff only:
+  // an outside printer (vendor login) must never read them (audit, 27-Nov-2026).
+  const isCustomer = requireRole(session, "factoryos", "customer");
+  if (!isCustomer && !requireInternal(session)) return Response.json({ error: "Forbidden" }, { status: 403 });
+
+  // Customers see only their own client's POs; staff see all.
   let clientIds;
-  if (requireRole(session, "factoryos", "customer")) clientIds = session.factoryosClientIds || [];
+  if (isCustomer) clientIds = session.factoryosClientIds || [];
   // Sales see every customer PO, like every job (18-Nov-2026).
   const pos = await listCustomerPOs(clientIds ? { clientIds } : undefined);
   return Response.json({ pos });
@@ -21,6 +25,10 @@ export async function GET() {
 export async function POST(req) {
   const session = getSession();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  // Staff (or a customer for their own client) only: never a vendor login.
+  if (!requireRole(session, "factoryos", "customer") && !requireInternal(session)) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = await req.json().catch(() => ({}));
   const { poNumber, filename, contentType, fileBase64, notes } = body;
