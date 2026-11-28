@@ -164,8 +164,9 @@ export async function middleware(req) {
     const payload = secret ? await verify(token, secret) : null;
     if (!payload || !payload.modules?.calculator) return redirectToLogin(req);
     if (await isSessionStale(payload)) return redirectStaleSession(req);
-    if (pathname.startsWith("/calculator/admin") && payload.modules.calculator !== "admin") {
-      return NextResponse.redirect(new URL("/calculator", req.url));
+    // The rate book and the paper rates are the money behind every quote: admins only.
+    if ((pathname.startsWith("/calculator/v2/rates") || pathname.startsWith("/calculator/v2/papers")) && payload.modules.calculator !== "admin") {
+      return NextResponse.redirect(new URL("/calculator/v2", req.url));
     }
     return NextResponse.next();
   }

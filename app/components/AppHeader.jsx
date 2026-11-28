@@ -41,16 +41,14 @@ function subTabsFor(pathname, session) {
   if (active === "calculator") {
     const role = session?.modules?.calculator;
     // One quote calculator for bags, cups, tubs, boxes and wrap paper. Admins see the
-    // working and the rates; staff see selling prices only. The old bag, box,
-    // cup and customer calculators were retired on 27-Nov-2026.
+    // working and the rates; staff see selling prices only. Every old
+    // calculator screen was retired by 28-Nov-2026.
     if (role === "admin") {
       return [
         { href: "/calculator/v2",             label: "New quote",    short: "Quote" },
         { href: "/calculator/v2/quotes",      label: "Saved quotes", short: "Saved" },
         { href: "/calculator/v2/rates",       label: "Rate book",    short: "Rate book" },
-        { href: "/calculator/admin/paper-rates", label: "Paper rates", short: "Paper" },
-        // Still on its old screen until it moves to the quote calculator.
-        { href: "/calculator/admin/pp",       label: "PP",       short: "PP" },
+        { href: "/calculator/v2/papers",      label: "Paper rates", short: "Paper" },
         { href: "/calculator/gsm",            label: "GSM",      short: "GSM" },
         { href: "/calculator",                label: "Other tools", short: "Tools" },
       ];

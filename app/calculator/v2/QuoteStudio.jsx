@@ -6,11 +6,12 @@ import BagForm from "./forms/BagForm";
 import CupForm from "./forms/CupForm";
 import BoxForm from "./forms/BoxForm";
 import WrapForm from "./forms/WrapForm";
+import PpForm from "./forms/PpForm";
 import ResultPanel from "./ResultPanel";
 import QuoteList from "./QuoteList";
 import { parseSizes } from "./parseSizes";
 import { ViewAsStaffLink, StaffPreviewBanner } from "./ViewAsStaff";
-import { BAG_INITIAL, CUP_INITIAL, BOX_INITIAL, WRAP_INITIAL, SPEC_OF, num, STATE_OF } from "./specs";
+import { BAG_INITIAL, CUP_INITIAL, BOX_INITIAL, WRAP_INITIAL, PP_INITIAL, SPEC_OF, num, STATE_OF } from "./specs";
 
 let nextLineId = 1;
 const newLine = (spec, ref = "", note = "", saved = null) => ({ id: nextLineId++, spec, ref, note, saved });
@@ -21,6 +22,8 @@ const FAMILIES = [
   { key: "cup", label: "Cups and tubs", hint: "Single wall, double wall, Ø115 tubs" },
   { key: "box", label: "Boxes and cartons", hint: "Cup holders, food boxes, cake and tuck boxes" },
   { key: "wrap", label: "Wrap paper", hint: "Deli paper, food wraps, basket liners" },
+  // A should-cost model where every input is a cost: admins only.
+  { key: "pp", label: "PP items", hint: "Moulded PP cups and lids, should-cost", adminOnly: true },
 ];
 
 export default function QuoteStudio({ openRef = "", staff = false, canPreview = false, previewing = false }) {
@@ -29,6 +32,8 @@ export default function QuoteStudio({ openRef = "", staff = false, canPreview = 
   const [cup, setCup] = useState(CUP_INITIAL);
   const [box, setBox] = useState(BOX_INITIAL);
   const [wrap, setWrap] = useState(WRAP_INITIAL);
+  const [pp, setPp] = useState(PP_INITIAL);
+  const families = FAMILIES.filter((f) => !(staff && f.adminOnly));
   const [meta, setMeta] = useState({ papers: [], rates: [], customers: [] });
   const [metaError, setMetaError] = useState("");
   const [result, setResult] = useState(null);
@@ -78,8 +83,8 @@ export default function QuoteStudio({ openRef = "", staff = false, canPreview = 
   }, [meta.rates]);
 
   const spec = useMemo(
-    () => SPEC_OF[family]({ bag, cup, box, wrap }[family]),
-    [family, bag, cup, box, wrap],
+    () => SPEC_OF[family]({ bag, cup, box, wrap, pp }[family]),
+    [family, bag, cup, box, wrap, pp],
   );
   const specJson = JSON.stringify(spec);
 
@@ -162,7 +167,7 @@ export default function QuoteStudio({ openRef = "", staff = false, canPreview = 
     const fam = line.spec.family;
     setFamily(fam);
     setResult(null);
-    ({ bag: setBag, cup: setCup, box: setBox, wrap: setWrap })[fam](STATE_OF[fam](line.spec));
+    ({ bag: setBag, cup: setCup, box: setBox, wrap: setWrap, pp: setPp })[fam](STATE_OF[fam](line.spec));
     setEditingId(line.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -228,8 +233,8 @@ export default function QuoteStudio({ openRef = "", staff = false, canPreview = 
         </nav>
       </div>
 
-      <div role="tablist" aria-label="Product" className="mt-5 grid gap-px overflow-hidden rounded-md border border-ink-200 bg-ink-200 sm:grid-cols-2 lg:grid-cols-4">
-        {FAMILIES.map((f) => {
+      <div role="tablist" aria-label="Product" className={`mt-5 grid gap-px overflow-hidden rounded-md border border-ink-200 bg-ink-200 sm:grid-cols-2 ${families.length > 4 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+        {families.map((f) => {
           const on = f.key === family;
           return (
             <button key={f.key} role="tab" aria-selected={on} onClick={() => { setFamily(f.key); setResult(null); }}
@@ -249,6 +254,7 @@ export default function QuoteStudio({ openRef = "", staff = false, canPreview = 
           {family === "bag" ? <BagForm s={bag} set={(p) => setBag((s) => ({ ...s, ...p }))} papers={meta.papers} staff={staff} /> : null}
           {family === "cup" ? <CupForm s={cup} set={(p) => setCup((s) => ({ ...s, ...p }))} rateOf={rateOf} staff={staff} /> : null}
           {family === "box" ? <BoxForm s={box} set={(p) => setBox((s) => ({ ...s, ...p }))} rateOf={rateOf} staff={staff} /> : null}
+          {family === "pp" && !staff ? <PpForm s={pp} set={(p) => setPp((s) => ({ ...s, ...p }))} rateOf={rateOf} /> : null}
           {family === "wrap" ? <WrapForm s={wrap} set={(p) => setWrap((s) => ({ ...s, ...p }))} papers={meta.papers} rateOf={rateOf} staff={staff} /> : null}
         </Card>
         <Card padded={false} className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" aria-live="polite">

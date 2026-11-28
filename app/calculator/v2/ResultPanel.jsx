@@ -9,7 +9,7 @@ const int = (n) => (n === null || n === undefined ? "–" : Number(n).toLocaleSt
 // Every number on this panel goes through a formatter that survives a missing value.
 const fix = (n, dp = 4) => (typeof n === "number" && Number.isFinite(n) ? n.toFixed(dp) : "–");
 const FCL_NOTE = "Rates are for full container loads; part loads cost more.";
-const UNIT = { bag: "bag", cup: "pc", box: "pc", wrap: "sheet" };
+const UNIT = { bag: "bag", cup: "pc", box: "pc", wrap: "sheet", pp: "pc" };
 
 const STATUS = {
   assumed: { variant: "warning", label: "Assumed" },
@@ -58,6 +58,9 @@ function facts(r) {
   } else if (r.family === "cup" && g.paperG) {
     out.push(["Paper bought", `${fix(g.paperG, 2)} g`], ["Basis", g.dieNote]);
     if (g.perKgOfPaper !== undefined) out.push(["Cost per kg of paper", inr(g.perKgOfPaper)]);
+  } else if (r.family === "pp") {
+    out.push(["Resin per piece", `${fix(g.netG, 2)} g net of regrind`], ["Cycle", `${g.cycleTimeS} s × ${g.cavities} cavities`], ["Output", `${int(Math.round(g.perHour))} an hour, ${int(Math.round(g.perDay))} a day`]);
+    if (g.order) out.push(["Resin for the order", `${int(Math.ceil(g.order.resinKg))} kg incl. rejects`], ["Machine days", fix(g.order.days, 1)], ["Cartons", int(g.order.cartons)]);
   } else if (r.family === "wrap") {
     out.push(["Sheet weight", `${fix(g.netG, 2)} g`], ["Made from", g.madeFrom === "sheet" ? `${g.sheet?.label} stock sheets` : "A reel, slit and cut"]);
     if (g.madeFrom === "sheet") out.push(["Wraps per sheet", g.ups], ["Sheet used", `${Math.round(g.utilisation * 100)}%`], ["Sheets to run", int(g.sheets)]);

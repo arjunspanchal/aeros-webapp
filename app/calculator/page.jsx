@@ -20,13 +20,12 @@ export default function CalculatorHomePage() {
 
   const quoting = team
     ? [
-        { href: "/calculator/v2", title: "New quote", desc: "Paper bags, cups, tubs, boxes and wrap paper. Build a quote of one or many items, save it and make the customer's Excel." },
+        { href: "/calculator/v2", title: "New quote", desc: "Paper bags, cups, tubs, boxes and wrap paper. Build a quote of one or many items, save it and make the customer's Excel." + (admin ? " Admins also get a should-cost check for moulded PP items." : "") },
         { href: "/calculator/v2/quotes", title: "Saved quotes", desc: "Every quote saved from the calculator. Open one to change it or re-price it at today's rates." },
         ...(admin
           ? [
               { href: "/calculator/v2/rates", title: "Rate book", desc: "Every rate the calculator uses, with its source. Change one here and every new quote follows." },
-              { href: "/calculator/admin/paper-rates", title: "Paper rates", desc: "Base rate and supplier discount for each paper in the master list." },
-              { href: "/calculator/admin/pp", title: "PP items", desc: "Thermoformed PP cups and lids. Still on the old screen until it moves to the quote calculator.", old: true },
+              { href: "/calculator/v2/papers", title: "Paper rates", desc: "Base rate and supplier discount for each paper in the master list." },
             ]
           : []),
       ]

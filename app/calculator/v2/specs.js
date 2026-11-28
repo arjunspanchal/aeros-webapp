@@ -185,6 +185,32 @@ export function wrapSpec(s) {
   };
 }
 
+// ── PP items (injection moulded cups and lids) ──────────────────────────────
+export const PP_INITIAL = {
+  item: "350_cup", kind: "cup", name: "", itemWeight: "", rmRate: "",
+  printColours: "0", qty: "100000", casePack: "", marginPct: "",
+  cycleTime: "", cavities: "", shiftHrs: "", shiftsPerDay: "", labourPerDay: "",
+  runnerG: "", regrindPct: "", powerKw: "", powerRate: "", mouldCost: "", mouldLifeShots: "", rejectPct: "",
+  printRate: "", platePerColour: "", printRejectPct: "",
+  sleeveCost: "", sleevePackLabour: "", unitsPerSleeve: "", cartonPerCase: "",
+};
+
+export function ppSpec(s) {
+  const colours = num(s.printColours) ?? 0;
+  return {
+    family: "pp",
+    item: s.item, kind: s.item === "custom" ? s.kind : undefined, name: s.name || undefined,
+    itemWeightG: num(s.itemWeight), rmRate: num(s.rmRate),
+    cycleTimeS: num(s.cycleTime), cavities: num(s.cavities), shiftHrs: num(s.shiftHrs), shiftsPerDay: num(s.shiftsPerDay), labourPerDay: num(s.labourPerDay),
+    runnerGPerShot: num(s.runnerG), regrindPct: num(s.regrindPct), powerKw: num(s.powerKw), powerRate: num(s.powerRate),
+    mouldCost: num(s.mouldCost), mouldLifeShots: num(s.mouldLifeShots), rejectPct: num(s.rejectPct),
+    // a plain item sends no print block at all
+    print: colours > 0 ? { colours, ratePerColour: num(s.printRate), platePerColour: num(s.platePerColour), rejectPct: num(s.printRejectPct) } : undefined,
+    sleeveCost: num(s.sleeveCost), sleevePackLabour: num(s.sleevePackLabour), unitsPerSleeve: num(s.unitsPerSleeve), cartonPerCase: num(s.cartonPerCase),
+    casePack: num(s.casePack), qty: num(s.qty), marginPct: num(s.marginPct),
+  };
+}
+
 // ── Engine spec → form state ────────────────────────────────────────────────
 // The reverse of the three functions above, used to put a line of the quote
 // (or a line of a reopened saved quote) back into the form for editing.
@@ -266,5 +292,18 @@ export function wrapState(spec) {
   };
 }
 
-export const SPEC_OF = { bag: bagSpec, cup: cupSpec, box: boxSpec, wrap: wrapSpec };
-export const STATE_OF = { bag: bagState, cup: cupState, box: boxState, wrap: wrapState };
+export function ppState(spec) {
+  return {
+    ...PP_INITIAL,
+    item: spec.item ?? "custom", kind: spec.kind ?? "cup", name: spec.name ?? "", itemWeight: str(spec.itemWeightG), rmRate: str(spec.rmRate),
+    printColours: str(spec.print?.colours ?? 0), qty: str(spec.qty), casePack: str(spec.casePack), marginPct: str(spec.marginPct),
+    cycleTime: str(spec.cycleTimeS), cavities: str(spec.cavities), shiftHrs: str(spec.shiftHrs), shiftsPerDay: str(spec.shiftsPerDay), labourPerDay: str(spec.labourPerDay),
+    runnerG: str(spec.runnerGPerShot), regrindPct: str(spec.regrindPct), powerKw: str(spec.powerKw), powerRate: str(spec.powerRate),
+    mouldCost: str(spec.mouldCost), mouldLifeShots: str(spec.mouldLifeShots), rejectPct: str(spec.rejectPct),
+    printRate: str(spec.print?.ratePerColour), platePerColour: str(spec.print?.platePerColour), printRejectPct: str(spec.print?.rejectPct),
+    sleeveCost: str(spec.sleeveCost), sleevePackLabour: str(spec.sleevePackLabour), unitsPerSleeve: str(spec.unitsPerSleeve), cartonPerCase: str(spec.cartonPerCase),
+  };
+}
+
+export const SPEC_OF = { bag: bagSpec, cup: cupSpec, box: boxSpec, wrap: wrapSpec, pp: ppSpec };
+export const STATE_OF = { bag: bagState, cup: cupState, box: boxState, wrap: wrapState, pp: ppState };
